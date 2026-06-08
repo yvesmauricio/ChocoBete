@@ -175,7 +175,7 @@
                   </div>
                 </div>
                 <div class="backup-action-main">
-                  <button v-if="!s.googleDriveConfigured" class="btn btn-primary btn-sm" :disabled="!s.googleDriveAvailable" @click="s.conectarGoogleDrive">
+                  <button v-if="!s.googleDriveConfigured" class="btn btn-primary btn-sm" @click="s.conectarGoogleDrive">
                     Conectar
                   </button>
                   <button v-else class="btn-icon-sm danger" title="Desconectar" @click="s.desconectarGoogleDrive">
