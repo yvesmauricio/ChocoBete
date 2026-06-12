@@ -1,10 +1,8 @@
-```yaml
 name: 🚀 Deploy Vite app to GitHub Pages
 
 on:
   push:
     branches: ["main"]
-
   workflow_dispatch:
 
 permissions:
@@ -19,42 +17,53 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
 
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
+    # 👇 opcional (recomendado pra testar o futuro)
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
+      # 📥 Clona o repositório
+      - name: Checkout
+        uses: actions/checkout@v5
 
-      - name: ⚙️ Setup Node
-        uses: actions/setup-node@v4
+      # ⚙️ Configura Node
+      - name: Setup Node
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
-          cache: npm
+          node-version: 24
+          cache: "npm"
 
-      - name: 📦 Install dependencies
+      # 📦 Instala dependências
+      - name: Install dependencies
         run: npm ci
 
-      - name: 🏗️ Build
+      # 🏗️ Build do projeto
+      - name: Build
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
         run: npm run build
 
-      - name: 🧠 SPA fallback
+      # 🧠 SPA fallback (EVITA 404 em refresh)
+      - name: SPA fallback
         run: cp dist/index.html dist/404.html
 
-      - name: ⚙️ Setup Pages
+      # ⚙️ Configura GitHub Pages
+      - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: 📦 Upload artifact
+      # 📦 Envia build
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
+
         with:
           path: ./dist
 
-      - name: 🚀 Deploy
+      # 🚀 Deploy
+      - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
-```
+        uses: actions/deploy-pages@v5
