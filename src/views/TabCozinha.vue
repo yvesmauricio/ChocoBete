@@ -1,15 +1,18 @@
 <template>
-  <div class="tab-cozinha view-maximized">
-    <header class="view-header">
-      <button class="view-back-btn" @click="handleBack" aria-label="Voltar">
-        <i class="fas fa-arrow-left"></i>
-      </button>
-      <h2 class="view-title"><i class="fas fa-utensils"></i> Cozinha</h2>
-      <div class="spacer"></div>
-      <button v-if="s.cozinhaLote.length && !s.loteOriginalEmEdicao" class="view-action-btn" @click="limparLote" title="Limpar Lote">
-        <i class="fas fa-trash-alt"></i>
-      </button>
-    </header>
+  <div class="tab-cozinha">
+    <div class="tab-hdr">
+      <div class="tab-hdr-top">
+        <h2 class="tab-title"><i class="fas fa-utensils"></i> Cozinha</h2>
+        <div class="tab-actions">
+          <button class="btn-icon" @click="s.setTab('producao')" title="Histórico de Produção">
+            <i class="fas fa-clock-rotate-left"></i>
+          </button>
+          <button v-if="s.cozinhaLote.length && !s.loteOriginalEmEdicao" class="btn-icon" @click="limparLote" title="Limpar Lote">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- 💡 Aviso de modo edição -->
     <div v-if="s.loteOriginalEmEdicao" class="edit-mode-notice">
@@ -32,7 +35,7 @@
     </div>
 
     <div
-      class="view-body"
+      class="cozinha-body"
       @touchstart.passive="onTouchStart"
       @touchend.passive="onTouchEnd"
       @touchcancel="resetTouch"
@@ -407,7 +410,7 @@ function abrirStepper(r, e) {
 
   const popupWidth = 140 
   const popupHeight = 54
-  const headerSafeZone = 110 // Altura do Header (56px) + Filtros (54px)
+  const headerSafeZone = 150 // tab-hdr sticky + barra de categorias sticky
 
   stepper.x = Math.max(10, Math.min(rect.left + (rect.width / 2) - (popupWidth / 2), window.innerWidth - popupWidth - 10))
   
@@ -479,14 +482,6 @@ function resetStepperInactivity() {
 function toggleItemProducao(item) {
   if (longPressActive.value) return
   item.aberto = !item.aberto
-}
-
-function handleBack() {
-  if (s.loteOriginalEmEdicao) {
-    handleDescartar()
-  } else {
-    s.setTab('producao')
-  }
 }
 
 function handleDescartar() {
@@ -749,16 +744,12 @@ watch(catAtiva, () => {
 
 <style scoped>
 .cozinha-actions-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px; }
-/* ── Layout full-screen da tela de cozinha ── */
-.view-maximized { position:fixed; inset:0; z-index:calc(var(--z-modal) + 1000); background:var(--bg); display:flex; flex-direction:column; }
-.view-header    { height:56px; background:var(--brown-dark); display:flex; align-items:center; padding:0 8px; flex-shrink:0; }
-.view-back-btn  { width:48px; height:48px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:#fff; font-size:1.15rem; border-radius:50%; }
-.view-title     { font-size:1.2rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:10px; letter-spacing:-.02em; }
-.view-action-btn { width:48px; height:48px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:rgba(255,255,255,.85); font-size:1rem; }
-.view-body      { flex:1; overflow-y:auto; padding-bottom:40px; }
+/* ── Layout normal da tela de cozinha (agora aba principal) ── */
+.tab-cozinha    { display:flex; flex-direction:column; }
+.cozinha-body   { flex:1; }
 
 /* ── Filtro de receitas no modal ── */
-.modal-filter-bar { background:var(--surface); border-bottom:1px solid var(--border); padding:10px 0 0; flex-shrink:0; }
+.modal-filter-bar { background:var(--surface); border-bottom:1px solid var(--border); padding:10px 0 0; flex-shrink:0; position:sticky; top:96px; z-index:calc(var(--z-sticky) - 1); }
 .modal-chips { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; padding:0 16px 12px; }
 .modal-chips::-webkit-scrollbar { display:none; }
 

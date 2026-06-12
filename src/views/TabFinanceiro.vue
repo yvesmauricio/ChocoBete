@@ -11,9 +11,18 @@
         Extratos bancários, resumo do negócio e documentos MEI
       </p>
 
+      <!-- ── Seletor de grupo ─────────────────────────── -->
+      <div class="grupo-nav">
+        <button v-for="g in grupos" :key="g.id" class="grupo-btn"
+          :class="{ active: grupoAtivo === g.id }"
+          @click="grupoAtivo = g.id">
+          <i :class="g.icon"></i> {{ g.label }}
+        </button>
+      </div>
+
       <!-- ── Navegação de abas ────────────────────────── -->
       <div class="aba-nav">
-        <button v-for="aba in abas" :key="aba.id" class="aba-btn"
+        <button v-for="aba in abasVisiveis" :key="aba.id" class="aba-btn"
           :class="{ active: abaAtiva === aba.id }"
           :data-id="aba.id"
           @click="abaAtiva = aba.id">
@@ -992,15 +1001,26 @@ function selecionarBancoImportacaoDisponivel() {
   }
 }
 
-const abas = [
-  { id: 'lancamentos', label: 'Lançamentos', icon: 'fas fa-list' },
-  { id: 'importar',    label: 'Importar',    icon: 'fas fa-file-import' },
-  { id: 'mensal',      label: 'Resumo Mensal', icon: 'fas fa-calendar' },
-  { id: 'anual',       label: 'Resumo Anual', icon: 'fas fa-chart-bar' },
-  { id: 'relatorios',  label: 'Documentos MEI', icon: 'fas fa-file-invoice' },
-  { id: 'mao-de-obra', label: 'Meta de Retirada', icon: 'fas fa-bullseye' }
+const grupos = [
+  { id: 'diaadia', label: 'Dia a dia', icon: 'fas fa-calendar-day' },
+  { id: 'mei',     label: 'MEI e Relatórios', icon: 'fas fa-file-invoice' }
 ]
+const grupoAtivo = ref('diaadia')
+
+const abas = [
+  { id: 'lancamentos', label: 'Lançamentos',    icon: 'fas fa-list',          grupo: 'diaadia' },
+  { id: 'importar',    label: 'Importar',       icon: 'fas fa-file-import',   grupo: 'diaadia' },
+  { id: 'mensal',      label: 'Resumo Mensal',  icon: 'fas fa-calendar',      grupo: 'diaadia' },
+  { id: 'anual',       label: 'Resumo Anual',   icon: 'fas fa-chart-bar',     grupo: 'mei' },
+  { id: 'relatorios',  label: 'Documentos MEI', icon: 'fas fa-file-invoice',  grupo: 'mei' },
+  { id: 'mao-de-obra', label: 'Meta de Retirada', icon: 'fas fa-bullseye',    grupo: 'mei' }
+]
+const abasVisiveis = computed(() => abas.filter(a => a.grupo === grupoAtivo.value))
 const abaAtiva = ref('lancamentos')
+
+watch(grupoAtivo, () => {
+  abaAtiva.value = abasVisiveis.value[0]?.id
+})
 
 watch([abaAtiva, bancosImportacaoDisponiveis], () => {
   if (abaAtiva.value === 'importar') selecionarBancoImportacaoDisponivel()
@@ -1430,6 +1450,15 @@ onMounted(() => s.carregarFinanceiro())
 </script>
 
 <style scoped>
+.grupo-nav { display:flex; gap:8px; margin: 6px 0 2px; }
+.grupo-btn {
+  flex:1; padding:10px 8px; border-radius: var(--r-md);
+  border:1px solid var(--border); background: var(--surface);
+  color: var(--muted); font-size:.82rem; font-weight:800;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  transition: background var(--t), color var(--t), border-color var(--t);
+}
+.grupo-btn.active { background: var(--brown-dark); color:#fff; border-color: var(--brown-dark); }
 /* ── Painel excluir por banco ─────────────────────────────── */
 .excluir-banco-panel {
   background: var(--red-bg);

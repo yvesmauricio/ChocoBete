@@ -21,6 +21,7 @@
         <TabInteligencia v-show="s.tab === 'inteligencia'" />
         <TabFinanceiro   v-show="s.tab === 'financeiro'" />
         <TabCozinha      v-show="s.tab === 'cozinha'" />
+        <TabBriefing     v-show="s.tab === 'briefing'" />
         <TabAjustes      v-show="s.tab === 'ajustes'" />
       </main>
 
@@ -131,6 +132,7 @@ import TabInsumos     from './views/TabInsumos.vue'
 import TabInteligencia from './views/TabInteligencia.vue'
 import TabFinanceiro  from './views/TabFinanceiro.vue'
 import TabCozinha     from './views/TabCozinha.vue'
+import TabBriefing    from './views/TabBriefing.vue'
 import TabAjustes     from './views/TabAjustes.vue'
 import TabCaderneta   from './views/TabCaderneta.vue'
 import SelecaoPerfil  from './views/SelecaoPerfil.vue'
