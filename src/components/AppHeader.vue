@@ -19,10 +19,6 @@
             <path d="M16 3h5v5M4 20L21 3M8 21H3v-5"/>
           </svg>
         </button>
-        <!-- Configurações -->
-        <button class="hdr-btn" :class="{ active: s.tab === 'ajustes' }" title="Configurações" @click="s.setTab('ajustes')">
-          <i class="fas fa-cog"></i>
-        </button>
       </div>
     </div>
   </header>

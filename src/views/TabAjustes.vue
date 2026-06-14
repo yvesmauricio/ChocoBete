@@ -10,8 +10,9 @@
       </div>
 
       <!-- ── Navegação por Setores (Menus) ── -->
-      <div class="ajustes-nav-wrap">
+      <div ref="abaStripEl" class="ajustes-nav-wrap">
         <button v-for="m in menus" :key="m.id" class="aba-btn"
+          :ref="el => setAbaRef(el, m.id)"
           :class="{ active: abaAtiva === m.id }"
           @click="abaAtiva = m.id">
           <i :class="m.icon"></i> {{ m.label }}
@@ -175,7 +176,7 @@
                   </div>
                 </div>
                 <div class="backup-action-main">
-                  <button v-if="!s.googleDriveConfigured" class="btn btn-primary btn-sm" :disabled="!s.googleDriveAvailable" @click="s.conectarGoogleDrive">
+                  <button v-if="!s.googleDriveConfigured" class="btn btn-primary btn-sm" @click="s.conectarGoogleDrive">
                     Conectar
                   </button>
                   <button v-else class="btn-icon-sm danger" title="Desconectar" @click="s.desconectarGoogleDrive">
@@ -367,6 +368,7 @@ import { ref, reactive, watch } from 'vue'
 import { useStore } from '../store.js'
 import { maskCpf, maskCnpj, maskCnae } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
+import { useTabScroll } from '../composables/useTabScroll.js'
 import { 
   getProdutosCaderneta, 
   salvarProdutosCaderneta, 
@@ -389,6 +391,7 @@ watch(() => s.company, (novoValor) => {
 }, { deep: true, immediate: true })
 
 const abaAtiva = ref('perfil')
+const { stripEl: abaStripEl, setTabRef: setAbaRef } = useTabScroll(abaAtiva)
 const menus = [
   { id: 'perfil',     label: 'Identidade', icon: 'fas fa-id-card' },
   { id: 'financeiro', label: 'Financeiro', icon: 'fas fa-university' },

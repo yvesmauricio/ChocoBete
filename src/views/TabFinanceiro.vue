@@ -11,9 +11,20 @@
         Extratos bancários, resumo do negócio e documentos MEI
       </p>
 
+      <!-- ── Seletor de grupo ─────────────────────────── -->
+      <div ref="grupoStripEl" class="grupo-nav">
+        <button v-for="g in grupos" :key="g.id" class="grupo-btn"
+          :ref="el => setGrupoRef(el, g.id)"
+          :class="{ active: grupoAtivo === g.id }"
+          @click="grupoAtivo = g.id">
+          <i :class="g.icon"></i> {{ g.label }}
+        </button>
+      </div>
+
       <!-- ── Navegação de abas ────────────────────────── -->
-      <div class="aba-nav">
-        <button v-for="aba in abas" :key="aba.id" class="aba-btn"
+      <div ref="abaStripEl" class="aba-nav">
+        <button v-for="aba in abasVisiveis" :key="aba.id" class="aba-btn"
+          :ref="el => setAbaRef(el, aba.id)"
           :class="{ active: abaAtiva === aba.id }"
           :data-id="aba.id"
           @click="abaAtiva = aba.id">
@@ -84,30 +95,52 @@
     </template>
 
     <template v-else-if="abaAtiva === 'lancamentos'">
-      <!-- ── Nova Barra de Busca e Filtros Inteligente ── -->
+
+      <!-- ── Resumo fixo no topo ── -->
+      <div class="resumo-modern" v-if="lancamentosFiltrados.length">
+        <div class="rm-item">
+          <span class="rm-lbl">Entradas</span>
+          <span class="rm-val c-green">{{ R$(totalEntradas) }}</span>
+        </div>
+        <div class="rm-sep"></div>
+        <div class="rm-item">
+          <span class="rm-lbl">Saídas</span>
+          <span class="rm-val c-red">{{ R$(totalSaidas) }}</span>
+        </div>
+        <div class="rm-sep"></div>
+        <div class="rm-item">
+          <span class="rm-lbl">Saldo</span>
+          <span class="rm-val" :class="saldoFiltrado >= 0 ? 'c-green' : 'c-red'">{{ R$(saldoFiltrado) }}</span>
+        </div>
+      </div>
+
+      <!-- ── Barra única: busca + período + filtros ── -->
       <div class="filtros-modern sheet-card">
-        <div class="fm-top">
+        <div class="fm-top fm-top-compact">
+          <!-- Busca -->
           <div class="fbusca-wrap">
             <i class="fas fa-search fbusca-icon"></i>
-            <input v-model.trim="buscaDescricao" class="fbusca-input" type="search" placeholder="Buscar lançamentos..." />
+            <input v-model.trim="buscaDescricao" class="fbusca-input" type="search" placeholder="Buscar..." />
           </div>
+
+          <!-- Período inline -->
+          <div v-if="mesesDisponiveis.length" class="periodo-inline">
+            <button class="pnav-mini-btn" :disabled="!temMesMaisNovo" @click="irParaMesMaisNovo"><i class="fas fa-chevron-left"></i></button>
+            <div class="pnav-mini-centro">
+              <select v-model="filtroMes"><option value="">Todos</option><option v-for="m in mesesDisponiveis" :key="m" :value="m">{{ m }}</option></select>
+              <span>{{ filtroMes || 'Todos' }}</span>
+            </div>
+            <button class="pnav-mini-btn" :disabled="!temMesMaisAntigo" @click="irParaMesMaisAntigo"><i class="fas fa-chevron-right"></i></button>
+          </div>
+
+          <!-- Botão filtros avançados -->
           <button class="btn-toggle-filtros" :class="{ active: mostrarFiltrosAvancados }" @click="mostrarFiltrosAvancados = !mostrarFiltrosAvancados">
             <i class="fas fa-sliders"></i>
             <span v-if="filtrosAtivosCount" class="filtros-badge">{{ filtrosAtivosCount }}</span>
           </button>
         </div>
 
-        <!-- Período Rápido (Sempre visível se houver meses) -->
-        <div class="periodo-mini-nav" v-if="mesesDisponiveis.length">
-          <button class="pnav-mini-btn" :disabled="!temMesMaisNovo" @click="irParaMesMaisNovo"><i class="fas fa-chevron-left"></i></button>
-          <div class="pnav-mini-centro">
-            <select v-model="filtroMes"><option value="">Todos períodos</option><option v-for="m in mesesDisponiveis" :key="m" :value="m">{{ m }}</option></select>
-            <span>{{ filtroMes || 'Todos períodos' }}</span>
-          </div>
-          <button class="pnav-mini-btn" :disabled="!temMesMaisAntigo" @click="irParaMesMaisAntigo"><i class="fas fa-chevron-right"></i></button>
-        </div>
-
-        <!-- Filtros Avançados Colapsáveis -->
+        <!-- Filtros Avançados Colapsáveis (inalterados) -->
         <Transition name="fade-slide">
           <div v-if="mostrarFiltrosAvancados" class="filtros-avancados-sheet">
             <div class="fsec">
@@ -133,7 +166,7 @@
           </div>
         </Transition>
 
-        <!-- Painel de categorias (mantido como dropdown) -->
+        <!-- Painel de categorias -->
         <Transition name="fade-slide">
           <div v-if="mostrarFiltroCategorias" class="filtro-categoria-sheet">
             <button class="cat-btn cat-btn-todas" :class="{ selected: !filtroCategoria }" @click="selecionarCategoria('')">
@@ -150,59 +183,30 @@
           </div>
         </Transition>
 
-        <!-- Resumo Consolidado (Barra Única) -->
-        <div class="resumo-modern" v-if="lancamentosFiltrados.length">
-          <div class="rm-item">
-            <span class="rm-lbl">Entradas</span>
-            <span class="rm-val c-green">{{ R$(totalEntradas) }}</span>
-          </div>
-          <div class="rm-sep"></div>
-          <div class="rm-item">
-            <span class="rm-lbl">Saídas</span>
-            <span class="rm-val c-red">{{ R$(totalSaidas) }}</span>
-          </div>
-          <div class="rm-sep"></div>
-          <div class="rm-item">
-            <span class="rm-lbl">Saldo</span>
-            <span class="rm-val" :class="saldoFiltrado >= 0 ? 'c-green' : 'c-red'">{{ R$(saldoFiltrado) }}</span>
-          </div>
-        </div>
-
-        <!-- Status de filtros e Limpar -->
+        <!-- Limpar filtros -->
         <div v-if="filtrosAtivosCount" class="fm-status-bar sheet-card-foot">
           <span class="fm-count">{{ lancamentosFiltrados.length }} lançamentos</span>
-          <button class="btn-limpar-modern" @click="limparFiltros">Limpar Filtros</button>
+          <button class="btn-limpar-modern" @click="limparFiltros">Limpar</button>
         </div>
       </div>
 
-      <!-- Barra de seleção em lote -->
+      <!-- Barra de seleção em lote (só aparece quando ativa) -->
       <div v-if="modoSelecao" class="selecao-bar">
         <button class="sel-all-btn" @click="toggleSelecionarTodos">
           <i class="fas" :class="todosSelecionados ? 'fa-square-check' : 'fa-square'"></i>
-          {{ todosSelecionados ? 'Desmarcar todos' : `Selecionar todos (${lancamentosFiltrados.length})` }}
+          {{ todosSelecionados ? 'Desmarcar' : `Todos (${lancamentosFiltrados.length})` }}
         </button>
-        <span v-if="selecionados.size" class="sel-count">{{ selecionados.size }} selecionados</span>
-        <button class="sel-fechar-btn" @click="toggleSelecao" title="Sair da seleção">
-          <i class="fas fa-xmark"></i>
-        </button>
+        <span v-if="selecionados.size" class="sel-count">{{ selecionados.size }} sel.</span>
+        <button class="sel-fechar-btn" @click="toggleSelecao"><i class="fas fa-xmark"></i></button>
       </div>
 
-      <!-- Barra discreta de ações da lista -->
-      <div v-if="!modoSelecao && lancamentosFiltrados.length" class="lista-acoes-bar">
-        <button class="btn-selecionar-sutil" @click="toggleSelecao">
-          <i class="fas fa-list-check"></i> Selecionar
-        </button>
-      </div>
-
-      <!-- Aviso de transferências internas -->
-      <div v-if="transInternasCount && !filtroCategoria" class="aviso-interna" @click="selecionarCategoria('Transferência Interna')">
+      <!-- Transferências internas: linha discreta, não ocupa espaço grande -->
+      <button v-if="transInternasCount && !filtroCategoria"
+        class="trans-interna-hint"
+        @click="selecionarCategoria('Transferência Interna')">
         <i class="fas fa-arrow-right-arrow-left"></i>
-        <div class="aviso-body">
-          <strong>{{ transInternasCount }} transferência(s) interna(s) detectada(s)</strong>
-          <span>Itaú ↔ PagBank — excluídas da receita MEI. Toque para ver.</span>
-        </div>
-        <i class="fas fa-chevron-right aviso-arrow"></i>
-      </div>
+        {{ transInternasCount }} transferência(s) interna(s) oculta(s) — toque para ver
+      </button>
 
       <!-- Vazio -->
       <div v-if="!lancamentosFiltrados.length" class="empty-state">
@@ -213,40 +217,37 @@
         </button>
       </div>
 
-      <!-- Lista -->
+      <!-- Lista simplificada -->
       <div v-else class="lancamentos-list">
         <FinanceListRow v-for="item in lancamentosFiltrados" :key="item.id"
           :variant="item.natureza"
           :selected="selecionados.has(item.id)"
           :muted="item.natureza === 'interna'"
           class="lancamento-row"
-          :class="{ 
-            'row-interna': item.natureza === 'interna', 
+          :class="{
+            'row-interna': item.natureza === 'interna',
             'row-operacional': item.natureza === 'operacional',
             'row-pessoal': item.natureza === 'pessoal',
             'row-entrada': item.natureza === 'entrada',
-            'row-selected': selecionados.has(item.id) 
+            'row-selected': selecionados.has(item.id)
           }"
           @click="modoSelecao ? toggleItem(item.id) : abrirModalEdicao(item)">
+
           <!-- Checkbox modo seleção -->
           <div v-if="modoSelecao" class="row-check">
             <i class="fas" :class="selecionados.has(item.id) ? 'fa-square-check' : 'fa-square'"></i>
           </div>
-          <!-- Badge banco -->
-          <div v-else class="row-banco-badge" :class="item.banco === 'itau' ? 'itau' : (item.banco === 'bb' ? 'bb' : 'pagbank')">
-            {{ item.banco === 'itau' ? 'IT' : (item.banco === 'bb' ? 'BB' : 'PB') }}
-          </div>
+
           <div class="row-left">
-            <div class="row-title">{{ item.descricao }}</div>
+            <div class="row-title">{{ capitalizarDescricao(item.descricao) }}</div>
             <div class="row-subtitle">
               {{ formatarData(item.data) }}
               <span class="badge">{{ item.categoria }}</span>
-              <span v-if="item.conta_nome">· {{ item.conta_nome }}</span>
-              · {{ item.tipo }}
+              · {{ item.banco === 'itau' ? 'IT' : item.banco === 'bb' ? 'BB' : 'PB' }}
             </div>
           </div>
           <div class="row-right" :class="item.valor >= 0 ? 'green' : 'red'">
-            {{ R$(Math.abs(item.valor)) }}
+            {{ item.valor >= 0 ? '+' : '−' }}{{ R$(Math.abs(item.valor)) }}
           </div>
         </FinanceListRow>
       </div>
@@ -957,6 +958,7 @@ import { useStore } from '../store.js'
 import { R$, formatarData, normalizar } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { gerarLivroCaixa, gerarDASNSIMEI } from '../composables/useGerarDocumento.js'
+import { useTabScroll } from '../composables/useTabScroll.js'
 
 const s = useStore()
 const confirmar = useAppConfirm()
@@ -992,15 +994,28 @@ function selecionarBancoImportacaoDisponivel() {
   }
 }
 
-const abas = [
-  { id: 'lancamentos', label: 'Lançamentos', icon: 'fas fa-list' },
-  { id: 'importar',    label: 'Importar',    icon: 'fas fa-file-import' },
-  { id: 'mensal',      label: 'Resumo Mensal', icon: 'fas fa-calendar' },
-  { id: 'anual',       label: 'Resumo Anual', icon: 'fas fa-chart-bar' },
-  { id: 'relatorios',  label: 'Documentos MEI', icon: 'fas fa-file-invoice' },
-  { id: 'mao-de-obra', label: 'Meta de Retirada', icon: 'fas fa-bullseye' }
+const grupos = [
+  { id: 'diaadia', label: 'Dia a dia', icon: 'fas fa-calendar-day' },
+  { id: 'mei',     label: 'MEI e Relatórios', icon: 'fas fa-file-invoice' }
 ]
+const grupoAtivo = ref('diaadia')
+const { stripEl: grupoStripEl, setTabRef: setGrupoRef } = useTabScroll(grupoAtivo)
+
+const abas = [
+  { id: 'lancamentos', label: 'Lançamentos',    icon: 'fas fa-list',          grupo: 'diaadia' },
+  { id: 'importar',    label: 'Importar',       icon: 'fas fa-file-import',   grupo: 'diaadia' },
+  { id: 'mensal',      label: 'Resumo Mensal',  icon: 'fas fa-calendar',      grupo: 'diaadia' },
+  { id: 'anual',       label: 'Resumo Anual',   icon: 'fas fa-chart-bar',     grupo: 'mei' },
+  { id: 'relatorios',  label: 'Documentos MEI', icon: 'fas fa-file-invoice',  grupo: 'mei' },
+  { id: 'mao-de-obra', label: 'Meta de Retirada', icon: 'fas fa-bullseye',    grupo: 'mei' }
+]
+const abasVisiveis = computed(() => abas.filter(a => a.grupo === grupoAtivo.value))
 const abaAtiva = ref('lancamentos')
+const { stripEl: abaStripEl, setTabRef: setAbaRef } = useTabScroll(abaAtiva)
+
+watch(grupoAtivo, () => {
+  abaAtiva.value = abasVisiveis.value[0]?.id
+})
 
 watch([abaAtiva, bancosImportacaoDisponiveis], () => {
   if (abaAtiva.value === 'importar') selecionarBancoImportacaoDisponivel()
@@ -1021,6 +1036,11 @@ const filtrosBanco = [
   { id: 'itau',    label: 'Itaú' },
   { id: 'bb',      label: 'BB' }
 ]
+
+function capitalizarDescricao(txt) {
+  if (!txt) return ''
+  return txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase()
+}
 
 function limparFiltros() {
   filtroBanco.value = filtroCategoria.value = filtroNatureza.value = ''
@@ -1053,7 +1073,7 @@ const lancamentosFiltrados = computed(() => {
 })
 
 const transInternasCount = computed(() =>
-  s.financeiro.filter(i => i.natureza === 'interna').length
+  lancamentosFiltrados.value.filter(i => i.natureza === 'interna').length
 )
 
 const totalEntradas  = computed(() =>
@@ -1430,6 +1450,15 @@ onMounted(() => s.carregarFinanceiro())
 </script>
 
 <style scoped>
+.grupo-nav { display:flex; gap:8px; margin: 6px 0 2px; }
+.grupo-btn {
+  flex:1; padding:10px 8px; border-radius: var(--r-md);
+  border:1px solid var(--border); background: var(--surface);
+  color: var(--muted); font-size:.82rem; font-weight:800;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  transition: background var(--t), color var(--t), border-color var(--t);
+}
+.grupo-btn.active { background: var(--brown-dark); color:#fff; border-color: var(--brown-dark); }
 /* ── Painel excluir por banco ─────────────────────────────── */
 .excluir-banco-panel {
   background: var(--red-bg);
@@ -1573,6 +1602,8 @@ onMounted(() => s.carregarFinanceiro())
 /* ── Estilos Filtros Modernos Consolidados ── */
 .filtros-modern { margin: 12px 16px 0; overflow: hidden; }
 .fm-top { display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.fm-top-compact { padding: 8px 10px; gap: 6px; align-items: center; }
+.fm-top-compact .fbusca-wrap { flex: 1; min-width: 0; }
 
 /* Alinhamento para que o card de filtro tenha o mesmo tamanho dos cards de baixo no relatório */
 .filtros-mensal-ajuste { margin-left: 0; margin-right: 0; }
@@ -1590,6 +1621,7 @@ onMounted(() => s.carregarFinanceiro())
 .filtros-badge { position: absolute; top: -6px; right: -6px; background: var(--brown); color: #fff; font-size: 10px; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-weight: 800; }
 
 .periodo-mini-nav { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.periodo-inline { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .pnav-mini-btn { width: 38px; height: 40px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg); font-size: .75rem; color: var(--brown-mid); flex-shrink: 0; }
 .pnav-mini-centro { flex: 1; position: relative; height: 40px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--cream); display: flex; align-items: center; justify-content: center; min-width: 0; overflow: hidden; }
 .pnav-mini-centro select { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
@@ -1607,9 +1639,11 @@ onMounted(() => s.carregarFinanceiro())
 .resumo-modern { 
   display: flex; 
   align-items: center; 
-  background: var(--bg); 
-  border-top: 1px solid var(--border); 
-  padding: 12px 16px; 
+  background: var(--surface); 
+  border: .5px solid var(--border);
+  border-radius: var(--r-md);
+  margin: 12px 16px 0;
+  padding: 10px 16px; 
   justify-content: space-between;
 }
 .rm-item { display: flex; flex-direction: column; flex: 1; align-items: center; gap: 2px; }
@@ -1642,17 +1676,14 @@ onMounted(() => s.carregarFinanceiro())
 }
 
 /* ── Aviso transferência interna ─── */
-.aviso-interna { 
-  display: flex; align-items: center; gap: 10px; padding: 12px 16px; 
-  margin: 12px 16px 8px; border-radius: var(--r-md);
-  background: var(--gold-bg); border: 1px solid var(--gold-bg); cursor: pointer; flex-shrink: 0; 
-  box-shadow: var(--shadow-sm);
+.trans-interna-hint {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; padding: 6px 16px;
+  background: none; border: none; border-top: 1px solid var(--border);
+  font-size: .72rem; font-weight: 600; color: var(--gold-dark);
+  cursor: pointer; text-align: left;
 }
-.aviso-interna > i:first-child { color: var(--gold-dark); font-size: 1rem; flex-shrink: 0; }
-.aviso-body { flex: 1; min-width: 0; }
-.aviso-body strong { display: block; font-size: .8rem; color: var(--orange); font-weight: 700; }
-.aviso-body span { font-size: .73rem; color: var(--gold-dark); }
-.aviso-arrow { color: var(--gold); font-size: .75rem; }
+.trans-interna-hint i { font-size: .7rem; }
 
 /* ── Barra de seleção em lote ─── */
 .selecao-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: var(--brown-dark); color: #fff; flex-shrink: 0; }

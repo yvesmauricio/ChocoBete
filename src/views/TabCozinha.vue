@@ -1,43 +1,43 @@
 <template>
-  <div class="tab-cozinha view-maximized">
-    <header class="view-header">
-      <button class="view-back-btn" @click="handleBack" aria-label="Voltar">
-        <i class="fas fa-arrow-left"></i>
-      </button>
-      <h2 class="view-title"><i class="fas fa-utensils"></i> Cozinha</h2>
-      <div class="spacer"></div>
-      <button v-if="s.cozinhaLote.length && !s.loteOriginalEmEdicao" class="view-action-btn" @click="limparLote" title="Limpar Lote">
-        <i class="fas fa-trash-alt"></i>
-      </button>
-    </header>
+  <div class="tab-cozinha">
+    <div class="tab-hdr">
+      <div class="tab-hdr-top">
+        <h2 class="tab-title"><i class="fas fa-utensils"></i> Cozinha</h2>
+        <div class="tab-actions">
+          <button class="btn-icon" @click="s.setTab('producao')" title="Histórico de Produção">
+            <i class="fas fa-clock-rotate-left"></i>
+          </button>
+          <button v-if="s.cozinhaLote.length && !s.loteOriginalEmEdicao" class="btn-icon" @click="limparLote" title="Limpar Lote">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
+      </div>
 
-    <!-- 💡 Aviso de modo edição -->
-    <div v-if="s.loteOriginalEmEdicao" class="edit-mode-notice">
-      <i class="fas fa-wrench"></i>
-      <span>Você está corrigindo um lote de <strong>{{ dataHoraBR(s.loteOriginalEmEdicao) }}</strong></span>
-      <button class="btn-discard-banner" @click="handleDescartar">Descartar</button>
-    </div>
-
-    <div class="modal-filter-bar">
-      <div ref="chipsEl" class="modal-chips">
-        <button 
-          v-for="c in categorias" 
-          :key="c" 
-          class="chip" 
+      <!-- Barra de categorias — dentro do header para ficar grudada -->
+      <div ref="chipsEl" class="cat-chips chips-padded" style="margin: 4px -16px 0; padding-bottom: 10px;">
+        <button
+          v-for="c in categorias"
+          :key="c"
+          class="chip"
           :class="{ active: catAtiva === c }"
           :ref="el => setChipRef(el, c)"
           @click="catAtiva = c"
         >{{ c }}</button>
       </div>
     </div>
+    <div v-if="s.loteOriginalEmEdicao" class="edit-mode-notice">
+      <i class="fas fa-wrench"></i>
+      <span>Você está corrigindo um lote de <strong>{{ dataHoraBR(s.loteOriginalEmEdicao) }}</strong></span>
+      <button class="btn-discard-banner" @click="handleDescartar">Descartar</button>
+    </div>
 
     <div
-      class="view-body"
+      class="cozinha-body"
       @touchstart.passive="onTouchStart"
       @touchend.passive="onTouchEnd"
       @touchcancel="resetTouch"
     >
-      <div class="quick-add-grid">
+      <div ref="gridEl" class="quick-add-grid">
         <button
           v-for="r in receitasFiltradas"
           :key="r.uuid"
@@ -190,13 +190,30 @@
 
 <script setup>
 import '../assets/checklist.css'
-import { ref, computed, reactive, watch, nextTick, onUnmounted } from 'vue'
+import { ref, computed, reactive, watch, nextTick, onUnmounted, onMounted, inject } from 'vue'
 import { useStore } from '../store.js'
 import { fmtQtd as fmtQ, getNowLocal, normalizar, isInsumoOculto, dataHoraBR } from '../utils.js' // Corrected import
 import { useConfirm } from '../composables/useConfirm.js'
 
 const s = useStore()
 const confirm = useConfirm()
+
+// ── FAB ─────────────────────────────────────────────────────
+const registerFab   = inject('registerFab', null)
+const unregisterFab = inject('unregisterFab', null)
+const gridEl = ref(null)
+
+function scrollParaGrid() {
+  const main = document.querySelector('.main')
+  if (main) main.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const _fabConfig = { icon: 'fas fa-layer-group', label: 'Ir para receitas', action: scrollParaGrid }
+onMounted(() => { if (s.tab === 'cozinha') registerFab?.(_fabConfig, 'cozinha') })
+watch(() => s.tab, (tab) => {
+  if (tab === 'cozinha') registerFab?.(_fabConfig, 'cozinha')
+  else unregisterFab?.('cozinha')
+})
 
 function fmtTime(minutos) {
   if (!minutos) return ''
@@ -407,7 +424,7 @@ function abrirStepper(r, e) {
 
   const popupWidth = 140 
   const popupHeight = 54
-  const headerSafeZone = 110 // Altura do Header (56px) + Filtros (54px)
+  const headerSafeZone = 120 // tab-hdr sticky (título + chips juntos)
 
   stepper.x = Math.max(10, Math.min(rect.left + (rect.width / 2) - (popupWidth / 2), window.innerWidth - popupWidth - 10))
   
@@ -479,14 +496,6 @@ function resetStepperInactivity() {
 function toggleItemProducao(item) {
   if (longPressActive.value) return
   item.aberto = !item.aberto
-}
-
-function handleBack() {
-  if (s.loteOriginalEmEdicao) {
-    handleDescartar()
-  } else {
-    s.setTab('producao')
-  }
 }
 
 function handleDescartar() {
@@ -749,18 +758,12 @@ watch(catAtiva, () => {
 
 <style scoped>
 .cozinha-actions-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px; }
-/* ── Layout full-screen da tela de cozinha ── */
-.view-maximized { position:fixed; inset:0; z-index:calc(var(--z-modal) + 1000); background:var(--bg); display:flex; flex-direction:column; }
-.view-header    { height:56px; background:var(--brown-dark); display:flex; align-items:center; padding:0 8px; flex-shrink:0; }
-.view-back-btn  { width:48px; height:48px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:#fff; font-size:1.15rem; border-radius:50%; }
-.view-title     { font-size:1.2rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:10px; letter-spacing:-.02em; }
-.view-action-btn { width:48px; height:48px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:rgba(255,255,255,.85); font-size:1rem; }
-.view-body      { flex:1; overflow-y:auto; padding-bottom:40px; }
+/* ── Layout normal da tela de cozinha (agora aba principal) ── */
+.tab-cozinha    { display:flex; flex-direction:column; }
+.cozinha-body   { flex:1; }
 
 /* ── Filtro de receitas no modal ── */
-.modal-filter-bar { background:var(--surface); border-bottom:1px solid var(--border); padding:10px 0 0; flex-shrink:0; }
-.modal-chips { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; padding:0 16px 12px; }
-.modal-chips::-webkit-scrollbar { display:none; }
+
 
 /* ── Grid de adição rápida ── */
 .quick-add-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; padding:16px; border-bottom:1px solid var(--border); }

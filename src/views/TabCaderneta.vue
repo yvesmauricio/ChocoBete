@@ -853,6 +853,36 @@ const editandoCliente = ref(null)
 const paraExcluirCliente = ref(null)
 const swipeClientes  = ref([])
 
+// Verifica se o navegador suporta a API de seleção de contatos
+const canImportContact = computed(() => !!(navigator.contacts && navigator.contacts.select))
+
+async function importarDaAgenda() {
+  try {
+    const props = ['name', 'tel']
+    const opts = { multiple: false } // Selecionar apenas um contato
+    const contacts = await navigator.contacts.select(props, opts)
+
+    if (contacts && contacts.length > 0) {
+      const contact = contacts[0]
+      
+      // Atribui o nome (pega o primeiro nome da lista retornada)
+      if (contact.name && contact.name.length > 0) {
+        formCliente.value.nome = contact.name[0]
+      }
+
+      // Atribui o telefone e aplica a máscara
+      if (contact.tel && contact.tel.length > 0) {
+        let tel = contact.tel[0].replace(/\D/g, '')
+        if (tel.length > 11 && tel.startsWith('55')) tel = tel.slice(2)
+        formCliente.value.telefone = tel
+        formatarTelefone({ target: { value: tel } })
+      }
+    }
+  } catch (err) {
+    console.info('Seleção de contato cancelada ou não disponível no dispositivo.')
+  }
+}
+
 const clientesFiltrados = computed(() =>
   clientes.value
     .filter(c => !buscaClientes.value || normalizar(c.nome).includes(normalizar(buscaClientes.value)))

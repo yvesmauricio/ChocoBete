@@ -4,9 +4,6 @@
       <div class="tab-hdr-top">
         <h2 class="tab-title"><i class="fas fa-boxes"></i> Estoque</h2>
         <div class="tab-actions">
-          <button class="btn btn-primary btn-sm" @click="abrir(null)">
-            <i class="fas fa-plus"></i> Novo
-          </button>
         </div>
       </div>
       <div class="search-wrap">
@@ -197,7 +194,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted, inject, watch } from 'vue'
 import { useStore } from '../store.js'
 import { R$, normalizar, maskMoney, parseMoney, fmtQtd as fmtQ } from '../utils.js'
 import BaseModal from '../components/BaseModal.vue'
@@ -207,6 +204,16 @@ import { useModalStack } from '../composables/useModalStack.js'
 import { useConfirm } from '../composables/useConfirm.js'
 
 const s = useStore()
+
+// ── FAB ─────────────────────────────────────────────────────
+const registerFab   = inject('registerFab', null)
+const unregisterFab = inject('unregisterFab', null)
+const _fabConfig = { icon: 'fas fa-plus', label: 'Novo Insumo', action: () => abrir(null) }
+onMounted(() => { if (s.tab === 'insumos') registerFab?.(_fabConfig, 'insumos') })
+watch(() => s.tab, (tab) => {
+  if (tab === 'insumos') registerFab?.(_fabConfig, 'insumos')
+  else unregisterFab?.('insumos')
+})
 const { modal, abrirModal, fecharModal } = useModalStack()
 const confirm = useConfirm()
 

@@ -20,7 +20,10 @@
       <slot />
     </div>
 
-    <!-- Botões revelados pelo deslize (slot "actions" no pai) -->
+    <!-- Indicador de swipe: fica visível enquanto o row está fechado -->
+    <div class="swipe-hint" :class="{ 'swipe-hint--hidden': isOpen || currentX < -8 }" aria-hidden="true">
+      <i class="fas fa-angles-left"></i>
+    </div>
     <div class="swipe-btns" :style="{ width: width + 'px' }">
       <slot name="actions" />
     </div>
@@ -140,6 +143,21 @@ function onClickCapture(e) {
   overflow: hidden;
   background: var(--surface, #fff);
 }
+
+/* Indicador de swipe */
+.swipe-hint {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  color: var(--border, #d1c4b8);
+  font-size: .65rem;
+  pointer-events: none;
+  transition: opacity .2s;
+  opacity: 1;
+}
+.swipe-hint--hidden { opacity: 0; }
 
 /* A divisória precisa ficar no wrapper fixo, não no conteúdo que desliza */
 :deep(.list-row) {

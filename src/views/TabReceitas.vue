@@ -6,7 +6,6 @@
         <div class="tab-actions">
           <button class="btn-icon" @click="s.setTab('insumos')" title="Ver Estoque"><i class="fas fa-boxes"></i></button>
           <button class="btn-icon" @click="gerarRelatorio" title="Gerar Relatório de Receitas"><i class="fas fa-file-pdf"></i></button>
-          <button class="btn btn-primary btn-sm" @click="abrir(null)"><i class="fas fa-plus"></i> Nova</button>
         </div>
       </div>
       <div class="search-wrap">
@@ -476,7 +475,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, watch, nextTick, onMounted, onUnmounted, inject } from 'vue'
 import { useStore } from '../store.js';
 import { R$, normalizar, getNowLocal, maskMoney, parseMoney, isInsumoSemPeso } from '../utils.js';
 import BaseModal from '../components/BaseModal.vue'
@@ -492,6 +491,16 @@ const s = useStore()
 const { modal, abrirModal, fecharModal } = useModalStack()
 const confirm = useConfirm()
 const { confirmarExclusao } = useDeleteConfirm()
+
+// ── FAB ─────────────────────────────────────────────────────
+const registerFab   = inject('registerFab', null)
+const unregisterFab = inject('unregisterFab', null)
+const _fabConfig = { icon: 'fas fa-plus', label: 'Nova Receita', action: () => abrir(null) }
+onMounted(() => { if (s.tab === 'receitas') registerFab?.(_fabConfig, 'receitas') })
+watch(() => s.tab, (tab) => {
+  if (tab === 'receitas') registerFab?.(_fabConfig, 'receitas')
+  else unregisterFab?.('receitas')
+})
 
 const saving = ref(false)
 
