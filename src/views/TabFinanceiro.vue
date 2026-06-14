@@ -134,7 +134,8 @@
           </div>
 
           <!-- Botão filtros avançados -->
-          <button class="btn-toggle-filtros" :class="{ active: mostrarFiltrosAvancados }" @click="mostrarFiltrosAvancados = !mostrarFiltrosAvancados">
+          <button class="btn-toggle-filtros" :class="{ active: mostrarFiltrosAvancados }"
+            @click="mostrarFiltrosAvancados = !mostrarFiltrosAvancados; if (!mostrarFiltrosAvancados) mostrarFiltroCategorias = false">
             <i class="fas fa-sliders"></i>
             <span v-if="filtrosAtivosCount" class="filtros-badge">{{ filtrosAtivosCount }}</span>
           </button>
@@ -166,36 +167,36 @@
           </div>
         </Transition>
 
-        <!-- Painel de categorias — lista suspensa vertical -->
-        <Transition name="fade-slide">
-          <div v-if="mostrarFiltroCategorias" class="filtro-categoria-sheet">
-            <div class="cat-list">
-              <button class="cat-list-item" :class="{ active: !filtroCategoria }"
-                @click="selecionarCategoria(''); mostrarFiltroCategorias = false">
-                <i class="fas fa-layer-group cat-list-icon"></i>
-                <span>Todas as categorias</span>
-                <i v-if="!filtroCategoria" class="fas fa-check cat-list-check"></i>
-              </button>
-              <template v-for="grupo in gruposCategoriasFiltro" :key="grupo.nome">
-                <div class="cat-list-grupo">{{ grupo.nome }}</div>
-                <button v-for="cat in grupo.categorias" :key="cat.nome"
-                  class="cat-list-item" :class="{ active: filtroCategoria === cat.nome }"
-                  @click="selecionarCategoria(cat.nome); mostrarFiltroCategorias = false">
-                  <i class="fas cat-list-icon" :class="cat.icon"></i>
-                  <span>{{ cat.nome }}</span>
-                  <i v-if="filtroCategoria === cat.nome" class="fas fa-check cat-list-check"></i>
-                </button>
-              </template>
-            </div>
-          </div>
-        </Transition>
-
         <!-- Limpar filtros -->
         <div v-if="filtrosAtivosCount" class="fm-status-bar sheet-card-foot">
           <span class="fm-count">{{ lancamentosFiltrados.length }} lançamentos</span>
           <button class="btn-limpar-modern" @click="limparFiltros">Limpar</button>
         </div>
       </div>
+
+      <!-- Lista de categorias — fora do card para scroll funcionar -->
+      <Transition name="fade-slide">
+        <div v-if="mostrarFiltroCategorias && mostrarFiltrosAvancados" class="filtro-categoria-sheet">
+          <div class="cat-list">
+            <button class="cat-list-item" :class="{ active: !filtroCategoria }"
+              @click="selecionarCategoria(''); mostrarFiltroCategorias = false">
+              <i class="fas fa-layer-group cat-list-icon"></i>
+              <span>Todas as categorias</span>
+              <i v-if="!filtroCategoria" class="fas fa-check cat-list-check"></i>
+            </button>
+            <template v-for="grupo in gruposCategoriasFiltro" :key="grupo.nome">
+              <div class="cat-list-grupo">{{ grupo.nome }}</div>
+              <button v-for="cat in grupo.categorias" :key="cat.nome"
+                class="cat-list-item" :class="{ active: filtroCategoria === cat.nome }"
+                @click="selecionarCategoria(cat.nome); mostrarFiltroCategorias = false">
+                <i class="fas cat-list-icon" :class="cat.icon"></i>
+                <span>{{ cat.nome }}</span>
+                <i v-if="filtroCategoria === cat.nome" class="fas fa-check cat-list-check"></i>
+              </button>
+            </template>
+          </div>
+        </div>
+      </Transition>
 
       <!-- Barra de seleção em lote (só aparece quando ativa) -->
       <div v-if="modoSelecao" class="selecao-bar">
