@@ -11,20 +11,9 @@
         Extratos bancários, resumo do negócio e documentos MEI
       </p>
 
-      <!-- ── Seletor de grupo ─────────────────────────── -->
-      <div ref="grupoStripEl" class="grupo-nav">
-        <button v-for="g in grupos" :key="g.id" class="grupo-btn"
-          :ref="el => setGrupoRef(el, g.id)"
-          :class="{ active: grupoAtivo === g.id }"
-          @click="grupoAtivo = g.id">
-          <i :class="g.icon"></i> {{ g.label }}
-        </button>
-      </div>
-
       <!-- ── Navegação de abas ────────────────────────── -->
-      <div ref="abaStripEl" class="aba-nav">
-        <button v-for="aba in abasVisiveis" :key="aba.id" class="aba-btn"
-          :ref="el => setAbaRef(el, aba.id)"
+      <div class="aba-nav">
+        <button v-for="aba in abas" :key="aba.id" class="aba-btn"
           :class="{ active: abaAtiva === aba.id }"
           :data-id="aba.id"
           @click="abaAtiva = aba.id">
@@ -994,13 +983,6 @@ function selecionarBancoImportacaoDisponivel() {
   }
 }
 
-const grupos = [
-  { id: 'diaadia', label: 'Dia a dia', icon: 'fas fa-calendar-day' },
-  { id: 'mei',     label: 'MEI e Relatórios', icon: 'fas fa-file-invoice' }
-]
-const grupoAtivo = ref('diaadia')
-const { stripEl: grupoStripEl, setTabRef: setGrupoRef } = useTabScroll(grupoAtivo)
-
 const abas = [
   { id: 'lancamentos', label: 'Lançamentos',    icon: 'fas fa-list',          grupo: 'diaadia' },
   { id: 'importar',    label: 'Importar',       icon: 'fas fa-file-import',   grupo: 'diaadia' },
@@ -1011,11 +993,6 @@ const abas = [
 ]
 const abasVisiveis = computed(() => abas.filter(a => a.grupo === grupoAtivo.value))
 const abaAtiva = ref('lancamentos')
-const { stripEl: abaStripEl, setTabRef: setAbaRef } = useTabScroll(abaAtiva)
-
-watch(grupoAtivo, () => {
-  abaAtiva.value = abasVisiveis.value[0]?.id
-})
 
 watch([abaAtiva, bancosImportacaoDisponiveis], () => {
   if (abaAtiva.value === 'importar') selecionarBancoImportacaoDisponivel()

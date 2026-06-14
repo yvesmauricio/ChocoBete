@@ -35,6 +35,7 @@
 import { ref } from 'vue'
 import { useStore } from '../store.js'
 const s = useStore()
+<<<<<<< HEAD
 const menuAberto = ref(false)
 
 const navPrincipal = [
@@ -49,6 +50,14 @@ const navExtra = [
   { id: 'producao',     icon: 'fas fa-clock-rotate-left',  label: 'Histórico' },
   { id: 'inteligencia', icon: 'fas fa-brain',              label: 'Inteligência' },
   { id: 'ajustes',      icon: 'fas fa-cog',                label: 'Ajustes' },
+=======
+const nav = [
+  { id: 'painel', icon: 'fas fa-chart-pie', label: 'Painel' },
+  { id: 'financeiro', icon: 'fas fa-money-check-dollar', label: 'Financeiro' },
+  { id: 'insumos', icon: 'fas fa-boxes', label: 'Estoque' },
+  { id: 'receitas', icon: 'fas fa-book-open', label: 'Receitas' },
+  { id: 'cozinha', icon: 'fas fa-utensils', label: 'Cozinha' }
+>>>>>>> 5abf8dd2b401201a3b70ff07a10e101d2b6c7dd1
 ]
 </script>
 

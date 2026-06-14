@@ -764,7 +764,6 @@ watch(catAtiva, () => {
 
 /* ── Filtro de receitas no modal ── */
 
-
 /* ── Grid de adição rápida ── */
 .quick-add-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; padding:16px; border-bottom:1px solid var(--border); }
 .qa-btn         { position:relative; background:#fff; border:1px solid var(--border); border-radius:var(--r-md); padding:12px 8px; display:flex; flex-direction:column; align-items:center; gap:4px; box-shadow:var(--shadow-sm); cursor:pointer; user-select:none; -webkit-touch-callout:none; }
