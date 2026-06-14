@@ -174,5 +174,5 @@ export function resumoItens(itens) {
   return itens.map(i => {
     const emoji = i.emoji || '📦'
     return `${emoji} ${i.qtd || i.qty || 0}x ${i.nome}`
-  }).join(' · ')
+  }).join('\n')
 }

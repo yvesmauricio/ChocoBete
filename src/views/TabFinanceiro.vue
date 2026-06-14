@@ -169,17 +169,7 @@
         <!-- Painel de categorias -->
         <Transition name="fade-slide">
           <div v-if="mostrarFiltroCategorias" class="filtro-categoria-sheet">
-            <button class="cat-btn cat-btn-todas" :class="{ selected: !filtroCategoria }" @click="selecionarCategoria('')">
-              <i class="fas fa-layer-group"></i> <span>Todas</span>
-            </button>
-            <div v-for="grupo in gruposCategoriasFiltro" :key="grupo.nome" class="grupo">
-              <div class="grupo-titulo">{{ grupo.nome }}</div>
-              <div class="categoria-grid">
-                <button v-for="cat in grupo.categorias" :key="cat.nome" class="cat-btn" :class="{ selected: filtroCategoria === cat.nome }" @click="selecionarCategoria(cat.nome)">
-                  <i class="fas" :class="cat.icon"></i> <span>{{ cat.nome }}</span>
-                </button>
-              </div>
-            </div>
+            <CategoryFilter :items="categoriasParaFiltro" v-model="filtroCategoria" />
           </div>
         </Transition>
 
@@ -954,6 +944,7 @@ import ImportadorBancoBrasil from '../components/ImportadorBancoBrasil.vue'
 
 import FinanceListRow from '../components/FinanceListRow.vue'
 import EditarCategoriaModal from '../components/EditarCategoriaModal.vue'
+import CategoryFilter from '../components/CategoryFilter.vue'
 import { useStore } from '../store.js'
 import { R$, formatarData, normalizar } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
@@ -1030,12 +1021,24 @@ const mostrarFiltroCategorias = ref(false)
 const buscaDescricao = ref('')
 const buscaNoExtratoInteiro = ref(false)
 
-const filtrosBanco = [
-  { id: '',        label: 'Todos' },
-  { id: 'pagbank', label: 'PagBank' },
-  { id: 'itau',    label: 'Itaú' },
-  { id: 'bb',      label: 'BB' }
-]
+const filtrosBanco = computed(() => {
+  const bancos = [
+    { id: '',        label: 'Todos' }
+  ]
+  if (temContasPagbank.value) bancos.push({ id: 'pagbank', label: 'PagBank' })
+  if (temContasItau.value)    bancos.push({ id: 'itau',    label: 'Itaú' })
+  if (temContasBb.value)      bancos.push({ id: 'bb',      label: 'BB' })
+  return bancos
+})
+
+const categoriasParaFiltro = computed(() =>
+  [
+    { value: '', label: 'Todas' },
+    ...s.CATEGORIAS_MEI
+      .map(cat => ({ value: cat.nome, label: cat.nome }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  ]
+)
 
 function capitalizarDescricao(txt) {
   if (!txt) return ''
@@ -1133,15 +1136,6 @@ function irParaMesMaisAntigo() {
 function mostrarTodosPeriodos() {
   filtroMes.value = ''
 }
-
-const gruposCategoriasFiltro = computed(() => {
-  const map = new Map()
-  for (const cat of s.CATEGORIAS_MEI) {
-    if (!map.has(cat.grupo)) map.set(cat.grupo, { nome: cat.grupo, natureza: cat.natureza, categorias: [] })
-    map.get(cat.grupo).categorias.push(cat)
-  }
-  return [...map.values()]
-})
 
 const anosDisponiveis = computed(() => {
   const set = new Set(s.financeiro.map(i => (i.data || '').slice(0, 4)).filter(Boolean))
@@ -1579,7 +1573,20 @@ onMounted(() => s.carregarFinanceiro())
 .extratos-admin .excluir-banco-panel { margin-top: 10px; border: 1px solid var(--red-dim); border-radius: var(--r-md); border-bottom: 1px solid var(--red-dim); }
 
 /* Filtro categoria sheet (dropdown) */
-.filtro-categoria-sheet { padding: 12px 16px; border-top: 1px solid var(--border); background: var(--cream); display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--border); }
+.filtro-categoria-sheet {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--cream);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 .grupo { margin-bottom: 4px; }
 .grupo-titulo { font-size: .72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .grupo-natureza { padding: 2px 7px; border-radius: var(--r-full); font-size: .65rem; font-weight: 800; }
@@ -1589,7 +1596,7 @@ onMounted(() => s.carregarFinanceiro())
 .filtro-select { padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); color: var(--text); font-size: .82rem; appearance: none; }
 .filtro-select.sm { width: auto; min-width: 80px; }
 .nat-interna { background: var(--blue-bg); color: var(--blue); }
-.categoria-grid { display: flex; flex-direction: column; gap: 6px; }
+.categoria-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
 .cat-btn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--r-md); background: var(--bg); color: var(--text); text-align: left; transition: all var(--t); }
 .cat-btn i:first-child { width: 20px; text-align: center; color: var(--muted); font-size: .85rem; flex-shrink: 0; }
 .cat-btn span { flex: 1; font-size: .85rem; font-weight: 500; }
@@ -1600,7 +1607,7 @@ onMounted(() => s.carregarFinanceiro())
 .cat-btn:active { transform: scale(.98); }
 
 /* ── Estilos Filtros Modernos Consolidados ── */
-.filtros-modern { margin: 12px 16px 0; overflow: hidden; }
+.filtros-modern { margin: 12px 16px 16px; overflow: hidden; }
 .fm-top { display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .fm-top-compact { padding: 8px 10px; gap: 6px; align-items: center; }
 .fm-top-compact .fbusca-wrap { flex: 1; min-width: 0; }
@@ -1627,7 +1634,19 @@ onMounted(() => s.carregarFinanceiro())
 .pnav-mini-centro select { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
 .pnav-mini-centro span { font-size: .82rem; font-weight: 700; color: var(--brown-dark); }
 
-.filtros-avancados-sheet { padding: 12px 16px; display: flex; flex-direction: column; gap: 14px; border-bottom: 1px solid var(--border); background: var(--bg); }
+.filtros-avancados-sheet {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 .fsec-lbl { font-size: .62rem; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block; letter-spacing: .5px; }
 .fchips { display: flex; gap: 6px; flex-wrap: wrap; }
 .fchip { padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--muted); font-size: .75rem; font-weight: 700; transition: all var(--t); }

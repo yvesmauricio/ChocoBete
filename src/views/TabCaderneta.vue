@@ -12,9 +12,6 @@
             <button class="btn-icon" @click="emit('trocar-perfil')" title="Trocar perfil">
               <i class="fas fa-user-friends"></i>
             </button>
-            <button class="btn-icon" @click="carregarDashboard" title="Atualizar">
-              <i class="fas fa-sync-alt"></i>
-            </button>
           </div>
         </div>
         <p class="tab-subtitle">Gestão de vendas e fiados · {{ dataBR }}</p>
@@ -64,7 +61,7 @@
     <div v-else-if="tela === 'lojas'" class="cad-tela">
       <div class="tab-hdr">
         <div class="tab-hdr-top">
-          <button class="btn-icon" @click="irPara('dashboard')" style="margin-left:-8px">
+          <button class="cad-btn-icon" @click="irPara('dashboard')">
             <i class="fas fa-arrow-left"></i>
           </button>
           <h2 class="tab-title"><i class="fas fa-store"></i> Lojas</h2>
@@ -104,7 +101,7 @@
     <div v-else-if="tela === 'clientes'" class="cad-tela">
       <div class="tab-hdr">
         <div class="tab-hdr-top">
-          <button class="btn-icon" @click="irPara('lojas')" style="margin-left:-8px">
+          <button class="cad-btn-icon" @click="irPara('lojas')">
             <i class="fas fa-arrow-left"></i>
           </button>
           <h2 class="tab-title"><i class="fas fa-user-friends"></i> {{ lojaAtual?.nome }}</h2>
@@ -144,7 +141,7 @@
     <div v-else-if="tela === 'lancar'" class="cad-tela">
       <div class="tab-hdr">
         <div class="tab-hdr-top">
-          <button class="btn-icon" @click="voltarDeLancar" style="margin-left:-8px">
+          <button class="cad-btn-icon" @click="voltarDeLancar">
             <i class="fas fa-arrow-left"></i>
           </button>
           <h2 class="tab-title"><i class="fas fa-cart-plus"></i> Nova Venda</h2>
@@ -276,7 +273,7 @@
               <div class="cad-agend-info">
                 <div class="cad-agend-nome">{{ f.clienteNome }}</div>
                 <div class="cad-agend-loja">{{ f.lojaNome }}</div>
-                <div class="cad-agend-itens">{{ resumoItens(f.itens) }}</div>
+                <div class="cad-agend-itens" :title="resumoItens(f.itens)">{{ resumoItens(f.itens) }}</div>
               </div>
               <div class="cad-agend-dir">
                 <div class="cad-agend-val">R$ {{ fmt(f.saldo) }}</div>
@@ -305,7 +302,7 @@
               <div class="cad-agend-info">
                 <div class="cad-agend-nome">{{ f.clienteNome }}</div>
                 <div class="cad-agend-loja">{{ f.lojaNome }}</div>
-                <div class="cad-agend-itens">{{ resumoItens(f.itens) }}</div>
+                <div class="cad-agend-itens" :title="resumoItens(f.itens)">{{ resumoItens(f.itens) }}</div>
               </div>
               <div class="cad-agend-dir">
                 <div class="cad-agend-val">R$ {{ fmt(f.saldo) }}</div>
@@ -331,7 +328,7 @@
               <div class="cad-agend-info">
                 <div class="cad-agend-nome">{{ f.clienteNome }}</div>
                 <div class="cad-agend-loja">{{ f.lojaNome }}</div>
-                <div class="cad-agend-itens">{{ resumoItens(f.itens) }}</div>
+                <div class="cad-agend-itens" :title="resumoItens(f.itens)">{{ resumoItens(f.itens) }}</div>
               </div>
               <div class="cad-agend-dir">
                 <div class="cad-agend-val">R$ {{ fmt(f.saldo) }}</div>
@@ -406,7 +403,7 @@
                 >
                   <div class="cad-compra-esq">
                     <span class="cad-compra-data">{{ fmtDataHora(f) }}</span>
-                    <span class="cad-compra-itens">{{ resumoItens(f.itens) }}</span>
+                    <span class="cad-compra-itens" :title="resumoItens(f.itens)">{{ resumoItens(f.itens) }}</span>
                     <span v-if="f.pagamentos?.length" class="cad-compra-pagamentos">
                       Recebido R$ {{ fmt(totalPagoF(f)) }} · falta R$ {{ fmt(f.saldo) }}
                     </span>
@@ -446,18 +443,14 @@
         <div class="calc-input-wrap">
           <div class="calc-input-label">Valor líquido desejado</div>
           <input
+            ref="calcInputRef"
             class="calc-input-field"
             type="tel"
             inputmode="numeric"
-            placeholder="R$ 0,00"
+            placeholder="0,00"
             v-model="rawCalcInput"
             @input="handleCalcInput"
           >
-          <div class="calc-divider-h"></div>
-          <div class="calc-hint">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            A taxa é repassada ao cliente
-          </div>
         </div>
 
         <div class="calc-results">
@@ -465,24 +458,19 @@
             <div class="calc-result-icon"><span>💳</span></div>
             <div class="calc-result-info">
               <div class="calc-result-tipo">Débito na hora</div>
-              <div class="calc-result-taxa">Taxa repassada: {{ taxaStr(taxasMaquineta.debito) }}</div>
+              <div class="calc-result-taxa">Taxa: {{ taxaStr(taxasMaquineta.debito) }}</div>
+              <div class="calc-result-val debito">R$ {{ resultDebito }}</div>
             </div>
-            <div class="calc-result-val debito">R$ {{ resultDebito }}</div>
           </div>
 
           <div class="calc-result-card credito">
             <div class="calc-result-icon"><span>💰</span></div>
             <div class="calc-result-info">
               <div class="calc-result-tipo">Crédito à vista</div>
-              <div class="calc-result-taxa">Taxa repassada: {{ taxaStr(taxasMaquineta.credito_avista) }}</div>
+              <div class="calc-result-taxa">Taxa: {{ taxaStr(taxasMaquineta.credito_avista) }}</div>
+              <div class="calc-result-val credito">R$ {{ resultCredito }}</div>
             </div>
-            <div class="calc-result-val credito">R$ {{ resultCredito }}</div>
           </div>
-        </div>
-
-        <div class="calc-info-box mt-12">
-          <span style="font-size:18px;flex-shrink:0">🏦</span>
-          <p>PagBank configurado para recebimento <b>na hora</b>. O valor exibido é o que você deve cobrar na maquininha para receber o valor desejado líquido.</p>
         </div>
 
         <button class="calc-clear-btn mt-24" @click="rawCalcInput = ''">Limpar Valores</button>
@@ -508,7 +496,7 @@
     <!-- ── BOTÃO FLUTUANTE: TAXAS ── -->
     <Teleport to="body">
       <button
-        v-if="['dashboard', 'lojas', 'resumo'].includes(tela)"
+        v-if="tela === 'dashboard'"
         class="cad-fab-taxas"
         :class="{ 'cad-fab-taxas--active': navAtivo === 'calculadora' }"
         @click="navSwitch('calculadora')"
@@ -524,10 +512,7 @@
       <!-- Modal Loja -->
       <div v-if="modalLoja" class="cad-modal-overlay" @click.self="modalLoja=null">
         <div class="cad-modal-sheet">
-          <div class="cad-modal-header">
-            <div class="cad-modal-titulo">{{ editandoLoja ? 'Editar Loja' : 'Nova Loja' }}</div>
-            <button class="cad-btn-fechar" @click="modalLoja=null">✕</button>
-          </div>
+          <div class="cad-modal-header"><div class="cad-modal-titulo">{{ editandoLoja ? 'Editar Loja' : 'Nova Loja' }}</div><button class="cad-btn-fechar" @click="modalLoja=null">✕</button></div>
           <div class="cad-form-group">
             <label class="cad-form-label">Nome da loja *</label>
             <input class="cad-form-input" v-model="formLoja.nome" placeholder="Ex: Escritório Santos" autofocus>
@@ -545,10 +530,7 @@
       <!-- Modal Cliente -->
       <div v-if="modalCliente" class="cad-modal-overlay" @click.self="modalCliente=null">
         <div class="cad-modal-sheet">
-          <div class="cad-modal-header">
-            <div class="cad-modal-titulo">{{ editandoCliente ? 'Editar Cliente' : 'Nova Cliente' }}</div>
-            <button class="cad-btn-fechar" @click="modalCliente=null">✕</button>
-          </div>
+          <div class="cad-modal-header"><div class="cad-modal-titulo">{{ editandoCliente ? 'Editar Cliente' : 'Nova Cliente' }}</div><button class="cad-btn-fechar" @click="modalCliente=null">✕</button></div>
           <div class="cad-form-group">
             <label class="cad-form-label">Nome *</label>
             <input class="cad-form-input" v-model="formCliente.nome" placeholder="Nome completo" autofocus>
@@ -658,10 +640,8 @@
       <!-- Modal editar fiado completo -->
       <div v-if="fiadoEditar" class="cad-modal-overlay" @click.self="fiadoEditar=null">
         <div class="cad-modal-sheet cad-modal-sheet--tall">
-          <div class="cad-modal-header">
-            <div class="cad-modal-titulo">✏️ Editar venda</div>
-            <button class="cad-btn-fechar" @click="fiadoEditar=null">✕</button>
-          </div>
+          <div class="cad-modal-header"><div class="cad-modal-titulo">✏️ Editar venda</div><button class="cad-btn-fechar" @click="fiadoEditar=null">✕</button></div>
+
           <div class="cad-edit-cliente-tag">
             <div class="cad-edit-avatar">{{ iniciais(fiadoEditar.clienteNome) }}</div>
             <div>
@@ -723,7 +703,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, watch } from 'vue'
+import { ref, computed, reactive, onMounted, watch, nextTick } from 'vue'
 import CadernetaSwipeItem from '../components/CadernetaSwipeItem.vue'
 import {
   getLojas, salvarLoja, excluirLoja as dbExcluirLoja,
@@ -747,6 +727,7 @@ const confirmar = useConfirm()
 // ── Navegação interna ─────────────────────────────────────
 const tela     = ref('dashboard')
 const navAtivo = ref('dashboard')
+const calcInputRef = ref(null)
 
 function irPara(dest) {
   tela.value = dest
@@ -756,7 +737,17 @@ function irPara(dest) {
   if (dest === 'lojas')       carregarLojas()
   if (dest === 'dashboard')   carregarDashboard()
   if (dest === 'resumo')      carregarResumo()
-  if (dest === 'calculadora') carregarCalculadora()
+  if (dest === 'calculadora') {
+    carregarCalculadora()
+    setTimeout(() => {
+      const el = calcInputRef.value
+      if (el) {
+        el.focus()
+        const len = el.value.length
+        el.setSelectionRange(len, len)
+      }
+    }, 150)
+  }
 }
 
 function irParaResumo() {
@@ -1211,16 +1202,36 @@ function iniciarVendaResumo(g, c) {
 
 function abrirWhatsapp(c) {
   const tel = (c.telefone || '').replace(/\D/g, '')
-  const msg = modoResumo.value === 'historico'
-    ? encodeURIComponent(`Olá ${c.clienteNome}!`)
-    : encodeURIComponent(`Olá ${c.clienteNome}! Você tem um fiado de R$ ${fmt(c.saldo)} em aberto. Quando podemos acertar? 😊`)
+  let msg = `Oi ${c.clienteNome}, tudo bem! `
+  
+  if (modoResumo.value === 'historico') {
+    msg = encodeURIComponent(msg)
+  } else {
+    const abertos = c.fiados.filter(f => f.saldo > 0.01)
+    if (abertos.length === 1) {
+      const f = abertos[0]
+      const itens = resumoItens(f.itens)
+      msg += `Passando para falar sobre a venda do dia ${fmtBR(f.dataVenda)}${f.horaVenda ? ' às ' + f.horaVenda : ''} no valor de R$ ${fmt(f.saldo)}.`
+      if (itens) msg += `\n\nItens:\n${itens}`
+    } else {
+      const lista = abertos.map(f => {
+        const itensTxt = resumoItens(f.itens).replace(/\n/g, ', ')
+        return `• ${fmtBR(f.dataVenda)}${f.horaVenda ? ' às ' + f.horaVenda : ''}: R$ ${fmt(f.saldo)} (${itensTxt})`
+      }).join('\n')
+      msg += `Passando para falar sobre as vendas em aberto:\n\n${lista}\n\nTotal: R$ ${fmt(c.saldo)}.`
+    }
+    msg = encodeURIComponent(msg)
+  }
   window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank')
 }
 
 function abrirWhatsappFiado(f) {
   const tel = (f.clienteTel || '').replace(/\D/g, '')
-  const msg = encodeURIComponent(`Olá ${f.clienteNome}! Passando para lembrar do seu fiado de R$ ${fmt(f.saldo)} que venceu em ${fmtBR(f.dataVenc)}. Quando podemos acertar? 😊`)
-  window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank')
+  const itens = resumoItens(f.itens)
+  let msg = `Oi ${f.clienteNome}, tudo bem! Passando para falar sobre a venda do dia ${fmtBR(f.dataVenda)}${f.horaVenda ? ' às ' + f.horaVenda : ''} no valor de R$ ${fmt(f.saldo)}.`
+  if (itens) msg += `\n\nItens:\n${itens}`
+  const msgEncoded = encodeURIComponent(msg)
+  window.open(`https://wa.me/55${tel}?text=${msgEncoded}`, '_blank')
 }
 
 function abrirReceber(f) { fiadoReceber.value = f; valorReceber.value = f.saldo }
@@ -1381,6 +1392,13 @@ function handleCalcInput(e) {
     return
   }
   rawCalcInput.value = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(Number(v) / 100)
+  
+  // Garante que o cursor permaneça no final após a formatação da máscara
+  setTimeout(() => {
+    const el = e.target
+    const len = el.value.length
+    el.setSelectionRange(len, len)
+  }, 0)
 }
 
 // ── Init ─────────────────────────────────────────────────
@@ -1514,6 +1532,13 @@ onMounted(async () => {
 .cad-lancar-body {
   flex: 1; overflow-y: auto; padding: 14px 14px 130px;
   display: flex; flex-direction: column; gap: 18px;
+}
+.cad-lancar-body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.cad-lancar-body::-webkit-scrollbar {
+  display: none;
 }
 .cad-date-tags { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
 .cad-tag-label { font-size: 9px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
@@ -1688,7 +1713,14 @@ onMounted(async () => {
 .cad-agend-info { flex: 1; min-width: 0; }
 .cad-agend-nome  { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cad-agend-loja  { font-size: 10px; color: var(--muted); }
-.cad-agend-itens { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cad-agend-itens {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre-line;
+  line-height: 1.35;
+}
 .cad-agend-dir   { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; min-width: 84px; }
 .cad-agend-val   { font-size: 14px; font-weight: 800; font-family: var(--mono); color: var(--brown); }
 .cad-agend-data  { font-size: 10px; color: var(--muted); font-weight: 700; }
@@ -1738,14 +1770,14 @@ onMounted(async () => {
 .cad-loja-chevron { color: var(--brown-light); flex-shrink: 0; transition: transform .22s cubic-bezier(.4,0,.2,1); margin-left: 4px; }
 .cad-loja-header.colapsado .cad-loja-chevron { transform: rotate(-90deg); }
 .cad-grupo-clientes {
-  margin-left: 10px; padding-left: 8px; display: flex; flex-direction: column; gap: 6px;
+  margin-left: 10px; padding-left: 8px; display: flex; flex-direction: column; gap: 4px;
   overflow: hidden; transition: max-height .28s cubic-bezier(.4,0,.2,1), opacity .22s ease;
   max-height: 9999px; opacity: 1;
 }
 .cad-grupo-clientes.colapsado { max-height: 0 !important; opacity: 0; }
 .cad-cli-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); overflow: hidden; box-shadow: var(--shadow); }
 .cad-cli-card.atrasado { border-color: #fecaca; background: #fff9f9; }
-.cad-cli-header { display: flex; align-items: center; gap: 10px; padding: 12px; min-height: 68px; cursor: pointer; user-select: none; }
+.cad-cli-header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; min-height: 60px; cursor: pointer; user-select: none; }
 .cad-cli-header:active { background: var(--cream); }
 .cad-cli-avatar {
   width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
@@ -1761,7 +1793,7 @@ onMounted(async () => {
 .cad-cli-total--ok  { color: var(--green); }
 .cad-cli-chevron { color: var(--brown-light); flex-shrink: 0; transition: transform .22s; }
 .cad-cli-header.colapsado .cad-cli-chevron { transform: rotate(-90deg); }
-.cad-cli-btns { display: flex; gap: 8px; align-items: center; padding: 0 12px 12px 64px; flex-wrap: nowrap; }
+.cad-cli-btns { display: flex; gap: 8px; align-items: center; padding: 0 12px 10px 64px; flex-wrap: nowrap; }
 .cad-btn-venda, .cad-btn-quitar {
   min-height: 40px; padding: 0 12px; border-radius: var(--r-full); border: none;
   color: #fff; font-size: 12px; font-weight: 800; cursor: pointer;
@@ -1779,12 +1811,19 @@ onMounted(async () => {
 .cad-btn-zap:active { opacity: .85; }
 .cad-compras-lista { border-top: 1.5px dashed var(--border2); overflow: hidden; transition: max-height .28s cubic-bezier(.4,0,.2,1), opacity .22s ease; max-height: 9999px; opacity: 1; }
 .cad-compras-lista.colapsado { max-height: 0 !important; opacity: 0; border-top-color: transparent; }
-.cad-compra-row { display: flex; align-items: flex-start; justify-content: space-between; padding: 10px 12px; gap: 10px; border-bottom: 1px dashed var(--border); min-height: 60px; }
+.cad-compra-row { display: flex; align-items: flex-start; justify-content: space-between; padding: 8px 12px; gap: 10px; border-bottom: 1px dashed var(--border); min-height: 52px; }
 .cad-compra-row:last-child { border-bottom: none; }
 .cad-compra-row.atrasada   { background: #fff5f5; }
-.cad-compra-esq { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cad-compra-esq { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .cad-compra-data { font-size: 11px; font-weight: 700; color: var(--brown-mid); }
-.cad-compra-itens { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cad-compra-itens {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre-line;
+  line-height: 1.35;
+}
 .cad-compra-pagamentos { font-size: 11px; color: var(--green); font-weight: 700; }
 .cad-compra-dir { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; min-width: 96px; }
 .cad-compra-valor { font-size: 14px; font-weight: 800; font-family: var(--mono); white-space: nowrap; }
@@ -1816,7 +1855,7 @@ onMounted(async () => {
 /* ── FAB Taxas (teleported to body — use :global) ── */
 :global(.cad-fab-taxas) {
   position: fixed;
-  bottom: 88px;
+  bottom: 104px;
   right: 16px;
   z-index: 9100;
   width: 52px;
@@ -1912,13 +1951,26 @@ onMounted(async () => {
   position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000;
   display: flex; align-items: flex-end; justify-content: center;
 }
-.cad-modal-sheet, .cad-dialog {
+.cad-modal-sheet {
   background: var(--surface); border-radius: 20px 20px 0 0;
-  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+  padding: 0 20px calc(20px + env(safe-area-inset-bottom));
   width: 100%; max-width: 480px; max-height: 80vh; overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
-.cad-overlay .cad-dialog { border-radius: 16px; margin: 20px; max-height: unset; align-self: center; padding: 20px; }
-.cad-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.cad-dialog { background: var(--surface); border-radius: 16px; padding: 20px; width: 100%; max-width: 480px; }
+.cad-overlay .cad-dialog { margin: 20px; max-height: unset; align-self: center; }
+.cad-modal-sheet--tall {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.cad-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 0 -20px 12px; padding: 12px 20px 10px;
+  position: sticky; top: 0; z-index: 10; background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  border-bottom: 1px solid var(--border);
+}
 .cad-modal-titulo { font-size: 16px; font-weight: 800; }
 .cad-btn-fechar { width: 32px; height: 32px; border: none; background: var(--border); border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); }
 .cad-form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
@@ -1948,6 +2000,7 @@ onMounted(async () => {
 
 /* SwipeItem layout */
 :deep(.swipe-wrap) { position: relative; overflow: hidden; border-radius: var(--r-md); box-shadow: var(--shadow); flex-shrink: 0; margin-bottom: 8px; }
+:deep(.swipe-wrap:last-child) { margin-bottom: 0; }
 :deep(.swipe-front) {
   position: relative; z-index: 2; background: var(--surface); border: 1.5px solid var(--border);
   border-radius: var(--r-md); display: flex; align-items: center; gap: 12px;
@@ -1977,15 +2030,16 @@ onMounted(async () => {
 /* ── Calculadora UI ── */
 .calc-input-wrap {
   background: var(--surface); border: 2.5px solid var(--border2);
-  border-radius: var(--r-lg); padding: 20px 18px 16px;
+  border-radius: var(--r-lg); padding: 10px 18px 6px;
   box-shadow: var(--shadow-md); display: flex; flex-direction: column; gap: 6px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
-.calc-input-label { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.calc-input-label { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; text-align: center; }
 .calc-input-field {
   width: 100%; border: none; background: transparent;
-  font-family: var(--mono); font-size: 32px; font-weight: 800;
-  color: var(--brown); outline: none; min-height: 52px;
+  font-family: var(--mono) !important; font-size: 24px !important; font-weight: 800;
+  color: var(--brown); outline: none; min-height: 52px; text-align: center;
+  line-height: 1;
 }
 .calc-divider { height: 1px; background: var(--border); margin: 0 -18px 4px; }
 .calc-hint { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; font-weight: 600; }
@@ -2009,7 +2063,7 @@ onMounted(async () => {
 .calc-result-info  { flex: 1; min-width: 0; }
 .calc-result-tipo  { font-size: 12px; font-weight: 800; color: var(--brown); }
 .calc-result-taxa  { font-size: 10px; color: var(--muted); font-weight: 600; margin-top: 1px; }
-.calc-result-val   { font-family: var(--mono); font-size: 20px; font-weight: 800; text-align: right; flex-shrink: 0; }
+.calc-result-val   { font-family: var(--mono); font-size: 20px; font-weight: 800; margin-top: 4px; white-space: nowrap; }
 .calc-result-val.debito  { color: var(--blue); }
 .calc-result-val.credito { color: var(--green); }
 .calc-info-box {

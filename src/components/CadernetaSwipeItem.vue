@@ -2,10 +2,8 @@
   <div class="swipe-wrap" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" style="touch-action: pan-y;">
     <div class="swipe-front" :class="{ open: isOpen }" @click="handleClick">
       <slot />
-      <div class="swipe-hint">
-        <svg v-if="!isOpen" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M15 18l-6-6 6-6"/>
-        </svg>
+      <div class="swipe-hint" :class="{ 'swipe-hint--hidden': isOpen }" aria-hidden="true">
+        <i class="fas fa-angles-left"></i>
       </div>
     </div>
     <div class="swipe-actions" :style="{ width: actionsWidth + 'px' }">
@@ -96,3 +94,16 @@ defineExpose({
   isOpen
 })
 </script>
+
+<style scoped>
+.swipe-hint {
+  margin-left: auto;
+  color: var(--border, #d1c4b8);
+  flex-shrink: 0;
+  font-size: .65rem;
+  pointer-events: none;
+  transition: opacity .2s;
+  opacity: 1;
+}
+.swipe-hint--hidden { opacity: 0; }
+</style>

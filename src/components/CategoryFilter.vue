@@ -14,7 +14,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 const props = defineProps({
   items:       { type: Array,  required: true },
@@ -42,9 +42,9 @@ function scrollToActive(value) {
 
 function select(value) {
   emit('update:modelValue', value)
-  scrollToActive(value)
+  nextTick(() => scrollToActive(value))
 }
 
 // Ao mudar externamente (ex: reset de filtro)
-watch(() => props.modelValue, v => scrollToActive(v))
+watch(() => props.modelValue, v => nextTick(() => scrollToActive(v)))
 </script>

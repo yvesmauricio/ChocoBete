@@ -21,10 +21,11 @@
       <div v-if="aba === 'painel'" class="painel-filtros">
         <!-- Linha: chips de mês + botão datas -->
         <div class="filtro-linha">
-          <div class="painel-chips">
+          <div ref="periodoStripEl" class="painel-chips">
             <button
               v-for="p in periodosDisponiveis" :key="p.value"
               class="pchip"
+              :ref="el => setPeriodoRef(el, p.value)"
               :class="{ active: periodoAtivo === p.value && !usandoIntervalo }"
               @click="selecionarPeriodo(p.value)"
             >{{ p.label }}</button>
@@ -511,11 +512,13 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useStore } from '../store.js'
 import CategoryFilter from '../components/CategoryFilter.vue'
 import { R$, avatarColor, fmtQtd as fmtQ, getMesRef } from '../utils.js'
+import { useTabScroll } from '../composables/useTabScroll.js'
 
 const s = useStore()
 const aba = ref('painel')
 const periodoAtivo = ref('30dias')
 const estoqueAberto = ref(false)
+const { stripEl: periodoStripEl, setTabRef: setPeriodoRef } = useTabScroll(periodoAtivo)
 
 // ── Filtro por intervalo de datas ──────────────────────────────
 const mostrarIntervalo = ref(false)

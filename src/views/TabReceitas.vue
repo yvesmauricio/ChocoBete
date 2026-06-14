@@ -24,6 +24,7 @@
           :key="r.uuid"
           :id="r.uuid"
           @click="abrir(r)"
+          :chevron="false"
           :actions-width="280"
         >
           <template #icon>
