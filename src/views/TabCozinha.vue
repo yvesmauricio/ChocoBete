@@ -830,7 +830,7 @@ watch(catAtiva, () => {
 }
 
 /* Garante que o toque longo não seja cancelado por micro-movimentos no celular */
-.sticky-touch { touch-action: none; }
+.sticky-touch { touch-action: pan-y; }
 
 .view-timer-chip {
   background: rgba(0,0,0,0.3);
