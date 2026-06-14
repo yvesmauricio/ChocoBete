@@ -265,41 +265,21 @@ export const useStore = defineStore('choco', () => {
 
   const CATEGORIAS_MEI = [
     // ── RECEITAS ──────────────────────────────────────────────
-    { nome: 'Receita de Vendas', natureza: 'entrada', grupo: 'Receitas', icon: 'fa-arrow-trend-up' },
-    { nome: 'Outras Receitas', natureza: 'entrada', grupo: 'Receitas', icon: 'fa-plus-circle' },
-    { nome: 'Rendimento Financeiro', natureza: 'entrada', grupo: 'Receitas', icon: 'fa-piggy-bank' },
-    { nome: 'Renda Pessoal', natureza: 'pessoal', grupo: 'Receitas Pessoais', icon: 'fa-hand-holding-heart' },
+    { nome: 'Vendas',            natureza: 'entrada',      grupo: 'Receitas', icon: 'fa-arrow-trend-up' },
+    { nome: 'Rendimentos',       natureza: 'entrada',      grupo: 'Receitas', icon: 'fa-piggy-bank' },
+    { nome: 'Outras entradas',   natureza: 'entrada',      grupo: 'Receitas', icon: 'fa-plus-circle' },
 
-    // ── CUSTOS DE PRODUÇÃO (Variáveis) ────────────────────────
-    // Separar insumos ajuda a ver o peso do chocolate vs recheios caros (Nutella)
-    { nome: 'Insumos: Chocolate e Bases', natureza: 'operacional', grupo: 'Custos de Produção', icon: 'fa-cookie' },
-    { nome: 'Insumos: Recheios e Frutas', natureza: 'operacional', grupo: 'Custos de Produção', icon: 'fa-apple-whole' },
-    { nome: 'Insumos: Nutella e Premium', natureza: 'operacional', grupo: 'Custos de Produção', icon: 'fa-star' },
-    { nome: 'Embalagens e Etiquetas', natureza: 'operacional', grupo: 'Custos de Produção', icon: 'fa-box' },
-    { nome: 'Manutenção Equipamentos/Cozinha', natureza: 'operacional', grupo: 'Custos Operacionais', icon: 'fa-screwdriver-wrench' },
+    // ── CUSTOS DO NEGÓCIO ─────────────────────────────────────
+    { nome: 'Ingredientes',           natureza: 'operacional', grupo: 'Negócio', icon: 'fa-cookie' },
+    { nome: 'Embalagens',             natureza: 'operacional', grupo: 'Negócio', icon: 'fa-box' },
+    { nome: 'Transporte e entregas',  natureza: 'operacional', grupo: 'Negócio', icon: 'fa-car' },
+    { nome: 'DAS-MEI e taxas',        natureza: 'operacional', grupo: 'Negócio', icon: 'fa-file-invoice-dollar' },
+    { nome: 'Outros custos',          natureza: 'operacional', grupo: 'Negócio', icon: 'fa-receipt' },
 
-    // ── LOGÍSTICA E VENDAS ────────────────────────────────────
-    // Aqui você separa a passagem do ônibus/integração do Uber de entrega
-    { nome: 'Transporte: Passagens/Integração', natureza: 'operacional', grupo: 'Logística', icon: 'fa-bus' },
-    { nome: 'Transporte: Uber/Entregas', natureza: 'operacional', grupo: 'Logística', icon: 'fa-car' },
-    { nome: 'Marketing e Taxas de Cartão', natureza: 'operacional', grupo: 'Logística', icon: 'fa-bullhorn' },
+    // ── PESSOAL ───────────────────────────────────────────────
+    { nome: 'Retirada (pró-labore)', natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-user-tie' },
+    { nome: 'Despesas pessoais',     natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-house' },
 
-    // ── INFRAESTRUTURA DO NEGÓCIO ─────────────────────────────
-    { nome: 'DAS-MEI', natureza: 'operacional', grupo: 'Infraestrutura', icon: 'fa-file-invoice-dollar' },
-    { nome: 'Manutenção de Equipamentos', natureza: 'operacional', grupo: 'Infraestrutura', icon: 'fa-screwdriver-wrench' },
-    { nome: 'Serviços e Assinaturas (App/Internet)', natureza: 'operacional', grupo: 'Infraestrutura', icon: 'fa-receipt' },
-    { nome: 'Tarifas Bancárias PJ', natureza: 'operacional', grupo: 'Infraestrutura', icon: 'fa-landmark' },
-
-    // ── DESPESAS PESSOAIS (Família) ───────────────────────────
-    { nome: 'Pró-labore / Retirada', natureza: 'pessoal', grupo: 'Despesas Pessoais', icon: 'fa-user-tie' },
-    { nome: 'Moradia e Condomínio', natureza: 'pessoal', grupo: 'Despesas Pessoais', icon: 'fa-house' },
-    { nome: 'Energia Elétrica (Casa)', natureza: 'pessoal', grupo: 'Despesas Pessoais', icon: 'fa-bolt' },
-    { nome: 'Gás Naturgy (Residencial)', natureza: 'pessoal', grupo: 'Despesas Pessoais', icon: 'fa-fire-flame-simple' },
-    { nome: 'Mercado e Alimentação', natureza: 'pessoal', grupo: 'Despesas Pessoais', icon: 'fa-cart-shopping' },
-    { nome: 'Saúde e Farmácia', natureza: 'pessoal', grupo: 'Despesas Pessoais', icon: 'fa-pills' },
-    { nome: 'Educação e Filhos', natureza: 'pessoal', grupo: 'Despesas Pessoais', icon: 'fa-graduation-cap' },
-    { nome: 'Lazer e Compras', natureza: 'pessoal', grupo: 'Despesas Pessoais', icon: 'fa-bag-shopping' },
-    { nome: 'Manutenção da Casa (Estrutural)', natureza: 'pessoal', grupo: 'Despesas Pessoais', icon: 'fa-toolbox' },
     // ── ESPECIAL ──────────────────────────────────────────────
     { nome: 'Transferência Interna', natureza: 'interna', grupo: 'Especial', icon: 'fa-arrow-right-arrow-left' },
   ];

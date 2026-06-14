@@ -8,9 +8,11 @@
           <h2 class="tab-title">
             <i class="fas fa-book"></i> Caderninho
           </h2>
-          <div class="hdr-actions">
+          <div class="tab-actions">
             <button class="btn-icon" @click="emit('trocar-perfil')" title="Trocar perfil">
-              <i class="fas fa-user-friends"></i>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
             </button>
           </div>
         </div>
@@ -1967,7 +1969,7 @@ onMounted(async () => {
 .cad-modal-header {
   display: flex; align-items: center; justify-content: space-between;
   margin: 0 -20px 12px; padding: 12px 20px 10px;
-  position: sticky; top: 0; z-index: 10; background: var(--surface);
+  position: sticky; top: -1px; z-index: 10; background: var(--surface);
   border-radius: 20px 20px 0 0;
   border-bottom: 1px solid var(--border);
 }

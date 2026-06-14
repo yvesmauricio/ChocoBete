@@ -22,44 +22,35 @@
       </div>
 
       <div class="modal-body-local">
-        <p class="label-escolha">Categoria MEI:</p>
-        <div v-for="grupo in gruposOrdenados" :key="grupo.nome" class="grupo">
-          <div class="grupo-titulo">
-            <span class="grupo-natureza" :class="'nat-' + grupo.natureza">{{ labelNatureza(grupo.natureza) }}</span>
-            {{ grupo.nome }}
-          </div>
-          <div class="categoria-grid">
+        <div class="cat-list">
+          <template v-for="grupo in gruposOrdenados" :key="grupo.nome">
+            <div class="cat-list-grupo">
+              <span class="grupo-natureza" :class="'nat-' + grupo.natureza">{{ labelNatureza(grupo.natureza) }}</span>
+              {{ grupo.nome }}
+            </div>
             <button v-for="cat in grupo.categorias" :key="cat.nome"
-              class="cat-btn" :class="{ selected: novaCategoria === cat.nome }"
+              class="cat-list-item" :class="{ active: novaCategoria === cat.nome }"
               @click="novaCategoria = cat.nome">
-              <i class="fas" :class="cat.icon"></i>
+              <i class="fas cat-list-icon" :class="cat.icon"></i>
               <span>{{ cat.nome }}</span>
-              <i v-if="novaCategoria === cat.nome" class="fas fa-check check-icon"></i>
+              <i v-if="novaCategoria === cat.nome" class="fas fa-check cat-list-check"></i>
             </button>
-          </div>
+          </template>
         </div>
 
         <div v-if="!modoLote && mesmaDescricaoRelacionados.length > 1" class="escopo-box">
           <p class="escopo-label">Aplicar alteração em:</p>
           <div class="escopo-grid">
-            <button
-              class="escopo-btn"
-              :class="{ selected: escopoEdicao === 'apenas-este' }"
-              @click="escopoEdicao = 'apenas-este'"
-            >
+            <button class="escopo-btn" :class="{ selected: escopoEdicao === 'apenas-este' }" @click="escopoEdicao = 'apenas-este'">
               <i class="fas fa-file-circle-check"></i>
               <span>Apenas este lançamento</span>
             </button>
-            <button
-              class="escopo-btn"
-              :class="{ selected: escopoEdicao === 'mesma-descricao' }"
-              @click="escopoEdicao = 'mesma-descricao'"
-            >
+            <button class="escopo-btn" :class="{ selected: escopoEdicao === 'mesma-descricao' }" @click="escopoEdicao = 'mesma-descricao'">
               <i class="fas fa-layer-group"></i>
               <span>Todos com a mesma descrição ({{ mesmaDescricaoRelacionados.length }})</span>
             </button>
           </div>
-          <p class="escopo-hint">Descrição considerada: {{ lancamento?.descricao }}</p>
+          <p class="escopo-hint">Descrição: {{ lancamento?.descricao }}</p>
         </div>
       </div>
 
@@ -142,7 +133,7 @@ async function salvar() {
 
 <style scoped>
 .modal-inner-ext { display: flex; flex-direction: column; height: 100%; }
-.modal-sub-hdr { padding: 12px 16px; font-size: .8rem; color: var(--muted); background: var(--surface); border-bottom: 1px solid var(--border); }
+.modal-sub-hdr { padding: 10px 16px; font-size: .8rem; color: var(--muted); background: var(--surface); border-bottom: 1px solid var(--border); }
 
 .lancamento-info { padding: 10px 16px; background: var(--cream); border-bottom: 1px solid var(--border); display: flex; gap: 16px; flex-shrink: 0; flex-wrap: wrap; }
 .info-row { display: flex; flex-direction: column; gap: 2px; }
@@ -152,26 +143,48 @@ async function salvar() {
 .badge-it { color: var(--blue); }
 .badge-bb { color: #0f4ea8; }
 
-.modal-body-local { flex: 1; overflow-y: auto; padding: 14px 16px; -webkit-overflow-scrolling: touch; min-height: 0; }
-.label-escolha { font-size: .8rem; font-weight: 700; color: var(--brown-dark); margin: 0 0 12px; }
-.grupo { margin-bottom: 16px; }
-.grupo-titulo { font-size: .72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.modal-body-local { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
+
+/* Lista suspensa vertical — mesmo padrão do filtro */
+.cat-list { display: flex; flex-direction: column; }
+.cat-list-grupo {
+  font-size: .65rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--muted);
+  padding: 8px 16px 4px;
+  background: var(--cream);
+  border-bottom: .5px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+}
+.cat-list-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px;
+  border: none; border-bottom: .5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .85rem; font-weight: 500;
+  text-align: left; width: 100%;
+  transition: background var(--t);
+}
+.cat-list-item:last-child { border-bottom: none; }
+.cat-list-item:active { background: var(--gold-bg); }
+.cat-list-item.active {
+  background: var(--gold-bg);
+  color: var(--brown-dark);
+  border-left: 3px solid var(--brown);
+  padding-left: 13px;
+}
+.cat-list-icon { width: 16px; text-align: center; color: var(--muted); font-size: .82rem; flex-shrink: 0; }
+.cat-list-item.active .cat-list-icon { color: var(--brown-mid); }
+.cat-list-item span { flex: 1; }
+.cat-list-check { color: var(--brown); font-size: .8rem; }
+
 .grupo-natureza { padding: 2px 7px; border-radius: var(--r-full); font-size: .65rem; font-weight: 800; }
 .nat-entrada    { background: var(--green-bg);  color: var(--green); }
 .nat-operacional{ background: var(--red-bg);    color: var(--red); }
 .nat-pessoal    { background: var(--orange-bg); color: var(--orange); }
 .nat-interna    { background: var(--blue-bg);   color: var(--blue); }
 
-.categoria-grid { display: flex; flex-direction: column; gap: 6px; }
-.cat-btn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--r-md); background: var(--bg); color: var(--text); text-align: left; transition: all var(--t); }
-.cat-btn i:first-child { width: 20px; text-align: center; color: var(--muted); font-size: .85rem; flex-shrink: 0; }
-.cat-btn span { flex: 1; font-size: .85rem; font-weight: 500; }
-.cat-btn.selected { border-color: var(--brown); background: var(--gold-bg); color: var(--brown-dark); }
-.cat-btn.selected i:first-child { color: var(--gold-dark); }
-.check-icon { color: var(--brown) !important; font-size: .75rem !important; width: auto !important; }
-.cat-btn:active { transform: scale(.98); }
-
-.escopo-box { margin-top: 18px; padding: 14px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--cream); }
+.escopo-box { margin: 14px 16px; padding: 14px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--cream); }
 .escopo-label { font-size: .8rem; font-weight: 700; color: var(--brown-dark); margin: 0 0 10px; }
 .escopo-grid { display: flex; flex-direction: column; gap: 8px; }
 .escopo-btn { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: var(--r-md); background: var(--bg); color: var(--text); text-align: left; transition: all var(--t); }

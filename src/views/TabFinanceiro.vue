@@ -166,10 +166,27 @@
           </div>
         </Transition>
 
-        <!-- Painel de categorias -->
+        <!-- Painel de categorias — lista suspensa vertical -->
         <Transition name="fade-slide">
           <div v-if="mostrarFiltroCategorias" class="filtro-categoria-sheet">
-            <CategoryFilter :items="categoriasParaFiltro" v-model="filtroCategoria" />
+            <div class="cat-list">
+              <button class="cat-list-item" :class="{ active: !filtroCategoria }"
+                @click="selecionarCategoria(''); mostrarFiltroCategorias = false">
+                <i class="fas fa-layer-group cat-list-icon"></i>
+                <span>Todas as categorias</span>
+                <i v-if="!filtroCategoria" class="fas fa-check cat-list-check"></i>
+              </button>
+              <template v-for="grupo in gruposCategoriasFiltro" :key="grupo.nome">
+                <div class="cat-list-grupo">{{ grupo.nome }}</div>
+                <button v-for="cat in grupo.categorias" :key="cat.nome"
+                  class="cat-list-item" :class="{ active: filtroCategoria === cat.nome }"
+                  @click="selecionarCategoria(cat.nome); mostrarFiltroCategorias = false">
+                  <i class="fas cat-list-icon" :class="cat.icon"></i>
+                  <span>{{ cat.nome }}</span>
+                  <i v-if="filtroCategoria === cat.nome" class="fas fa-check cat-list-check"></i>
+                </button>
+              </template>
+            </div>
           </div>
         </Transition>
 
@@ -1040,6 +1057,15 @@ const categoriasParaFiltro = computed(() =>
   ]
 )
 
+const gruposCategoriasFiltro = computed(() => {
+  const map = new Map()
+  s.CATEGORIAS_MEI.forEach(cat => {
+    if (!map.has(cat.grupo)) map.set(cat.grupo, { nome: cat.grupo, categorias: [] })
+    map.get(cat.grupo).categorias.push(cat)
+  })
+  return [...map.values()]
+})
+
 function capitalizarDescricao(txt) {
   if (!txt) return ''
   return txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase()
@@ -1574,19 +1600,46 @@ onMounted(() => s.carregarFinanceiro())
 
 /* Filtro categoria sheet (dropdown) */
 .filtro-categoria-sheet {
-  padding: 12px 16px;
   border-top: 1px solid var(--border);
-  background: var(--cream);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
   border-bottom: 1px solid var(--border);
-  max-height: min(52vh, 420px);
+  background: var(--surface);
+  max-height: min(40vh, 320px);
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  touch-action: pan-y;
 }
+.cat-list { display: flex; flex-direction: column; }
+.cat-list-grupo {
+  font-size: .65rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--muted);
+  padding: 8px 16px 4px;
+  background: var(--cream);
+  border-bottom: .5px solid var(--border);
+}
+.cat-list-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px;
+  border: none; border-bottom: .5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .85rem; font-weight: 500;
+  text-align: left; width: 100%;
+  transition: background var(--t);
+}
+.cat-list-item:last-child { border-bottom: none; }
+.cat-list-item:active { background: var(--gold-bg); }
+.cat-list-item.active {
+  background: var(--gold-bg);
+  color: var(--brown-dark);
+  border-left: 3px solid var(--brown);
+  padding-left: 13px;
+}
+.cat-list-icon { width: 16px; text-align: center; color: var(--muted); font-size: .82rem; flex-shrink: 0; }
+.cat-list-item.active .cat-list-icon { color: var(--brown-mid); }
+.cat-list-item span { flex: 1; }
+.cat-list-check { color: var(--brown); font-size: .8rem; }
 .grupo { margin-bottom: 4px; }
 .grupo-titulo { font-size: .72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .grupo-natureza { padding: 2px 7px; border-radius: var(--r-full); font-size: .65rem; font-weight: 800; }
@@ -1596,15 +1649,7 @@ onMounted(() => s.carregarFinanceiro())
 .filtro-select { padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); color: var(--text); font-size: .82rem; appearance: none; }
 .filtro-select.sm { width: auto; min-width: 80px; }
 .nat-interna { background: var(--blue-bg); color: var(--blue); }
-.categoria-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
-.cat-btn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--r-md); background: var(--bg); color: var(--text); text-align: left; transition: all var(--t); }
-.cat-btn i:first-child { width: 20px; text-align: center; color: var(--muted); font-size: .85rem; flex-shrink: 0; }
-.cat-btn span { flex: 1; font-size: .85rem; font-weight: 500; }
-.cat-btn.selected { border-color: var(--brown); background: var(--gold-bg); color: var(--brown-dark); }
-.cat-btn.selected i:first-child { color: var(--gold-dark); }
-.cat-btn-todas { background: var(--surface); }
 .check-icon { color: var(--brown) !important; font-size: .75rem !important; width: auto !important; }
-.cat-btn:active { transform: scale(.98); }
 
 /* ── Estilos Filtros Modernos Consolidados ── */
 .filtros-modern { margin: 12px 16px 16px; overflow: hidden; }
@@ -1635,17 +1680,18 @@ onMounted(() => s.carregarFinanceiro())
 .pnav-mini-centro span { font-size: .82rem; font-weight: 700; color: var(--brown-dark); }
 
 .filtros-avancados-sheet {
-  padding: 12px 16px;
+  padding: 10px 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
-  max-height: min(52vh, 420px);
+  max-height: min(36vh, 260px);
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 .fsec-lbl { font-size: .62rem; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block; letter-spacing: .5px; }
 .fchips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -1711,7 +1757,7 @@ onMounted(() => s.carregarFinanceiro())
 .sel-count { font-size: .78rem; font-weight: 700; color: var(--gold-light); }
 
 /* ── Lista ─── */
-.lancamentos-list { padding-bottom: max(96px, calc(72px + env(safe-area-inset-bottom))); }
+.lancamentos-list { padding-bottom: max(96px, calc(72px + env(safe-area-inset-bottom))); touch-action: pan-y; }
 .lancamento-row { margin: 0 16px 8px; }
 
 .row-operacional { border-left-color: var(--red); }

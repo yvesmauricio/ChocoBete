@@ -3,8 +3,6 @@
     <div class="tab-hdr">
       <div class="tab-hdr-top">
         <h2 class="tab-title"><i class="fas fa-boxes"></i> Estoque</h2>
-        <div class="tab-actions">
-        </div>
       </div>
       <div class="search-wrap">
         <i class="fas fa-search search-icon"></i>
