@@ -1926,7 +1926,7 @@ onMounted(() => s.carregarFinanceiro())
 .lc-col-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .lc-col-data { color: var(--muted); font-size: .68rem; font-weight: 600; }
 .lc-col-desc { color: var(--text); word-break: break-word; line-height: 1.35; font-size: .8rem; }
-.lc-col-cat  { }
+.lc-col-cat  {  }
 .lc-col-val  { font-family: var(--mono); font-size: .86rem; font-weight: 700; flex-shrink: 0; }
 .lc-badge {
   display: inline-block;
