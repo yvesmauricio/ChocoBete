@@ -66,12 +66,10 @@
         </AppListRow>
       </template>
 
-      <div v-else class="empty">
+      <div v-else class="app-empty">
         <i class="fas fa-book-open"></i>
         <h3>{{ busca ? 'Nenhum resultado' : 'Nenhuma receita ainda' }}</h3>
-        <button v-if="!busca" class="btn btn-primary mt-12" @click="abrir(null)">
-          <i class="fas fa-plus"></i> Nova Receita
-        </button>
+        <p v-if="!busca">Toque no botão + para cadastrar sua primeira receita.</p>
       </div>
     </section>
 

@@ -227,12 +227,10 @@
       </button>
 
       <!-- Vazio -->
-      <div v-if="!lancamentosFiltrados.length" class="empty-state">
+      <div v-if="!lancamentosFiltrados.length" class="app-empty">
         <i class="fas fa-inbox"></i>
-        <p>Nenhum lançamento encontrado.</p>
-        <button v-if="temAlgumBancoConfigurado" class="btn-abrir-import" @click="abaAtiva = 'importar'">
-          <i class="fas fa-file-import"></i> Importar extrato
-        </button>
+        <h3>Nenhum lançamento encontrado.</h3>
+        <p v-if="temAlgumBancoConfigurado">Vá até a aba <strong>Importar</strong> para carregar novos extratos.</p>
       </div>
 
       <!-- Lista simplificada -->
@@ -581,12 +579,10 @@
           </div>
         </section>
 
-        <div v-if="!relatorioAnualMeses.length" class="empty-state">
+        <div v-if="!relatorioAnualMeses.length" class="app-empty">
           <i class="fas fa-chart-bar"></i>
-          <p>Sem dados para {{ anoRelAnual }}.</p>
-          <button class="btn-abrir-import" @click="abaAtiva = 'importar'">
-            <i class="fas fa-file-import"></i> Importar extrato
-          </button>
+          <h3>Sem dados para {{ anoRelAnual }}.</h3>
+          <p>Nenhuma movimentação importada para este ano.</p>
         </div>
       </div>
     </template>
@@ -1856,13 +1852,6 @@ onMounted(() => s.carregarFinanceiro())
 .row-left { flex: 1; min-width: 0; }
 .row-title { font-size: .9rem; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-subtitle { font-size: .75rem; color: var(--muted); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
-
-/* ── Empty ─── */
-.empty-state { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; gap: 12px; color: var(--muted); text-align: center; }
-.empty-state i { font-size: 2.5rem; opacity: .3; }
-.empty-state p { font-size: .9rem; }
-.btn-abrir-import { padding: 10px 20px; background: var(--brown); color: #fff; border: none; border-radius: var(--r-full); font-size: .85rem; font-weight: 700; display: flex; align-items: center; gap: 8px; transition: background var(--t); }
-.btn-abrir-import:active { background: var(--brown-dark); }
 
 /* ── Relatório ─── */
 .relatorio-wrap { padding: 14px 16px max(96px, calc(72px + env(safe-area-inset-bottom))); display: flex; flex-direction: column; gap: 14px; }

@@ -11,6 +11,11 @@ export const roundMoney = (value) => {
   return Math.round((toNumber(value) + Number.EPSILON) * 100) / 100
 }
 
+/** Arredonda valores para uma precisão específica (ex: 2 casas decimais) */
+export const roundToPrecision = (value, precision = 2) => {
+  return Math.round((toNumber(value) + Number.EPSILON) * Math.pow(10, precision)) / Math.pow(10, precision);
+};
+
 export const R$ = (v, compact = false) => {
   const n = Number(v || 0)
   if (compact && Math.abs(n) >= 1000) {

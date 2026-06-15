@@ -5,7 +5,6 @@
         <h2 class="tab-title"><i class="fas fa-industry"></i> Produção</h2>
         <div class="tab-actions">
           <button class="btn-icon" @click="gerarRelatorio" title="Gerar Relatório de Produção"><i class="fas fa-file-pdf"></i></button>
-          <button class="btn btn-primary btn-sm" @click="s.setTab('cozinha')"><i class="fas fa-plus"></i> Produzir</button>
         </div>
       </div>
       <div class="search-wrap">
@@ -132,10 +131,10 @@
       </div>
     </template>
 
-    <div v-else-if="!s.loading" class="empty">
+    <div v-else-if="!s.loading" class="app-empty">
       <i class="fas fa-industry"></i>
       <h3>Nenhuma produção no período</h3>
-      <button class="btn btn-primary mt-12" @click="s.setTab('cozinha')"><i class="fas fa-plus"></i> Iniciar Lote</button>
+      <p>Toque no botão + para iniciar uma nova produção na cozinha.</p>
     </div>
 
     <!-- ─── Modal Editar Datas do Lote ──────────────────────── -->
@@ -182,7 +181,7 @@
 
 <script setup>
 import '../assets/checklist.css'
-import { ref, computed, reactive, onMounted, watch } from 'vue'
+import { ref, computed, reactive, onMounted, watch, inject } from 'vue'
 import PizZip from 'pizzip'
 import { saveAs } from 'file-saver'
 import { useStore } from '../store.js';
@@ -200,6 +199,16 @@ const s = useStore()
 const { closeAll } = useSwipe()
 const { modal: currentModal, abrirModal, fecharModal } = useModalStack()
 const confirm = useConfirm()
+
+// ── FAB ─────────────────────────────────────────────────────
+const registerFab   = inject('registerFab', null)
+const unregisterFab = inject('unregisterFab', null)
+const _fabConfig = { icon: 'fas fa-plus', label: 'Produzir', action: () => s.setTab('cozinha') }
+onMounted(() => { if (s.tab === 'producao') registerFab?.(_fabConfig, 'producao') })
+watch(() => s.tab, (tab) => {
+  if (tab === 'producao') registerFab?.(_fabConfig, 'producao')
+  else unregisterFab?.('producao')
+})
 
 const filtroAtivo = computed(() => s.producaoFiltroAtivo)
 
