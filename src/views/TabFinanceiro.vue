@@ -96,27 +96,30 @@
 
     <template v-else-if="abaAtiva === 'lancamentos'">
 
-      <!-- ── Resumo fixo no topo ── -->
-      <div class="resumo-modern" v-if="lancamentosFiltrados.length">
-        <div class="rm-item">
-          <span class="rm-lbl">Entradas</span>
-          <span class="rm-val c-green">{{ R$(totalEntradas) }}</span>
-        </div>
-        <div class="rm-sep"></div>
-        <div class="rm-item">
-          <span class="rm-lbl">Saídas</span>
-          <span class="rm-val c-red">{{ R$(totalSaidas) }}</span>
-        </div>
-        <div class="rm-sep"></div>
-        <div class="rm-item">
-          <span class="rm-lbl">Saldo</span>
-          <span class="rm-val" :class="saldoFiltrado >= 0 ? 'c-green' : 'c-red'">{{ R$(saldoFiltrado) }}</span>
-        </div>
-      </div>
+      <!-- ── Bloco sticky: resumo + filtros ── -->
+      <div class="lancamentos-sticky">
 
-      <!-- ── Barra única: busca + período + filtros ── -->
-      <div class="filtros-modern sheet-card">
-        <div class="fm-top fm-top-compact">
+        <!-- Resumo -->
+        <div class="resumo-modern" v-if="lancamentosFiltrados.length">
+          <div class="rm-item">
+            <span class="rm-lbl">Entradas</span>
+            <span class="rm-val c-green">{{ R$(totalEntradas) }}</span>
+          </div>
+          <div class="rm-sep"></div>
+          <div class="rm-item">
+            <span class="rm-lbl">Saídas</span>
+            <span class="rm-val c-red">{{ R$(totalSaidas) }}</span>
+          </div>
+          <div class="rm-sep"></div>
+          <div class="rm-item">
+            <span class="rm-lbl">Saldo</span>
+            <span class="rm-val" :class="saldoFiltrado >= 0 ? 'c-green' : 'c-red'">{{ R$(saldoFiltrado) }}</span>
+          </div>
+        </div>
+
+        <!-- Barra de filtros -->
+        <div class="filtros-modern">
+          <div class="fm-top fm-top-compact">
           <!-- Busca -->
           <div class="fbusca-wrap">
             <i class="fas fa-search fbusca-icon"></i>
@@ -198,7 +201,14 @@
         </div>
       </Transition>
 
-      <!-- Barra de seleção em lote (só aparece quando ativa) -->
+      </div><!-- fim .lancamentos-sticky -->
+
+      <!-- Dica de seleção (só quando NÃO está no modo seleção) -->
+      <div v-if="!modoSelecao && lancamentosFiltrados.length" class="selecao-dica">
+        <i class="fas fa-hand-pointer"></i> Segure um item para selecionar vários
+      </div>
+
+      <!-- Barra de seleção em lote (quando ativa) -->
       <div v-if="modoSelecao" class="selecao-bar">
         <button class="sel-all-btn" @click="toggleSelecionarTodos">
           <i class="fas" :class="todosSelecionados ? 'fa-square-check' : 'fa-square'"></i>
@@ -237,9 +247,13 @@
             'row-operacional': item.natureza === 'operacional',
             'row-pessoal': item.natureza === 'pessoal',
             'row-entrada': item.natureza === 'entrada',
-            'row-selected': selecionados.has(item.id)
+            'row-selected': selecionados.has(item.id),
+            'modo-selecao': modoSelecao
           }"
-          @click="modoSelecao ? toggleItem(item.id) : abrirModalEdicao(item)">
+          @click="modoSelecao ? toggleItem(item.id) : abrirModalEdicao(item)"
+          @touchstart.passive="iniciarLongPress(item)"
+          @touchend.passive="cancelarLongPress"
+          @touchmove.passive="cancelarLongPress">
 
           <!-- Checkbox modo seleção -->
           <div v-if="modoSelecao" class="row-check">
@@ -1277,6 +1291,23 @@ function selecionarNatureza(natureza) {
 // ── Multi-seleção ──
 const modoSelecao    = ref(false)
 const selecionados   = ref(new Set())
+
+// Long press para ativar seleção (500ms)
+let _longPressTimer = null
+function iniciarLongPress(item) {
+  _longPressTimer = setTimeout(() => {
+    if (!modoSelecao.value) {
+      modoSelecao.value = true
+      if (navigator.vibrate) navigator.vibrate(30)
+    }
+    const novo = new Set(selecionados.value)
+    novo.add(item.id)
+    selecionados.value = novo
+  }, 500)
+}
+function cancelarLongPress() {
+  clearTimeout(_longPressTimer)
+}
 const modalLoteAberto = ref(false)
 
 function toggleSelecao() {
@@ -1601,15 +1632,15 @@ onMounted(() => s.carregarFinanceiro())
 
 /* Filtro categoria sheet (dropdown) */
 .filtro-categoria-sheet {
-  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
-  max-height: min(40vh, 320px);
-  overflow-y: auto;
-  overflow-x: hidden;
+  position: sticky;
+  top: 0;
+  z-index: calc(var(--z-sticky) - 1);
+  max-height: min(45vh, 340px);
+  overflow-y: scroll;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: pan-y;
 }
 .cat-list { display: flex; flex-direction: column; }
 .cat-list-grupo {
@@ -1653,7 +1684,17 @@ onMounted(() => s.carregarFinanceiro())
 .check-icon { color: var(--brown) !important; font-size: .75rem !important; width: auto !important; }
 
 /* ── Estilos Filtros Modernos Consolidados ── */
-.filtros-modern { margin: 12px 16px 16px; overflow: hidden; }
+.lancamentos-sticky {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(61,31,7,.07);
+}
+.filtros-modern { 
+  overflow: visible;
+  background: var(--surface);
+}
 .fm-top { display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .fm-top-compact { padding: 8px 10px; gap: 6px; align-items: center; }
 .fm-top-compact .fbusca-wrap { flex: 1; min-width: 0; }
@@ -1687,11 +1728,6 @@ onMounted(() => s.carregarFinanceiro())
   gap: 10px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
-  max-height: min(36vh, 260px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
   touch-action: pan-y;
 }
 .fsec-lbl { font-size: .62rem; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block; letter-spacing: .5px; }
@@ -1706,9 +1742,7 @@ onMounted(() => s.carregarFinanceiro())
   display: flex; 
   align-items: center; 
   background: var(--surface); 
-  border: .5px solid var(--border);
-  border-radius: var(--r-md);
-  margin: 12px 16px 0;
+  border-bottom: 1px solid var(--border);
   padding: 10px 16px; 
   justify-content: space-between;
 }
@@ -1752,13 +1786,18 @@ onMounted(() => s.carregarFinanceiro())
 .trans-interna-hint i { font-size: .7rem; }
 
 /* ── Barra de seleção em lote ─── */
+.selecao-dica {
+  font-size: .72rem; color: var(--muted);
+  padding: 6px 16px 2px;
+  display: flex; align-items: center; gap: 6px;
+}
 .selecao-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: var(--brown-dark); color: #fff; flex-shrink: 0; }
 .sel-all-btn { background: none; border: none; color: rgba(255,255,255,.85); font-size: .8rem; font-weight: 600; display: flex; align-items: center; gap: 7px; }
 .sel-all-btn i { font-size: .9rem; color: var(--gold-light); }
 .sel-count { font-size: .78rem; font-weight: 700; color: var(--gold-light); }
 
 /* ── Lista ─── */
-.lancamentos-list { padding-bottom: max(96px, calc(72px + env(safe-area-inset-bottom))); touch-action: pan-y; }
+.lancamentos-list { padding-top: 8px; padding-bottom: max(96px, calc(72px + env(safe-area-inset-bottom))); touch-action: pan-y; }
 .lancamento-row { margin: 0 16px 8px; }
 
 .row-operacional { border-left-color: var(--red); }

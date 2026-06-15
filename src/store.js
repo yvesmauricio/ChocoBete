@@ -12,7 +12,7 @@ import {
   getBackupTimestamp,
   getBackupBakTimestamp
 } from './services/googleDriveBackup.js'
-import { isInsumoSemPeso, normalizar, getMesRef, dataHoraBR } from './utils.js'
+import { isInsumoSemPeso, normalizar, getMesRef, dataHoraBR, fmtQtd as fmtQ } from './utils.js'
 
 export const useStore = defineStore('choco', () => {
 
@@ -1243,6 +1243,62 @@ export const useStore = defineStore('choco', () => {
     return obj
   }
 
+  async function registrarCompraInsumo({ uuid, custoPorEmbalagem, qtdEmbalagens, data }) {
+    const prod = produtos.value.find(p => p.uuid === uuid)
+    if (!prod) return
+
+    const custo = Number(custoPorEmbalagem)
+    const fator = prod.fator_conversao || 1
+    const totalBase = qtdEmbalagens * fator
+    const novoEstoque = Number(((prod.estoque_atual || 0) + totalBase).toFixed(3))
+
+    // Atualiza Produto no DB
+    await db.produtos.update(uuid, { 
+      estoque_atual: novoEstoque, 
+      custo_por_unidade: custo 
+    })
+
+    // Grava Histórico com data retroativa se fornecida
+    const historyDate = data ? new Date(data + 'T12:00:00').toISOString() : new Date().toISOString()
+    await db.historico_precos.add({
+      produto_uuid: uuid,
+      data: historyDate,
+      custo_por_unidade: custo
+    })
+
+    // Atualiza estado local
+    prod.estoque_atual = novoEstoque
+    prod.custo_por_unidade = custo
+
+    notify(`Estoque atualizado: +${fmtQ(totalBase, prod.unidade_base)}`)
+    agendarSync()
+  }
+
+  async function atualizarPrecoProduto(uuid, novoCustoPorUnidade) {
+    const custo = Number(novoCustoPorUnidade)
+    if (!uuid) failValidation('Informe o ingrediente a ser atualizado.')
+    if (!Number.isFinite(custo) || custo < 0) failValidation('O preco de compra nao pode ser negativo.')
+
+    const antigo = await db.produtos.get(uuid)
+    if (!antigo) failValidation('Ingrediente nao encontrado.')
+
+    const atualizado = clean({ ...antigo, custo_por_unidade: custo })
+    await db.produtos.update(uuid, { custo_por_unidade: custo })
+    if ((antigo.custo_por_unidade || 0) !== custo) {
+      await db.historico_precos.add({
+        produto_uuid: uuid,
+        data: new Date().toISOString(),
+        custo_por_unidade: custo
+      })
+    }
+
+    const i = produtos.value.findIndex(p => p.uuid === uuid)
+    if (i >= 0) produtos.value[i] = atualizado
+    notify('Preco atualizado!')
+    agendarSync()
+    return atualizado
+  }
+
   async function excluirProduto(uuid) {
     if (!uuid) return console.error('Tentativa de excluir produto sem UUID')
     const uso = contarUsoProduto(uuid)
@@ -2063,8 +2119,8 @@ export const useStore = defineStore('choco', () => {
     init, carregarProducoes, registrarProducao, atualizarLoteProducao, adicionarItensAoLote, editarItemProducao,
     registrarLoteProducao, estornarProducao, salvarProduto, excluirProduto, retomarLoteNaCozinha,
     salvarReceita, excluirReceita, getCustoTotal, getLucroInfo, getPesoTotal,
-    insumosCriticos, baixarEstoqueInsumos, cozinhaLote, cozinhaChecklist, salvarCozinhaLocal,
-    hasLocalChanges, recomporEstoqueInsumos, historicoPrecoProduto, estornarLotePorData,
+    insumosCriticos, baixarEstoqueInsumos, registrarCompraInsumo, cozinhaLote, cozinhaChecklist, salvarCozinhaLocal,
+    hasLocalChanges, recomporEstoqueInsumos, historicoPrecoProduto, atualizarPrecoProduto, estornarLotePorData,
     loteOriginalEmEdicao,
     producaoFiltroAtivo, producaoBusca,
     getPrecoUnitarioInsumo, getMediaTempoReceita, getProductionIngredients,

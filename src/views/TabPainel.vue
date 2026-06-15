@@ -40,28 +40,57 @@
             <span v-if="usandoIntervalo" class="intervalo-dot"></span>
           </button>
         </div>
-        <!-- Filtro por intervalo de datas (colapsável) -->
+        <!-- Calendário inline de seleção de intervalo -->
         <Transition name="slide-down">
-          <div v-if="mostrarIntervalo" class="filtro-datas">
-            <div class="filtro-datas-row">
-              <div class="filtro-campo">
-                <label class="filtro-label">De</label>
-                <input type="date" class="filtro-input" v-model="dataIni" />
-              </div>
-              <div class="filtro-campo">
-                <label class="filtro-label">Até</label>
-                <input type="date" class="filtro-input" v-model="dataFim" />
-              </div>
-              <button class="btn-aplicar" @click="aplicarIntervalo" :disabled="!dataIni || !dataFim">
-                <i class="fas fa-check"></i>
-              </button>
-              <button v-if="usandoIntervalo" class="btn-limpar" @click="limparIntervalo">
-                <i class="fas fa-xmark"></i>
-              </button>
+          <div v-if="mostrarIntervalo" class="cal-wrap">
+
+            <!-- Cabeçalho do calendário -->
+            <div class="cal-header">
+              <button class="cal-nav" @click="mesCalendario--"><i class="fas fa-chevron-left"></i></button>
+              <span class="cal-titulo">{{ labelMesCalendario }}</span>
+              <button class="cal-nav" @click="mesCalendario++"><i class="fas fa-chevron-right"></i></button>
             </div>
-            <p v-if="usandoIntervalo" class="filtro-aviso">
-              <i class="fas fa-filter"></i> Exibindo: {{ dataIni }} → {{ dataFim }}
-            </p>
+
+            <!-- Dias da semana -->
+            <div class="cal-semana">
+              <span v-for="d in ['D','S','T','Q','Q','S','S']" :key="d+'_'+Math.random()">{{ d }}</span>
+            </div>
+
+            <!-- Grid de dias -->
+            <div class="cal-grid">
+              <span v-for="_ in diasVaziosInicio" :key="'v'+_" class="cal-vazio"></span>
+              <button
+                v-for="dia in diasDoMes" :key="dia.iso"
+                class="cal-dia"
+                :class="{
+                  'cal-inicio': dia.iso === dataIni,
+                  'cal-fim':    dia.iso === dataFim,
+                  'cal-entre':  diaNoIntervalo(dia.iso),
+                  'cal-hoje':   dia.iso === hoje,
+                  'cal-desabilitado': dia.futuro
+                }"
+                :disabled="dia.futuro"
+                @click="selecionarDia(dia.iso)"
+              >{{ dia.num }}</button>
+            </div>
+
+            <!-- Indicador de seleção / instrução -->
+            <div class="cal-status">
+              <template v-if="!dataIni">
+                <i class="fas fa-hand-pointer"></i> Toque para marcar o início
+              </template>
+              <template v-else-if="!dataFim">
+                <i class="fas fa-hand-pointer"></i> Toque para marcar o fim
+                <button class="cal-limpar-mini" @click="dataIni = ''">Cancelar</button>
+              </template>
+              <template v-else>
+                <span class="cal-range-label">
+                  {{ fmtDataBR(dataIni) }} → {{ fmtDataBR(dataFim) }}
+                </span>
+                <button class="cal-limpar-mini" @click="limparIntervalo">Limpar</button>
+              </template>
+            </div>
+
           </div>
         </Transition>
       </div>
@@ -284,7 +313,10 @@
               <!-- Custo + editar preço -->
               <div class="lc-custo-row" @click.stop>
                 <span class="lc-custo" v-if="item.custoEstimado > 0">{{ R$(item.custoEstimado) }}</span>
-                <button class="lc-preco-btn" @click.stop="abrirModalPreco(item)" title="Atualizar preço">
+                <button class="lc-preco-btn btn-buy" @click.stop="abrirModalPreco(item, true)" title="Registrar Compra">
+                  <i class="fas fa-cart-plus"></i>
+                </button>
+                <button class="lc-preco-btn" @click.stop="abrirModalPreco(item, false)" title="Apenas atualizar preço">
                   <i class="fas fa-pencil"></i>
                 </button>
               </div>
@@ -335,8 +367,29 @@
                   <span v-if="modalPreco.unidade === 'g'">· R$ {{ (precoEmbCalculado * 1000).toFixed(2) }}/kg</span>
                   <span v-if="modalPreco.unidade === 'ml'">· R$ {{ (precoEmbCalculado * 1000).toFixed(2) }}/L</span>
                 </div>
+                
+                <!-- Seção de Entrada de Estoque -->
+                <div class="preco-entry-section mt-12">
+                  <label class="incluir-pessoal-toggle-modern">
+                    <input type="checkbox" v-model="registrarEstoque" />
+                    <span>Dar entrada no <strong>Estoque</strong></span>
+                  </label>
+                  
+                  <div v-if="registrarEstoque" class="preco-grid-2 mt-10">
+                    <div class="preco-field">
+                      <label class="preco-label">Data</label>
+                      <input type="date" v-model="dataCompra" class="preco-input-minimal" />
+                    </div>
+                    <div class="preco-field">
+                      <label class="preco-label">Qtd (Emb.)</label>
+                      <input type="number" v-model.number="qtdCompra" class="preco-input-minimal" min="1" />
+                    </div>
+                  </div>
+                </div>
+
                 <button class="btn btn-primary btn-sm mt-12" :disabled="!(parseFloat(precoEmbInput.replace(',','.')) > 0)" @click="confirmarPrecoEmb">
-                  <i class="fas fa-check"></i> Atualizar preço
+                  <i class="fas" :class="registrarEstoque ? 'fa-cart-arrow-down' : 'fa-check'"></i>
+                  {{ registrarEstoque ? 'Confirmar Compra' : 'Atualizar Preço' }}
                 </button>
               </div>
 
@@ -379,10 +432,31 @@
                   Embalagem de {{ fmtQ(modalPreco.fatorConv, modalPreco.unidade) }} custaria
                   <strong>{{ R$(fracResultado * modalPreco.fatorConv) }}</strong>
                 </div>
+
+                <!-- Seção de Entrada de Estoque (Fracionado) -->
+                <div class="preco-entry-section mt-12">
+                  <label class="incluir-pessoal-toggle-modern">
+                    <input type="checkbox" v-model="registrarEstoque" />
+                    <span>Dar entrada no <strong>Estoque</strong></span>
+                  </label>
+                  
+                  <div v-if="registrarEstoque" class="preco-grid-2 mt-10">
+                    <div class="preco-field">
+                      <label class="preco-label">Data</label>
+                      <input type="date" v-model="dataCompra" class="preco-input-minimal" />
+                    </div>
+                    <div class="preco-field">
+                      <label class="preco-label">Qtd (Emb.)</label>
+                      <input type="number" v-model.number="qtdCompra" class="preco-input-minimal" min="1" />
+                    </div>
+                  </div>
+                </div>
+
                 <button class="btn btn-primary btn-sm mt-12"
                   :disabled="!(fracResultado > 0)"
                   @click="confirmarPrecoFrac">
-                  <i class="fas fa-check"></i> Atualizar preço
+                  <i class="fas" :class="registrarEstoque ? 'fa-cart-arrow-down' : 'fa-check'"></i>
+                  {{ registrarEstoque ? 'Confirmar Compra' : 'Atualizar Preço' }}
                 </button>
               </div>
 
@@ -487,6 +561,9 @@
               </span>
               {{ nChecked }}/{{ listaCompras.length }}
             </span>
+            <button class="btn-txt-sm" @click="showAddPicker = true">
+              <i class="fas fa-plus"></i> Item
+            </button>
             <button class="btn-txt-sm" @click="desmarcarTodos">
               <i class="fas fa-rotate-left"></i> Limpar
             </button>
@@ -516,15 +593,75 @@ import { useTabScroll } from '../composables/useTabScroll.js'
 
 const s = useStore()
 const aba = ref('painel')
-const periodoAtivo = ref('30dias')
+const periodoAtivo = ref('total')
 const estoqueAberto = ref(false)
 const { stripEl: periodoStripEl, setTabRef: setPeriodoRef } = useTabScroll(periodoAtivo)
 
-// ── Filtro por intervalo de datas ──────────────────────────────
+// ── Calendário de intervalo ─────────────────────────────────
 const mostrarIntervalo = ref(false)
-const dataIni = ref('')
-const dataFim = ref('')
-const usandoIntervalo = ref(false)
+const dataIni          = ref('')
+const dataFim          = ref('')
+const usandoIntervalo  = ref(false)
+
+const hoje = new Date().toISOString().slice(0, 10)
+const mesCalendario = ref(0) // offset em meses a partir do mês atual
+
+const labelMesCalendario = computed(() => {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() + mesCalendario.value)
+  return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+})
+
+const diasVaziosInicio = computed(() => {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() + mesCalendario.value)
+  return d.getDay() // 0=dom
+})
+
+const diasDoMes = computed(() => {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() + mesCalendario.value)
+  const ano = d.getFullYear()
+  const mes = d.getMonth()
+  const total = new Date(ano, mes + 1, 0).getDate()
+  return Array.from({ length: total }, (_, i) => {
+    const num = i + 1
+    const iso = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(num).padStart(2, '0')}`
+    return { num, iso, futuro: iso > hoje }
+  })
+})
+
+function diaNoIntervalo(iso) {
+  if (!dataIni.value || !dataFim.value) return false
+  return iso > dataIni.value && iso < dataFim.value
+}
+
+function fmtDataBR(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
+function selecionarDia(iso) {
+  if (!dataIni.value || (dataFim.value)) {
+    // Primeiro clique (ou reinício)
+    dataIni.value = iso
+    dataFim.value = ''
+    usandoIntervalo.value = false
+  } else {
+    // Segundo clique
+    if (iso < dataIni.value) {
+      dataFim.value = dataIni.value
+      dataIni.value = iso
+    } else {
+      dataFim.value = iso
+    }
+    usandoIntervalo.value = true
+  }
+}
 
 const toggleIntervalo = () => {
   mostrarIntervalo.value = !mostrarIntervalo.value
@@ -535,11 +672,6 @@ const selecionarPeriodo = (val) => {
   usandoIntervalo.value = false
   dataIni.value = ''
   dataFim.value = ''
-}
-
-const aplicarIntervalo = () => {
-  if (!dataIni.value || !dataFim.value) return
-  usandoIntervalo.value = true
 }
 
 const limparIntervalo = () => {
@@ -557,8 +689,6 @@ const periodosDisponiveis = computed(() => {
     return `${yb}${mb}`.localeCompare(`${ya}${ma}`)
   }).slice(0, 6)
   return [
-    { value: '7dias', label: 'Última Semana' },
-    { value: '30dias', label: 'Últimos 30 dias' },
     ...mesesOrd.map(m => ({ value: m, label: m })),
     { value: 'total', label: 'Tudo' }
   ]
@@ -677,7 +807,49 @@ const fracValor = ref('')
 const fracQtd = ref('')
 const fracResultado = ref(0)
 
-function abrirModalPreco(item) {
+const showAddPicker = ref(false)
+const buscaAdd = ref('')
+
+const pickerProdutos = computed(() => {
+  const q = normalizar(buscaAdd.value)
+  const idsNaLista = new Set(listaCompras.value.map(i => i.id))
+  return s.produtos.filter(p => !idsNaLista.has(p.uuid) && (!q || normalizar(p.nome).includes(q)))
+    .sort((a, b) => a.nome.localeCompare(b.nome))
+})
+
+function adicionarProdutoManual(prod) {
+  const unidCompra = prod.unidade_compra || prod.unidade_base
+  const nomeEmbMap = {
+    'kg': ['pacote', 'pacotes'],
+    'g': ['pacote', 'pacotes'],
+    'L': ['frasco', 'frascos'],
+    'l': ['frasco', 'frascos'],
+    'ml': ['frasco', 'frascos'],
+    'cx': ['caixa', 'caixas'],
+    'pct': ['pacote', 'pacotes'],
+    'dz': ['dúzia', 'dúzias'],
+    'un': ['unidade', 'unidades'],
+  }
+  const [nomeEmb, nomeEmbPlural] = nomeEmbMap[unidCompra] || ['unid.', 'unid.']
+
+  const item = {
+    id: prod.uuid, nome: prod.nome, unidade: prod.unidade_base,
+    mediaMensal: 0, qtdSugerida: 0, custoEstimado: prod.custo_por_unidade || 0,
+    embalagens: 0, embalagensFinal: 1, nomeEmb, nomeEmbPlural,
+    fatorConv: prod.fator_conversao || 0, custoPorEmbalagem: prod.custo_por_unidade || 0,
+    checked: true 
+  }
+  listaCompras.value.unshift(item)
+  totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
+  showAddPicker.value = false
+  buscaAdd.value = ''
+}
+
+const registrarEstoque = ref(false)
+const dataCompra = ref(new Date().toISOString().slice(0, 10))
+const qtdCompra = ref(1)
+
+function abrirModalPreco(item, entryMode = false) {
   modalPreco.value = item
   modoPreco.value = item.fatorConv > 1 ? 'embalagem' : 'fracionado'
   precoEmbInput.value = item.custoPorEmbalagem > 0 ? String(item.custoPorEmbalagem.toFixed(2)).replace('.', ',') : ''
@@ -685,6 +857,10 @@ function abrirModalPreco(item) {
   fracValor.value = ''
   fracQtd.value = ''
   fracResultado.value = 0
+
+  registrarEstoque.value = entryMode
+  dataCompra.value = new Date().toISOString().slice(0, 10)
+  qtdCompra.value = item.embalagensFinal || 1
 }
 
 function calcPrecoEmb() {
@@ -702,7 +878,7 @@ function calcFracionado() {
 async function _aplicarNovoPrecoEmbalagem(item, novoCustoPorEmbalagem) {
   const prod = s.produtos.find(p => p.uuid === item.id)
   if (!prod) return
-  await s.salvarProduto({ ...prod, custo_por_unidade: novoCustoPorEmbalagem })
+  await s.atualizarPrecoProduto(prod.uuid, novoCustoPorEmbalagem)
   item.custoPorEmbalagem = novoCustoPorEmbalagem
   const emb = item.embalagensFinal || item.embalagens || 1
   item.custoEstimado = emb * novoCustoPorEmbalagem
@@ -711,8 +887,19 @@ async function _aplicarNovoPrecoEmbalagem(item, novoCustoPorEmbalagem) {
 
 async function confirmarPrecoEmb() {
   const val = parseFloat(precoEmbInput.value.replace(',', '.'))
-  if (!isNaN(val) && val > 0) {
-    await _aplicarNovoPrecoEmbalagem(modalPreco.value, val)
+  if (isNaN(val) || val <= 0) return
+
+  const item = modalPreco.value
+  if (registrarEstoque.value) {
+    await s.registrarCompraInsumo({
+      uuid: item.id,
+      custoPorEmbalagem: val,
+      qtdEmbalagens: qtdCompra.value,
+      data: dataCompra.value
+    })
+    item.checked = true
+  } else {
+    await _aplicarNovoPrecoEmbalagem(item, val)
   }
   modalPreco.value = null
 }
@@ -724,7 +911,18 @@ async function confirmarPrecoFrac() {
   const prod = s.produtos.find(p => p.uuid === item.id)
   if (!prod || fracResultado.value <= 0) return
   const novoCustoPorEmb = fracResultado.value * (prod.fator_conversao || 1)
-  await _aplicarNovoPrecoEmbalagem(item, novoCustoPorEmb)
+
+  if (registrarEstoque.value) {
+    await s.registrarCompraInsumo({
+      uuid: item.id,
+      custoPorEmbalagem: novoCustoPorEmb,
+      qtdEmbalagens: qtdCompra.value,
+      data: dataCompra.value
+    })
+    item.checked = true
+  } else {
+    await _aplicarNovoPrecoEmbalagem(item, novoCustoPorEmb)
+  }
   modalPreco.value = null
 }
 
@@ -770,6 +968,11 @@ async function carregarListaCompras() {
     const qtdPorSemana = mediaMensal / 4.3 // Média de semanas num mês
     const qtdSug = (qtdPorSemana * semanasProjecao.value) * 1.1 // +10% margem
     const prod = s.produtos.find(p => p.uuid === ing.id)
+
+    // Filtrar: apenas produtos com estoque atual abaixo ou igual ao mínimo ideal (com mínimo > 0)
+    if (!prod || !((prod.estoque_atual || 0) <= (prod.estoque_minimo || 0) && prod.estoque_minimo > 0)) {
+      return null
+    }
 
     // Campos do produto
     const fatorConv = prod?.fator_conversao || 0       // quantidade na embalagem (em unidade_base)
@@ -826,7 +1029,7 @@ async function carregarListaCompras() {
       nomeEmb, nomeEmbPlural, fatorConv, custoPorEmbalagem,
       checked: false
     }
-  }).sort((a, b) => b.custoEstimado - a.custoEstimado || b.mediaMensal - a.mediaMensal)
+  }).filter(Boolean).sort((a, b) => b.custoEstimado - a.custoEstimado || b.mediaMensal - a.mediaMensal)
   listaCompras.value = lista
   totalEstimado.value = lista.reduce((acc, i) => acc + i.custoEstimado, 0)
   loadingLista.value = false
@@ -1023,44 +1226,80 @@ function compartilharListaCompras(modo) {
 }
 
 /* Painel de filtro por datas */
-.filtro-datas {
-  padding: 10px 16px 14px;
-  background: var(--bg);
+/* ── Calendário inline ─────────────────────────────── */
+.cal-wrap {
+  background: var(--surface);
   border-top: 1px solid var(--border);
+  padding: 10px 12px 12px;
 }
-.filtro-datas-row { display: flex; gap: 8px; align-items: flex-end; }
-.filtro-campo { display: flex; flex-direction: column; gap: 3px; flex: 1; }
-.filtro-label { font-size: .65rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
-.filtro-input {
-  padding: 7px 10px; border-radius: var(--r-sm);
-  border: 1.5px solid var(--border); background: var(--surface);
-  color: var(--text); font-size: .78rem; font-weight: 600;
-  width: 100%; outline: none; transition: border .15s;
+.cal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
 }
-.filtro-input:focus { border-color: var(--brown); }
-.btn-aplicar {
-  width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--r-sm);
-  background: var(--brown); color: #fff; border: none;
+.cal-nav {
+  width: 34px; height: 34px; border: none; background: transparent;
+  color: var(--brown-mid); font-size: .9rem; border-radius: var(--r-sm);
   display: flex; align-items: center; justify-content: center;
-  font-size: .85rem; cursor: pointer; transition: opacity .15s;
+  cursor: pointer;
 }
-.btn-aplicar:disabled { opacity: .4; cursor: default; }
-.btn-limpar {
-  width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--r-sm);
-  background: var(--bg); color: var(--muted);
-  border: 1.5px solid var(--border);
-  display: flex; align-items: center; justify-content: center;
-  font-size: .85rem; cursor: pointer;
+.cal-nav:active { background: var(--gold-bg); }
+.cal-titulo {
+  font-size: .82rem; font-weight: 700; color: var(--brown-dark);
+  text-transform: capitalize;
 }
-.filtro-aviso {
-  margin-top: 8px; font-size: .7rem; color: var(--brown-mid);
-  font-weight: 600; display: flex; align-items: center; gap: 5px;
+.cal-semana {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+.cal-semana span {
+  text-align: center; font-size: .65rem; font-weight: 700;
+  color: var(--muted); padding: 2px 0;
+}
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+}
+.cal-vazio { aspect-ratio: 1; }
+.cal-dia {
+  aspect-ratio: 1; border: none; background: transparent;
+  font-size: .8rem; font-weight: 500; color: var(--text);
+  border-radius: 50%; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  transition: background var(--t), color var(--t);
+  position: relative; padding: 0;
+}
+.cal-dia:active { background: var(--gold-bg); }
+.cal-hoje { font-weight: 800; color: var(--brown-mid); }
+.cal-hoje::after {
+  content: ''; position: absolute; bottom: 2px; left: 50%;
+  transform: translateX(-50%); width: 4px; height: 4px;
+  border-radius: 50%; background: var(--brown-mid);
+}
+.cal-entre { background: var(--gold-bg); border-radius: 0; }
+.cal-inicio, .cal-fim {
+  background: var(--brown-dark) !important;
+  color: #fff !important; border-radius: 50% !important;
+  font-weight: 700;
+}
+.cal-desabilitado { opacity: .25; cursor: default; }
+
+.cal-status {
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: .75rem; color: var(--muted);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.cal-range-label { font-weight: 600; color: var(--brown-dark); }
+.cal-limpar-mini {
+  border: none; background: transparent; color: var(--muted);
+  font-size: .72rem; font-weight: 600; cursor: pointer;
+  text-decoration: underline; padding: 0;
+  white-space: nowrap;
 }
 
 /* Transição slide-down */
 .slide-down-enter-active, .slide-down-leave-active { transition: all .22s ease; overflow: hidden; }
-.slide-down-enter-from, .slide-down-leave-to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
-.slide-down-enter-to, .slide-down-leave-from { opacity: 1; max-height: 200px; }
+.slide-down-enter-from, .slide-down-leave-to { opacity: 0; max-height: 0; }
+.slide-down-enter-to, .slide-down-leave-from { opacity: 1; max-height: 400px; }
 
 .painel-content { padding: 12px 16px 100px; display: flex; flex-direction: column; gap: 12px; }
 
@@ -1187,8 +1426,9 @@ function compartilharListaCompras(modo) {
 .lc-custo { font-size: .68rem; font-weight: 700; color: var(--green); font-family: var(--mono); }
 .lc-ctx-sub { font-size: .58rem; color: var(--muted); display: block; text-align: right; margin-top: 1px; }
 .lc-custo-row { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
-.lc-preco-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: .58rem; padding: 2px 3px; border-radius: 3px; opacity: 0; transition: opacity .15s; }
-.lc-item:hover .lc-preco-btn { opacity: 1; }
+.lc-preco-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: .75rem; padding: 4px; border-radius: 6px; transition: all .15s; }
+.lc-preco-btn:active { background: var(--bg); transform: scale(0.9); }
+.lc-preco-btn.btn-buy { color: var(--green); opacity: 1; }
 .lc-preco-edit { display: flex; align-items: center; gap: 2px; background: var(--bg); border: 1.5px solid var(--brown); border-radius: var(--r-sm); padding: 2px 5px; }
 .lc-preco-prefix { font-size: .65rem; color: var(--muted); font-weight: 700; }
 .lc-preco-input { width: 52px; border: none; background: transparent; font-size: .75rem; font-weight: 800; font-family: var(--mono); color: var(--brown-dark); outline: none; text-align: right; }
@@ -1285,5 +1525,21 @@ function compartilharListaCompras(modo) {
 .preco-resultado i { font-size: .7rem; flex-shrink: 0; }
 .preco-resultado strong { color: var(--brown-dark); }
 .preco-resultado-sec { background: var(--bg); color: var(--muted); }
+.preco-input-minimal {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: 0.85rem;
+  background: var(--surface);
+  color: var(--brown-dark);
+  font-weight: 600;
+}
+.preco-entry-section {
+  background: var(--cream);
+  border: 1px dashed var(--border2);
+  border-radius: var(--r-md);
+  padding: 10px;
+}
 .mt-12 { margin-top: 4px; }
 </style>
