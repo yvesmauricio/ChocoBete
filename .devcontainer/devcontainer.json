@@ -1,9 +1,0 @@
-{
-    "name": "Toolbox Dev",
-    "remoteUser": "${localEnv:USER}",
-    "remoteEnv": {
-        "PATH": "/home/yves/.local/bin:/usr/local/bin:/usr/bin",
-        "DISPLAY": "${localEnv:DISPLAY}",
-        "XDG_RUNTIME_DIR": "${containerEnv:XDG_RUNTIME_DIR}"
-    }
-}
