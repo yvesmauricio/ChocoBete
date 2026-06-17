@@ -126,7 +126,7 @@
             <label class="label">Próxima etiqueta livre na folha</label>
             <div class="input-with-icon">
               <i class="fas fa-tag"></i>
-                <input v-model.number="company.posicao_etiqueta" type="number" class="input" min="1" :max="ETIQUETAS_POR_FOLHA" />
+              <input v-model.number="company.posicao_etiqueta" type="number" class="input" min="1" max="77" />
             </div>
           </div>
 
@@ -328,7 +328,7 @@
                 <label class="label">Próxima etiqueta livre</label>
                 <div class="input-with-icon">
                   <i class="fas fa-tag"></i>
-                  <input v-model.number="company.posicao_etiqueta" type="number" class="input" min="1" :max="ETIQUETAS_POR_FOLHA" />
+                  <input v-model.number="company.posicao_etiqueta" type="number" class="input" min="1" max="77" />
                 </div>
                 <p class="hint">Posição (1 a 77) para reaproveitar folhas de etiquetas.</p>
               </div>
@@ -421,7 +421,7 @@ import { useStore } from '../store.js'
 import { maskCpf, maskCnpj, maskCnae, normalizar } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
-import { gerarArquivoEtiquetas, ETIQUETAS_POR_FOLHA } from '../composables/useEtiquetas.js'
+import { gerarArquivoEtiquetas } from '../composables/useEtiquetas.js'
 import { 
   getProdutosCaderneta, 
   salvarProdutosCaderneta, 
@@ -447,7 +447,7 @@ const totalEtiquetasSelecionadas = computed(() =>
 
 const totalFolhasEtiqueta = computed(() => {
   const startPos = Math.max(0, (Number(company.posicao_etiqueta || 1) || 1) - 1)
-  return Math.max(1, Math.ceil((startPos + totalEtiquetasSelecionadas.value) / ETIQUETAS_POR_FOLHA))
+  return Math.max(1, Math.ceil((startPos + totalEtiquetasSelecionadas.value) / 77))
 })
 
 async function gerarEtiquetasAvulsas() {
