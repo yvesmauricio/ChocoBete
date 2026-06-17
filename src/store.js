@@ -12,13 +12,7 @@ import {
   getBackupTimestamp,
   getBackupBakTimestamp
 } from './services/googleDriveBackup.js'
-import { 
-  isInsumoSemPeso, 
-  normalizar, 
-  getMesRef, 
-  dataHoraBR, 
-  roundMoney 
-} from './utils.js'
+import { isInsumoSemPeso, normalizar, getMesRef, dataHoraBR } from './utils.js'
 
 export const useStore = defineStore('choco', () => {
 
@@ -71,6 +65,7 @@ export const useStore = defineStore('choco', () => {
     nome: 'ChocoBete Produção',
     slogan: 'Registro de Produção',
     posicao_etiqueta: 0,
+    contato_etiqueta: '', // texto livre exibido na etiqueta (whatsapp/instagram)
     razao_social: '',
     cnpj: '',
     cpf: '',
@@ -1211,7 +1206,7 @@ export const useStore = defineStore('choco', () => {
   }
 
   // ── CRUD: INGREDIENTES (produtos) ────────
-  async function salvarProduto(dados, options = {}) {
+  async function salvarProduto(dados) {
     const obj = clean(dados)
     obj.uuid = obj.uuid || crypto.randomUUID()
     obj.nome = String(obj.nome || '').trim()
@@ -1223,18 +1218,16 @@ export const useStore = defineStore('choco', () => {
     if (Number(obj.peso_unitario || 0) < 0) failValidation('O peso por unidade nao pode ser negativo.')
     if (Number(obj.estoque_atual || 0) < 0) failValidation('O estoque atual nao pode ser negativo.')
     if (Number(obj.estoque_minimo || 0) < 0) failValidation('O estoque minimo nao pode ser negativo.')
-    obj.estoque_atual = roundMoney(obj.estoque_atual || 0);
-    obj.estoque_minimo = roundMoney(obj.estoque_minimo || 0);
 
     const antigo = await db.produtos.get(obj.uuid)
     const precoMudou = !antigo || antigo.custo_por_unidade !== obj.custo_por_unidade
 
     await db.produtos.put(obj)
 
-    if (precoMudou || options.forcarHistorico) {
+    if (precoMudou) {
       await db.historico_precos.add({
         produto_uuid: obj.uuid,
-        data: options.dataHistorico || new Date().toISOString(),
+        data: new Date().toISOString(),
         custo_por_unidade: obj.custo_por_unidade
       })
     }

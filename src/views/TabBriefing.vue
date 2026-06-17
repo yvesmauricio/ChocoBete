@@ -151,10 +151,9 @@
 
       </template>
 
-      <div v-else class="app-empty">
-        <i class="fas fa-clipboard-list"></i>
-        <h3>Pedido vazio</h3>
-        <p>Toque nas receitas acima para montar o pedido do dia e ver o que separar.</p>
+      <div v-else class="empty-state">
+        <i class="fas fa-clipboard"></i>
+        <p>Toque nas receitas acima para montar o pedido do dia e ver os insumos a separar.</p>
       </div>
 
     </div>
@@ -497,6 +496,11 @@ onUnmounted(() => {
 .briefing-actions { display:grid; grid-template-columns:1fr 1.3fr; gap:10px; }
 
 /* ── Empty ── */
+.empty-state { display:flex; flex-direction:column; align-items:center; gap:12px; padding:48px 24px; color:var(--muted); text-align:center; }
+.empty-state i { font-size:2rem; opacity:.35; }
+.empty-state p { font-size:.88rem; line-height:1.5; max-width:260px; }
+
+/* ── Stepper flutuante ── */
 .stepper-pop { position:fixed; z-index:9999; display:flex; align-items:center; background:var(--brown-dark); border-radius:28px; box-shadow:0 8px 24px rgba(0,0,0,.25); padding:4px; touch-action:none; }
 .stepper-pop::after { content:''; position:absolute; left:50%; transform:translateX(-50%); width:0; height:0; border:8px solid transparent; pointer-events:none; }
 .stepper-pop.arrow-down::after { bottom:-15px; border-top-color:var(--brown-dark); }

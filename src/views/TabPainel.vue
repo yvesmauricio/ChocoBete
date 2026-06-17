@@ -285,9 +285,9 @@
                 </button>
               </div>
               <!-- Custo + editar preço -->
-              <div class="lc-custo-row" @click.stop="abrirModalPreco(item)" style="cursor: pointer;">
+              <div class="lc-custo-row" @click.stop>
                 <span class="lc-custo" v-if="item.custoEstimado > 0">{{ R$(item.custoEstimado) }}</span>
-                <button class="lc-preco-btn" title="Atualizar preço">
+                <button class="lc-preco-btn" @click.stop="abrirModalPreco(item)" title="Atualizar preço">
                   <i class="fas fa-pencil"></i>
                 </button>
               </div>
@@ -295,44 +295,12 @@
           </div>
         </div>
 
-        <!-- ── Entrada Manual de Produtos ── -->
-        <div v-if="aba === 'lista' && !loadingLista" class="manual-entry-trigger">
-          <button class="btn-add-outline" @click="showManualPicker = true">
-            <i class="fas fa-search-plus"></i> Registrar entrada de outro produto
-          </button>
-        </div>
-
-        <!-- Modal Picker para Entrada Manual -->
-        <Teleport to="body">
-          <BaseModal v-if="showManualPicker" title="Selecionar Produto" @close="showManualPicker = false">
-            <div class="modal-inner">
-              <div class="search-wrap mt-8">
-                <i class="fas fa-search search-icon"></i>
-                <input v-model="pickerSearch" class="search-input" type="search" placeholder="Buscar ingrediente..." autofocus />
-              </div>
-              <div class="picker-list mt-10">
-                <div v-for="p in pickerProdutos" :key="p.uuid" class="picker-row" @click="selecionarManual(p)">
-                  <span class="picker-tipo-badge">{{ p.tipo === 'embalagem' ? '📦' : '🥣' }}</span>
-                  <div class="picker-row-info">
-                    <div class="picker-row-nome">{{ p.nome }}</div>
-                    <div class="picker-row-sub">Estoque: {{ fmtQ(p.estoque_atual, p.unidade_base) }} 
-                      <span v-if="p.estoque_minimo > 0" :class="{'c-red fw700': p.estoque_atual <= p.estoque_minimo}"> (Mín: {{ fmtQ(p.estoque_minimo) }})</span>
-                    </div>
-                  </div>
-                  <i class="fas fa-plus c-gold"></i>
-                </div>
-                <div v-if="!pickerProdutos.length" class="picker-vazio">Nenhum produto encontrado</div>
-              </div>
-            </div>
-          </BaseModal>
-        </Teleport>
-
         <!-- Modal de atualização de preço -->
         <Teleport to="body">
         <div v-if="modalPreco" class="bottom-sheet-overlay" @click.self="modalPreco = null">
           <div class="lc-modal">
             <div class="lc-modal-hdr">
-              <span class="lc-modal-titulo"><i class="fas fa-cart-arrow-down"></i> Entrada de Estoque: {{ modalPreco.nome }}</span>
+              <span class="lc-modal-titulo"><i class="fas fa-tag"></i> {{ modalPreco.nome }}</span>
               <button class="lc-modal-close" @click="modalPreco = null"><i class="fas fa-xmark"></i></button>
             </div>
             <div class="lc-modal-body">
@@ -347,16 +315,6 @@
                 </button>
               </div>
 
-              <!-- Campo de Data da Compra -->
-              <div class="preco-field">
-                <label class="preco-label"><i class="fas fa-calendar-day"></i> Data da compra</label>
-                <div class="preco-input-row">
-                  <input class="preco-input" type="date" 
-                    v-model="modalPreco.dataCompra"
-                    style="font-family: var(--font); font-weight: 600; text-align: left; width: 100%;" />
-                </div>
-              </div>
-
               <!-- MODO: Preço da embalagem inteira -->
               <div v-if="modoPreco === 'embalagem'" class="preco-form">
                 <div class="preco-field">
@@ -367,7 +325,7 @@
                   <div class="preco-input-row">
                     <span class="preco-prefix">R$</span>
                     <input class="preco-input" type="text" inputmode="numeric"
-                      v-model="precoEmbInput"
+                      :value="precoEmbInput"
                       @input="onPrecoEmbInput"
                       @keydown="bloquearLetras"
                       placeholder="0,00" />
@@ -386,11 +344,11 @@
                   <div class="qtd-entrada-row">
                     <button class="qtd-e-btn" @click="qtdEntradaInput = String(Math.max(1, (parseFloat(qtdEntradaInput)||1) - 1))">−</button>
                     <input class="qtd-e-input" type="text" inputmode="numeric"
-                      v-model="qtdEntradaInput"
-                      @input="e => qtdEntradaInput = e.target.value.replace(/[^\d,\.]/g,'')"
+                      :value="qtdEntradaInput"
+                      @input="e => qtdEntradaInput = e.target.value.replace(/\D/g,'')"
                       @keydown="bloquearLetras" />
                     <button class="qtd-e-btn" @click="qtdEntradaInput = String((parseFloat(qtdEntradaInput)||0) + 1)">+</button>
-                    <span class="qtd-e-unid">{{ modoPreco === 'embalagem' ? (modalPreco.nomeEmbPlural || 'un') : modalPreco.unidade }}</span>
+                    <span class="qtd-e-unid">{{ modalPreco.nomeEmbPlural || 'un' }}</span>
                   </div>
                 </div>
 
@@ -407,7 +365,7 @@
                     <div class="preco-input-row">
                       <span class="preco-prefix">R$</span>
                       <input class="preco-input" type="text" inputmode="numeric"
-                        v-model="fracValor"
+                        :value="fracValor"
                         @input="onFracValorInput"
                         @keydown="bloquearLetras"
                         placeholder="5,00" />
@@ -417,7 +375,7 @@
                     <label class="preco-label">Qtd. ({{ modalPreco.unidade }})</label>
                     <div class="preco-input-row">
                       <input class="preco-input" type="text" inputmode="numeric"
-                        v-model="fracQtd"
+                        :value="fracQtd"
                         @input="e => { fracQtd = e.target.value.replace(/[^\d,\.]/g,''); calcFracionado() }"
                         @keydown="bloquearLetras"
                         :placeholder="modalPreco.unidade === 'g' ? '167' : '0'" />
@@ -441,12 +399,12 @@
                 <div class="preco-field mt-12">
                   <label class="preco-label">Qtd. recebida</label>
                   <div class="qtd-entrada-row">
-                    <button class="qtd-e-btn" @click="qtdEntradaInput = String(Math.max(0, (parseFloat(qtdEntradaInput)||0) - (modalPreco.unidade === 'un' ? 1 : 0.1)))">−</button>
+                    <button class="qtd-e-btn" @click="qtdEntradaInput = String(Math.max(1, (parseFloat(qtdEntradaInput)||1) - 1))">−</button>
                     <input class="qtd-e-input" type="text" inputmode="numeric"
-                      v-model="qtdEntradaInput"
-                      @input="e => qtdEntradaInput = e.target.value.replace(/[^\d,\.]/g,'')"
+                      :value="qtdEntradaInput"
+                      @input="e => qtdEntradaInput = e.target.value.replace(/\D/g,'')"
                       @keydown="bloquearLetras" />
-                    <button class="qtd-e-btn" @click="qtdEntradaInput = String((parseFloat(qtdEntradaInput)||0) + (modalPreco.unidade === 'un' ? 1 : 0.1))">+</button>
+                    <button class="qtd-e-btn" @click="qtdEntradaInput = String((parseFloat(qtdEntradaInput)||0) + 1)">+</button>
                     <span class="qtd-e-unid">{{ modalPreco.nomeEmbPlural || 'un' }}</span>
                   </div>
                 </div>
@@ -545,7 +503,35 @@
           </div>
         </div>
         </Teleport>
-     </template>
+
+        <!-- Rodapé discreto: progresso inline + botões -->
+        <div v-if="listaCompras.length" class="lc-footer">
+          <div class="lc-footer-top">
+            <span class="lc-prog-inline">
+              <span class="lc-prog-dots">
+                <span
+                  v-for="(_, i) in listaCompras" :key="i"
+                  class="lc-dot"
+                  :class="{ 'lc-dot-on': i < nChecked }"
+                ></span>
+              </span>
+              {{ nChecked }}/{{ listaCompras.length }}
+            </span>
+            <button class="btn-txt-sm" @click="desmarcarTodos">
+              <i class="fas fa-rotate-left"></i> Limpar
+            </button>
+          </div>
+          <div class="lc-share-btns">
+            <button class="btn btn-secondary btn-sm" @click="compartilharListaCompras('pendentes')" :disabled="nChecked === listaCompras.length">
+              <i class="fas fa-share-nodes"></i> Compartilhar pendentes
+            </button>
+            <button class="btn btn-primary btn-sm" @click="compartilharListaCompras('tudo')">
+              <i class="fas fa-share-nodes"></i> Tudo
+            </button>
+          </div>
+        </div>
+
+      </template>
     </div>
 
   </div>
@@ -554,9 +540,8 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useStore } from '../store.js'
-import BaseModal from '../components/BaseModal.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
-import { R$, avatarColor, fmtQtd as fmtQ, getMesRef, maskMoney, parseMoney, normalizar } from '../utils.js'
+import { R$, avatarColor, fmtQtd as fmtQ, getMesRef, maskMoney, parseMoney } from '../utils.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
 
 const s = useStore()
@@ -579,16 +564,6 @@ const labelMesCalendario = computed(() => {
   d.setDate(1)
   d.setMonth(d.getMonth() + mesCalendario.value)
   return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-})
-
-// ── Picker Entrada Manual ──
-const showManualPicker = ref(false)
-const pickerSearch = ref('')
-const pickerProdutos = computed(() => {
-  const q = normalizar(pickerSearch.value)
-  return s.produtos
-    .filter(p => !q || normalizar(p.nome).includes(q))
-    .sort((a, b) => a.nome.localeCompare(b.nome))
 })
 
 const diasVaziosInicio = computed(() => {
@@ -794,17 +769,13 @@ function abrirModalPreco(item) {
   fracValor.value = ''
   fracQtd.value = ''
   fracResultado.value = 0
-  item.dataCompra = new Date().toISOString().slice(0, 10)
   qtdEntradaInput.value = item.embalagensFinal > 0 ? String(item.embalagensFinal) : '1'
 }
 
-watch(fracQtd, (nv) => {
-  if (modoPreco.value === 'fracionado') qtdEntradaInput.value = nv
-})
-
 // Máscara monetária ao digitar
 function onPrecoEmbInput(e) {
-  const num = parseMoney(e.target.value)
+  const raw = e.target.value.replace(/\D/g, '')
+  const num = parseInt(raw || '0') / 100
   precoEmbInput.value = num > 0 ? maskMoney(num) : ''
   const fator = modalPreco.value?.fatorConv || 1
   precoEmbCalculado.value = num > 0 && fator > 0 ? num / fator : 0
@@ -842,15 +813,11 @@ async function _confirmarCompra(item, custoPorEmbalagem) {
   const qtdEmb = parseFloat(qtdEntradaInput.value) || 0
   const fator  = prod.fator_conversao || 1
   const novoEstoque = (prod.estoque_atual || 0) + (qtdEmb * fator)
-  
   // Uma única chamada — salva preço + estoque juntos
   await s.salvarProduto({
     ...prod,
     custo_por_unidade: custoPorEmbalagem,
     estoque_atual: novoEstoque
-  }, {
-    dataHistorico: item.dataCompra ? item.dataCompra + 'T12:00:00Z' : null,
-    forcarHistorico: true
   })
   // Atualiza item na lista
   item.custoPorEmbalagem = custoPorEmbalagem
@@ -870,40 +837,20 @@ async function confirmarPrecoEmb() {
 async function confirmarPrecoFrac() {
   const item = modalPreco.value
   const prod = s.produtos.find(p => p.uuid === item.id)
-  const qtdBase = parseFloat(String(qtdEntradaInput.value).replace(',', '.'))
-  if (!prod || fracResultado.value <= 0 || !qtdBase) return
-
+  if (!prod || fracResultado.value <= 0) return
   const novoCustoPorEmb = fracResultado.value * (prod.fator_conversao || 1)
-  const novoEstoque = (prod.estoque_atual || 0) + qtdBase
-
-  await s.salvarProduto({
-    ...prod,
-    custo_por_unidade: novoCustoPorEmb,
-    estoque_atual: novoEstoque
-  }, {
-    dataHistorico: item.dataCompra ? item.dataCompra + 'T12:00:00Z' : null,
-    forcarHistorico: true
-  })
-  item.checked = true
+  await _confirmarCompra(item, novoCustoPorEmb)
   modalPreco.value = null
-}
-
-// Helper para converter Produto -> Item de Lista de Compras
-function selecionarManual(prod) {
-  showManualPicker.value = false
-  abrirModalPreco(mapearProdutoParaItemLista(prod, 0))
 }
 
 async function abrirLista() {
   aba.value = 'lista'
-  await carregarListaCompras() // Sempre recarrega para garantir dados atualizados
+  if (!listaCompras.value.length) await carregarListaCompras()
 }
 
 async function carregarListaCompras() {
   loadingLista.value = true
   listaCompras.value = []
-  
-  // 1. Analisa o consumo dos últimos 3 meses para calcular a média
   await s.carregarProducoes(0)
   const agora = new Date()
   const mesesAlvo = []
@@ -914,7 +861,7 @@ async function carregarListaCompras() {
   const prod3m = s.producoes.filter(p => mesesAlvo.includes(getMesRef(p.data_producao)))
   const mesesComDados = new Set(prod3m.map(p => getMesRef(p.data_producao)))
   mesesUsados.value = mesesComDados.size
-
+  if (!prod3m.length) { loadingLista.value = false; return }
   const mapMes = {}
   mesesComDados.forEach(m => { mapMes[m] = {} })
   prod3m.forEach(p => {
@@ -924,7 +871,6 @@ async function carregarListaCompras() {
     if (!qtd) return
     s.expandirIngredientes(r.ingredientes || [], qtd / (r.rendimento || 1), mapMes[getMesRef(p.data_producao)])
   })
-
   const mediaMap = {}
   Object.values(mapMes).forEach(mm => {
     Object.values(mm).forEach(ing => {
@@ -933,69 +879,72 @@ async function carregarListaCompras() {
     })
   })
 
-  const listaFinal = []
-  s.produtos.forEach(p => {
-    if (p.estoque_minimo > 0 && (p.estoque_atual || 0) <= p.estoque_minimo) {
-      const mediaMensal = mesesUsados.value > 0 ? (mediaMap[p.uuid]?.soma || 0) / mesesUsados.value : 0
-      listaFinal.push(mapearProdutoParaItemLista(p, mediaMensal))
+  const nM = mesesComDados.size
+  const lista = Object.values(mediaMap).map(ing => {
+    const mediaMensal = ing.soma / nM
+    const qtdPorSemana = mediaMensal / 4.3 // Média de semanas num mês
+    const qtdSug = (qtdPorSemana * semanasProjecao.value) * 1.1 // +10% margem
+    const prod = s.produtos.find(p => p.uuid === ing.id)
+
+    // Campos do produto
+    const fatorConv = prod?.fator_conversao || 0       // quantidade na embalagem (em unidade_base)
+    const custoPorEmbalagem = prod?.custo_por_unidade || 0  // preço de 1 embalagem completa
+    const unidCompra = prod?.unidade_compra || prod?.unidade_base || ing.unidade
+
+    // Nome amigável da embalagem baseado na unidade de compra
+    const nomeEmbMap = {
+      'kg': ['pacote', 'pacotes'],
+      'g':  ['pacote', 'pacotes'],
+      'L':  ['frasco', 'frascos'],
+      'l':  ['frasco', 'frascos'],
+      'ml': ['frasco', 'frascos'],
+      'cx': ['caixa', 'caixas'],
+      'pct': ['pacote', 'pacotes'],
+      'dz': ['dúzia', 'dúzias'],
+      'un': ['unidade', 'unidades'],
     }
-  })
+    const [nomeEmbDefault, nomeEmbPluralDefault] = nomeEmbMap[unidCompra] || ['unid.', 'unid.']
 
-  listaCompras.value = listaFinal.sort((a, b) => b.custoEstimado - a.custoEstimado)
-  totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
+    let embalagens = 0
+    let nomeEmb = nomeEmbDefault
+    let nomeEmbPlural = nomeEmbPluralDefault
+    let custo = 0
+
+    if (ing.unidade === 'un') {
+      // Ingrediente contado em unidades — cada unidade é 1 item comprado
+      embalagens = Math.ceil(qtdSug)
+      nomeEmb = 'unidade'; nomeEmbPlural = 'unidades'
+      // Se tem embalagem com fatorConv (ex: pacote de 100un), usa isso
+      if (fatorConv > 1) {
+        embalagens = Math.ceil(qtdSug / fatorConv)
+        nomeEmb = nomeEmbDefault; nomeEmbPlural = nomeEmbPluralDefault
+      }
+      custo = custoPorEmbalagem > 0
+        ? embalagens * custoPorEmbalagem
+        : s.getPrecoUnitarioInsumo(prod) * qtdSug
+    } else if (fatorConv > 0) {
+      // Ingrediente em g/ml/kg — calcular embalagens inteiras necessárias
+      embalagens = Math.ceil(qtdSug / fatorConv)
+      // Custo = número de embalagens inteiras × preço da embalagem
+      custo = custoPorEmbalagem > 0
+        ? embalagens * custoPorEmbalagem
+        : s.getPrecoUnitarioInsumo(prod) * qtdSug
+    } else {
+      // Sem embalagem definida — fallback ao custo por unidade base
+      custo = s.getPrecoUnitarioInsumo(prod) * qtdSug
+    }
+
+    return {
+      id: ing.id, nome: ing.nome, unidade: ing.unidade,
+      mediaMensal: mediaMensal, qtdSugerida: qtdSug, custoEstimado: custo,
+      embalagens, embalagensFinal: embalagens || 1,
+      nomeEmb, nomeEmbPlural, fatorConv, custoPorEmbalagem,
+      checked: false
+    }
+  }).sort((a, b) => b.custoEstimado - a.custoEstimado || b.mediaMensal - a.mediaMensal)
+  listaCompras.value = lista
+  totalEstimado.value = lista.reduce((acc, i) => acc + i.custoEstimado, 0)
   loadingLista.value = false
-}
-
-/** Helper para converter Produto -> Item de Lista de Compras */
-function mapearProdutoParaItemLista(prod, mediaMensal = 0) {
-  const estoqueAtual = prod.estoque_atual || 0
-  const estoqueMinimo = prod.estoque_minimo || 0
-
-  // Diferença para atingir o mínimo
-  const deficitParaMin = Math.max(0, estoqueMinimo - estoqueAtual)
-  // Consumo previsto para o período (ex: 2 semanas) + 10% de margem
-  const consumoPrevisto = ((mediaMensal / 4.3) * semanasProjecao.value) * 1.1
-
-  // A quantidade total necessária é o que falta para o mínimo + o que vou gastar no período
-  const totalNecessarioBase = deficitParaMin + consumoPrevisto
-
-  const fatorConv = prod.fator_conversao || 0
-  const custoPorEmbalagem = prod.custo_por_unidade || 0
-  const unidCompra = prod.unidade_compra || prod.unidade_base || 'un'
-  
-  const nomeEmbMap = {
-    'kg': ['pacote', 'pacotes'], 'g': ['pacote', 'pacotes'],
-    'L': ['frasco', 'frascos'], 'l': ['frasco', 'frascos'],
-    'ml': ['frasco', 'frascos'], 'cx': ['caixa', 'caixas'],
-    'pct': ['pacote', 'pacotes'], 'dz': ['dúzia', 'dúzias'], 'un': ['unidade', 'unidades'],
-  }
-  const [nomeEmb, nomeEmbPlural] = nomeEmbMap[unidCompra] || ['unid.', 'unid.']
-  
-  let embalagens = 0;
-  if (fatorConv > 0) {
-    embalagens = Math.max(1, Math.ceil(totalNecessarioBase / fatorConv));
-  } else {
-    embalagens = Math.max(1, Math.ceil(totalNecessarioBase)); 
-  }
-  const qtdSug = embalagens * (fatorConv > 0 ? fatorConv : 1); // Quantidade total em unidade base
-
-  const custoEstimado = custoPorEmbalagem > 0 ? embalagens * custoPorEmbalagem : s.getPrecoUnitarioInsumo(prod) * qtdSug;
-
-  return {
-    id: prod.uuid, 
-    nome: prod.nome, 
-    unidade: prod.unidade_base,
-    mediaMensal,
-    qtdSugerida: qtdSug, 
-    custoEstimado,
-    embalagens, 
-    embalagensFinal: embalagens,
-    nomeEmb, 
-    nomeEmbPlural, 
-    fatorConv, 
-    custoPorEmbalagem,
-    checked: false
-  }
 }
 
 // Ajuste de quantidade de embalagens pelo stepper
@@ -1052,6 +1001,37 @@ function fmtDataCurta(iso) {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`
 }
 
+function desmarcarTodos() { listaCompras.value.forEach(i => { i.checked = false }) }
+
+function linhaItem(i) {
+  const precisa = fmtQ(i.qtdSugerida, i.unidade)
+  let embStr = ''
+  if (i.embalagens > 0 && i.fatorConv > 1) {
+    embStr = ` → ${i.embalagens} ${i.nomeEmbPlural} de ${fmtQ(i.fatorConv, i.unidade)} cada`
+  } else if (i.embalagens > 0) {
+    embStr = ` → ${i.embalagens} ${i.nomeEmbPlural}`
+  }
+  const custo = i.custoEstimado > 0 ? ` (${R$(i.custoEstimado)})` : ''
+  return `${i.checked ? '✅' : '🛒'} *${i.nome}*: ${precisa}${embStr}${custo}`
+}
+
+function compartilharListaCompras(modo) {
+  // modo: 'pendentes' = só os NÃO marcados | 'tudo' = todos
+  const src = modo === 'pendentes'
+    ? listaCompras.value.filter(i => !i.checked)
+    : listaCompras.value
+
+  if (!src.length) { s.notify('Nenhum item para compartilhar'); return }
+
+  const header = modo === 'pendentes' ? 'LISTA DE COMPRAS — PENDENTES' : 'LISTA DE COMPRAS — COMPLETA'
+  const itens = src.map(linhaItem).join('\n')
+  const total = totalEstimado.value > 0 ? `\n\n💰 *Total estimado: ${R$(totalEstimado.value)}*` : ''
+  const rodape = `\n_Média de ${mesesUsados.value} ${mesesUsados.value === 1 ? 'mês' : 'meses'} · chocobete_`
+  const msg = `🛒 *${header}*\n\n${itens}${total}${rodape}`
+
+  if (navigator.share) navigator.share({ title: 'Lista de Compras', text: msg }).catch(() => {})
+  else { navigator.clipboard.writeText(msg); s.notify('Lista copiada!') }
+}
 </script>
 
 <style scoped>
@@ -1358,9 +1338,8 @@ function fmtDataCurta(iso) {
 .lc-custo { font-size: .68rem; font-weight: 700; color: var(--green); font-family: var(--mono); }
 .lc-ctx-sub { font-size: .58rem; color: var(--muted); display: block; text-align: right; margin-top: 1px; }
 .lc-custo-row { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
-.lc-preco-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: .58rem; padding: 2px 3px; border-radius: 3px; transition: color var(--t); }
-.lc-preco-btn:active { color: var(--brown); }
-
+.lc-preco-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: .58rem; padding: 2px 3px; border-radius: 3px; opacity: 0; transition: opacity .15s; }
+.lc-item:hover .lc-preco-btn { opacity: 1; }
 .lc-preco-edit { display: flex; align-items: center; gap: 2px; background: var(--bg); border: 1.5px solid var(--brown); border-radius: var(--r-sm); padding: 2px 5px; }
 .lc-preco-prefix { font-size: .65rem; color: var(--muted); font-weight: 700; }
 .lc-preco-input { width: 52px; border: none; background: transparent; font-size: .75rem; font-weight: 800; font-family: var(--mono); color: var(--brown-dark); outline: none; text-align: right; }
@@ -1378,15 +1357,39 @@ function fmtDataCurta(iso) {
 
 /* Rodapé discreto */
 .qtd-entrada-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
-.qtd-e-btn { width: 32px; height: 32px; border-radius: var(--r-sm); border: 1.5px solid var(--border); background: var(--surface); color: var(--brown-dark); font-size: 1rem; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
-.qtd-e-btn:active { background: var(--gold-bg); }
-.qtd-e-input { width: 48px; text-align: center; padding: 6px 4px; border: 1.5px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: .9rem; font-weight: 600; }
-.qtd-e-unid { font-size: .78rem; color: var(--muted); font-weight: 500; }
+/* qtd-e-btn/input/unid agora em main.css (global) */
+
+.lc-footer {
+  margin-top: 4px; padding: 10px 0 0;
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.lc-footer-top {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.lc-prog-inline {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .68rem; font-weight: 700; color: var(--muted);
+}
+.lc-prog-dots { display: flex; gap: 3px; align-items: center; }
+.lc-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border); transition: background .2s;
+  flex-shrink: 0;
+}
+.lc-dot-on { background: var(--green); }
+.btn-txt-sm {
+  font-size: .7rem; color: var(--muted); background: none; border: none;
+  cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 0;
+}
+.btn-txt-sm:hover { color: var(--brown); }
+.lc-share-btns { display: flex; gap: 8px; }
+.lc-share-btns .btn { flex: 1; font-size: .76rem; }
 
 /* Nome row com botão de histórico */
 .lc-nome-row { display: flex; align-items: center; gap: 5px; }
-.lc-hist-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: .6rem; padding: 2px 3px; border-radius: 3px; flex-shrink: 0; transition: color var(--t); }
-.lc-hist-btn:active { color: var(--gold-dark); }
+.lc-hist-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: .6rem; padding: 2px 3px; border-radius: 3px; flex-shrink: 0; opacity: 0; transition: opacity .15s; }
+.lc-item:hover .lc-hist-btn { opacity: 1; }
 
 /* Stepper */
 .lc-stepper { display: flex; align-items: center; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 3px 4px; }
@@ -1438,7 +1441,4 @@ function fmtDataCurta(iso) {
 .preco-resultado strong { color: var(--brown-dark); }
 .preco-resultado-sec { background: var(--bg); color: var(--muted); }
 .mt-12 { margin-top: 4px; }
-.modal-inner {
-  padding: 0 16px 24px;
-}
 </style>

@@ -5,6 +5,7 @@
         <h2 class="tab-title"><i class="fas fa-industry"></i> Produção</h2>
         <div class="tab-actions">
           <button class="btn-icon" @click="gerarRelatorio" title="Gerar Relatório de Produção"><i class="fas fa-file-pdf"></i></button>
+          <button class="btn btn-primary btn-sm" @click="s.setTab('cozinha')"><i class="fas fa-plus"></i> Produzir</button>
         </div>
       </div>
       <div class="search-wrap">
@@ -131,10 +132,10 @@
       </div>
     </template>
 
-    <div v-else-if="!s.loading" class="app-empty">
+    <div v-else-if="!s.loading" class="empty">
       <i class="fas fa-industry"></i>
       <h3>Nenhuma produção no período</h3>
-      <p>Toque no botão + para iniciar uma nova produção na cozinha.</p>
+      <button class="btn btn-primary mt-12" @click="s.setTab('cozinha')"><i class="fas fa-plus"></i> Iniciar Lote</button>
     </div>
 
     <!-- ─── Modal Editar Datas do Lote ──────────────────────── -->
@@ -181,9 +182,7 @@
 
 <script setup>
 import '../assets/checklist.css'
-import { ref, computed, reactive, onMounted, watch, inject } from 'vue'
-import PizZip from 'pizzip'
-import { saveAs } from 'file-saver'
+import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { useStore } from '../store.js';
 import { R$, dataHoraBR, fmtQtd as fmtQ, getNowLocal, normalizar, isInsumoOculto } from '../utils.js'; // Corrected import
 import BaseModal from '../components/BaseModal.vue'
@@ -194,21 +193,12 @@ import { useModalStack } from '../composables/useModalStack.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import { useListFilter } from '../composables/useListFilter.js'
 import { gerarRelatorioProducao } from '../composables/useGerarDocumento.js'
+import { gerarArquivoEtiquetas } from '../composables/useEtiquetas.js'
 
 const s = useStore()
 const { closeAll } = useSwipe()
 const { modal: currentModal, abrirModal, fecharModal } = useModalStack()
 const confirm = useConfirm()
-
-// ── FAB ─────────────────────────────────────────────────────
-const registerFab   = inject('registerFab', null)
-const unregisterFab = inject('unregisterFab', null)
-const _fabConfig = { icon: 'fas fa-plus', label: 'Produzir', action: () => s.setTab('cozinha') }
-onMounted(() => { if (s.tab === 'producao') registerFab?.(_fabConfig, 'producao') })
-watch(() => s.tab, (tab) => {
-  if (tab === 'producao') registerFab?.(_fabConfig, 'producao')
-  else unregisterFab?.('producao')
-})
 
 const filtroAtivo = computed(() => s.producaoFiltroAtivo)
 
@@ -405,53 +395,10 @@ function limparApenasSabor(nome, categoria = '') {
   return nomeLimpo.replace(new RegExp(`^\\s*(?:${prefixos.join('|')})\\s+`, 'i'), '').trim() || nomeLimpo
 }
 
-function escapeXml(texto) {
-  return String(texto || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
-
 function getTextoEtiqueta(p) {
   const receita = s.receitas.find(rec => rec.uuid === p.receita_id)
   return receita?.nome_etiqueta?.trim()
     || limparApenasSabor(receita?.nome || p.nome_receita || p.receita_nome, receita?.categoria)
-}
-
-function montarXmlEtiquetas(templateXml, etiquetas, startPos = 0) {
-  const bodyMatch = templateXml.match(/^([\s\S]*?<w:body>)([\s\S]*?)(<w:sectPr[\s\S]*?<\/w:sectPr>)([\s\S]*)$/)
-  if (!bodyMatch) throw new Error('Estrutura do template de etiqueta nao reconhecida')
-
-  const [, prefixoBody, conteudoBase, sectPr, sufixoBody] = bodyMatch
-  const placeholdersPorFolha = (conteudoBase.match(/\{sabor\}/g) || []).length
-  if (!placeholdersPorFolha) throw new Error('Template sem marcador {sabor}')
-  if (!conteudoBase.includes('{contato}')) throw new Error('Template sem marcador {contato}')
-
-  const totalEtiquetas = etiquetas.length
-  const totalFolhas = Math.max(1, Math.ceil((startPos + totalEtiquetas) / placeholdersPorFolha))
-  const paginas = []
-
-  for (let folha = 0; folha < totalFolhas; folha++) {
-    let idxNaFolhaSabor = 0
-    let idxNaFolhaContato = 0
-    const inicioGlobal = (folha * placeholdersPorFolha) - startPos
-
-    const pagina = conteudoBase
-      .replace(/\{sabor\}/g, () => {
-        const idxEtiqueta = inicioGlobal + idxNaFolhaSabor
-        idxNaFolhaSabor += 1
-        return idxEtiqueta >= 0 && idxEtiqueta < totalEtiquetas ? escapeXml(etiquetas[idxEtiqueta]) : ''
-      })
-      .replace(/\{contato\}/g, () => {
-        const idxEtiqueta = inicioGlobal + idxNaFolhaContato
-        idxNaFolhaContato += 1
-        return idxEtiqueta >= 0 && idxEtiqueta < totalEtiquetas ? escapeXml(ETIQUETA_CONTATO) : ''
-      })
-
-    paginas.push(pagina)
-  }
-
-  return `${prefixoBody}${paginas.join(ETIQUETA_PAGE_BREAK)}${sectPr}${sufixoBody}`
 }
 
 function expandirEtiquetasProducao(itens) {
@@ -463,57 +410,38 @@ function expandirEtiquetasProducao(itens) {
   })
 }
 
-async function gerarArquivoEtiquetas(etiquetas, nomeArquivoBase = 'etiquetas') {
+async function confirmarEGerarEtiquetas(etiquetas, nomeArquivoBase) {
   if (!etiquetas.length) {
     s.notify('Nao ha etiquetas validas para gerar', 'error')
     return
   }
 
+  let startPos = Math.max(0, (Number(s.company.posicao_etiqueta || 1) || 1) - 1)
+  if (startPos > 0) {
+    const continuar = await confirm.ask(
+      `A proxima etiqueta livre e a ${startPos + 1}. Toque em "Continuar" para reaproveitar a folha atual ou em "Nova folha" para recomecar da primeira etiqueta.`,
+      {
+        title: 'Como deseja imprimir?',
+        icon: 'fas fa-tags',
+        type: 'primary',
+        confirmLabel: 'Continuar',
+        cancelLabel: 'Nova folha'
+      }
+    )
+    startPos = continuar ? startPos : 0
+  }
+
   s.loading = true
-  try {
-    let startPos = Math.max(0, (Number(s.company.posicao_etiqueta || 1) || 1) - 1)
-    if (startPos > 0) {
-      s.loading = false
-      const continuar = await confirm.ask(
-        `A proxima etiqueta livre e a ${startPos + 1}. Toque em "Continuar" para reaproveitar a folha atual ou em "Nova folha" para recomecar da primeira etiqueta.`,
-        {
-          title: 'Como deseja imprimir?',
-          icon: 'fas fa-tags',
-          type: 'primary',
-          confirmLabel: 'Continuar',
-          cancelLabel: 'Nova folha'
-        }
-      )
-      startPos = continuar ? startPos : 0
-      s.loading = true
-    }
+  const contato = s.company.contato_etiqueta?.trim() || s.company.nome || ''
+  const resultado = await gerarArquivoEtiquetas(etiquetas, contato, startPos, nomeArquivoBase)
+  s.loading = false
 
-    const response = await fetch(`${import.meta.env.BASE_URL}etiqueta.docx`)
-    if (!response.ok) throw new Error('Template não encontrado na pasta public')
-
-    const content = await response.arrayBuffer()
-    const zip = new PizZip(content)
-    const templateXml = zip.file('word/document.xml')?.asText()
-    if (!templateXml) throw new Error('Conteudo principal do template nao encontrado')
-
-    const xmlFinal = montarXmlEtiquetas(templateXml, etiquetas, startPos)
-    zip.file('word/document.xml', xmlFinal)
-
-    const out = zip.generate({
-      type: 'blob',
-      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    })
-
-    saveAs(out, `${nomeArquivoBase}.docx`)
-    s.company.posicao_etiqueta = ((startPos + etiquetas.length) % ETIQUETAS_POR_FOLHA) + 1
+  if (resultado.ok) {
+    s.company.posicao_etiqueta = resultado.novaPosicao
     s.saveCompany(s.company)
-    const totalFolhas = Math.max(1, Math.ceil((startPos + etiquetas.length) / ETIQUETAS_POR_FOLHA))
-    s.notify(`Etiqueta gerada! ${totalFolhas} folha${totalFolhas > 1 ? 's' : ''}. Proxima posicao: ${s.company.posicao_etiqueta}.`)
-  } catch (err) {
-    console.error(err)
-    s.notify('Erro ao gerar etiqueta', 'error')
-  } finally {
-    s.loading = false
+    s.notify(`Etiqueta gerada! ${resultado.totalFolhas} folha${resultado.totalFolhas > 1 ? 's' : ''}. Proxima posicao: ${resultado.novaPosicao}.`)
+  } else {
+    s.notify(resultado.erro, 'error')
   }
 }
 
@@ -533,12 +461,12 @@ async function estornar(p) {
 async function imprimirEtiqueta(p) {
   const etiquetas = expandirEtiquetasProducao([p])
   const saborLimpo = getTextoEtiqueta(p)
-  await gerarArquivoEtiquetas(etiquetas, `etiquetas-${normalizar(saborLimpo)}`)
+  await confirmarEGerarEtiquetas(etiquetas, `etiquetas-${normalizar(saborLimpo)}`)
 }
 
 async function imprimirEtiquetasGrupo(grupo) {
   const etiquetas = expandirEtiquetasProducao(grupo.itens || [])
-  await gerarArquivoEtiquetas(etiquetas, `etiquetas-lote-${(grupo.data || '').slice(0, 16).replace(/[:T]/g, '-') || 'producao'}`)
+  await confirmarEGerarEtiquetas(etiquetas, `etiquetas-lote-${(grupo.data || '').slice(0, 16).replace(/[:T]/g, '-') || 'producao'}`)
 }
 
 async function handleRetomar(grupo) {

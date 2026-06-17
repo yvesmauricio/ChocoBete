@@ -32,8 +32,8 @@
           <template #sub>
             <span class="ing-preco">{{ R$(p.custo_por_unidade || 0) }}</span>
             <span class="ing-dot">•</span>
-            <span :class="{'c-red fw700': p.estoque_minimo > 0 && (p.estoque_atual || 0) <= p.estoque_minimo}">
-              Estoque: {{ fmtQ(p.estoque_atual, p.unidade_base) }} <span class="ing-min-label">/ Mín: {{ fmtQ(p.estoque_minimo, p.unidade_base) }}</span>
+            <span :class="{'c-red fw700': (p.estoque_atual || 0) <= (p.estoque_minimo || 0)}">
+              Estoque: {{ fmtQ(p.estoque_atual, p.unidade_compra || p.unidade_base) }}
             </span>
           </template>
           <template #actions>
@@ -45,10 +45,12 @@
         </AppListRow>
       </template>
 
-      <div v-else class="app-empty">
+      <div v-else class="empty">
         <i class="fas fa-box-open"></i>
         <h3>{{ busca ? 'Nenhum resultado' : 'Nenhum item no estoque' }}</h3>
-        <p v-if="!busca">Toque no botão + para cadastrar ingredientes ou embalagens.</p>
+        <button v-if="!busca" class="btn btn-primary mt-12" @click="abrir(null)">
+          <i class="fas fa-plus"></i> Novo Ingrediente
+        </button>
       </div>
     </section>
 
@@ -110,11 +112,11 @@
         <div class="grid-2">
           <div class="fg">
             <label class="label">Estoque atual</label>
-            <input v-model.number="form.estoque_atual" class="input" type="number" step="0.01" min="0" />
+            <input v-model.number="form.estoque_atual" class="input" type="number" step="0.01" />
           </div>
           <div class="fg">
             <label class="label">Mínimo ideal</label>
-            <input v-model.number="form.estoque_minimo" class="input" type="number" step="0.01" min="0" />
+            <input v-model.number="form.estoque_minimo" class="input" type="number" step="0.01" />
           </div>
         </div>
         <p class="hint mt-8">O estoque é baixado automaticamente ao finalizar produções na Cozinha.</p>

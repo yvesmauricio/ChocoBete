@@ -108,6 +108,58 @@
         </div>
       </section>
 
+      <!-- ── SEÇÃO: ETIQUETAS ── -->
+      <section v-if="abaAtiva === 'etiquetas'" class="sheet-card fade-in">
+        <div class="sheet-body">
+          <div class="section-label"><i class="fas fa-tags"></i> Gerar Etiquetas</div>
+          <p class="hint mt-4 mb-12">Escolha os sabores e quantidades para gerar uma folha de etiquetas Pimaco A5Q-1226 (77 por folha), sem precisar de uma produção registrada.</p>
+
+          <!-- Contato exibido na etiqueta -->
+          <div class="fg mb-12">
+            <label class="label">Texto de contato na etiqueta</label>
+            <input v-model="company.contato_etiqueta" class="input" placeholder="Ex: @chocobete · (11) 99999-9999" />
+            <p class="hint">Aparece embaixo do sabor em cada etiqueta. Se vazio, usa o nome da empresa.</p>
+          </div>
+
+          <!-- Posição inicial -->
+          <div class="fg mb-12">
+            <label class="label">Próxima etiqueta livre na folha</label>
+            <div class="input-with-icon">
+              <i class="fas fa-tag"></i>
+                <input v-model.number="company.posicao_etiqueta" type="number" class="input" min="1" :max="ETIQUETAS_POR_FOLHA" />
+            </div>
+          </div>
+
+          <div class="section-label mt-16"><i class="fas fa-list-check"></i> Sabores e quantidades</div>
+          <div class="etq-receitas-list">
+            <div v-for="r in receitasParaEtiqueta" :key="r.uuid" class="etq-receita-item" :class="{ ativa: etqQtds[r.uuid] > 0 }">
+              <button class="etq-receita-nome" @click="etqQtds[r.uuid] = etqQtds[r.uuid] > 0 ? 0 : 1">
+                <i class="fas" :class="etqQtds[r.uuid] > 0 ? 'fa-square-check' : 'fa-square'"></i>
+                <span>{{ r.nome_etiqueta?.trim() || r.nome }}</span>
+              </button>
+              <div v-if="etqQtds[r.uuid] > 0" class="etq-qtd-ctrl">
+                <button class="qtd-e-btn" @click="etqQtds[r.uuid] = Math.max(1, etqQtds[r.uuid] - 1)">−</button>
+                <input class="qtd-e-input" type="text" inputmode="numeric"
+                  :value="String(etqQtds[r.uuid])"
+                  @input="e => etqQtds[r.uuid] = parseInt(e.target.value.replace(/\D/g,'')) || 1" />
+                <button class="qtd-e-btn" @click="etqQtds[r.uuid] = etqQtds[r.uuid] + 1">+</button>
+              </div>
+            </div>
+            <p v-if="!receitasParaEtiqueta.length" class="hint">Nenhuma receita cadastrada ainda.</p>
+          </div>
+
+          <div v-if="totalEtiquetasSelecionadas > 0" class="etq-resumo">
+            <i class="fas fa-circle-info"></i>
+            {{ totalEtiquetasSelecionadas }} etiqueta{{ totalEtiquetasSelecionadas > 1 ? 's' : '' }} ·
+            {{ totalFolhasEtiqueta }} folha{{ totalFolhasEtiqueta > 1 ? 's' : '' }}
+          </div>
+
+          <button class="btn btn-primary mt-12" :disabled="!totalEtiquetasSelecionadas" @click="gerarEtiquetasAvulsas">
+            <i class="fas fa-print"></i> Gerar etiquetas
+          </button>
+        </div>
+      </section>
+
       <!-- ── SEÇÃO: CADERNETA (FIADOS DA BETE) ── -->
       <section v-if="abaAtiva === 'caderneta'" class="sheet-card fade-in">
         <div class="sheet-body">
@@ -276,7 +328,7 @@
                 <label class="label">Próxima etiqueta livre</label>
                 <div class="input-with-icon">
                   <i class="fas fa-tag"></i>
-                  <input v-model.number="company.posicao_etiqueta" type="number" class="input" min="1" max="77" />
+                  <input v-model.number="company.posicao_etiqueta" type="number" class="input" min="1" :max="ETIQUETAS_POR_FOLHA" />
                 </div>
                 <p class="hint">Posição (1 a 77) para reaproveitar folhas de etiquetas.</p>
               </div>
@@ -364,11 +416,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import { useStore } from '../store.js'
-import { maskCpf, maskCnpj, maskCnae } from '../utils.js'
+import { maskCpf, maskCnpj, maskCnae, normalizar } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
+import { gerarArquivoEtiquetas, ETIQUETAS_POR_FOLHA } from '../composables/useEtiquetas.js'
 import { 
   getProdutosCaderneta, 
   salvarProdutosCaderneta, 
@@ -380,6 +433,63 @@ import BaseModal from '../components/BaseModal.vue'
 const s = useStore()
 const confirmar = useAppConfirm()
 const company = reactive({ ...s.company })
+
+// ── Etiquetas avulsas ──────────────────────────────────────
+const etqQtds = reactive({}) // { uuid: quantidade }
+
+const receitasParaEtiqueta = computed(() =>
+  [...s.receitas].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+)
+
+const totalEtiquetasSelecionadas = computed(() =>
+  Object.values(etqQtds).reduce((acc, q) => acc + (Number(q) || 0), 0)
+)
+
+const totalFolhasEtiqueta = computed(() => {
+  const startPos = Math.max(0, (Number(company.posicao_etiqueta || 1) || 1) - 1)
+  return Math.max(1, Math.ceil((startPos + totalEtiquetasSelecionadas.value) / ETIQUETAS_POR_FOLHA))
+})
+
+async function gerarEtiquetasAvulsas() {
+  const etiquetas = []
+  for (const r of receitasParaEtiqueta.value) {
+    const qtd = Number(etqQtds[r.uuid] || 0)
+    if (qtd <= 0) continue
+    const texto = r.nome_etiqueta?.trim() || r.nome
+    for (let i = 0; i < qtd; i++) etiquetas.push(texto)
+  }
+  if (!etiquetas.length) return
+
+  let startPos = Math.max(0, (Number(company.posicao_etiqueta || 1) || 1) - 1)
+  if (startPos > 0) {
+    const continuar = await confirmar.ask(
+      `A próxima etiqueta livre é a ${startPos + 1}. Toque em "Continuar" para reaproveitar a folha atual ou em "Nova folha" para recomeçar da primeira etiqueta.`,
+      {
+        title: 'Como deseja imprimir?',
+        icon: 'fas fa-tags',
+        type: 'primary',
+        confirmLabel: 'Continuar',
+        cancelLabel: 'Nova folha'
+      }
+    )
+    startPos = continuar ? startPos : 0
+  }
+
+  s.loading = true
+  const contato = company.contato_etiqueta?.trim() || company.nome || ''
+  const resultado = await gerarArquivoEtiquetas(etiquetas, contato, startPos, 'etiquetas-avulsas')
+  s.loading = false
+
+  if (resultado.ok) {
+    company.posicao_etiqueta = resultado.novaPosicao
+    s.saveCompany({ ...company })
+    s.notify(`Etiqueta gerada! ${resultado.totalFolhas} folha${resultado.totalFolhas > 1 ? 's' : ''}. Próxima posição: ${resultado.novaPosicao}.`)
+    // Limpa seleção após gerar
+    Object.keys(etqQtds).forEach(k => delete etqQtds[k])
+  } else {
+    s.notify(resultado.erro, 'error')
+  }
+}
 
 // 🔄 Sincroniza o formulário local quando os dados são carregados do banco (Store Init)
 // Isso evita que a tela mostre dados padrão caso o banco demore a responder
@@ -394,6 +504,7 @@ const abaAtiva = ref('perfil')
 const { stripEl: abaStripEl, setTabRef: setAbaRef } = useTabScroll(abaAtiva)
 const menus = [
   { id: 'perfil',     label: 'Identidade', icon: 'fas fa-id-card' },
+  { id: 'etiquetas',  label: 'Etiquetas',  icon: 'fas fa-tags' },
   { id: 'financeiro', label: 'Financeiro', icon: 'fas fa-university' },
   { id: 'caderneta',  label: 'Caderneta',  icon: 'fas fa-book' },
   { id: 'backup',     label: 'Backup',     icon: 'fas fa-cloud-arrow-up' },
@@ -492,6 +603,26 @@ function addProdutoCaderneta() {
 </script>
 
 <style scoped>
+.etq-receitas-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.etq-receita-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface); transition: border-color var(--t), background var(--t);
+}
+.etq-receita-item.ativa { border-color: var(--brown); background: var(--gold-bg); }
+.etq-receita-nome { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; border: none; background: transparent; text-align: left; padding: 0; font-size: .85rem; font-weight: 500; color: var(--text); }
+.etq-receita-nome i { color: var(--muted); font-size: 1rem; flex-shrink: 0; }
+.etq-receita-item.ativa .etq-receita-nome i { color: var(--brown); }
+.etq-receita-nome span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.etq-qtd-ctrl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.etq-resumo {
+  margin-top: 12px; padding: 10px 12px; border-radius: var(--r-md);
+  background: var(--cream); border: 1px solid var(--border);
+  font-size: .8rem; color: var(--brown-dark); font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+}
+.etq-resumo i { color: var(--gold-dark); }
+
 .tab-ajustes { padding-bottom: 120px; background: var(--bg); }
 /* ── Topo unificado sticky ── */
 .ajustes-sticky-top { position: sticky; top: 0; z-index: 50; background: var(--surface); box-shadow: 0 2px 8px rgba(61,31,7,.06); }
