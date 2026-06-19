@@ -135,7 +135,7 @@
             <div v-for="r in receitasParaEtiqueta" :key="r.uuid" class="etq-receita-item" :class="{ ativa: etqQtds[r.uuid] > 0 }">
               <button class="etq-receita-nome" @click="etqQtds[r.uuid] = etqQtds[r.uuid] > 0 ? 0 : 1">
                 <i class="fas" :class="etqQtds[r.uuid] > 0 ? 'fa-square-check' : 'fa-square'"></i>
-                <span>{{ r.nome_etiqueta?.trim() || r.nome }}</span>
+                <span>{{ textoEtiquetaReceita(r) }}</span>
               </button>
               <div v-if="etqQtds[r.uuid] > 0" class="etq-qtd-ctrl">
                 <button class="qtd-e-btn" @click="etqQtds[r.uuid] = Math.max(1, etqQtds[r.uuid] - 1)">−</button>
@@ -418,7 +418,7 @@
 <script setup>
 import { ref, reactive, watch, computed } from 'vue'
 import { useStore } from '../store.js'
-import { maskCpf, maskCnpj, maskCnae, normalizar } from '../utils.js'
+import { maskCpf, maskCnpj, maskCnae, normalizar, textoEtiquetaReceita } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
 import { gerarArquivoEtiquetas } from '../composables/useEtiquetas.js'
@@ -455,7 +455,7 @@ async function gerarEtiquetasAvulsas() {
   for (const r of receitasParaEtiqueta.value) {
     const qtd = Number(etqQtds[r.uuid] || 0)
     if (qtd <= 0) continue
-    const texto = r.nome_etiqueta?.trim() || r.nome
+    const texto = textoEtiquetaReceita(r)
     for (let i = 0; i < qtd; i++) etiquetas.push(texto)
   }
   if (!etiquetas.length) return

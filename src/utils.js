@@ -227,3 +227,28 @@ export const avatarColor = (nome) => {
   let h = 0; for (const c of String(nome || '')) h = (h * 31 + c.charCodeAt(0)) & 0xff
   return CORES[h % CORES.length]
 }
+/** Remove sufixos técnicos do nome de uma receita (ex: "Trufa Ninho - Base" -> "Trufa Ninho") */
+export function limparNomeReceita(n) {
+  return String(n || '')
+    .replace(/\s*[-–]\s*(base|final|intermediária|intermediaria)\s*$/i, '')
+    .replace(/\s*\(.*?\)\s*$/i, '')
+    .trim()
+}
+
+/** Remove o prefixo de categoria do nome (ex: "Trufa Tradicional" + categoria "Trufa" -> "Tradicional") */
+export function limparApenasSabor(nome, categoria = '') {
+  const nomeLimpo = limparNomeReceita(nome)
+  const prefixos = [categoria, 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo']
+    .filter(Boolean)
+    .map(item => String(item).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+
+  if (!prefixos.length) return nomeLimpo
+
+  return nomeLimpo.replace(new RegExp(`^\\s*(?:${prefixos.join('|')})\\s+`, 'i'), '').trim() || nomeLimpo
+}
+
+/** Texto a usar numa etiqueta: usa o campo nome_etiqueta se preenchido, senão extrai só o sabor do nome completo */
+export function textoEtiquetaReceita(receita) {
+  if (!receita) return ''
+  return receita.nome_etiqueta?.trim() || limparApenasSabor(receita.nome, receita.categoria)
+}

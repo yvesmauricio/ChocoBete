@@ -184,7 +184,7 @@
 import '../assets/checklist.css'
 import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { useStore } from '../store.js';
-import { R$, dataHoraBR, fmtQtd as fmtQ, getNowLocal, normalizar, isInsumoOculto } from '../utils.js'; // Corrected import
+import { R$, dataHoraBR, fmtQtd as fmtQ, getNowLocal, normalizar, isInsumoOculto, textoEtiquetaReceita, limparApenasSabor } from '../utils.js'; // Corrected import
 import BaseModal from '../components/BaseModal.vue'
 import AppListRow from '../components/AppListRow.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
@@ -384,21 +384,11 @@ function limpar(n) {
   return String(n || '').replace(/\s*[-–]\s*(base|final|intermediária|intermediaria)\s*$/i, '').replace(/\s*\(.*?\)\s*$/i, '').trim()
 }
 
-function limparApenasSabor(nome, categoria = '') {
-  const nomeLimpo = limpar(nome)
-  const prefixos = [categoria, 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo']
-    .filter(Boolean)
-    .map(item => String(item).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-
-  if (!prefixos.length) return nomeLimpo
-
-  return nomeLimpo.replace(new RegExp(`^\\s*(?:${prefixos.join('|')})\\s+`, 'i'), '').trim() || nomeLimpo
-}
-
 function getTextoEtiqueta(p) {
   const receita = s.receitas.find(rec => rec.uuid === p.receita_id)
-  return receita?.nome_etiqueta?.trim()
-    || limparApenasSabor(receita?.nome || p.nome_receita || p.receita_nome, receita?.categoria)
+  if (receita) return textoEtiquetaReceita(receita)
+  // Fallback quando a receita original foi excluída: usa o nome salvo na produção
+  return limparApenasSabor(p.nome_receita || p.receita_nome)
 }
 
 function expandirEtiquetasProducao(itens) {
