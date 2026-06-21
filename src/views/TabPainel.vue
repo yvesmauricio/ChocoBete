@@ -231,13 +231,32 @@
           </div>
         </div>
 
+        <button class="btn-add-item" @click="mostrarSeletorItem = true">
+          <i class="fas fa-plus"></i> Adicionar item
+        </button>
+
+        <!-- Alertas de estoque crítico (independem de produção/projeção) -->
+        <div v-if="produtosCriticos.length" class="lc-criticos">
+          <div class="lc-criticos-titulo"><i class="fas fa-triangle-exclamation"></i> Estoque baixo</div>
+          <div v-for="p in produtosCriticos" :key="p.uuid" class="lc-critico-item">
+            <div class="lc-critico-info">
+              <span class="lc-critico-nome">{{ p.nome }}</span>
+              <span class="lc-critico-qtd">{{ fmtQ(p.estoque_atual, p.unidade_compra || p.unidade_base) }} · mínimo {{ fmtQ(p.estoque_minimo, p.unidade_compra || p.unidade_base) }}</span>
+            </div>
+            <button v-if="!listaCompras.some(i => i.id === p.uuid)" class="btn-add-critico" @click="adicionarItemNaLista(p, 'critico')">
+              <i class="fas fa-plus"></i> lista
+            </button>
+            <i v-else class="fas fa-check lc-critico-ok"></i>
+          </div>
+        </div>
+
         <div v-if="mesesUsados < 2" class="lc-aviso">
           <i class="fas fa-triangle-exclamation"></i>
           Poucos dados. Registre mais produções para uma projeção mais precisa.
         </div>
 
         <div v-if="!listaCompras.length" class="empty-mini mt-16">
-          Nenhuma produção nos últimos 3 meses.
+          Nenhum item na lista. Toque em "Adicionar item" ou aguarde os alertas de estoque baixo.
         </div>
 
         <div v-else class="lc-lista">
@@ -255,12 +274,18 @@
             <div class="lc-item-body" @click="item.checked = !item.checked">
               <div class="lc-nome-row">
                 <span class="lc-nome" :class="{ riscado: item.checked }">{{ item.nome }}</span>
+                <span v-if="item.origem === 'manual'" class="lc-origem-badge">manual</span>
+                <span v-else-if="item.origem === 'critico'" class="lc-origem-badge lc-origem-critico">estoque baixo</span>
                 <button class="lc-hist-btn" @click.stop="abrirHistorico(item)" title="Ver variação de preços">
                   <i class="fas fa-chart-line"></i>
                 </button>
+                <button v-if="item.origem !== 'auto'" class="lc-remove-btn" @click.stop="removerItemDaLista(item)" title="Remover da lista">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
               </div>
               <div class="lc-sub-row">
-                <span class="lc-sub">sugestão {{ fmtQ(item.qtdSugerida, item.unidade) }} · média {{ fmtQ(item.mediaMensal, item.unidade) }}/mês</span>
+                <span v-if="item.origem === 'auto'" class="lc-sub">sugestão {{ fmtQ(item.qtdSugerida, item.unidade) }} · média {{ fmtQ(item.mediaMensal, item.unidade) }}/mês</span>
+                <span v-else class="lc-sub">adicionado {{ item.origem === 'critico' ? 'por estoque baixo' : 'manualmente' }}</span>
                 <span v-if="item.embalagensFinal > 0 && item.fatorConv > 1" class="lc-emb">
                   <i class="fas fa-box-open"></i>
                   {{ item.embalagensFinal }} {{ item.embalagensFinal === 1 ? item.nomeEmb : item.nomeEmbPlural }}
@@ -294,6 +319,31 @@
             </div>
           </div>
         </div>
+
+        <!-- Modal: adicionar item manualmente -->
+        <Teleport to="body">
+        <div v-if="mostrarSeletorItem" class="bottom-sheet-overlay" @click.self="mostrarSeletorItem = false">
+          <div class="lc-modal">
+            <div class="lc-modal-hdr">
+              <span class="lc-modal-titulo"><i class="fas fa-plus"></i> Adicionar item</span>
+              <button class="lc-modal-close" @click="mostrarSeletorItem = false"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="lc-modal-body">
+              <div class="seletor-busca">
+                <i class="fas fa-search"></i>
+                <input v-model="buscaSeletorItem" type="text" placeholder="Buscar insumo..." />
+              </div>
+              <div class="seletor-lista">
+                <button v-for="p in produtosParaSeletor" :key="p.uuid" class="seletor-item" @click="adicionarItemNaLista(p)">
+                  <span>{{ p.nome }}</span>
+                  <i class="fas fa-plus"></i>
+                </button>
+                <p v-if="!produtosParaSeletor.length" class="hint" style="padding: 16px;">Nenhum insumo encontrado.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        </Teleport>
 
         <!-- Modal de atualização de preço -->
         <Teleport to="body">
@@ -541,12 +591,16 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useStore } from '../store.js'
 import CategoryFilter from '../components/CategoryFilter.vue'
-import { R$, avatarColor, fmtQtd as fmtQ, getMesRef, maskMoney, parseMoney } from '../utils.js'
+import { R$, avatarColor, fmtQtd as fmtQ, getMesRef, maskMoney, parseMoney, normalizar } from '../utils.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
 
 const s = useStore()
 const aba = ref('painel')
-const periodoAtivo = ref('total')
+const mesAtualRef = (() => {
+  const d = new Date()
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+})()
+const periodoAtivo = ref(mesAtualRef)
 const estoqueAberto = ref(false)
 const { stripEl: periodoStripEl, setTabRef: setPeriodoRef } = useTabScroll(periodoAtivo)
 
@@ -635,14 +689,14 @@ const limparIntervalo = () => {
 }
 
 const periodosDisponiveis = computed(() => {
-  const mesesSet = new Set()
+  const mesesSet = new Set([mesAtualRef]) // mês corrente sempre disponível, mesmo sem produção ainda
   s.producoes.forEach(p => { const m = getMesRef(p.data_producao); if (m) mesesSet.add(m) })
   const mesesOrd = Array.from(mesesSet).sort((a, b) => {
     const [ma, ya] = a.split('/'); const [mb, yb] = b.split('/')
     return `${yb}${mb}`.localeCompare(`${ya}${ma}`)
   }).slice(0, 6)
   return [
-    ...mesesOrd.map(m => ({ value: m, label: m })),
+    ...mesesOrd.map(m => ({ value: m, label: m === mesAtualRef ? `${m} (atual)` : m })),
     { value: 'total', label: 'Tudo' }
   ]
 })
@@ -719,7 +773,6 @@ const metaPct = computed(() => {
 
 const projecaoMes = computed(() => {
   const agora = new Date()
-  const mesAtualRef = `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`
   
   // Só projeta se o período selecionado for o mês atual ou os últimos 30 dias
   if (periodoAtivo.value !== mesAtualRef && periodoAtivo.value !== '30dias') return null
@@ -745,6 +798,33 @@ const mesesUsados = ref(0)
 const totalEstimado = ref(0)
 const nChecked = computed(() => listaCompras.value.filter(i => i.checked).length)
 const totalSelecionado = computed(() => listaCompras.value.filter(i => i.checked).reduce((acc, i) => acc + i.custoEstimado, 0))
+
+// ── Adicionar item manual / crítico à lista ───────────────────
+const mostrarSeletorItem = ref(false)
+const buscaSeletorItem = ref('')
+
+const produtosParaSeletor = computed(() => {
+  const idsNaLista = new Set(listaCompras.value.map(i => i.id))
+  const termo = normalizar(buscaSeletorItem.value)
+  return s.produtos
+    .filter(p => !idsNaLista.has(p.uuid))
+    .filter(p => !termo || normalizar(p.nome).includes(termo))
+    .sort((a, b) => a.nome.localeCompare(b.nome))
+})
+
+function adicionarItemNaLista(prod, origem = 'manual') {
+  if (listaCompras.value.some(i => i.id === prod.uuid)) return
+  const item = montarItemLista(prod, prod.fator_conversao || 1, origem)
+  listaCompras.value = [item, ...listaCompras.value]
+  totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
+  mostrarSeletorItem.value = false
+  buscaSeletorItem.value = ''
+}
+
+function removerItemDaLista(item) {
+  listaCompras.value = listaCompras.value.filter(i => i.id !== item.id)
+  totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
+}
 
 // Edição de preço inline na lista de compras
 // ── Modal de atualização de preço ──
@@ -848,9 +928,55 @@ async function abrirLista() {
   if (!listaCompras.value.length) await carregarListaCompras()
 }
 
+// Monta um item de lista a partir de um produto + quantidade sugerida (kg/g/un na unidade base)
+function montarItemLista(prod, qtdSug, origem = 'auto', mediaMensal = 0) {
+  const unidadeBase = prod?.unidade_base || 'un'
+  const fatorConv = prod?.fator_conversao || 0
+  const custoPorEmbalagem = prod?.custo_por_unidade || 0
+  const unidCompra = prod?.unidade_compra || prod?.unidade_base || unidadeBase
+
+  const nomeEmbMap = {
+    'kg': ['pacote', 'pacotes'], 'g': ['pacote', 'pacotes'],
+    'L': ['frasco', 'frascos'], 'l': ['frasco', 'frascos'], 'ml': ['frasco', 'frascos'],
+    'cx': ['caixa', 'caixas'], 'pct': ['pacote', 'pacotes'],
+    'dz': ['dúzia', 'dúzias'], 'un': ['unidade', 'unidades'],
+  }
+  const [nomeEmbDefault, nomeEmbPluralDefault] = nomeEmbMap[unidCompra] || ['unid.', 'unid.']
+
+  let embalagens = 0, nomeEmb = nomeEmbDefault, nomeEmbPlural = nomeEmbPluralDefault, custo = 0
+
+  if (unidadeBase === 'un') {
+    embalagens = Math.ceil(qtdSug) || 1
+    nomeEmb = 'unidade'; nomeEmbPlural = 'unidades'
+    if (fatorConv > 1) {
+      embalagens = Math.ceil(qtdSug / fatorConv) || 1
+      nomeEmb = nomeEmbDefault; nomeEmbPlural = nomeEmbPluralDefault
+    }
+    custo = custoPorEmbalagem > 0 ? embalagens * custoPorEmbalagem : s.getPrecoUnitarioInsumo(prod) * qtdSug
+  } else if (fatorConv > 0) {
+    embalagens = Math.ceil(qtdSug / fatorConv) || 1
+    custo = custoPorEmbalagem > 0 ? embalagens * custoPorEmbalagem : s.getPrecoUnitarioInsumo(prod) * qtdSug
+  } else {
+    embalagens = 1
+    custo = s.getPrecoUnitarioInsumo(prod) * qtdSug
+  }
+
+  return {
+    id: prod.uuid, nome: prod.nome, unidade: unidadeBase,
+    mediaMensal, qtdSugerida: qtdSug, custoEstimado: custo,
+    embalagens, embalagensFinal: embalagens || 1,
+    nomeEmb, nomeEmbPlural, fatorConv, custoPorEmbalagem,
+    checked: false, origem // 'auto' | 'critico' | 'manual'
+  }
+}
+
+// Produtos com estoque no/abaixo do mínimo configurado — sempre visível, independe de produção
+const produtosCriticos = computed(() =>
+  s.produtos.filter(p => Number(p.estoque_minimo || 0) > 0 && Number(p.estoque_atual || 0) <= Number(p.estoque_minimo || 0))
+)
+
 async function carregarListaCompras() {
   loadingLista.value = true
-  listaCompras.value = []
   await s.carregarProducoes(0)
   const agora = new Date()
   const mesesAlvo = []
@@ -861,7 +987,7 @@ async function carregarListaCompras() {
   const prod3m = s.producoes.filter(p => mesesAlvo.includes(getMesRef(p.data_producao)))
   const mesesComDados = new Set(prod3m.map(p => getMesRef(p.data_producao)))
   mesesUsados.value = mesesComDados.size
-  if (!prod3m.length) { loadingLista.value = false; return }
+
   const mapMes = {}
   mesesComDados.forEach(m => { mapMes[m] = {} })
   prod3m.forEach(p => {
@@ -879,69 +1005,24 @@ async function carregarListaCompras() {
     })
   })
 
-  const nM = mesesComDados.size
-  const lista = Object.values(mediaMap).map(ing => {
+  const nM = mesesComDados.size || 1
+  const listaAuto = Object.values(mediaMap).map(ing => {
     const mediaMensal = ing.soma / nM
-    const qtdPorSemana = mediaMensal / 4.3 // Média de semanas num mês
-    const qtdSug = (qtdPorSemana * semanasProjecao.value) * 1.1 // +10% margem
+    const qtdPorSemana = mediaMensal / 4.3
+    const qtdSug = (qtdPorSemana * semanasProjecao.value) * 1.1
     const prod = s.produtos.find(p => p.uuid === ing.id)
+    if (!prod) return null
+    return montarItemLista(prod, qtdSug, 'auto', mediaMensal)
+  }).filter(Boolean)
 
-    // Campos do produto
-    const fatorConv = prod?.fator_conversao || 0       // quantidade na embalagem (em unidade_base)
-    const custoPorEmbalagem = prod?.custo_por_unidade || 0  // preço de 1 embalagem completa
-    const unidCompra = prod?.unidade_compra || prod?.unidade_base || ing.unidade
+  // Preserva itens manuais e marcados como comprado que já estavam na lista (evita perder ao recarregar)
+  const manuaisExistentes = listaCompras.value.filter(i => i.origem === 'manual' && !i.checked)
+  const idsAuto = new Set(listaAuto.map(i => i.id))
+  const manuaisSemDuplicar = manuaisExistentes.filter(i => !idsAuto.has(i.id))
 
-    // Nome amigável da embalagem baseado na unidade de compra
-    const nomeEmbMap = {
-      'kg': ['pacote', 'pacotes'],
-      'g':  ['pacote', 'pacotes'],
-      'L':  ['frasco', 'frascos'],
-      'l':  ['frasco', 'frascos'],
-      'ml': ['frasco', 'frascos'],
-      'cx': ['caixa', 'caixas'],
-      'pct': ['pacote', 'pacotes'],
-      'dz': ['dúzia', 'dúzias'],
-      'un': ['unidade', 'unidades'],
-    }
-    const [nomeEmbDefault, nomeEmbPluralDefault] = nomeEmbMap[unidCompra] || ['unid.', 'unid.']
+  const lista = [...listaAuto, ...manuaisSemDuplicar]
+    .sort((a, b) => b.custoEstimado - a.custoEstimado || b.mediaMensal - a.mediaMensal)
 
-    let embalagens = 0
-    let nomeEmb = nomeEmbDefault
-    let nomeEmbPlural = nomeEmbPluralDefault
-    let custo = 0
-
-    if (ing.unidade === 'un') {
-      // Ingrediente contado em unidades — cada unidade é 1 item comprado
-      embalagens = Math.ceil(qtdSug)
-      nomeEmb = 'unidade'; nomeEmbPlural = 'unidades'
-      // Se tem embalagem com fatorConv (ex: pacote de 100un), usa isso
-      if (fatorConv > 1) {
-        embalagens = Math.ceil(qtdSug / fatorConv)
-        nomeEmb = nomeEmbDefault; nomeEmbPlural = nomeEmbPluralDefault
-      }
-      custo = custoPorEmbalagem > 0
-        ? embalagens * custoPorEmbalagem
-        : s.getPrecoUnitarioInsumo(prod) * qtdSug
-    } else if (fatorConv > 0) {
-      // Ingrediente em g/ml/kg — calcular embalagens inteiras necessárias
-      embalagens = Math.ceil(qtdSug / fatorConv)
-      // Custo = número de embalagens inteiras × preço da embalagem
-      custo = custoPorEmbalagem > 0
-        ? embalagens * custoPorEmbalagem
-        : s.getPrecoUnitarioInsumo(prod) * qtdSug
-    } else {
-      // Sem embalagem definida — fallback ao custo por unidade base
-      custo = s.getPrecoUnitarioInsumo(prod) * qtdSug
-    }
-
-    return {
-      id: ing.id, nome: ing.nome, unidade: ing.unidade,
-      mediaMensal: mediaMensal, qtdSugerida: qtdSug, custoEstimado: custo,
-      embalagens, embalagensFinal: embalagens || 1,
-      nomeEmb, nomeEmbPlural, fatorConv, custoPorEmbalagem,
-      checked: false
-    }
-  }).sort((a, b) => b.custoEstimado - a.custoEstimado || b.mediaMensal - a.mediaMensal)
   listaCompras.value = lista
   totalEstimado.value = lista.reduce((acc, i) => acc + i.custoEstimado, 0)
   loadingLista.value = false
@@ -1316,6 +1397,64 @@ function compartilharListaCompras(modo) {
 .lc-ctx-right { text-align: right; flex-shrink: 0; }
 .lc-ctx-lbl { font-size: .58rem; text-transform: uppercase; font-weight: 800; color: var(--muted); letter-spacing: .4px; display: block; }
 .lc-ctx-val { font-size: .95rem; font-weight: 800; color: var(--green); font-family: var(--mono); }
+
+/* ── Botão Adicionar item ── */
+.btn-add-item {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 10px; margin-top: 10px;
+  border: 1.5px dashed var(--border); border-radius: var(--r-md);
+  background: var(--surface); color: var(--brown-mid);
+  font-size: .82rem; font-weight: 700; cursor: pointer;
+}
+.btn-add-item:active { background: var(--gold-bg); }
+
+/* ── Alertas de estoque crítico ── */
+.lc-criticos { margin-top: 10px; border: 1px solid #f0c4c4; border-radius: var(--r-md); overflow: hidden; }
+.lc-criticos-titulo {
+  display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+  background: #fcebeb; color: #a32d2d; font-size: .72rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .3px;
+}
+.lc-critico-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 12px; background: var(--surface); border-top: 1px solid #f7dcdc;
+}
+.lc-critico-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lc-critico-nome { font-size: .8rem; font-weight: 600; color: var(--text); }
+.lc-critico-qtd { font-size: .68rem; color: #a32d2d; }
+.btn-add-critico {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+  padding: 5px 10px; border-radius: var(--r-sm); border: none;
+  background: var(--brown-dark); color: #fff; font-size: .7rem; font-weight: 700;
+}
+.lc-critico-ok { color: var(--green); font-size: .85rem; flex-shrink: 0; }
+
+/* ── Badges de origem do item ── */
+.lc-origem-badge {
+  font-size: .58rem; font-weight: 800; text-transform: uppercase; letter-spacing: .3px;
+  padding: 2px 6px; border-radius: var(--r-full);
+  background: var(--bg); color: var(--muted); flex-shrink: 0;
+}
+.lc-origem-critico { background: #fcebeb; color: #a32d2d; }
+.lc-remove-btn { color: var(--muted); font-size: .72rem; padding: 2px; flex-shrink: 0; }
+.lc-remove-btn:active { color: #a32d2d; }
+
+/* ── Modal seletor de produtos ── */
+.seletor-busca {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  border: 1.5px solid var(--border); border-radius: var(--r-md); margin-bottom: 10px;
+}
+.seletor-busca i { color: var(--muted); font-size: .85rem; }
+.seletor-busca input { border: none; outline: none; background: transparent; flex: 1; font-size: .85rem; color: var(--text); }
+.seletor-lista { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.seletor-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 4px; border: none; border-bottom: 1px solid var(--border);
+  background: transparent; text-align: left; font-size: .85rem; color: var(--text);
+}
+.seletor-item:active { background: var(--gold-bg); }
+.seletor-item i { color: var(--brown-mid); font-size: .8rem; flex-shrink: 0; }
+
 .lc-aviso {
   display: flex; gap: 8px; padding: 10px 12px; background: var(--gold-bg);
   border: 1px solid #e8d5a0; border-radius: var(--r-sm); font-size: .72rem; color: var(--gold-dark); line-height: 1.4;

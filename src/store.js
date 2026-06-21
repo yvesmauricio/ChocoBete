@@ -66,6 +66,8 @@ export const useStore = defineStore('choco', () => {
     slogan: 'Registro de Produção',
     posicao_etiqueta: 0,
     contato_etiqueta: '', // texto livre exibido na etiqueta (whatsapp/instagram)
+    etiquetas_termos_excluidos: ['recheio', 'farofa', 'massa', 'cobertura', 'calda', 'ganache', 'creme', 'base', 'mistura', 'pasta', 'glacê', 'xarope'],
+    etiquetas_excecoes_incluir: [], // uuids de receitas forçadas a aparecer mesmo batendo num termo excluído
     razao_social: '',
     cnpj: '',
     cpf: '',
