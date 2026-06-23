@@ -105,6 +105,47 @@
               <i class="fas fa-plus"></i> Adicionar Conta
             </button>
           </div>
+
+          <div class="section-label mt-24"><i class="fas fa-sack-dollar"></i> Metas e Parâmetros</div>
+          <div class="form-grid mt-12">
+            <div class="fg">
+              <label class="label">Valor da sua Hora de Trabalho</label>
+              <div class="input-with-prefix">
+                <span class="input-prefix">R$</span>
+                <input v-model.number="company.custo_hora_trabalho" type="number" class="input" placeholder="Ex: 25.00" />
+              </div>
+              <p class="hint">Calcula o custo de mão de obra nas receitas.</p>
+            </div>
+            <div class="fg">
+              <label class="label">Meta de Retirada Mensal (Salário)</label>
+              <div class="input-with-prefix">
+                <span class="input-prefix">R$</span>
+                <input v-model.number="company.meta_salario_mensal" type="number" class="input" placeholder="Ex: 1500.00" />
+              </div>
+              <p class="hint">Define o preço mínimo e metas de venda na Inteligência.</p>
+            </div>
+            <div class="fg">
+              <label class="label">Giro de Segurança Fixo <span class="label-opt">(opcional)</span></label>
+              <div class="input-with-prefix">
+                <span class="input-prefix">R$</span>
+                <input v-model.number="company.reserva_operacional_fixa" type="number" class="input" placeholder="Ex: 600.00" />
+              </div>
+              <p class="hint">Valor reservado para compras (ex: R$ 600 p/ 2 semanas).</p>
+            </div>
+            <div class="fg">
+              <label class="label">Teto de Faturamento MEI Anual</label>
+              <div class="input-with-icon">
+                <i class="fas fa-arrow-up-wide-short"></i>
+                <input v-model.number="company.teto_mei_anual" type="number" class="input" />
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-24">
+            <button class="btn btn-primary btn-full" @click="save">
+              <i class="fas fa-save"></i> Salvar
+            </button>
+          </div>
         </div>
       </section>
 
@@ -191,9 +232,50 @@
             {{ totalFolhasEtiqueta }} folha{{ totalFolhasEtiqueta > 1 ? 's' : '' }}
           </div>
 
-          <button class="btn btn-primary mt-12" :disabled="!totalEtiquetasSelecionadas" @click="gerarEtiquetasAvulsas">
-            <i class="fas fa-print"></i> Gerar etiquetas
-          </button>
+          <div class="etq-botoes-gerar mt-12">
+            <button class="btn btn-primary" :disabled="!totalEtiquetasSelecionadas" @click="gerarEtiquetasAvulsas">
+              <i class="fas fa-file-word"></i> Gerar .docx
+            </button>
+            <button class="btn btn-secondary" :disabled="!totalEtiquetasSelecionadas" @click="gerarPNGParaImprimir">
+              <i class="fas fa-print"></i> Imprimir direto (PNG)
+            </button>
+          </div>
+          <p class="hint mt-4">
+            <i class="fas fa-circle-info"></i>
+            "Imprimir direto" gera um PNG em 300 DPI — abra no HP Smart como <strong>Foto</strong> e selecione <strong>Tamanho real / 100%</strong> para o alinhamento ficar perfeito.
+          </p>
+
+          <!-- ── Preview visual da folha ── -->
+          <div class="etq-preview-wrap">
+            <div class="etq-preview-hdr">
+              <span class="etq-preview-titulo"><i class="fas fa-eye"></i> Preview — Pimaco A5Q-1226</span>
+              <div v-if="totalFolhasEtiqueta > 1" class="etq-preview-nav">
+                <button class="etq-nav-btn" :disabled="folhaPreviewAtual <= 1" @click="folhaPreviewAtual--">‹</button>
+                <span>Folha {{ folhaPreviewAtual }} / {{ totalFolhasEtiqueta }}</span>
+                <button class="etq-nav-btn" :disabled="folhaPreviewAtual >= totalFolhasEtiqueta" @click="folhaPreviewAtual++">›</button>
+              </div>
+            </div>
+
+            <!-- Legenda -->
+            <div class="etq-preview-legenda">
+              <span class="etq-leg-item"><span class="etq-leg-dot etq-dot-usada"></span>já usada</span>
+              <span class="etq-leg-item"><span class="etq-leg-dot etq-dot-vazio"></span>vazia</span>
+              <span class="etq-leg-item"><span class="etq-leg-dot etq-dot-selecionada"></span>será impressa</span>
+              <span class="etq-leg-item"><span class="etq-leg-dot etq-dot-inicio"></span>início</span>
+            </div>
+
+            <!-- Folha -->
+            <div class="etq-folha">
+              <div
+                v-for="cel in celulasPreview" :key="cel.pos"
+                class="etq-celula"
+                :class="`etq-cel-${cel.estado}`"
+                :title="`Posição ${cel.pos}${cel.texto ? ': ' + cel.texto : ''}`"
+              >
+                <span v-if="cel.texto" class="etq-cel-txt">{{ cel.texto }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -319,70 +401,22 @@
       <!-- ── SEÇÃO 4: PREFERÊNCIAS DO SISTEMA ── -->
       <section v-if="abaAtiva === 'sistema'" class="sheet-card fade-in">
         <div class="sheet-body">
-          <div class="section-label mb-16"><i class="fas fa-gears"></i> Preferências do Sistema</div>
-          
-          <div class="setup-group">
-            <div class="setup-header"><i class="fas fa-sack-dollar"></i> Financeiro & Metas</div>
-            <div class="form-grid">
-              <div class="fg">
-                <label class="label">Valor da sua Hora de Trabalho</label>
-                <div class="input-with-prefix">
-                  <span class="input-prefix">R$</span>
-                  <input v-model.number="company.custo_hora_trabalho" type="number" class="input" placeholder="Ex: 25.00" />
-                </div>
-                <p class="hint">Calcula o custo de mão de obra nas receitas.</p>
+          <div class="section-label mb-16"><i class="fas fa-gears"></i> Sistema</div>
+
+          <div class="form-grid">
+            <div class="fg">
+              <label class="label">Nº de Pessoas na Família</label>
+              <div class="input-with-icon">
+                <i class="fas fa-users"></i>
+                <input v-model.number="company.pessoas_familia" type="number" class="input" min="1" />
               </div>
-              <div class="fg">
-                <label class="label">Meta de Retirada Mensal (Salário)</label>
-                <div class="input-with-prefix">
-                  <span class="input-prefix">R$</span>
-                  <input v-model.number="company.meta_salario_mensal" type="number" class="input" placeholder="Ex: 1500.00" />
-                </div>
-                <p class="hint">Define o preço mínimo e metas de venda na Inteligência.</p>
-              </div>
-              <div class="fg">
-                <label class="label">Giro de Segurança Fixo <span class="label-opt">(opcional)</span></label>
-                <div class="input-with-prefix">
-                  <span class="input-prefix">R$</span>
-                  <input v-model.number="company.reserva_operacional_fixa" type="number" class="input" placeholder="Ex: 600.00" />
-                </div>
-                <p class="hint">Valor reservado para compras (ex: R$ 600 p/ 2 semanas).</p>
-              </div>
-              <div class="fg">
-                <label class="label">Teto de Faturamento MEI Anual</label>
-                <div class="input-with-icon">
-                  <i class="fas fa-arrow-up-wide-short"></i>
-                  <input v-model.number="company.teto_mei_anual" type="number" class="input" />
-                </div>
-              </div>
+              <p class="hint">Usado para cálculo de renda per capita nos relatórios.</p>
             </div>
           </div>
 
-          <div class="setup-group mt-20">
-            <div class="setup-header"><i class="fas fa-sliders"></i> Operacional</div>
-            <div class="form-grid">
-              <div class="fg">
-                <label class="label">Próxima etiqueta livre</label>
-                <div class="input-with-icon">
-                  <i class="fas fa-tag"></i>
-                  <input v-model.number="company.posicao_etiqueta" type="number" class="input" min="1" max="77" />
-                </div>
-                <p class="hint">Posição (1 a 77) para reaproveitar folhas de etiquetas.</p>
-              </div>
-              <div class="fg">
-                <label class="label">Nº de Pessoas na Família</label>
-                <div class="input-with-icon">
-                  <i class="fas fa-users"></i>
-                  <input v-model.number="company.pessoas_familia" type="number" class="input" min="1" />
-                </div>
-                <p class="hint">Usado para cálculo de renda per capita nos relatórios.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-24">
+          <div class="mt-20">
             <button class="btn btn-primary btn-full" @click="save">
-              <i class="fas fa-save"></i> Salvar Preferências
+              <i class="fas fa-save"></i> Salvar
             </button>
           </div>
 
@@ -544,6 +578,166 @@ const totalFolhasEtiqueta = computed(() => {
   return Math.max(1, Math.ceil((startPos + totalEtiquetasSelecionadas.value) / 77))
 })
 
+const folhaPreviewAtual = ref(1)
+
+// Monta o array de 77 células para a folha atual do preview
+const celulasPreview = computed(() => {
+  const startPos = Math.max(0, (Number(company.posicao_etiqueta || 1) || 1) - 1)
+  const folha = folhaPreviewAtual.value - 1 // 0-based
+
+  // Expandir etiquetas selecionadas em ordem
+  const etiquetas = []
+  for (const r of receitasParaEtiqueta.value) {
+    const qtd = Number(etqQtds[r._textoSabor] || 0)
+    for (let i = 0; i < qtd; i++) etiquetas.push(r._textoSabor)
+  }
+
+  const celulas = []
+  for (let i = 0; i < 77; i++) {
+    const posGlobal = folha * 77 + i // posição global nesta célula
+    const idxEtiqueta = posGlobal - startPos // índice no array de etiquetas
+
+    let estado = 'vazio' // vazio por padrão
+    let texto = ''
+
+    if (posGlobal < startPos) {
+      estado = 'usada' // já foi usada em impressão anterior
+    } else if (idxEtiqueta >= 0 && idxEtiqueta < etiquetas.length) {
+      estado = 'selecionada'
+      texto = etiquetas[idxEtiqueta]
+    } else if (posGlobal === startPos && etiquetas.length > 0) {
+      estado = 'inicio'
+    }
+
+    // Primeira célula do lote nesta folha
+    if (i === startPos && folha === 0 && etiquetas.length === 0) {
+      estado = 'inicio'
+    }
+
+    celulas.push({ estado, texto, pos: i + 1 })
+  }
+  return celulas
+})
+
+watch([() => company.posicao_etiqueta, totalEtiquetasSelecionadas], () => {
+  folhaPreviewAtual.value = 1
+})
+
+// ── Geração de PNG para impressão direta no Android ─────────────
+// Layout: Pimaco A5Q-1226, paisagem, 300 DPI
+// Folha: 2480 x 1754 px | Etiqueta: 307 x 142 px | 7×11 = 77 células
+const ETQ_PX = {
+  W: 2480, H: 1754,
+  lW: 307, lH: 142,
+  mL: 94, mT: 102, mR: 39, mB: 80,
+  gH: 33, gV: 1,
+  cols: 7, rows: 11
+}
+
+async function gerarPNGParaImprimir() {
+  const startPos = Math.max(0, (Number(company.posicao_etiqueta || 1) || 1) - 1)
+
+  // Montar array de etiquetas
+  const etiquetas = []
+  for (const r of receitasParaEtiqueta.value) {
+    const qtd = Number(etqQtds[r._textoSabor] || 0)
+    for (let i = 0; i < qtd; i++) etiquetas.push(r._textoSabor)
+  }
+
+  const totalFolhas = Math.max(1, Math.ceil((startPos + etiquetas.length) / 77))
+  const contato = company.contato_etiqueta?.trim() || company.nome || ''
+
+  // Cores
+  const COR_FUNDO    = '#ffffff'
+  const COR_ETQ      = '#fdf5e8'     // creme do sistema
+  const COR_USADA    = '#ede0d0'
+  const COR_VAZIA    = '#ffffff'
+  const COR_SELECIONADA = '#3d1f07'  // marrom do sistema
+  const COR_TEXTO    = '#ffffff'
+  const COR_CONTATO  = '#c9a87a'
+  const COR_BORDA    = '#d0b090'
+
+  // Gerar os PNGs de cada folha
+  const downloads = []
+  for (let folha = 0; folha < totalFolhas; folha++) {
+    const canvas = document.createElement('canvas')
+    canvas.width  = ETQ_PX.W
+    canvas.height = ETQ_PX.H
+    const ctx = canvas.getContext('2d')
+
+    // Fundo branco
+    ctx.fillStyle = COR_FUNDO
+    ctx.fillRect(0, 0, ETQ_PX.W, ETQ_PX.H)
+
+    for (let row = 0; row < ETQ_PX.rows; row++) {
+      for (let col = 0; col < ETQ_PX.cols; col++) {
+        const pos = row * ETQ_PX.cols + col      // 0-76
+        const posGlobal = folha * 77 + pos
+        const idxEtq = posGlobal - startPos
+
+        const x = ETQ_PX.mL + col * (ETQ_PX.lW + ETQ_PX.gH)
+        const y = ETQ_PX.mT + row * (ETQ_PX.lH + ETQ_PX.gV)
+
+        const temConteudo = idxEtq >= 0 && idxEtq < etiquetas.length
+        const jaUsada = posGlobal < startPos
+
+        // Fundo da célula
+        ctx.fillStyle = jaUsada ? COR_USADA : (temConteudo ? COR_SELECIONADA : COR_VAZIA)
+        ctx.fillRect(x, y, ETQ_PX.lW, ETQ_PX.lH)
+
+        // Borda sutil
+        if (!temConteudo) {
+          ctx.strokeStyle = COR_BORDA
+          ctx.lineWidth = 1
+          ctx.strokeRect(x + 0.5, y + 0.5, ETQ_PX.lW - 1, ETQ_PX.lH - 1)
+        }
+
+        // Texto do sabor
+        if (temConteudo) {
+          const sabor = etiquetas[idxEtq]
+
+          // Sabor (linha principal)
+          ctx.fillStyle = COR_TEXTO
+          ctx.font = `bold ${Math.round(ETQ_PX.lH * 0.38)}px "Liberation Sans", Arial, sans-serif`
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          const saborY = contato ? y + ETQ_PX.lH * 0.38 : y + ETQ_PX.lH * 0.5
+          ctx.fillText(sabor, x + ETQ_PX.lW / 2, saborY, ETQ_PX.lW - 8)
+
+          // Contato (linha secundária)
+          if (contato) {
+            ctx.fillStyle = COR_CONTATO
+            ctx.font = `${Math.round(ETQ_PX.lH * 0.25)}px "Liberation Sans", Arial, sans-serif`
+            ctx.fillText(contato, x + ETQ_PX.lW / 2, y + ETQ_PX.lH * 0.72, ETQ_PX.lW - 8)
+          }
+        }
+      }
+    }
+
+    // Converter para PNG e baixar
+    const dataUrl = canvas.toDataURL('image/png')
+    const a = document.createElement('a')
+    a.href = dataUrl
+    a.download = totalFolhas > 1
+      ? `etiquetas-folha-${folha + 1}-de-${totalFolhas}.png`
+      : 'etiquetas.png'
+    downloads.push({ a, dataUrl })
+  }
+
+  // Baixar todos os arquivos (um por folha)
+  for (const { a } of downloads) {
+    a.click()
+    await new Promise(r => setTimeout(r, 300))
+  }
+
+  // Atualizar posição na folha
+  const novaPosicao = ((startPos + etiquetas.length) % 77) + 1
+  company.posicao_etiqueta = novaPosicao
+  s.saveCompany({ ...company })
+
+  s.notify(`PNG gerado! Abra no HP Smart e imprima como foto em tamanho real.`)
+}
+
 async function gerarEtiquetasAvulsas() {
   const etiquetas = []
   for (const r of receitasParaEtiqueta.value) {
@@ -596,12 +790,12 @@ watch(() => s.company, (novoValor) => {
 const abaAtiva = ref('perfil')
 const { stripEl: abaStripEl, setTabRef: setAbaRef } = useTabScroll(abaAtiva)
 const menus = [
-  { id: 'perfil',     label: 'Identidade', icon: 'fas fa-id-card' },
-  { id: 'etiquetas',  label: 'Etiquetas',  icon: 'fas fa-tags' },
-  { id: 'financeiro', label: 'Financeiro', icon: 'fas fa-university' },
-  { id: 'caderneta',  label: 'Caderneta',  icon: 'fas fa-book' },
-  { id: 'backup',     label: 'Backup',     icon: 'fas fa-cloud-arrow-up' },
-  { id: 'sistema',    label: 'Sistema',    icon: 'fas fa-gears' }
+  { id: 'perfil',     label: 'Identidade',       icon: 'fas fa-id-card' },
+  { id: 'financeiro', label: 'Financeiro',        icon: 'fas fa-university' },
+  { id: 'etiquetas',  label: 'Etiquetas',         icon: 'fas fa-tags' },
+  { id: 'caderneta',  label: 'Caderneta',         icon: 'fas fa-book' },
+  { id: 'backup',     label: 'Backup',            icon: 'fas fa-cloud-arrow-up' },
+  { id: 'sistema',    label: 'Sistema',           icon: 'fas fa-gears' }
 ]
 
 // ── Gerenciamento de Contas ──
@@ -708,6 +902,8 @@ function addProdutoCaderneta() {
 .etq-receita-item.ativa .etq-receita-nome i { color: var(--brown); }
 .etq-receita-nome span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .etq-qtd-ctrl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.etq-botoes-gerar { display: flex; gap: 8px; }
+.etq-botoes-gerar .btn { flex: 1; }
 .etq-resumo {
   margin-top: 12px; padding: 10px 12px; border-radius: var(--r-md);
   background: var(--cream); border: 1px solid var(--border);
@@ -715,6 +911,81 @@ function addProdutoCaderneta() {
   display: flex; align-items: center; gap: 8px;
 }
 .etq-resumo i { color: var(--gold-dark); }
+
+/* ── Preview da folha de etiquetas ─────────────────────── */
+.etq-preview-wrap {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.etq-preview-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.etq-preview-titulo { font-size: .75rem; font-weight: 700; color: var(--brown-dark); display: flex; align-items: center; gap: 6px; }
+.etq-preview-nav { display: flex; align-items: center; gap: 6px; font-size: .72rem; color: var(--muted); }
+.etq-nav-btn { border: none; background: transparent; color: var(--brown-mid); font-size: 1rem; padding: 2px 6px; cursor: pointer; }
+.etq-nav-btn:disabled { opacity: .3; cursor: default; }
+
+.etq-preview-legenda {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  padding: 6px 12px; background: var(--cream);
+  border-bottom: 1px solid var(--border);
+}
+.etq-leg-item { display: flex; align-items: center; gap: 4px; font-size: .65rem; color: var(--muted); }
+.etq-leg-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.etq-dot-usada { background: #c8b8a8; border: 1px solid #b0a090; }
+.etq-dot-vazio { background: var(--surface); border: 1px solid var(--border); }
+.etq-dot-selecionada { background: var(--brown-dark); }
+.etq-dot-inicio { background: var(--gold); border: 1px solid var(--gold-dark); }
+
+/* Folha: proporção A5 = 148,5 × 210mm → escalada para caber na tela */
+/* 7 cols × 11 rows, com margens de ~0.8mm cada lado */
+.etq-folha {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1.5px;
+  padding: 4px;
+  background: var(--cream);
+  aspect-ratio: 148.5 / 210; /* proporção real do A5 */
+}
+.etq-celula {
+  border-radius: 2px;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  transition: background .15s;
+  min-height: 0;
+}
+.etq-cel-vazio {
+  background: var(--surface);
+  border: .5px solid var(--border);
+}
+.etq-cel-usada {
+  background: #ddd5ca;
+  border: .5px solid #c0b0a0;
+}
+.etq-cel-selecionada {
+  background: var(--brown-dark);
+  border: .5px solid var(--brown-dark);
+}
+.etq-cel-inicio {
+  background: var(--gold);
+  border: 1.5px solid var(--gold-dark);
+}
+.etq-cel-txt {
+  font-size: 5px;
+  color: #fff;
+  text-align: center;
+  line-height: 1.1;
+  padding: 1px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
 
 /* ── Configuração do filtro de etiquetas ── */
 .etq-config-toggle {
