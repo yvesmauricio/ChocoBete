@@ -1454,9 +1454,18 @@ export const useStore = defineStore('choco', () => {
     }
 
     const totalSeconds = Math.floor(currentMs / 1000)
-    const m = Math.floor(totalSeconds / 60)
-    const s = totalSeconds % 60
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    const totalMinutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+
+    if (totalMinutes < 60) {
+      // Menos de 1h: mostra MM:SS
+      return `${String(totalMinutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    } else {
+      // 1h ou mais: mostra Xh YYmin
+      const hours = Math.floor(totalMinutes / 60)
+      const mins = totalMinutes % 60
+      return mins > 0 ? `${hours}h ${String(mins).padStart(2, '0')}min` : `${hours}h`
+    }
   })
 
     async function baixarEstoqueInsumos(listaUso) {
