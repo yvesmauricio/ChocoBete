@@ -35,7 +35,7 @@ import { ref, computed, watch } from 'vue'
 import { useSwipe } from '../composables/useSwipe.js'
 
 const props = defineProps({
-  rowId: { type: String, required: true },
+  rowId: { type: [String, Number], required: true },
   width: { type: Number, default: 120 }   // largura total dos botões de ação (px)
 })
 
