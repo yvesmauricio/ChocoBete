@@ -22,7 +22,7 @@
 
     <!-- Indicador de swipe: fica visível enquanto o row está fechado -->
     <div class="swipe-hint" :class="{ 'swipe-hint--hidden': isOpen || currentX < -8 }" aria-hidden="true">
-      <i class="fas fa-angles-left"></i>
+      <i class="fas fa-grip-lines-vertical"></i>
     </div>
     <div class="swipe-btns" :style="{ width: width + 'px' }">
       <slot name="actions" />
@@ -163,4 +163,6 @@ function onClickCapture(e) {
 :deep(.list-row) {
   border-bottom: none;
 }
+
+
 </style>
