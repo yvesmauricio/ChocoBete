@@ -48,6 +48,7 @@ const navPrincipal = [
 const navExtra = [
   { id: 'producao',     icon: 'fas fa-clock-rotate-left',  label: 'Histórico' },
   { id: 'inteligencia', icon: 'fas fa-brain',              label: 'Inteligência' },
+  { id: 'etiquetas',    icon: 'fas fa-tags',               label: 'Etiquetas' },
   { id: 'ajustes',      icon: 'fas fa-cog',                label: 'Ajustes' },
 ]
 </script>

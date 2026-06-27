@@ -23,6 +23,7 @@
         <TabCozinha      v-show="s.tab === 'cozinha'" />
         <TabBriefing     v-show="s.tab === 'briefing'" />
         <TabAjustes      v-show="s.tab === 'ajustes'" />
+        <TabEtiquetas    v-show="s.tab === 'etiquetas'" />
       </main>
 
       <AppNav />
@@ -145,6 +146,7 @@ import TabFinanceiro  from './views/TabFinanceiro.vue'
 import TabCozinha     from './views/TabCozinha.vue'
 import TabAjustes     from './views/TabAjustes.vue'
 import TabBriefing    from './views/TabBriefing.vue'
+import TabEtiquetas   from './views/TabEtiquetas.vue'
 import TabCaderneta   from './views/TabCaderneta.vue'
 import SelecaoPerfil  from './views/SelecaoPerfil.vue'
 

@@ -28,6 +28,14 @@ export const useStore = defineStore('choco', () => {
   const financeiro = ref([])
   const contasFinanceiras = ref([])
 
+  // ── Produção Fantasma ──
+  const producaoFantasma = ref({
+    diferenca: 0,
+    producaoNaoFinanceira: [],
+    producaoYM: [],
+    producaoBete: []
+  })
+
   // ── Estado da Cozinha (Agenda/Rascunho) ──
   const cozinhaLote = ref([])
   const cozinhaChecklist = ref({})
@@ -994,6 +1002,130 @@ export const useStore = defineStore('choco', () => {
     }
   }
 
+// ── PRODUÇÃO FANTASMA ──────────────────────────────
+
+/**
+ * Calcula a diferença entre o que entrou na conta e o que foi produzido
+ */
+function calcularProducaoFantasma() {
+  const mesAtual = getMesRef(new Date().toISOString())
+  
+  // Produções do mês atual
+  const producoesMes = producoes.value.filter(p => 
+    getMesRef(p.data_producao) === mesAtual
+  )
+  
+  // Separa por origem
+  const producaoYM = producoesMes.filter(p => p.origem === 'ym' || !p.origem)
+  const producaoBete = producoesMes.filter(p => p.origem === 'bete')
+  
+  // Valor total produzido (apenas YM - o que foi registrado no financeiro)
+  const valorProducaoYM = producaoYM.reduce((acc, p) => {
+    const qtd = p.quantidade_produzida || p.quantidade || 0
+    const preco = p.preco_unitario_snapshot || 0
+    return acc + (qtd * preco)
+  }, 0)
+  
+  // Entradas financeiras do mês
+  const entradasMes = financeiro.value.filter(f => 
+    f.mes_ref === mesAtual && 
+    f.natureza === 'entrada' &&
+    f.categoria !== 'Transferência Interna'
+  )
+  
+  const totalEntradas = entradasMes.reduce((acc, f) => acc + f.valor, 0)
+  
+  // Diferença = dinheiro que entrou sem produção registrada
+  const diferenca = totalEntradas - valorProducaoYM
+  
+  // Produção não financeira (Bete)
+  const producaoNaoFinanceira = producaoBete.filter(p => !p.gerar_financeiro)
+  
+  // Valor estimado da produção da Bete
+  const valorProducaoBete = producaoBete.reduce((acc, p) => {
+    const qtd = p.quantidade_produzida || p.quantidade || 0
+    const preco = p.preco_unitario_snapshot || 0
+    return acc + (qtd * preco)
+  }, 0)
+  
+  producaoFantasma.value = {
+    diferenca: Math.max(0, diferenca),
+    producaoNaoFinanceira,
+    producaoYM,
+    producaoBete,
+    totalEntradas,
+    valorProducaoYM,
+    valorProducaoBete,
+    mesAtual
+  }
+  
+  return producaoFantasma.value
+}
+
+/**
+ * Sugere possíveis produções da Bete baseado na diferença
+ */
+function sugerirProducaoFantasma() {
+  const { diferenca, producaoBete, valorProducaoBete } = producaoFantasma.value
+  
+  if (diferenca <= 0) return null
+  
+  // Busca receitas que Bete mais faz (origem bete ou categorias comuns)
+  const receitasBete = receitas.value.filter(r => 
+    r.origem === 'bete' || 
+    ['docinhos', 'brigadeiros', 'trufas'].includes(r.categoria)
+  )
+  
+  if (!receitasBete.length) return null
+  
+  // Pega a receita mais frequente da Bete
+  const receitaMaisComum = receitasBete.sort((a, b) => 
+    (b.frequencia || 0) - (a.frequencia || 0)
+  )[0]
+  
+  const precoUnitario = receitaMaisComum.preco_sugerido || 10
+  const qtdEstimada = Math.round(diferenca / precoUnitario)
+  
+  return {
+    receita: receitaMaisComum,
+    quantidade_estimada: qtdEstimada,
+    valor_estimado: diferenca,
+    mensagem: `Parece que Bete produziu cerca de ${qtdEstimada} un de ${receitaMaisComum.nome} sem registrar`
+  }
+}
+
+/**
+ * Registra uma produção "fantasma" da Bete (sem gerar financeiro)
+ */
+async function registrarProducaoFantasma(dados) {
+  const obj = {
+    ...dados,
+    uuid: dados.uuid || crypto.randomUUID(),
+    data_producao: dados.data_producao || new Date().toISOString(),
+    origem: 'bete',
+    gerar_financeiro: false,
+    data_inicio: null,
+    data_fim: null,
+    tempo_real_min: 0
+  }
+  
+  // Busca a receita para obter snapshot
+  const r = receitas.value.find(rec => rec.uuid === obj.receita_id)
+  if (r) {
+    obj.ingredientes_snapshot = JSON.parse(JSON.stringify(r.ingredientes || []))
+    obj.custo_unitario_snapshot = getCustoProducaoReceita(r, obj.quantidade_produzida || 1, null) / (obj.quantidade_produzida || 1)
+    obj.preco_unitario_snapshot = r.preco_sugerido || 0
+    obj.custo_snapshot_version = 2
+    obj.nome_receita = r.nome
+    obj.unidade_rendimento = r.unidade_rendimento || 'un'
+    obj.eh_intermediaria = r.eh_intermediaria || false
+  }
+  
+  await registrarProducao(obj)
+  calcularProducaoFantasma()
+  return obj
+}
+
   async function carregarFinanceiro() {
     financeiro.value = await db.financeiro.orderBy('data').reverse().toArray()
   }
@@ -1076,7 +1208,11 @@ export const useStore = defineStore('choco', () => {
         .reduce((acc, item) => acc + Number(item.valor || 0), 0),
       saidasImportadas: novos
         .filter(item => item.valor < 0)
-        .reduce((acc, item) => acc + Math.abs(Number(item.valor || 0)), 0)
+        .reduce((acc, item) => acc + Math.abs(Number(item.valor || 0)), 0),
+      producaoFantasma,
+      calcularProducaoFantasma,
+      sugerirProducaoFantasma,
+      registrarProducaoFantasma
     }
   }
 

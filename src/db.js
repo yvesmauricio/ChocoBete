@@ -90,6 +90,19 @@ db.version(9).stores({
   config:     'chave'
 })
 
+// db.js - versão 10 com novos campos
+db.version(10).stores({
+  produtos:   'uuid, nome',
+  receitas:   'uuid, nome',
+  producoes:  'uuid, data_producao, origem, gerar_financeiro',
+  financeiro: '++id, data, valor, tipo, categoria, natureza, escopo, tipo_contabil, descricao, mes_ref, &hash_duplicidade',
+  historico_precos: '++id, produto_uuid, data',
+  cad_lojas:    '++id, nome',
+  cad_clientes: '++id, lojaId, nome',
+  cad_fiados:   '++id, clienteId, lojaId, status, dataVenc',
+  config:     'chave'
+})
+
 function randomId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`

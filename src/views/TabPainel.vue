@@ -204,121 +204,101 @@
       <div v-if="loadingLista" class="loading-box"><div class="spinner spinner-sm"></div></div>
       <template v-else>
 
+        <!-- Barra de contexto compacta -->
         <div class="lc-ctx">
-          <div class="lc-ctx-info">
-            <div class="proj-badge">
-              <i class="fas fa-calendar-check"></i>
-              <div class="proj-body">
-              <span class="proj-label">Previsão para:</span>
-                <div class="proj-trigger">
-                  <strong>{{ semanasProjecao === 4 ? '1 mês' : semanasProjecao + (semanasProjecao === 1 ? ' semana' : ' semanas') }}</strong>
-                  <i class="fas fa-chevron-down"></i>
-                  <select v-model="semanasProjecao" class="proj-hidden-select">
-                <option :value="1">1 semana</option>
-                <option :value="2">2 semanas</option>
-                <option :value="4">1 mês (4 sem)</option>
-              </select>
-                </div>
+          <div class="proj-badge">
+            <i class="fas fa-calendar-check"></i>
+            <div class="proj-body">
+              <span class="proj-label">Previsão</span>
+              <div class="proj-trigger">
+                <strong>{{ semanasProjecao === 4 ? '1 mês' : semanasProjecao + ' sem' }}</strong>
+                <i class="fas fa-chevron-down"></i>
+                <select v-model="semanasProjecao" class="proj-hidden-select">
+                  <option :value="1">1 semana</option>
+                  <option :value="2">2 semanas</option>
+                  <option :value="4">1 mês (4 sem)</option>
+                </select>
               </div>
             </div>
           </div>
           <div v-if="totalEstimado > 0" class="lc-ctx-right">
-            <span class="lc-ctx-lbl">{{ nChecked > 0 ? 'Selecionado' : 'Total estimado' }}</span>
+            <span class="lc-ctx-lbl">{{ nChecked > 0 ? 'Selecionado' : 'Total est.' }}</span>
             <strong class="lc-ctx-val" :class="nChecked > 0 ? 'c-orange' : ''">
               {{ nChecked > 0 ? R$(totalSelecionado) : R$(totalEstimado) }}
             </strong>
-            <span v-if="nChecked > 0" class="lc-ctx-sub">de {{ R$(totalEstimado) }} total</span>
           </div>
-        </div>
-
-        <button class="btn-add-item" @click="mostrarSeletorItem = true">
-          <i class="fas fa-plus"></i> Adicionar item
-        </button>
-
-        <!-- Alertas de estoque crítico (independem de produção/projeção) -->
-        <div v-if="produtosCriticos.length" class="lc-criticos">
-          <div class="lc-criticos-titulo"><i class="fas fa-triangle-exclamation"></i> Estoque baixo</div>
-          <div v-for="p in produtosCriticos" :key="p.uuid" class="lc-critico-item">
-            <div class="lc-critico-info">
-              <span class="lc-critico-nome">{{ p.nome }}</span>
-              <span class="lc-critico-qtd">{{ fmtQ(p.estoque_atual, p.unidade_compra || p.unidade_base) }} · mínimo {{ fmtQ(p.estoque_minimo, p.unidade_compra || p.unidade_base) }}</span>
-            </div>
-            <button v-if="!listaCompras.some(i => i.id === p.uuid)" class="btn-add-critico" @click="adicionarItemNaLista(p, 'critico')">
-              <i class="fas fa-plus"></i> lista
-            </button>
-            <i v-else class="fas fa-check lc-critico-ok"></i>
-          </div>
+          <button class="btn-add-fab" @click="mostrarSeletorItem = true" title="Adicionar item">
+            <i class="fas fa-plus"></i>
+          </button>
         </div>
 
         <div v-if="mesesUsados < 2" class="lc-aviso">
           <i class="fas fa-triangle-exclamation"></i>
-          Poucos dados. Registre mais produções para uma projeção mais precisa.
+          Poucos dados — registre mais produções para melhorar a projeção.
         </div>
 
         <div v-if="!listaCompras.length" class="empty-mini mt-16">
-          Nenhum item na lista. Toque em "Adicionar item" ou aguarde os alertas de estoque baixo.
+          Lista vazia. Toque em <strong>+</strong> para adicionar um item.
         </div>
 
+        <!-- Lista com swipe -->
         <div v-else class="lc-lista">
-          <div
-            v-for="item in listaCompras" :key="item.id"
-            class="lc-item" :class="{ 'lc-checked': item.checked }"
+          <SwipeRow
+            v-for="item in listaCompras"
+            :key="item.id"
+            :rowId="item.id"
+            :width="item.origem === 'auto' ? 128 : 64"
           >
-            <!-- Checkbox -->
-            <i
-              :class="item.checked ? 'fas fa-circle-check lc-ico-on' : 'far fa-circle lc-ico-off'"
+            <!-- Conteúdo principal -->
+            <!-- Conteúdo principal -->
+            <div
+              class="lc-item" :class="{ 'lc-checked': item.checked }"
               @click="item.checked = !item.checked"
-            ></i>
+              @touchstart.passive="lpStart($event, item)"
+              @touchend="lpCancel"
+              @touchmove.passive="lpCancel"
+            >
+              <i :class="item.checked ? 'fas fa-circle-check lc-ico-on' : 'far fa-circle lc-ico-off'"></i>
 
-            <!-- Corpo -->
-            <div class="lc-item-body" @click="item.checked = !item.checked">
-              <div class="lc-nome-row">
-                <span class="lc-nome" :class="{ riscado: item.checked }">{{ item.nome }}</span>
-                <span v-if="item.origem === 'manual'" class="lc-origem-badge">manual</span>
-                <span v-else-if="item.origem === 'critico'" class="lc-origem-badge lc-origem-critico">estoque baixo</span>
-                <button class="lc-hist-btn" @click.stop="abrirHistorico(item)" title="Ver variação de preços">
-                  <i class="fas fa-chart-line"></i>
-                </button>
-                <button v-if="item.origem !== 'auto'" class="lc-remove-btn" @click.stop="removerItemDaLista(item)" title="Remover da lista">
-                  <i class="fas fa-trash-alt"></i>
-                </button>
+              <div class="lc-item-body">
+                <div class="lc-nome-row">
+                  <span class="lc-nome" :class="{ riscado: item.checked }">{{ item.nome }}</span>
+                  <span v-if="item.origem === 'critico'" class="lc-tag lc-tag-critico" title="Estoque baixo"><i class="fas fa-circle-exclamation"></i></span>
+                  <span v-else-if="item.origem === 'manual'" class="lc-tag lc-tag-manual" title="Adicionado manualmente"><i class="fas fa-hand"></i></span>
+                </div>
+                <span v-if="item.origem === 'auto'" class="lc-sub">sugestão · {{ fmtQ(item.mediaMensal, item.unidade) }}/mês</span>
+                <span v-else-if="item.origem === 'critico'" class="lc-sub">estoque baixo · atual {{ fmtQ(item.estoqueAtual, item.unidade) }}</span>
+                <span v-else class="lc-sub">adicionado manualmente</span>
               </div>
-              <div class="lc-sub-row">
-                <span v-if="item.origem === 'auto'" class="lc-sub">sugestão {{ fmtQ(item.qtdSugerida, item.unidade) }} · média {{ fmtQ(item.mediaMensal, item.unidade) }}/mês</span>
-                <span v-else class="lc-sub">adicionado {{ item.origem === 'critico' ? 'por estoque baixo' : 'manualmente' }}</span>
-                <span v-if="item.embalagensFinal > 0 && item.fatorConv > 1" class="lc-emb">
-                  <i class="fas fa-box-open"></i>
-                  {{ item.embalagensFinal }} {{ item.embalagensFinal === 1 ? item.nomeEmb : item.nomeEmbPlural }}
-                  de {{ fmtQ(item.fatorConv, item.unidade) }} cada
-                </span>
+
+              <!-- Direita: stepper + custo -->
+              <div class="lc-right" @click.stop @touchstart.stop @touchend.stop>
+                <div class="lc-stepper">
+                  <button class="lc-step-btn" @click="ajustarEmbalagens(item, -1)" :disabled="item.embalagensFinal <= 1"><i class="fas fa-minus"></i></button>
+                  <span class="lc-step-val">
+                    {{ item.embalagensFinal > 0 ? item.embalagensFinal : 1 }}
+                    <small>{{ item.embalagensFinal === 1 ? item.nomeEmb : item.nomeEmbPlural }}</small>
+                  </span>
+                  <button class="lc-step-btn" @click="ajustarEmbalagens(item, +1)"><i class="fas fa-plus"></i></button>
+                </div>
+                <span v-if="item.custoEstimado > 0" class="lc-custo-label">{{ R$(item.custoEstimado) }}</span>
               </div>
             </div>
 
-            <!-- Lado direito: qtd ajustável + preço -->
-            <div class="lc-right">
-              <!-- Stepper de embalagens -->
-              <div class="lc-stepper" @click.stop>
-                <button class="lc-step-btn" @click="ajustarEmbalagens(item, -1)" :disabled="item.embalagensFinal <= 1">
-                  <i class="fas fa-minus"></i>
-                </button>
-                <span class="lc-step-val">
-                  {{ item.embalagensFinal > 0 ? item.embalagensFinal : 1 }}
-                  <small>{{ item.embalagensFinal === 1 ? item.nomeEmb : item.nomeEmbPlural }}</small>
-                </span>
-                <button class="lc-step-btn" @click="ajustarEmbalagens(item, +1)">
-                  <i class="fas fa-plus"></i>
-                </button>
-              </div>
-              <!-- Custo + editar preço -->
-              <div class="lc-custo-row" @click.stop>
-                <span class="lc-custo" v-if="item.custoEstimado > 0">{{ R$(item.custoEstimado) }}</span>
-                <button class="lc-preco-btn" @click.stop="abrirModalPreco(item)" title="Atualizar preço">
-                  <i class="fas fa-pencil"></i>
-                </button>
-              </div>
-            </div>
-          </div>
+            <!-- Ações reveladas pelo swipe -->
+            <template #actions>
+              <button v-if="item.origem === 'auto'" class="sw-btn sw-btn-ignore" @click.stop="ignorarSugestao(item)">
+                <i class="fas fa-eye-slash"></i>
+                <span>Ocultar</span>
+              </button>
+              <button class="sw-btn sw-btn-remove" @click.stop="removerItemDaLista(item)">
+                <i class="fas fa-trash-alt"></i>
+                <span>Remover</span>
+              </button>
+            </template>
+          </SwipeRow>
         </div>
+
 
         <!-- Modal: adicionar item manualmente -->
         <Teleport to="body">
@@ -571,16 +551,7 @@
               <i class="fas fa-rotate-left"></i> Limpar
             </button>
           </div>
-          <div class="lc-share-btns">
-            <button class="btn btn-secondary btn-sm" @click="compartilharListaCompras('pendentes')" :disabled="nChecked === listaCompras.length">
-              <i class="fas fa-share-nodes"></i> Compartilhar pendentes
-            </button>
-            <button class="btn btn-primary btn-sm" @click="compartilharListaCompras('tudo')">
-              <i class="fas fa-share-nodes"></i> Tudo
-            </button>
-          </div>
         </div>
-
       </template>
     </div>
 
@@ -593,8 +564,11 @@ import { useStore } from '../store.js'
 import CategoryFilter from '../components/CategoryFilter.vue'
 import { R$, avatarColor, fmtQtd as fmtQ, getMesRef, maskMoney, parseMoney, normalizar } from '../utils.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
+import SwipeRow from '../components/SwipeRow.vue'
+import { useSwipe } from '../composables/useSwipe.js'
 
 const s = useStore()
+const { openSwipeId } = useSwipe()
 const aba = ref('painel')
 const mesAtualRef = (() => {
   const d = new Date()
@@ -791,6 +765,18 @@ function margemColor(item) {
 }
 
 // Lista de Compras
+const IGNORED_KEY = 'lc_ignored_ids'
+const ignoredIds = ref(new Set(JSON.parse(localStorage.getItem(IGNORED_KEY) || '[]')))
+
+function ignorarSugestao(item) {
+  openSwipeId.value = null
+  ignoredIds.value.add(item.id)
+  localStorage.setItem(IGNORED_KEY, JSON.stringify([...ignoredIds.value]))
+  listaCompras.value = listaCompras.value.filter(i => i.id !== item.id)
+  totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
+  s.notify(`"${item.nome}" não será mais sugerido`)
+}
+
 const loadingLista = ref(false)
 const listaCompras = ref([])
 const semanasProjecao = ref(2) // Default para 2 semanas, conforme sua estratégia
@@ -822,6 +808,7 @@ function adicionarItemNaLista(prod, origem = 'manual') {
 }
 
 function removerItemDaLista(item) {
+  openSwipeId.value = null
   listaCompras.value = listaCompras.value.filter(i => i.id !== item.id)
   totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
 }
@@ -840,6 +827,21 @@ const fracValor = ref('')
 const fracQtd = ref('')
 const fracResultado = ref(0)
 const qtdEntradaInput = ref('')  // quantidade recebida em embalagens
+
+// ── Long press para abrir compra ─────────────────────────────
+let _lpTimer = null
+
+function lpStart(e, item) {
+  lpCancel()
+  _lpTimer = setTimeout(() => {
+    _lpTimer = null
+    abrirModalPreco(item)
+  }, 500)
+}
+
+function lpCancel() {
+  if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null }
+}
 
 function abrirModalPreco(item) {
   modalPreco.value = item
@@ -1015,13 +1017,34 @@ async function carregarListaCompras() {
     return montarItemLista(prod, qtdSug, 'auto', mediaMensal)
   }).filter(Boolean)
 
-  // Preserva itens manuais e marcados como comprado que já estavam na lista (evita perder ao recarregar)
-  const manuaisExistentes = listaCompras.value.filter(i => i.origem === 'manual' && !i.checked)
+  // Críticos: produtos com estoque <= mínimo que não estão na listaAuto
   const idsAuto = new Set(listaAuto.map(i => i.id))
-  const manuaisSemDuplicar = manuaisExistentes.filter(i => !idsAuto.has(i.id))
+  const criticos = s.produtos
+    .filter(p =>
+      Number(p.estoque_minimo || 0) > 0 &&
+      Number(p.estoque_atual || 0) <= Number(p.estoque_minimo || 0) &&
+      !idsAuto.has(p.uuid) &&
+      !ignoredIds.value.has(p.uuid)
+    )
+    .map(p => {
+      const item = montarItemLista(p, p.estoque_minimo || 1, 'critico', 0)
+      item.estoqueAtual = p.estoque_atual || 0
+      item.estoqueMinimo = p.estoque_minimo || 0
+      return item
+    })
 
-  const lista = [...listaAuto, ...manuaisSemDuplicar]
-    .sort((a, b) => b.custoEstimado - a.custoEstimado || b.mediaMensal - a.mediaMensal)
+  // Preserva manuais existentes
+  const manuaisExistentes = listaCompras.value.filter(i => i.origem === 'manual' && !i.checked)
+  const idsCriticos = new Set(criticos.map(i => i.id))
+  const manuaisSemDuplicar = manuaisExistentes.filter(i => !idsAuto.has(i.id) && !idsCriticos.has(i.id))
+
+  const lista = [...criticos, ...listaAuto, ...manuaisSemDuplicar]
+    .sort((a, b) => {
+      // Críticos sempre primeiro
+      if (a.origem === 'critico' && b.origem !== 'critico') return -1
+      if (b.origem === 'critico' && a.origem !== 'critico') return 1
+      return b.custoEstimado - a.custoEstimado || b.mediaMensal - a.mediaMensal
+    })
 
   listaCompras.value = lista
   totalEstimado.value = lista.reduce((acc, i) => acc + i.custoEstimado, 0)
@@ -1398,145 +1421,97 @@ function compartilharListaCompras(modo) {
 .lc-ctx-lbl { font-size: .58rem; text-transform: uppercase; font-weight: 800; color: var(--muted); letter-spacing: .4px; display: block; }
 .lc-ctx-val { font-size: .95rem; font-weight: 800; color: var(--green); font-family: var(--mono); }
 
-/* ── Botão Adicionar item ── */
-.btn-add-item {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  width: 100%; padding: 10px; margin-top: 10px;
-  border: 1.5px dashed var(--border); border-radius: var(--r-md);
-  background: var(--surface); color: var(--brown-mid);
-  font-size: .82rem; font-weight: 700; cursor: pointer;
+/* ── Botão + no ctx bar ── */
+.btn-add-fab {
+  width: 32px; height: 32px; border-radius: 50%; border: none; flex-shrink: 0;
+  background: var(--brown-dark); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem; cursor: pointer; transition: background .15s;
 }
-.btn-add-item:active { background: var(--gold-bg); }
+.btn-add-fab:active { background: var(--brown); }
 
-/* ── Alertas de estoque crítico ── */
-.lc-criticos { margin-top: 10px; border: 1px solid #f0c4c4; border-radius: var(--r-md); overflow: hidden; }
-.lc-criticos-titulo {
-  display: flex; align-items: center; gap: 6px; padding: 8px 12px;
-  background: #fcebeb; color: #a32d2d; font-size: .72rem; font-weight: 800;
-  text-transform: uppercase; letter-spacing: .3px;
+/* ── Lista ── */
+.lc-aviso {
+  display: flex; gap: 8px; margin: 8px 12px 0; padding: 10px 12px; background: var(--gold-bg);
+  border: 1px solid #e8d5a0; border-radius: var(--r-sm); font-size: .72rem; color: var(--gold-dark); line-height: 1.4;
 }
-.lc-critico-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 9px 12px; background: var(--surface); border-top: 1px solid #f7dcdc;
-}
-.lc-critico-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.lc-critico-nome { font-size: .8rem; font-weight: 600; color: var(--text); }
-.lc-critico-qtd { font-size: .68rem; color: #a32d2d; }
-.btn-add-critico {
-  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
-  padding: 5px 10px; border-radius: var(--r-sm); border: none;
-  background: var(--brown-dark); color: #fff; font-size: .7rem; font-weight: 700;
-}
-.lc-critico-ok { color: var(--green); font-size: .85rem; flex-shrink: 0; }
+.lc-lista { display: flex; flex-direction: column; gap: 0; padding-top: 4px; }
 
-/* ── Badges de origem do item ── */
-.lc-origem-badge {
-  font-size: .58rem; font-weight: 800; text-transform: uppercase; letter-spacing: .3px;
-  padding: 2px 6px; border-radius: var(--r-full);
-  background: var(--bg); color: var(--muted); flex-shrink: 0;
+/* Item: altura fixa, sem quebra de linha */
+.lc-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; min-height: 56px;
+  background: var(--surface); cursor: pointer;
+  transition: opacity .15s;
 }
-.lc-origem-critico { background: #fcebeb; color: #a32d2d; }
-.lc-remove-btn { color: var(--muted); font-size: .72rem; padding: 2px; flex-shrink: 0; }
-.lc-remove-btn:active { color: #a32d2d; }
+.lc-checked { opacity: .4; }
+.lc-ico-on { font-size: 1.05rem; color: var(--green); flex-shrink: 0; }
+.lc-ico-off { font-size: 1.05rem; color: var(--border); flex-shrink: 0; }
 
-/* ── Modal seletor de produtos ── */
-.seletor-busca {
-  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-  border: 1.5px solid var(--border); border-radius: var(--r-md); margin-bottom: 10px;
+/* Corpo: nome em 1 linha, sub em 1 linha */
+.lc-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.lc-nome-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.lc-nome {
+  font-size: .85rem; font-weight: 700; color: var(--brown-dark);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.lc-nome.riscado { text-decoration: line-through; color: var(--muted); }
+.lc-sub {
+  font-size: .62rem; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Ícone de tag de origem (pequeno, sem texto) */
+.lc-tag { font-size: .65rem; flex-shrink: 0; line-height: 1; }
+.lc-tag-critico { color: #d9534f; }
+.lc-tag-manual { color: var(--brown-light); }
+
+/* Direita: stepper + botão de custo */
+.lc-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+.lc-stepper { display: flex; align-items: center; gap: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 3px; }
+.lc-step-btn { width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: var(--brown); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: .6rem; flex-shrink: 0; transition: background .15s; }
+.lc-step-btn:active { background: var(--brown); color: #fff; }
+.lc-step-btn:disabled { opacity: .3; cursor: default; }
+.lc-step-val { font-size: .75rem; font-weight: 800; font-family: var(--mono); color: var(--brown-dark); min-width: 38px; text-align: center; line-height: 1; }
+.lc-step-val small { font-size: .52rem; font-weight: 400; color: var(--muted); display: block; }
+
+/* Custo estimado (só leitura, compra via long press) */
+.lc-custo-label {
+  font-size: .68rem; font-weight: 700; color: var(--green); font-family: var(--mono);
+  text-align: right;
+}
+/* Feedback visual de long press */
+.lc-item:active { background: var(--gold-bg); }
+
+/* Rodapé */
+.qtd-entrada-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.lc-footer { margin: 4px 12px 0; padding: 10px 0 0; border-top: 1px solid var(--border); }
+.lc-footer-top { display: flex; align-items: center; justify-content: space-between; }
+.lc-prog-inline { font-size: .68rem; font-weight: 700; color: var(--muted); }
+.btn-txt-sm { font-size: .7rem; color: var(--muted); background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 0; }
+.btn-txt-sm:active { color: var(--brown); }
+
+/* Botões de swipe */
+.sw-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; width: 64px; border: none; cursor: pointer;
+  font-size: .6rem; font-weight: 700; color: #fff; padding: 0;
+}
+.sw-btn i { font-size: .9rem; }
+.sw-btn-remove { background: #d9534f; }
+.sw-btn-ignore { background: var(--brown-mid); }
+.sw-btn-remove:active { background: #b52b27; }
+.sw-btn-ignore:active { background: var(--brown-dark); }
+
+/* Modal seletor */
+.seletor-busca { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: var(--r-md); margin-bottom: 10px; }
 .seletor-busca i { color: var(--muted); font-size: .85rem; }
 .seletor-busca input { border: none; outline: none; background: transparent; flex: 1; font-size: .85rem; color: var(--text); }
 .seletor-lista { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.seletor-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 11px 4px; border: none; border-bottom: 1px solid var(--border);
-  background: transparent; text-align: left; font-size: .85rem; color: var(--text);
-}
+.seletor-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 4px; border: none; border-bottom: 1px solid var(--border); background: transparent; text-align: left; font-size: .85rem; color: var(--text); }
 .seletor-item:active { background: var(--gold-bg); }
 .seletor-item i { color: var(--brown-mid); font-size: .8rem; flex-shrink: 0; }
 
-.lc-aviso {
-  display: flex; gap: 8px; padding: 10px 12px; background: var(--gold-bg);
-  border: 1px solid #e8d5a0; border-radius: var(--r-sm); font-size: .72rem; color: var(--gold-dark); line-height: 1.4;
-}
-.lc-lista { display: flex; flex-direction: column; gap: 6px; }
-.lc-item {
-  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
-  cursor: pointer; transition: opacity .15s;
-}
-.lc-checked { opacity: .45; }
-.lc-ico-on { font-size: 1.1rem; color: var(--green); flex-shrink: 0; }
-.lc-ico-off { font-size: 1.1rem; color: var(--border); flex-shrink: 0; }
-.lc-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.lc-nome { font-size: .87rem; font-weight: 700; color: var(--brown-dark); }
-.lc-nome.riscado { text-decoration: line-through; }
-.lc-sub { font-size: .63rem; color: var(--muted); }
-.lc-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-.lc-qtd { font-size: .87rem; font-weight: 800; font-family: var(--mono); color: var(--brown-dark); }
-.lc-custo { font-size: .68rem; font-weight: 700; color: var(--green); font-family: var(--mono); }
-.lc-ctx-sub { font-size: .58rem; color: var(--muted); display: block; text-align: right; margin-top: 1px; }
-.lc-custo-row { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
-.lc-preco-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: .58rem; padding: 2px 3px; border-radius: 3px; opacity: 0; transition: opacity .15s; }
-.lc-item:hover .lc-preco-btn { opacity: 1; }
-.lc-preco-edit { display: flex; align-items: center; gap: 2px; background: var(--bg); border: 1.5px solid var(--brown); border-radius: var(--r-sm); padding: 2px 5px; }
-.lc-preco-prefix { font-size: .65rem; color: var(--muted); font-weight: 700; }
-.lc-preco-input { width: 52px; border: none; background: transparent; font-size: .75rem; font-weight: 800; font-family: var(--mono); color: var(--brown-dark); outline: none; text-align: right; }
-.lc-preco-ok { background: var(--brown); color: #fff; border: none; border-radius: 3px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: .55rem; cursor: pointer; flex-shrink: 0; }
-/* item embalagem */
-.lc-sub-row { display: flex; flex-direction: column; gap: 2px; }
-.lc-emb {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: .65rem; font-weight: 700; color: var(--brown);
-  background: var(--cream); border: 1px solid var(--border);
-  border-radius: var(--r-sm); padding: 1px 6px;
-}
-.lc-emb i { font-size: .6rem; color: var(--brown-light); }
-.lc-emb-detalhe { font-weight: 400; color: var(--muted); }
-
-/* Rodapé discreto */
-.qtd-entrada-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
-/* qtd-e-btn/input/unid agora em main.css (global) */
-
-.lc-footer {
-  margin-top: 4px; padding: 10px 0 0;
-  border-top: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 8px;
-}
-.lc-footer-top {
-  display: flex; align-items: center; justify-content: space-between;
-}
-.lc-prog-inline {
-  display: flex; align-items: center; gap: 6px;
-  font-size: .68rem; font-weight: 700; color: var(--muted);
-}
-.lc-prog-dots { display: flex; gap: 3px; align-items: center; }
-.lc-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--border); transition: background .2s;
-  flex-shrink: 0;
-}
-.lc-dot-on { background: var(--green); }
-.btn-txt-sm {
-  font-size: .7rem; color: var(--muted); background: none; border: none;
-  cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 0;
-}
-.btn-txt-sm:hover { color: var(--brown); }
-.lc-share-btns { display: flex; gap: 8px; }
-.lc-share-btns .btn { flex: 1; font-size: .76rem; }
-
-/* Nome row com botão de histórico */
-.lc-nome-row { display: flex; align-items: center; gap: 5px; }
-.lc-hist-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: .6rem; padding: 2px 3px; border-radius: 3px; flex-shrink: 0; opacity: 0; transition: opacity .15s; }
-.lc-item:hover .lc-hist-btn { opacity: 1; }
-
-/* Stepper */
-.lc-stepper { display: flex; align-items: center; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 3px 4px; }
-.lc-step-btn { width: 20px; height: 20px; border-radius: 4px; border: none; background: var(--surface); color: var(--brown); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: .6rem; flex-shrink: 0; transition: background .15s; }
-.lc-step-btn:hover:not(:disabled) { background: var(--brown); color: #fff; }
-.lc-step-btn:disabled { opacity: .3; cursor: default; }
-.lc-step-val { font-size: .78rem; font-weight: 800; font-family: var(--mono); color: var(--brown-dark); min-width: 44px; text-align: center; line-height: 1; }
-.lc-step-val small { font-size: .55rem; font-weight: 400; color: var(--muted); display: block; }
 
 /* Modal de histórico de preços */
 .lc-modal { background: var(--surface); border-radius: 18px 18px 0 0; width: 100%; max-width: 520px; max-height: 80vh; overflow-y: auto; box-shadow: 0 -4px 32px rgba(61,31,7,.18); }
