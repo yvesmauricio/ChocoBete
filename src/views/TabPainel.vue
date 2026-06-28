@@ -1440,7 +1440,7 @@ function compartilharListaCompras(modo) {
 /* Item: altura fixa, sem quebra de linha */
 .lc-item {
   display: flex; align-items: center; gap: 10px;
-  padding: 10px 28px 10px 12px; min-height: 56px;
+  padding: 10px 5px 10px 12px; min-height: 56px;
   background: var(--surface); cursor: pointer;
   transition: opacity .15s;
 }
@@ -1468,7 +1468,7 @@ function compartilharListaCompras(modo) {
 
 /* Direita: stepper + botão de custo */
 .lc-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
-.lc-stepper { display: flex; align-items: center; gap: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 3px; }
+.lc-stepper { display: flex; align-items: center; gap: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 2px; }
 .lc-step-btn { width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: var(--brown); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: .6rem; flex-shrink: 0; transition: background .15s; }
 .lc-step-btn:active { background: var(--brown); color: #fff; }
 .lc-step-btn:disabled { opacity: .3; cursor: default; }
