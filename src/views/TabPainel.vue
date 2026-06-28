@@ -915,6 +915,9 @@ async function _confirmarCompra(item, custoPorEmbalagem) {
   if (salvo) {
     listaCompras.value = listaCompras.value.filter(i => i.id !== item.id)
     totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
+    // Persiste no ignoredIds para o item não voltar após refresh
+    ignoredIds.value.add(item.id)
+    localStorage.setItem(IGNORED_KEY, JSON.stringify([...ignoredIds.value]))
   }
 }
 
@@ -981,13 +984,35 @@ function montarItemLista(prod, qtdSug, origem = 'auto', mediaMensal = 0) {
   }
 }
 
-// Produtos com estoque no/abaixo do mínimo configurado — sempre visível, independe de produção
+// Produtos com estoque zerado ou abaixo do mínimo configurado — sempre visível, independe de produção
 const produtosCriticos = computed(() =>
-  s.produtos.filter(p => Number(p.estoque_minimo || 0) > 0 && Number(p.estoque_atual || 0) <= Number(p.estoque_minimo || 0))
+  s.produtos.filter(p => {
+    const estoqueAtual = Number(p.estoque_atual || 0)
+    const estoqueMinimo = Number(p.estoque_minimo || 0)
+    return estoqueAtual <= 0 || (estoqueMinimo > 0 && estoqueAtual <= estoqueMinimo)
+  })
 )
 
 async function carregarListaCompras() {
   loadingLista.value = true
+
+  // Limpa ignoredIds: remove produtos deletados OU cujo estoque caiu novamente
+  // (zerou ou voltou abaixo do mínimo), para que reapareçam na lista.
+  if (ignoredIds.value.size > 0) {
+    let alterou = false
+    for (const id of [...ignoredIds.value]) {
+      const p = s.produtos.find(x => x.uuid === id)
+      if (!p) { ignoredIds.value.delete(id); alterou = true; continue }
+      const estoqueAtual = Number(p.estoque_atual || 0)
+      const estoqueMinimo = Number(p.estoque_minimo || 0)
+      // Libera se zerou ou se voltou abaixo/igual ao mínimo
+      if (estoqueAtual <= 0 || (estoqueMinimo > 0 && estoqueAtual <= estoqueMinimo)) {
+        ignoredIds.value.delete(id)
+        alterou = true
+      }
+    }
+    if (alterou) localStorage.setItem(IGNORED_KEY, JSON.stringify([...ignoredIds.value]))
+  }
   await s.carregarProducoes(0)
   const agora = new Date()
   const mesesAlvo = []
@@ -1023,18 +1048,28 @@ async function carregarListaCompras() {
     const qtdSug = (qtdPorSemana * semanasProjecao.value) * 1.1
     const prod = s.produtos.find(p => p.uuid === ing.id)
     if (!prod) return null
+    // Não sugere se já foi comprado/ignorado neste ciclo
+    if (ignoredIds.value.has(prod.uuid)) return null
+    // Não sugere se o estoque atual já cobre a quantidade sugerida
+    // (mas se zerou, sempre mostra — independe do ignoredIds)
+    const estoqueAtual = Number(prod.estoque_atual || 0)
+    if (estoqueAtual <= 0) return montarItemLista(prod, qtdSug, 'auto', mediaMensal)
+    if (estoqueAtual >= qtdSug) return null
     return montarItemLista(prod, qtdSug, 'auto', mediaMensal)
   }).filter(Boolean)
 
-  // Críticos: produtos com estoque <= mínimo que não estão na listaAuto
+  // Críticos: produtos com estoque <= mínimo OU estoque zerado (mesmo sem mínimo definido)
   const idsAuto = new Set(listaAuto.map(i => i.id))
   const criticos = s.produtos
-    .filter(p =>
-      Number(p.estoque_minimo || 0) > 0 &&
-      Number(p.estoque_atual || 0) <= Number(p.estoque_minimo || 0) &&
-      !idsAuto.has(p.uuid) &&
-      !ignoredIds.value.has(p.uuid)
-    )
+    .filter(p => {
+      const estoqueAtual = Number(p.estoque_atual || 0)
+      const estoqueMinimo = Number(p.estoque_minimo || 0)
+      const abaixoDoMinimo = estoqueMinimo > 0 && estoqueAtual <= estoqueMinimo
+      const estouZerado  = estoqueAtual <= 0
+      return (abaixoDoMinimo || estouZerado) &&
+             !idsAuto.has(p.uuid) &&
+             !ignoredIds.value.has(p.uuid)
+    })
     .map(p => {
       const item = montarItemLista(p, p.estoque_minimo || 1, 'critico', 0)
       item.estoqueAtual = p.estoque_atual || 0
@@ -1048,12 +1083,7 @@ async function carregarListaCompras() {
   const manuaisSemDuplicar = manuaisExistentes.filter(i => !idsAuto.has(i.id) && !idsCriticos.has(i.id))
 
   const lista = [...criticos, ...listaAuto, ...manuaisSemDuplicar]
-    .sort((a, b) => {
-      // Críticos sempre primeiro
-      if (a.origem === 'critico' && b.origem !== 'critico') return -1
-      if (b.origem === 'critico' && a.origem !== 'critico') return 1
-      return b.custoEstimado - a.custoEstimado || b.mediaMensal - a.mediaMensal
-    })
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }))
 
   listaCompras.value = lista
   totalEstimado.value = lista.reduce((acc, i) => acc + i.custoEstimado, 0)

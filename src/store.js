@@ -1495,7 +1495,7 @@ async function registrarProducaoFantasma(dados) {
 
       return clean({ // Aplica clean novamente para o objeto final
         ...cleanedItem, // Espalha as propriedades do item já limpo
-        data_producao: cleanedItem.data_producao, // Garante que data_producao permanece como o identificador original do lote
+        data_producao: novosDados.data_producao_nova || cleanedItem.data_producao,
         data_inicio: novosDados.data_inicio || dataProducaoOriginal,
         data_fim: novosDados.data_fim || dataProducaoOriginal,
         tempo_real_min: tempoItem,

@@ -203,6 +203,22 @@ const confirm = useConfirm()
 const filtroAtivo = computed(() => s.producaoFiltroAtivo)
 
 const formEdicaoLote = reactive({ data_producao_original: '', data_producao: '', data_inicio: '', data_fim: '' })
+
+// Converte ISO UTC para string datetime-local (YYYY-MM-DDTHH:MM) no fuso local
+function isoParaLocal(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso.slice(0, 16)
+  const pad = n => String(n).padStart(2, '0')
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+         'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+}
+
+// Converte string datetime-local (YYYY-MM-DDTHH:MM, horário local) para ISO UTC
+function localParaISO(local) {
+  if (!local) return ''
+  return new Date(local).toISOString()
+}
 const saving = ref(false)
 
 async function confirmStopTimer() {
@@ -472,9 +488,9 @@ async function handleRetomar(grupo) {
 
 function abrirModalEdicaoLote(grupo) {
   formEdicaoLote.data_producao_original = grupo.data || ''
-  formEdicaoLote.data_producao = (grupo.data || '').slice(0, 16)
-  formEdicaoLote.data_inicio = (grupo.data_inicio || '').slice(0, 16)
-  formEdicaoLote.data_fim = (grupo.data_fim || '').slice(0, 16)
+  formEdicaoLote.data_producao = isoParaLocal(grupo.data)
+  formEdicaoLote.data_inicio = isoParaLocal(grupo.data_inicio)
+  formEdicaoLote.data_fim = isoParaLocal(grupo.data_fim)
   abrirModal('edicao-lote')
 }
 
@@ -563,13 +579,13 @@ async function salvarEdicaoItem(p) {
 async function salvarEdicaoLote() {
   saving.value = true
   try {
-    const dados = { data_producao_nova: formEdicaoLote.data_producao || undefined }
+    const dados = { data_producao_nova: formEdicaoLote.data_producao ? localParaISO(formEdicaoLote.data_producao) : undefined }
     if (formEdicaoLote.data_inicio && formEdicaoLote.data_fim && duracaoEdicaoLote.value > 0) {
-      dados.data_inicio = formEdicaoLote.data_inicio
-      dados.data_fim = formEdicaoLote.data_fim
+      dados.data_inicio = localParaISO(formEdicaoLote.data_inicio)
+      dados.data_fim = localParaISO(formEdicaoLote.data_fim)
       dados.tempo_real_min = duracaoEdicaoLote.value
     } else if (formEdicaoLote.data_inicio) {
-      dados.data_inicio = formEdicaoLote.data_inicio
+      dados.data_inicio = localParaISO(formEdicaoLote.data_inicio)
     }
     await s.atualizarLoteProducao(formEdicaoLote.data_producao_original, dados)
     fecharModal()
