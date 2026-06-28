@@ -551,7 +551,7 @@
               <i class="fas fa-rotate-left"></i> Limpar
             </button>
           </div>
-        </div>
+          </div>
       </template>
     </div>
 
@@ -1440,7 +1440,7 @@ function compartilharListaCompras(modo) {
 /* Item: altura fixa, sem quebra de linha */
 .lc-item {
   display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; min-height: 56px;
+  padding: 10px 28px 10px 12px; min-height: 56px;
   background: var(--surface); cursor: pointer;
   transition: opacity .15s;
 }

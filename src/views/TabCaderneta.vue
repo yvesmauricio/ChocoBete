@@ -292,31 +292,6 @@
             </div>
           </div>
 
-          <!-- Vencem em breve (hoje + próximos 7 dias) -->
-          <div v-if="fiadosEmBreve.length" class="cad-secao cad-secao--yellow">
-            <div class="cad-secao-header">
-              <span class="cad-secao-ico">🟡</span>
-              <span class="cad-secao-titulo">Vencem em breve</span>
-              <span class="cad-secao-badge cad-secao-badge--yellow">{{ fiadosEmBreve.length }}</span>
-            </div>
-            <div v-for="f in fiadosEmBreve" :key="f.id" class="cad-agend-row cad-agend-row--yellow">
-              <div class="cad-agend-avatar">{{ iniciais(f.clienteNome) }}</div>
-              <div class="cad-agend-info">
-                <div class="cad-agend-nome">{{ f.clienteNome }}</div>
-                <div class="cad-agend-loja">{{ f.lojaNome }}</div>
-                <div class="cad-agend-itens" :title="resumoItens(f.itens)">{{ resumoItens(f.itens) }}</div>
-              </div>
-              <div class="cad-agend-dir">
-                <div class="cad-agend-val">R$ {{ fmt(f.saldo) }}</div>
-                <div class="cad-agend-data cad-agend-data--yellow">{{ fmtVencLabel(f.dataVenc) }}</div>
-                <div class="cad-agend-acoes">
-                  <button class="cad-btn-receber-sm" @click.stop="abrirReceber(f)" title="Receber">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
 
           <!-- Sem data de vencimento -->
           <div v-if="fiadosSemData.length" class="cad-secao cad-secao--gray">
@@ -388,7 +363,7 @@
                   title="Enviar WhatsApp"
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-                  Zap
+                  Cobrar
                 </button>
               </div>
 
@@ -487,7 +462,7 @@
       </button>
       <button class="nav-btn nav-btn--fiado" :class="{ active: navAtivo === 'lojas' }" @click="navSwitch('lojas')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>+ Fiado</span>
+        <span>Fiado</span>
       </button>
       <button class="nav-btn" :class="{ active: navAtivo === 'resumo' }" @click="navSwitch('resumo')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/><path d="M8 4h8v4H8z"/></svg>
@@ -1098,15 +1073,6 @@ const fiadosVencidos = computed(() =>
     .filter(f => f.atrasada)
     .sort((a, b) => (a.dataVenc||'').localeCompare(b.dataVenc||''))
 )
-const fiadosEmBreve = computed(() => {
-  const hj = hoje()
-  const limite = new Date(hj + 'T12:00:00')
-  limite.setDate(limite.getDate() + 7)
-  const limStr = limite.toLocaleDateString('sv')
-  return fiadosAbertosEnriquecidos.value
-    .filter(f => !f.atrasada && f.dataVenc && f.dataVenc <= limStr)
-    .sort((a, b) => (a.dataVenc||'').localeCompare(b.dataVenc||''))
-})
 const fiadosSemData = computed(() =>
   fiadosAbertosEnriquecidos.value.filter(f => !f.dataVenc)
 )
@@ -1137,7 +1103,7 @@ const gruposResumo = computed(() => montarGrupos())
 function montarGrupos() {
   const hj    = hoje()
   const termo = normalizar(buscaResumo.value.trim())
-  const fonte = modoResumo.value === 'historico' ? fiadosTodos.value : fiadosAbertos.value
+  const fonte = modoResumo.value === 'historico' ? fiadosTodos.value.filter(f => f.saldo <= 0.01) : fiadosAbertos.value
   const filtrados = fonte.filter(f => {
     if (!termo) return true
     const telefone = telMap.value[f.clienteId] || f.clienteTel || ''
@@ -1701,7 +1667,6 @@ onMounted(async () => {
 
 .cad-agend-row:last-child { border-bottom: none; }
 .cad-agend-row--red    { background: #fff9f9; }
-.cad-agend-row--yellow { background: #fffdf0; }
 .cad-agend-row--gray   { background: var(--cream); }
 
 .cad-agend-avatar {
@@ -1727,7 +1692,6 @@ onMounted(async () => {
 .cad-agend-val   { font-size: 14px; font-weight: 800; font-family: var(--mono); color: var(--brown); }
 .cad-agend-data  { font-size: 10px; color: var(--muted); font-weight: 700; }
 .cad-agend-data--red    { color: var(--red, #dc2626); }
-.cad-agend-data--yellow { color: #92400e; }
 .cad-agend-acoes { display: flex; gap: 4px; }
 
 .cad-btn-receber-sm {

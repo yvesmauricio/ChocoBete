@@ -22,7 +22,7 @@
 
     <!-- Indicador de swipe: fica visível enquanto o row está fechado -->
     <div class="swipe-hint" :class="{ 'swipe-hint--hidden': isOpen || currentX < -8 }" aria-hidden="true">
-      <i class="fas fa-grip-lines-vertical"></i>
+      <i class="fas fa-angles-left"></i>
     </div>
     <div class="swipe-btns" :style="{ width: width + 'px' }">
       <slot name="actions" />
@@ -157,6 +157,7 @@ function onClickCapture(e) {
   transition: opacity .2s;
   opacity: 1;
 }
+
 .swipe-hint--hidden { opacity: 0; }
 
 /* A divisória precisa ficar no wrapper fixo, não no conteúdo que desliza */

@@ -290,8 +290,8 @@ onUnmounted(() => {
 /* ── Sync indicator — discreto, dentro da área do header ─── */
 .sync-indicator {
   position: fixed;
-  top: 10px;
-  right: 56px; /* não sobrepõe ícones do AppHeader */
+  top: max(10px, env(safe-area-inset-top));
+  right: 60px; /* não sobrepõe ícones do AppHeader */
   display: flex; align-items: center; gap: 5px;
   padding: 4px 10px;
   border-radius: 20px;
@@ -313,7 +313,7 @@ onUnmounted(() => {
 .sync-error   { background: #791f1f; color: #fff; border: 1px solid #A32D2D; }
 .btn-sync-now { background: transparent; border: none; color: inherit; font-size: inherit; font-weight: inherit; display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 0; }
 
-/* Sync da Bete — mesma posição, sem nav embaixo */
-.bete-sync { top: 10px; right: 12px; bottom: auto; }
+/* Sync da Bete — canto inferior esquerdo, longe do FAB (bottom-right) */
+.bete-sync { top: auto; right: auto; bottom: 100px; left: 12px; max-width: 150px; }
 
 </style>
