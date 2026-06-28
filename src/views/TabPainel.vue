@@ -893,24 +893,29 @@ async function _confirmarCompra(item, custoPorEmbalagem) {
   const prod = s.produtos.find(p => p.uuid === item.id)
   if (!prod) { s.notify('Produto não encontrado', 'error'); return }
 
-  const qtdEmb = parseFloat(qtdEntradaInput.value) || 1
-  const fator  = prod.fator_conversao && prod.fator_conversao > 0 ? prod.fator_conversao : 1
-  const novoEstoque = (prod.estoque_atual || 0) + (qtdEmb * fator)
+  const qtdEmb   = parseFloat(qtdEntradaInput.value) || 1
+  // Garante fator válido tanto no cálculo quanto no objeto enviado ao banco
+  const fator     = Number(prod.fator_conversao) > 0 ? Number(prod.fator_conversao) : 1
+  const novoEstoque = (Number(prod.estoque_atual) || 0) + (qtdEmb * fator)
 
+  let salvo = false
   try {
     await s.salvarProduto({
       ...prod,
+      fator_conversao: fator,          // garante que não vai 0/null para a validação
       custo_por_unidade: custoPorEmbalagem,
       estoque_atual: novoEstoque
     })
+    salvo = true
   } catch (e) {
     s.notify(e?.message || 'Erro ao salvar produto', 'error')
-    return
   }
 
-  // Remove da lista após confirmar compra
-  listaCompras.value = listaCompras.value.filter(i => i.id !== item.id)
-  totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
+  // Só remove da lista se realmente salvou no banco
+  if (salvo) {
+    listaCompras.value = listaCompras.value.filter(i => i.id !== item.id)
+    totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
+  }
 }
 
 async function confirmarPrecoEmb() {
