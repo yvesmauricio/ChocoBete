@@ -3,7 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/receitas-v3/', // 👈 ESSENCIAL pro GitHub Pages
+  base: '/ChocoBete/', // 👈 ESSENCIAL pro GitHub Pages
 
   plugins: [
     vue(),
@@ -28,8 +28,8 @@ export default defineConfig({
         theme_color: '#3d2008',
         background_color: '#fdf5e8',
         display: 'standalone',
-        start_url: '/receitas-v3/',
-        scope: '/receitas-v3/',
+        start_url: '/ChocoBete/',
+        scope: '/ChocoBete/',
 
         icons: [
           {
@@ -49,12 +49,12 @@ export default defineConfig({
       workbox: {
 
         additionalManifestEntries: [
-          { url: '/receitas-v3/offline.html', revision: null }
+          { url: '/ChocoBete/offline.html', revision: null }
         ],
 
         // Use the SPA shell for navigation requests. Pointing this to
         // offline.html makes GitHub Pages open the offline screen as the app entry.
-        navigateFallback: '/receitas-v3/index.html',
+        navigateFallback: '/ChocoBete/index.html',
         navigateFallbackDenylist: [/^\/assets\//],
 
         skipWaiting: true,

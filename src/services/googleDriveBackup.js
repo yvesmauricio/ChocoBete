@@ -1,14 +1,14 @@
 const GOOGLE_IDENTITY_SCRIPT = 'https://accounts.google.com/gsi/client'
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata'
-const DRIVE_FILE_NAME = 'receitas-v3-backup.json'
-const DRIVE_FILE_NAME_BAK = 'receitas-v3-backup.bak.json'
+const DRIVE_FILE_NAME = 'ChocoBete-backup.json'
+const DRIVE_FILE_NAME_BAK = 'ChocoBete-backup.bak.json'
 const DRIVE_APP_PROPERTY_KEY = 'app'
-const DRIVE_APP_PROPERTY_VALUE = 'receitas-v3'
+const DRIVE_APP_PROPERTY_VALUE = 'ChocoBete'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || ''
-const DRIVE_CONNECTED_KEY = 'receitas-v3-google-drive-connected'
+const DRIVE_CONNECTED_KEY = 'ChocoBete-google-drive-connected'
 
 // Chave no localStorage para guardar token + expiração
-const TOKEN_CACHE_KEY = 'receitas-v3-gtoken'
+const TOKEN_CACHE_KEY = 'ChocoBete-gtoken'
 
 let scriptPromise = null
 let tokenClientSilent = null   // para renovações sem popup
