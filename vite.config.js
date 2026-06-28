@@ -9,7 +9,7 @@ export default defineConfig({
     vue(),
 
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
 
       devOptions: {
         enabled: false
@@ -57,8 +57,8 @@ export default defineConfig({
         navigateFallback: '/ChocoBete/index.html',
         navigateFallbackDenylist: [/^\/assets\//],
 
-        skipWaiting: true,
-        clientsClaim: true,
+        skipWaiting: false,
+        clientsClaim: false,
 
         globPatterns: ['**/*.{js,css,ico,png,svg,woff,woff2}'],
 
