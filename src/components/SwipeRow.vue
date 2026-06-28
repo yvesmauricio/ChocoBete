@@ -18,11 +18,10 @@
       }"
     >
       <slot />
-    </div>
-
-    <!-- Indicador de swipe: fica visível enquanto o row está fechado -->
-    <div class="swipe-hint" :class="{ 'swipe-hint--hidden': isOpen || currentX < -8 }" aria-hidden="true">
-      <i class="fas fa-angles-left"></i>
+      <!-- Indicador de swipe: empurrado para o final pelo flex do conteúdo -->
+      <div class="swipe-hint" :class="{ 'swipe-hint--hidden': isOpen || currentX < -8 }" aria-hidden="true">
+        <i class="fas fa-angles-left"></i>
+      </div>
     </div>
     <div class="swipe-btns" :style="{ width: width + 'px' }">
       <slot name="actions" />
@@ -35,7 +34,7 @@ import { ref, computed, watch } from 'vue'
 import { useSwipe } from '../composables/useSwipe.js'
 
 const props = defineProps({
-  rowId: { type: [String, Number], required: true },
+  rowId: { type: String, required: true },
   width: { type: Number, default: 120 }   // largura total dos botões de ação (px)
 })
 
@@ -130,6 +129,13 @@ function onClickCapture(e) {
   z-index: 1;
   width: 100%;
   background: var(--card, #fff);
+  display: flex;
+  align-items: stretch;
+}
+/* O slot ocupa todo o espaço, hint fica no final */
+.swipe-content > :deep(*:first-child) {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Botões de ação: sempre à direita, revelados conforme o conteúdo desliza */
@@ -144,26 +150,23 @@ function onClickCapture(e) {
   background: var(--surface, #fff);
 }
 
-/* Indicador de swipe */
+/* Indicador de swipe: flui com o conteúdo via flex, não flutua */
 .swipe-hint {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-  color: var(--border, #d1c4b8);
-  font-size: .65rem;
+  margin-left: auto;
+  padding-left: 8px;
+  padding-right: 15px;
+  flex-shrink: 0;
+  color: var(--muted, #9b8b7a);
+  font-size: .70rem;
   pointer-events: none;
   transition: opacity .2s;
   opacity: 1;
+  align-self: center;
 }
-
 .swipe-hint--hidden { opacity: 0; }
 
 /* A divisória precisa ficar no wrapper fixo, não no conteúdo que desliza */
 :deep(.list-row) {
   border-bottom: none;
 }
-
-
 </style>

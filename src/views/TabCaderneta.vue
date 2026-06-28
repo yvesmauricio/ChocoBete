@@ -460,9 +460,9 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         <span>Início</span>
       </button>
-      <button class="nav-btn nav-btn--fiado" :class="{ active: navAtivo === 'lojas' }" @click="navSwitch('lojas')">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>Fiado</span>
+      <button class="nav-btn" :class="{ active: navAtivo === 'calculadora' }" @click="navSwitch('calculadora')">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+        <span>Calculadora</span>
       </button>
       <button class="nav-btn" :class="{ active: navAtivo === 'resumo' }" @click="navSwitch('resumo')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/><path d="M8 4h8v4H8z"/></svg>
@@ -470,17 +470,16 @@
       </button>
     </nav>
 
-    <!-- ── BOTÃO FLUTUANTE: TAXAS ── -->
+    <!-- ── BOTÃO FLUTUANTE: NOVO FIADO ── -->
     <Teleport to="body">
       <button
-        v-if="tela === 'dashboard'"
+        v-if="!['lojas', 'clientes', 'lancar'].includes(tela)"
         class="cad-fab-taxas"
-        :class="{ 'cad-fab-taxas--active': navAtivo === 'calculadora' }"
-        @click="navSwitch('calculadora')"
-        title="Calculadora de Taxas"
+        @click="navSwitch('lojas')"
+        title="Novo Fiado"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
-        <span class="cad-fab-taxas-label">%</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span class="cad-fab-taxas-label">Fiado</span>
       </button>
     </Teleport>
 
@@ -1103,7 +1102,7 @@ const gruposResumo = computed(() => montarGrupos())
 function montarGrupos() {
   const hj    = hoje()
   const termo = normalizar(buscaResumo.value.trim())
-  const fonte = modoResumo.value === 'historico' ? fiadosTodos.value.filter(f => f.saldo <= 0.01) : fiadosAbertos.value
+  const fonte = modoResumo.value === 'historico' ? fiadosTodos.value : fiadosAbertos.value
   const filtrados = fonte.filter(f => {
     if (!termo) return true
     const telefone = telMap.value[f.clienteId] || f.clienteTel || ''
