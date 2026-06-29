@@ -256,7 +256,13 @@
               }"
             >
               <!-- Nome -->
-              <button class="ing-btn-name" @click="handleNomeClick(ing, i)">
+              <button
+                class="ing-btn-name"
+                @click="handleNomeClick(ing, i)"
+                @touchstart.passive="iniciarTooltip(ing, $event)"
+                @touchend="cancelarTooltip"
+                @touchmove="cancelarTooltip"
+              >
                 <span class="ing-ico-sm">{{ ing.tipo === 'receita' ? '🥣' : '📦' }}</span>
                 <span class="ing-name-txt">{{ getNomeIng(ing) || 'Selecionar…' }}</span>
               </button>
@@ -290,6 +296,8 @@
             <div class="ing-row-meta">
               <span v-if="ingredienteIncompleto(ing)" class="ing-meta-chip warn">Selecione o item e informe a quantidade</span>
               <span v-else-if="ingredienteDuplicado(ing, i)" class="ing-meta-chip warn">Ingrediente repetido na receita</span>
+              <span v-else-if="ingredienteConflitaComProduto(ing)" class="ing-meta-chip warn">⚠️ Esta sub-receita também existe como produto no estoque — pode gerar desconto em duplicidade na produção</span>
+              <span v-else-if="ingredienteDeveriaSerReceita(ing)" class="ing-meta-chip warn">⚠️ Existe uma receita com este nome — considere usar a sub-receita para o sistema expandir os ingredientes corretamente</span>
               <span v-if="ing.id && Number(ing.quantidade || 0) > 0" class="ing-meta-chip cost">Custo: {{ R$(getCustoComposicao(ing)) }}</span>
             </div>
           </div>
@@ -472,6 +480,20 @@
         <button class="btn btn-secondary" @click="fecharModal">Fechar</button>
       </template>
     </BaseModal>
+
+    <!-- Tooltip de nome completo (toque longo) -->
+    <Teleport to="body">
+      <Transition name="tooltip-fade">
+        <div
+          v-if="tooltip.visivel"
+          class="ing-tooltip-flutuante"
+          :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }"
+        >
+          <span class="ing-tooltip-ico">{{ tooltip.ico }}</span>
+          <span class="ing-tooltip-txt">{{ tooltip.nome }}</span>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -843,6 +865,59 @@ function ingredienteDuplicado(ing, idxAtual) {
   )
 }
 
+// Detecta conflito: ingrediente é sub-receita MAS também existe como produto no estoque
+// Nesse caso o desconto aconteceria em duplicidade na produção
+// ── Tooltip de nome completo (toque longo) ──────────────────────
+const tooltip = ref({ visivel: false, nome: '', ico: '', x: 0, y: 0 })
+let tooltipTimer = null
+let tooltipSumirTimer = null
+
+function iniciarTooltip(ing, event) {
+  cancelarTooltip()
+  const nome = getNomeIng(ing)
+  if (!nome || nome === 'Selecionar…') return
+  tooltipTimer = setTimeout(() => {
+    const touch = event.touches[0]
+    const margem = 16
+    const larguraEstimada = Math.min(nome.length * 8 + 48, window.innerWidth - margem * 2)
+    let x = touch.clientX - larguraEstimada / 2
+    x = Math.max(margem, Math.min(x, window.innerWidth - larguraEstimada - margem))
+    const y = Math.max(margem, touch.clientY - 56)
+    tooltip.value = {
+      visivel: true,
+      nome,
+      ico: ing.tipo === 'receita' ? '🥣' : '📦',
+      x,
+      y
+    }
+    tooltipSumirTimer = setTimeout(() => { tooltip.value.visivel = false }, 2200)
+  }, 450)
+}
+
+function cancelarTooltip() {
+  clearTimeout(tooltipTimer)
+  tooltipTimer = null
+}
+
+function ingredienteConflitaComProduto(ing) {
+  if (!ing?.id || ing.tipo !== 'receita') return false
+  const receita = s.receitas.find(r => r.uuid === ing.id)
+  if (!receita) return false
+  // Verifica se existe um produto com o mesmo nome no estoque
+  const nomeLower = (receita.nome || '').toLowerCase().trim()
+  return s.produtos.some(p => (p.nome || '').toLowerCase().trim() === nomeLower)
+}
+
+// Detecta conflito inverso: ingrediente é produto MAS existe uma receita com mesmo nome
+// Indica que deveria ser sub-receita para o sistema expandir corretamente
+function ingredienteDeveriaSerReceita(ing) {
+  if (!ing?.id || ing.tipo !== 'produto') return false
+  const produto = s.produtos.find(p => p.uuid === ing.id)
+  if (!produto) return false
+  const nomeLower = (produto.nome || '').toLowerCase().trim()
+  return s.receitas.some(r => (r.nome || '').toLowerCase().trim() === nomeLower)
+}
+
 function limparPrefixoCategoria(nome) {
   return String(nome || '')
     .replace(/^\s*(trufa|cone|barra|brownie|bolo|ovo)\s+/i, '')
@@ -1022,4 +1097,31 @@ async function excluirDireto(r) {
 .form-section-label.sec-toggle { margin-bottom: 0; }
 
 /* stepper de ingredientes → main.css */
+.ing-tooltip-flutuante {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(30, 18, 10, 0.92);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.18);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  max-width: calc(100vw - 32px);
+}
+.ing-tooltip-ico { font-size: 1rem; flex-shrink: 0; }
+.ing-tooltip-txt {
+  font-size: .84rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: normal;
+  word-break: break-word;
+}
+.tooltip-fade-enter-active { transition: opacity .15s ease, transform .15s ease; }
+.tooltip-fade-leave-active { transition: opacity .25s ease, transform .25s ease; }
+.tooltip-fade-enter-from  { opacity: 0; transform: translateY(4px) scale(.97); }
+.tooltip-fade-leave-to    { opacity: 0; transform: translateY(-4px) scale(.97); }
 </style>
