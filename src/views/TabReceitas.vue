@@ -246,7 +246,12 @@
             <span>Toque em <strong>+ Adicionar</strong> para incluir ingredientes ou bases de outras receitas</span>
           </div>
 
+          <div v-if="form.ingredientes.length" class="ing-list-card">
           <div v-for="(ing, i) in form.ingredientes" :key="ing._key" class="ing-row-slim">
+          <SwipeRow
+            :row-id="ing._key"
+            :width="118"
+          >
             <div
               class="ing-row-content"
               :class="{
@@ -281,26 +286,40 @@
                 <span class="ing-unit-slim">{{ getUnidade(ing) }}</span>
                 <button type="button" class="ing-qty-btn" @click.stop="stepQty(ing, +1)">+</button>
               </div>
-
-              <!-- Ações -->
-              <div class="ing-actions-slim">
-                <button type="button" class="btn-action-slim" :class="{ active: ing.gera_peso !== false }"
-                  @click="ing.gera_peso = ing.gera_peso === false ? true : false">
-                  <i class="fas fa-balance-scale"></i>
-                </button>
-                <button type="button" class="btn-action-slim btn-del-slim" @click="removerIngrediente(i)">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
             </div>
-            <div class="ing-row-meta">
+
+            <!-- Ações reveladas pelo swipe -->
+            <template #actions>
+              <button
+                type="button"
+                class="swipe-action-btn"
+                :class="ing.gera_peso !== false ? 'swipe-btn-peso-on' : 'swipe-btn-peso-off'"
+                @click.stop="ing.gera_peso = ing.gera_peso === false ? true : false"
+                :title="ing.gera_peso !== false ? 'Conta no peso' : 'Não conta no peso'"
+              >
+                <i class="fas fa-balance-scale"></i>
+                <span>{{ ing.gera_peso !== false ? 'Peso' : 'S/ peso' }}</span>
+              </button>
+              <button
+                type="button"
+                class="swipe-action-btn swipe-btn-del"
+                @click.stop="removerIngrediente(i)"
+              >
+                <i class="fas fa-trash"></i>
+                <span>Remover</span>
+              </button>
+            </template>
+          </SwipeRow>
+            <div class="ing-row-meta" v-if="ingredienteIncompleto(ing) || ingredienteDuplicado(ing,i) || ingredienteConflitaComProduto(ing) || ingredienteDeveriaSerReceita(ing)">
               <span v-if="ingredienteIncompleto(ing)" class="ing-meta-chip warn">Selecione o item e informe a quantidade</span>
               <span v-else-if="ingredienteDuplicado(ing, i)" class="ing-meta-chip warn">Ingrediente repetido na receita</span>
               <span v-else-if="ingredienteConflitaComProduto(ing)" class="ing-meta-chip warn">⚠️ Esta sub-receita também existe como produto no estoque — pode gerar desconto em duplicidade na produção</span>
               <span v-else-if="ingredienteDeveriaSerReceita(ing)" class="ing-meta-chip warn">⚠️ Existe uma receita com este nome — considere usar a sub-receita para o sistema expandir os ingredientes corretamente</span>
-              <span v-if="ing.id && Number(ing.quantidade || 0) > 0" class="ing-meta-chip cost">Custo: {{ R$(getCustoComposicao(ing)) }}</span>
+
             </div>
           </div>
+
+          </div><!-- /ing-list-card -->
 
           <button class="btn-add-ing" @click="addNovoItem">
             <i class="fas fa-plus"></i> Adicionar ingrediente
@@ -507,6 +526,8 @@ import CategoryFilter from '../components/CategoryFilter.vue'
 import { useModalStack } from '../composables/useModalStack.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import { useDeleteConfirm } from '../composables/useDeleteConfirm.js'
+import SwipeRow from '../components/SwipeRow.vue'
+import { useSwipe } from '../composables/useSwipe.js'
 import { useListFilter } from '../composables/useListFilter.js'
 import { gerarRelatorioReceitas } from '../composables/useGerarDocumento.js'
 
@@ -514,6 +535,7 @@ const s = useStore()
 const { modal, abrirModal, fecharModal } = useModalStack()
 const confirm = useConfirm()
 const { confirmarExclusao } = useDeleteConfirm()
+const { openSwipeId } = useSwipe()
 
 // ── FAB ─────────────────────────────────────────────────────
 const registerFab   = inject('registerFab', null)
@@ -1124,4 +1146,31 @@ async function excluirDireto(r) {
 .tooltip-fade-leave-active { transition: opacity .25s ease, transform .25s ease; }
 .tooltip-fade-enter-from  { opacity: 0; transform: translateY(4px) scale(.97); }
 .tooltip-fade-leave-to    { opacity: 0; transform: translateY(-4px) scale(.97); }
+
+/* ── Swipe de ingredientes ─────────────────────────────────── */
+.ing-row-slim { margin-bottom: 4px; }
+
+.swipe-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: none;
+  cursor: pointer;
+  font-size: .65rem;
+  font-weight: 700;
+  width: 56px;
+  height: 100%;
+  transition: background .15s;
+}
+.swipe-action-btn i { font-size: .95rem; }
+
+.swipe-btn-peso-on  { background: var(--blue, #3b82f6); color: #fff; }
+.swipe-btn-peso-off { background: var(--muted-bg, #f3f4f6); color: var(--muted, #9ca3af); }
+.swipe-btn-del      { background: var(--red, #ef4444); color: #fff; }
+
+.swipe-btn-peso-on:active  { background: #2563eb; }
+.swipe-btn-peso-off:active { background: #e5e7eb; }
+.swipe-btn-del:active      { background: #dc2626; }
 </style>
