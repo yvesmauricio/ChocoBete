@@ -20,6 +20,8 @@ export const useStore = defineStore('choco', () => {
   const tab = ref('painel')
   const loading = ref(false)
   const toast = ref(null)
+  // Ponte para abrir a tela de Etiquetas com sabores pré-selecionados (vindo de Produção)
+  const etiquetasPreSelecao = ref(null) // [{ texto, qtd }] | null
 
   // ── Dados ─────────────────────────────────
   const produtos = ref([])
@@ -2196,7 +2198,7 @@ async function registrarProducaoFantasma(dados) {
 
   return {
     // UI
-    tab, loading, toast,
+    tab, loading, toast, etiquetasPreSelecao,
     setTab, notify,
     activeLoteName,
 

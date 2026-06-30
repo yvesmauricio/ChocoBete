@@ -79,6 +79,10 @@
               <button class="lote-act-btn" @click="abrirModalEdicaoLote(grupo)" title="Editar datas">
                 <i class="fas fa-calendar-alt"></i>
               </button>
+              <!-- Etiquetas do lote inteiro -->
+              <button class="lote-act-btn" @click="irParaEtiquetas(agruparPorSabor(grupo.itens || []))" title="Imprimir etiquetas do lote">
+                <i class="fas fa-tags"></i>
+              </button>
               <!-- Compartilhar -->
               <button class="lote-act-btn" @click="compartilharLote(grupo)" title="Compartilhar">
                 <i class="fas fa-share-nodes"></i>
@@ -193,7 +197,6 @@ import { useModalStack } from '../composables/useModalStack.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import { useListFilter } from '../composables/useListFilter.js'
 import { gerarRelatorioProducao } from '../composables/useGerarDocumento.js'
-import { gerarArquivoEtiquetas } from '../composables/useEtiquetas.js'
 
 const s = useStore()
 const { closeAll } = useSwipe()
@@ -407,48 +410,33 @@ function getTextoEtiqueta(p) {
   return limparApenasSabor(p.nome_receita || p.receita_nome)
 }
 
-function expandirEtiquetasProducao(itens) {
-  return itens.flatMap(item => {
+function agruparPorSabor(itens) {
+  const mapa = new Map()
+  for (const item of itens) {
     const texto = getTextoEtiqueta(item)
     const qtd = Number(item.quantidade_produzida || item.quantidade || 0)
-    if (!texto || qtd <= 0) return []
-    return Array.from({ length: qtd }, () => texto)
-  })
+    if (!texto || qtd <= 0) continue
+    mapa.set(texto, (mapa.get(texto) || 0) + qtd)
+  }
+  return [...mapa.entries()].map(([texto, qtd]) => ({ texto, qtd }))
 }
 
-async function confirmarEGerarEtiquetas(etiquetas, nomeArquivoBase) {
-  if (!etiquetas.length) {
+async function irParaEtiquetas(lista) {
+  if (!lista.length) {
     s.notify('Nao ha etiquetas validas para gerar', 'error')
     return
   }
+  const ok = await confirm.ask(
+    `Ir para a tela de Etiquetas com ${lista.length} sabor${lista.length > 1 ? 'es' : ''} selecionado${lista.length > 1 ? 's' : ''}? Você sairá do Histórico de Produção.`,
+    { title: 'Imprimir Etiquetas', icon: 'fas fa-tags', confirmLabel: 'Ir para Etiquetas' }
+  )
+  if (!ok) return
+  s.etiquetasPreSelecao = lista
+  s.tab = 'etiquetas'
+}
 
-  let startPos = Math.max(0, (Number(s.company.posicao_etiqueta || 1) || 1) - 1)
-  if (startPos > 0) {
-    const continuar = await confirm.ask(
-      `A proxima etiqueta livre e a ${startPos + 1}. Toque em "Continuar" para reaproveitar a folha atual ou em "Nova folha" para recomecar da primeira etiqueta.`,
-      {
-        title: 'Como deseja imprimir?',
-        icon: 'fas fa-tags',
-        type: 'primary',
-        confirmLabel: 'Continuar',
-        cancelLabel: 'Nova folha'
-      }
-    )
-    startPos = continuar ? startPos : 0
-  }
-
-  s.loading = true
-  const contato = s.company.contato_etiqueta?.trim() || s.company.nome || ''
-  const resultado = await gerarArquivoEtiquetas(etiquetas, contato, startPos, nomeArquivoBase)
-  s.loading = false
-
-  if (resultado.ok) {
-    s.company.posicao_etiqueta = resultado.novaPosicao
-    s.saveCompany(s.company)
-    s.notify(`Etiqueta gerada! ${resultado.totalFolhas} folha${resultado.totalFolhas > 1 ? 's' : ''}. Proxima posicao: ${resultado.novaPosicao}.`)
-  } else {
-    s.notify(resultado.erro, 'error')
-  }
+async function imprimirEtiqueta(p) {
+  await irParaEtiquetas(agruparPorSabor([p]))
 }
 
 async function estornar(p) {
@@ -462,17 +450,6 @@ async function estornar(p) {
   const id = p.uuid || p.id
   if (!id) return s.notify('Erro: identificador não encontrado', 'error')
   await s.estornarProducao(id)
-}
-
-async function imprimirEtiqueta(p) {
-  const etiquetas = expandirEtiquetasProducao([p])
-  const saborLimpo = getTextoEtiqueta(p)
-  await confirmarEGerarEtiquetas(etiquetas, `etiquetas-${normalizar(saborLimpo)}`)
-}
-
-async function imprimirEtiquetasGrupo(grupo) {
-  const etiquetas = expandirEtiquetasProducao(grupo.itens || [])
-  await confirmarEGerarEtiquetas(etiquetas, `etiquetas-lote-${(grupo.data || '').slice(0, 16).replace(/[:T]/g, '-') || 'producao'}`)
 }
 
 async function handleRetomar(grupo) {
@@ -779,5 +756,6 @@ onMounted(() => {
 .global-item    { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#fff; border-radius:var(--r-sm); border:1px solid var(--border) }
 .global-item span   { font-size:.86rem; font-weight:700; color:var(--brown) }
 .global-item strong { font-size:.95rem; font-weight:800; font-family:var(--mono); color:var(--gold-dark) }
+
 
 </style>
