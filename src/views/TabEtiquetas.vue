@@ -184,7 +184,7 @@
             <button class="btn btn-secondary btn-full mt-8" :disabled="!podeGerar" @click="gerarHtml">
               <i class="fas fa-print"></i> Imprimir pelo celular (HTML)
             </button>
-            <p class="hint mt-8">A opção HTML abre uma nova aba com as etiquetas prontas para impressão direta — sem conversão, sem margens extras.</p>
+            <p class="hint mt-8">O HTML abre uma nova aba pronta para imprimir. No celular selecione papel <strong>A4, retrato, escala 100%</strong> — a folha A5 de etiquetas encaixa no canto superior da folha A4 na impressora.</p>
           </div>
 
           <!-- ── Navegação entre passos ── -->

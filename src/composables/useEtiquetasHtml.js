@@ -10,14 +10,11 @@
  *   Margem superior:      0,86 mm
  *   Grade:                7 colunas × 11 linhas = 77 etiquetas
  *
- * A página CSS usa @page com tamanho A5 sem margens, e todas as medidas
- * em mm para garantir correspondência pixel-perfeita com a folha física
- * independente da resolução do dispositivo.
- *
- * @param {string[]} etiquetas   - Array de 77 posições (string com o texto do
- *                                 sabor, ou '' para posição vazia/em branco)
- * @param {string}   contato     - Texto de contato que aparece em cada etiqueta
- * @returns {string}             - HTML completo pronto para abrir numa nova aba
+ * IMPORTANTE: o driver HP no Android só aceita papel A4 (210 × 297mm).
+ * O HTML usa @page A4 com margem zero. O grid de etiquetas é posicionado
+ * no canto superior esquerdo exatamente onde a folha A5 física fica quando
+ * inserida na impressora — a área abaixo (297-210=87mm) fica em branco.
+ * Imprimir com escala 100%, sem "ajustar à página".
  */
 export function gerarHtmlEtiquetas(etiquetas, contato) {
   // Garante array de exatamente 77 posições
@@ -50,15 +47,15 @@ export function gerarHtmlEtiquetas(etiquetas, contato) {
   /* ── Reset ── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* ── Página A5 sem margens — o grid ocupa o papel inteiro ── */
+  /* ── Página A4 sem margens — driver HP Android só aceita A4 ── */
   @page {
-    size: 148.5mm 210mm;
+    size: 210mm 297mm;
     margin: 0;
   }
 
   html, body {
-    width: 148.5mm;
-    height: 210mm;
+    width: 210mm;
+    height: 297mm;
     overflow: hidden;
     background: #fff;
     -webkit-print-color-adjust: exact;
@@ -160,16 +157,25 @@ ${rows.join('\n')}
 </div>
 
 <div class="print-bar">
-  <span>🍫 Etiquetas ChocoBete — A5 (148,5 × 210 mm) — sem escala!</span>
+  <span>A4 · retrato · 100% · sem margens</span>
+  <label>
+    ↕ <input id="adjTop" type="number" value="0" step="0.1" style="width:52px;text-align:center"> mm
+  </label>
+  <label>
+    ↔ <input id="adjLeft" type="number" value="0" step="0.1" style="width:52px;text-align:center"> mm
+  </label>
+  <button onclick="aplicarAjuste()">Aplicar</button>
   <button onclick="window.print()">🖨️ Imprimir</button>
 </div>
 
 <script>
-  // Abre o diálogo de impressão automaticamente ao carregar
-  window.addEventListener('load', () => {
-    // Pequeno delay para a página renderizar antes de abrir o diálogo
-    setTimeout(() => window.print(), 400)
-  })
+  function aplicarAjuste() {
+    const top = parseFloat(document.getElementById('adjTop').value) || 0
+    const left = parseFloat(document.getElementById('adjLeft').value) || 0
+    document.querySelector('.sheet').style.top = (0.86 + top) + 'mm'
+    document.querySelector('.sheet').style.left = (0.80 + left) + 'mm'
+  }
+  window.addEventListener('load', () => setTimeout(() => window.print(), 400))
 <\/script>
 </body>
 </html>`
