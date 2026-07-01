@@ -179,8 +179,12 @@
             </div>
 
             <button class="btn btn-primary btn-full mt-16" :disabled="!podeGerar" @click="gerarEtiquetasAvulsas">
-              <i class="fas fa-file-word"></i> Gerar .docx
+              <i class="fas fa-file-word"></i> Gerar .docx (PC)
             </button>
+            <button class="btn btn-secondary btn-full mt-8" :disabled="!podeGerar" @click="gerarHtml">
+              <i class="fas fa-print"></i> Imprimir pelo celular (HTML)
+            </button>
+            <p class="hint mt-8">A opção HTML abre uma nova aba com as etiquetas prontas para impressão direta — sem conversão, sem margens extras.</p>
           </div>
 
           <!-- ── Navegação entre passos ── -->
@@ -205,6 +209,7 @@ import { useStore } from '../store.js'
 import { normalizar, textoEtiquetaReceita } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { gerarArquivoEtiquetas } from '../composables/useEtiquetas.js'
+import { gerarHtmlEtiquetas, montarCelulasHtml } from '../composables/useEtiquetasHtml.js'
 
 const s = useStore()
 const confirmar = useAppConfirm()
@@ -441,6 +446,38 @@ function alternarExcecaoReceita(r) {
     ? lista.filter(id => id !== r.uuid)
     : [...lista, r.uuid]
   s.saveCompany({ ...company })
+}
+
+function gerarHtml() {
+  const contato = company.contato_etiqueta?.trim() || company.nome || ''
+  const etiquetas = listaEtiquetasPlana.value
+  const startPos = Math.max(0, (Number(company.posicao_etiqueta || 1) || 1) - 1)
+
+  let cells
+  if (modoManual.value && posicoesManualMarcadas.size > 0) {
+    cells = montarCelulasHtml(etiquetas, 0, posicoesManualMarcadas)
+  } else {
+    cells = montarCelulasHtml(etiquetas, startPos)
+  }
+
+  const html = gerarHtmlEtiquetas(cells, contato)
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const win = window.open(url, '_blank')
+  // Revoga a URL após a janela carregar para liberar memória
+  if (win) {
+    win.addEventListener('load', () => URL.revokeObjectURL(url), { once: true })
+  }
+
+  // Atualiza posição sequencial e reseta wizard igual ao fluxo .docx
+  if (!modoManual.value) {
+    const novaPosicao = ((startPos + etiquetas.length) % 77) + 1
+    company.posicao_etiqueta = novaPosicao
+    s.saveCompany({ ...company })
+  }
+  Object.keys(etqQtds).forEach(k => delete etqQtds[k])
+  posicoesManualMarcadas.clear()
+  resetarWizard()
 }
 
 function resetarWizard() {

@@ -133,6 +133,7 @@
 <script setup>
 import { onMounted, onUnmounted, reactive, computed, ref, provide } from 'vue'
 import { useStore } from './store.js'
+import { useAndroidBackGuard } from './composables/useAndroidBackGuard.js'
 import { tentarReconectarSilenciosamente } from './services/googleDriveBackup.js'
 import AppHeader      from './components/AppHeader.vue'
 import AppNav         from './components/AppNav.vue'
@@ -234,6 +235,14 @@ const onDragMove = (e) => {
 }
 const onDragEnd  = () => { isDragging = false }
 const onTimerClick = () => { if (!dragMoved) s.setTab('producao') }
+
+// Impede que o botão/gesto "Voltar" do Android feche o app de primeira —
+// o primeiro toque navega para a aba inicial; só sai do app a partir dela.
+useAndroidBackGuard({
+  getTab: () => s.tab,
+  setTab: (t) => s.setTab(t),
+  tabInicial: 'painel',
+})
 
 onMounted(async () => {
   await s.init()
