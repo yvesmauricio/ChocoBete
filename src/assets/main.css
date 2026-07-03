@@ -109,6 +109,18 @@ button{cursor:pointer;font-family:var(--font);touch-action:manipulation}
 .toast-success  { background:#2d6a1f; color:#fff; }
 .toast-error    { background:#9b1c1c; color:#fff; }
 .toast-warning  { background:#92400e; color:#fff; }
+/* Perfil Bete: notificação discreta — canto inferior, tom neutro, menor,
+   pra não chamar atenção do cliente durante venda/cobrança */
+.toast.toast--sutil{
+  top:auto; bottom:78px; left:50%; transform:translateX(-50%);
+  padding:8px 16px; border-radius:var(--r-full); font-size:.76rem; font-weight:600;
+  max-width:80vw; box-shadow:var(--shadow-sm); animation:toastUpSutil .18s ease-out;
+  background:var(--surface); color:var(--text); border:1px solid var(--border);
+}
+.toast.toast--sutil.toast-success { background:var(--surface); color:var(--text); border-color:var(--border); }
+.toast.toast--sutil.toast-error   { background:#fff5f5; color:#9b1c1c; border-color:#fecaca; }
+.toast.toast--sutil.toast-warning { background:var(--gold-bg); color:#7a4a0a; border-color:#e8d5a0; }
+@keyframes toastUpSutil{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @keyframes toastDown{from{opacity:0;transform:translateX(-50%) translateY(-14px) scale(.95)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
 
 

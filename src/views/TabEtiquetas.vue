@@ -32,24 +32,40 @@
 
           <!-- ════════════════ PASSO 1 — SABORES ════════════════ -->
           <div v-if="passoAtual === 1" class="etq-passo">
-            <p class="hint mb-12">Escolha os sabores e a quantidade de etiquetas de cada um.</p>
+            <p class="hint mb-12">Toque nos sabores para adicionar às etiquetas.</p>
 
-            <div class="etq-receitas-list">
-              <div v-for="r in receitasParaEtiqueta" :key="r._textoSabor" class="etq-receita-item" :class="{ ativa: etqQtds[r._textoSabor] > 0 }">
-                <button class="etq-receita-nome" @click="etqQtds[r._textoSabor] = etqQtds[r._textoSabor] > 0 ? 0 : 1">
-                  <i class="fas" :class="etqQtds[r._textoSabor] > 0 ? 'fa-square-check' : 'fa-square'"></i>
-                  <span>{{ r._textoSabor }}</span>
-                </button>
-                <div v-if="etqQtds[r._textoSabor] > 0" class="etq-qtd-ctrl">
-                  <button class="qtd-e-btn" @click="etqQtds[r._textoSabor] = Math.max(1, etqQtds[r._textoSabor] - 1)">−</button>
-                  <input class="qtd-e-input" type="text" inputmode="numeric"
-                    :value="String(etqQtds[r._textoSabor])"
-                    @input="e => etqQtds[r._textoSabor] = parseInt(e.target.value.replace(/\D/g,'')) || 1" />
-                  <button class="qtd-e-btn" @click="etqQtds[r._textoSabor] = etqQtds[r._textoSabor] + 1">+</button>
+            <div v-if="receitasParaEtiqueta.length" class="etq-sabores-grid">
+              <button
+                v-for="r in receitasParaEtiqueta"
+                :key="r._textoSabor"
+                class="etq-sabor-btn"
+                :class="{ 'etq-sabor-btn--ativo': etqQtds[r._textoSabor] > 0 }"
+                @click="etqQtds[r._textoSabor] = etqQtds[r._textoSabor] > 0 ? 0 : 1"
+              >
+                <span v-if="etqQtds[r._textoSabor] > 0" class="etq-sabor-badge">{{ etqQtds[r._textoSabor] }}</span>
+                <span class="etq-sabor-nome">{{ r._textoSabor }}</span>
+              </button>
+            </div>
+            <p v-else class="hint">Nenhuma receita cadastrada ainda.</p>
+
+            <template v-if="receitasComQtd.length">
+              <div class="section-label" style="margin-top:16px">🏷️ Selecionados</div>
+              <div class="etq-selecionados-list">
+                <div v-for="r in receitasComQtd" :key="r._textoSabor" class="etq-selecionado-row">
+                  <span class="etq-selecionado-nome">{{ r._textoSabor }}</span>
+                  <div class="etq-qtd-ctrl">
+                    <button class="qtd-e-btn" @click="etqQtds[r._textoSabor] = Math.max(1, etqQtds[r._textoSabor] - 1)">−</button>
+                    <input class="qtd-e-input" type="text" inputmode="numeric"
+                      :value="String(etqQtds[r._textoSabor])"
+                      @input="e => etqQtds[r._textoSabor] = parseInt(e.target.value.replace(/\D/g,'')) || 1" />
+                    <button class="qtd-e-btn" @click="etqQtds[r._textoSabor] = etqQtds[r._textoSabor] + 1">+</button>
+                  </div>
+                  <button class="etq-selecionado-remover" @click="etqQtds[r._textoSabor] = 0" title="Remover">
+                    <i class="fas fa-xmark"></i>
+                  </button>
                 </div>
               </div>
-              <p v-if="!receitasParaEtiqueta.length" class="hint">Nenhuma receita cadastrada ainda.</p>
-            </div>
+            </template>
 
             <button class="etq-config-toggle" @click="mostrarConfigFiltro = !mostrarConfigFiltro">
               <i class="fas fa-filter"></i>
@@ -544,6 +560,44 @@ async function gerarEtiquetasAvulsas() {
 .etq-passo-nav { display: flex; justify-content: space-between; gap: 8px; margin-top: 20px; }
 .etq-passo-nav .btn { flex: 1; }
 .btn-full { width: 100%; }
+
+/* ── Sabores: grade de botões grandes (mesmo padrão do "toque rápido" da
+   Cozinha), + lista dos selecionados com o controle de quantidade ── */
+.etq-sabores-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px;
+  max-height: 42vh; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 2px;
+}
+.etq-sabor-btn {
+  position: relative; background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: var(--r-md); padding: 16px 10px; min-height: 64px;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  box-shadow: var(--shadow-sm); cursor: pointer; user-select: none; -webkit-touch-callout: none;
+  transition: border-color var(--t), background var(--t);
+}
+.etq-sabor-btn:active { transform: scale(.97); }
+.etq-sabor-btn--ativo { border-color: var(--brown); background: var(--gold-bg); }
+.etq-sabor-nome { font-size: .85rem; font-weight: 700; color: var(--text); line-height: 1.25; }
+.etq-sabor-btn--ativo .etq-sabor-nome { color: var(--brown-dark); }
+.etq-sabor-badge {
+  position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 5px;
+  border-radius: 11px; background: var(--brown); color: #fff; font-size: .68rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; pointer-events: none;
+  box-shadow: 0 1px 3px rgba(61,32,8,.25);
+}
+
+.etq-selecionados-list { display: flex; flex-direction: column; gap: 6px; }
+.etq-selecionado-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 8px 8px 12px; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface);
+}
+.etq-selecionado-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .83rem; font-weight: 600; color: var(--text); }
+.etq-selecionado-remover {
+  width: 30px; height: 30px; border-radius: 50%; border: none; background: transparent;
+  color: var(--muted); font-size: .8rem; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+}
+.etq-selecionado-remover:active { background: #fff5f5; color: var(--red, #dc2626); }
 
 .etq-receitas-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .etq-receita-item {

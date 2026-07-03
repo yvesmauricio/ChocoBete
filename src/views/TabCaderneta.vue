@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-caderneta">
+  <div class="tab-caderneta" :class="{ 'cad-texto-grande': textoGrande }">
 
     <!-- ══ TELA: DASHBOARD ══════════════════════════════════ -->
     <div v-if="tela === 'dashboard'" class="cad-tela">
@@ -9,6 +9,14 @@
             <i class="fas fa-book"></i> Caderninho
           </h2>
           <div class="tab-actions">
+            <button
+              class="btn-icon cad-btn-texto-grande"
+              :class="{ ativo: textoGrande }"
+              @click="alternarTextoGrande"
+              :title="textoGrande ? 'Texto normal' : 'Texto grande'"
+            >
+              <span class="cad-aa">Aa</span>
+            </button>
             <button class="btn-icon" @click="emit('trocar-perfil')" title="Trocar perfil">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
@@ -113,6 +121,15 @@
         <div class="cad-search-wrap">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input class="cad-search-input" placeholder="Buscar cliente..." v-model="buscaClientes">
+        </div>
+      </div>
+      <div v-if="clientesRecentes.length && !buscaClientes.trim()" class="cad-recentes-strip">
+        <div class="cad-recentes-label">Atendidos recentemente</div>
+        <div class="cad-recentes-row">
+          <button v-for="c in clientesRecentes" :key="'rec-' + c.id" class="cad-recente-chip" @click="escolherCliente(c)">
+            <span class="cad-recente-avatar">👩</span>
+            <span class="cad-recente-nome">{{ c.nome }}</span>
+          </button>
         </div>
       </div>
       <div class="cad-scroll-list">
@@ -307,7 +324,10 @@
               <div class="cad-cli-header" :class="{ colapsado: clienteColapsado(g, c) }" @click="alternarCliente(g, c)">
                 <div class="cad-cli-avatar" :class="{ atrasado: c.atrasado }">{{ iniciais(c.clienteNome) }}</div>
                 <div class="cad-cli-info">
-                  <div class="cad-cli-nome">{{ c.clienteNome }}</div>
+                  <div class="cad-cli-nome">
+                    {{ c.clienteNome }}
+                    <span v-if="c.atrasado" class="cad-tag-vencido">Vencido</span>
+                  </div>
                   <div v-if="c.telefone" class="cad-cli-tel">{{ c.telefone }}</div>
                 </div>
                 <div class="cad-cli-total" :class="{ 'cad-cli-total--red': c.atrasado, 'cad-cli-total--ok': modoResumo === 'historico' && c.saldo <= 0.01 }">
@@ -442,7 +462,7 @@
       <button
         v-if="!['lojas', 'clientes', 'lancar'].includes(tela)"
         class="cad-fab-taxas"
-        @click="navSwitch('lojas')"
+        @click="irParaNovaVenda"
         title="Novo Fiado"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -667,6 +687,18 @@ const emit = defineEmits(['trocar-perfil'])
 const s = useStore()
 const confirmar = useConfirm()
 
+// ── Acessibilidade: texto grande ──────────────────────────
+// Preferência salva no aparelho (não é um dado do negócio, então não vai
+// pro Google Drive) — pra quem enxerga menos poder deixar o Caderninho
+// com letras e botões maiores, sem afetar o resto do app.
+const TEXTO_GRANDE_KEY = 'choco_texto_grande'
+const textoGrande = ref(false)
+try { textoGrande.value = localStorage.getItem(TEXTO_GRANDE_KEY) === '1' } catch { /* localStorage indisponível */ }
+function alternarTextoGrande() {
+  textoGrande.value = !textoGrande.value
+  try { localStorage.setItem(TEXTO_GRANDE_KEY, textoGrande.value ? '1' : '0') } catch { /* localStorage indisponível */ }
+}
+
 // ── Navegação interna ─────────────────────────────────────
 const tela     = ref('dashboard')
 const navAtivo = ref('dashboard')
@@ -755,6 +787,7 @@ async function salvarLoja_() {
   await salvarLoja(obj)
   modalLoja.value = null
   s.notify(editandoLoja.value ? 'Loja atualizada!' : 'Loja cadastrada!')
+  s.syncImediato()   // sync imediato no Drive
   await carregarLojas()
 }
 
@@ -763,6 +796,7 @@ async function excluirLoja_() {
   await dbExcluirLoja(paraExcluirLoja.value.id)
   paraExcluirLoja.value = null
   s.notify('Loja removida')
+  s.syncImediato()   // sync imediato no Drive
   await carregarLojas()
 }
 
@@ -770,6 +804,20 @@ function escolherLoja(l) {
   lojaAtual.value = l
   carregarClientes()
   irPara('clientes')
+}
+
+// Ponto de entrada do botão "+ Fiado": se só existe uma loja cadastrada,
+// pula direto pra tela de clientes — economiza um toque no caso mais comum
+// (negócio com uma loja só). Com 2+ lojas, mostra a lista normalmente.
+// O botão de voltar da tela de Clientes continua indo pra 'lojas' de verdade
+// (irPara('lojas')) — assim dá pra gerenciar/cadastrar lojas mesmo tendo só uma.
+async function irParaNovaVenda() {
+  await carregarLojas()
+  if (lojas.value.length === 1) {
+    escolherLoja(lojas.value[0])
+  } else {
+    irPara('lojas')
+  }
 }
 
 // ── Clientes ─────────────────────────────────────────────
@@ -817,6 +865,28 @@ const clientesFiltrados = computed(() =>
     .sort((a, b) => a.nome.localeCompare(b.nome))
 )
 
+// ── Clientes recentes (atalho de 1 toque) ─────────────────
+// Guarda, por loja, os últimos clientes atendidos — pra não precisar
+// buscar/rolar a lista toda vez pra atender quem já é cliente frequente.
+const RECENTES_KEY = 'choco_clientes_recentes'
+function lerRecentesMap() {
+  try { return JSON.parse(localStorage.getItem(RECENTES_KEY) || '{}') } catch { return {} }
+}
+function registrarClienteRecente(lojaId, clienteId) {
+  try {
+    const map = lerRecentesMap()
+    const lista = (map[lojaId] || []).filter(id => id !== clienteId)
+    lista.unshift(clienteId)
+    map[lojaId] = lista.slice(0, 6)
+    localStorage.setItem(RECENTES_KEY, JSON.stringify(map))
+  } catch { /* localStorage indisponível */ }
+}
+const clientesRecentes = computed(() => {
+  if (!lojaAtual.value) return []
+  const ids = lerRecentesMap()[lojaAtual.value.id] || []
+  return ids.map(id => clientes.value.find(c => c.id === id)).filter(Boolean)
+})
+
 async function carregarClientes() {
   if (!lojaAtual.value) return
   clientes.value = await getClientes(lojaAtual.value.id)
@@ -835,6 +905,7 @@ async function salvarCliente_() {
   await salvarCliente(obj)
   modalCliente.value = null
   s.notify(editandoCliente.value ? 'Cliente atualizada!' : 'Cliente cadastrada!')
+  s.syncImediato()   // sync imediato no Drive
   await carregarClientes()
 }
 
@@ -843,11 +914,13 @@ async function excluirCliente_() {
   await dbExcluirCliente(paraExcluirCliente.value.id)
   paraExcluirCliente.value = null
   s.notify('Cliente removida')
+  s.syncImediato()   // sync imediato no Drive
   await carregarClientes()
 }
 
 function escolherCliente(c) {
   clienteAtual.value = c
+  if (lojaAtual.value) registrarClienteRecente(lojaAtual.value.id, c.id)
   iniciarLancar()
   irPara('lancar')
 }
@@ -1201,6 +1274,7 @@ async function salvarVencimento() {
   await atualizarFiado(fiadoEditarVenc.value.id, { dataVenc: dataVencEditar.value })
   fiadoEditarVenc.value = null
   s.notify('Vencimento salvo!')
+  s.syncImediato()   // sync imediato no Drive
   await carregarResumo()
 }
 
@@ -1321,7 +1395,24 @@ onMounted(async () => {
 
 <style scoped>
 /* ── Layout base ─────────────────────────────────────── */
-.tab-caderneta { height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+.tab-caderneta {
+  height: 100%; display: flex; flex-direction: column; background: var(--bg);
+  /* Contraste reforçado do texto secundário (datas, subtítulos, "sem telefone"
+     etc.) — só neste perfil. --muted padrão do app (#8c7260 em branco) fica
+     abaixo do mínimo recomendado pra quem enxerga menos; --brown-mid mantém
+     a mesma paleta quente, só que bem mais legível. */
+  --muted: var(--brown-mid);
+  --text-faint: var(--brown-mid);
+}
+
+/* ── Acessibilidade: modo "texto grande" ────────────────
+   Amplia tudo (texto, ícones, botões) proporcionalmente — não só a fonte —
+   pra manter o visual idêntico, só que maior e com alvos de toque maiores. */
+.tab-caderneta.cad-texto-grande { zoom: 1.18; }
+
+.cad-btn-texto-grande .cad-aa { font-size: 13px; font-weight: 800; letter-spacing: -.5px; }
+.cad-btn-texto-grande.ativo { background: var(--gold-bg); border-color: var(--brown); color: var(--brown-dark); }
+
 .cad-tela { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 
 /* ── Topbar ──────────────────────────────────────────── */
@@ -1429,10 +1520,26 @@ onMounted(async () => {
 }
 .cad-scroll-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 0 100px; }
 
+/* Atalho de clientes recentes — 1 toque pra quem já é cliente frequente */
+.cad-recentes-strip { padding: 10px 14px 4px; }
+.cad-recentes-label { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+.cad-recentes-row { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+.cad-recente-chip {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: 72px; padding: 10px 6px; border: 1.5px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface); cursor: pointer;
+}
+.cad-recente-chip:active { background: var(--gold-bg); border-color: var(--brown-light); }
+.cad-recente-avatar {
+  width: 36px; height: 36px; border-radius: 50%; background: var(--cream-deep);
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.cad-recente-nome { font-size: 11px; font-weight: 700; color: var(--text); text-align: center; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ── List items ──────────────────────────────────────── */
 .cad-list-info { flex: 1; min-width: 0; }
-.cad-list-nome { font-size: 15px; font-weight: 700; }
-.cad-list-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.cad-list-nome { font-size: 16px; font-weight: 700; }
+.cad-list-sub  { font-size: 13px; color: var(--muted); margin-top: 2px; }
 
 .cad-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
 .cad-empty-ico { font-size: 40px; margin-bottom: 10px; }
@@ -1696,9 +1803,14 @@ onMounted(async () => {
   display: flex; align-items: center; justify-content: center; border: 1.5px solid var(--border2);
 }
 .cad-cli-avatar.atrasado { background: #fef2f2; color: var(--red, #dc2626); border-color: #fecaca; }
+.cad-tag-vencido {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: var(--r-full);
+  background: var(--red, #dc2626); color: #fff; font-size: 10px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .03em; vertical-align: middle;
+}
 .cad-cli-info  { flex: 1; min-width: 0; }
-.cad-cli-nome  { font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cad-cli-tel   { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.cad-cli-nome  { font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cad-cli-tel   { font-size: 12px; color: var(--muted); margin-top: 1px; }
 .cad-cli-total { font-size: 15px; font-weight: 800; font-family: var(--mono); white-space: nowrap; flex-shrink: 0; }
 .cad-cli-total--red { color: var(--red, #dc2626); }
 .cad-cli-total--ok  { color: var(--green); }

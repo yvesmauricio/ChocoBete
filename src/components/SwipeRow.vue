@@ -30,7 +30,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useSwipe } from '../composables/useSwipe.js'
 
 const props = defineProps({
@@ -38,7 +38,7 @@ const props = defineProps({
   width: { type: Number, default: 120 }   // largura total dos botões de ação (px)
 })
 
-const { openSwipeId } = useSwipe()
+const { openSwipeId, claimSwipeHint } = useSwipe()
 const isOpen = computed(() => openSwipeId.value === props.rowId)
 
 const currentX  = ref(0)
@@ -54,6 +54,24 @@ let vertScroll   = false
 watch(isOpen, (val) => {
   useTrans.value = true
   currentX.value = val ? -props.width : 0
+})
+
+// ── Dica de swipe (uma única vez, na primeira linha que aparecer) ──────
+// Uma "espiada" sutil: desliza um pouco pra revelar a cor/ícone da ação e
+// volta sozinha, sem precisar de texto explicando o gesto.
+onMounted(() => {
+  if (props.width <= 0) return
+  if (!claimSwipeHint()) return
+  setTimeout(() => {
+    if (isOpen.value || currentX.value !== 0) return // usuário já mexeu por conta própria
+    useTrans.value = true
+    currentX.value = -Math.min(30, props.width * 0.32)
+    setTimeout(() => {
+      if (openSwipeId.value === props.rowId) return  // usuário abriu de vez nesse meio tempo
+      useTrans.value = true
+      currentX.value = 0
+    }, 480)
+  }, 700)
 })
 
 // ── Eventos de toque ─────────────────────────────────────────

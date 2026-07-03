@@ -115,7 +115,12 @@
 
     <!-- Toast global -->
     <Transition name="fade">
-      <div v-if="s.toast" :key="s.toast.id" class="toast" :class="`toast-${s.toast.tipo}`">
+      <div
+        v-if="s.toast"
+        :key="s.toast.id"
+        class="toast"
+        :class="[`toast-${s.toast.tipo}`, { 'toast--sutil': perfil === 'bete' }]"
+      >
         {{ s.toast.msg }}
       </div>
     </Transition>
@@ -190,13 +195,15 @@ function trocarPerfil() {
 provide('trocarPerfil', trocarPerfil)
 
 // ── Sync ─────────────────────────────────────────────────
+// Nota: para a Bete, o sync já dispara em cada alteração real de dados
+// (ver s.syncImediato() nas funções de salvar/receber/quitar/excluir em
+// TabCaderneta.vue). Não sincronizamos aqui de novo ao voltar o foco —
+// isso disparava um sync extra a cada troca de tela ou volta do WhatsApp,
+// mesmo sem nada ter mudado.
 const onVisibilityChange = async () => {
   if (document.visibilityState === 'visible') {
     if (perfil.value === 'ym') {
       await s.iniciarSync()
-    } else if (perfil.value === 'bete') {
-      // Sync imediato para a Bete ao voltar ao app — garante que nada se perde
-      await s.syncImediato()
     }
   }
 }
