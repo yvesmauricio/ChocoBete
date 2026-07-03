@@ -1,12 +1,9 @@
 <template>
-  <div class="swipe-wrap" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" style="touch-action: pan-y;">
-    <div class="swipe-front" :class="{ open: isOpen }" @click="handleClick">
+  <SwipeRow :row-id="rowId" :width="actionsWidth">
+    <div class="swipe-front" @click="$emit('click')">
       <slot />
-      <div class="swipe-hint" :class="{ 'swipe-hint--hidden': isOpen }" aria-hidden="true">
-        <i class="fas fa-angles-left"></i>
-      </div>
     </div>
-    <div class="swipe-actions" :style="{ width: actionsWidth + 'px' }">
+    <template #actions>
       <!-- Receber (verde) — só aparece quando actions inclui 'receive' -->
       <button v-if="actions.includes('receive')" class="swipe-action-btn receive" @click.stop="$emit('receive')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -30,80 +27,36 @@
         </svg>
         <span>Excluir</span>
       </button>
-    </div>
-  </div>
+    </template>
+  </SwipeRow>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
+import SwipeRow from './SwipeRow.vue'
+import { useSwipe } from '../composables/useSwipe.js'
 
 const props = defineProps({
   id: [String, Number],
+  // Namespace opcional pra evitar colisão de rowId entre listas diferentes
+  // (ex.: um cliente e uma loja podem ter o mesmo id numérico)
+  scope: { type: String, default: 'cad' },
   // Lista de ações visíveis: 'receive' | 'edit' | 'delete'
   actions: { type: Array, default: () => ['edit', 'delete'] }
 })
-const emit = defineEmits(['click', 'edit', 'delete', 'receive', 'opened'])
-const isOpen = ref(false)
+defineEmits(['click', 'edit', 'delete', 'receive'])
+
+// Id único usado pelo singleton global de swipe (useSwipe): garante que só
+// uma linha fique aberta por vez em todo o app, não só dentro desta lista.
+const rowId = computed(() => `${props.scope}-${props.id}`)
 
 // Largura da área de ações proporcional ao número de botões
 const actionsWidth = computed(() => props.actions.length * 72)
 
-let startX = 0
-let startY = 0
-let isDragging = false
-
-function onTouchStart(e) {
-  startX = e.touches[0].clientX
-  startY = e.touches[0].clientY
-  isDragging = false
-}
-
-function onTouchMove(e) {
-  const dx = e.touches[0].clientX - startX
-  const dy = e.touches[0].clientY - startY
-  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
-    isDragging = true
-    if (e.cancelable) e.preventDefault()
-  }
-}
-
-function onTouchEnd(e) {
-  if (!isDragging) return
-  const dx = e.changedTouches[0].clientX - startX
-  if (dx < -40) {
-    isOpen.value = true
-    if (navigator.vibrate) navigator.vibrate(10)
-    emit('opened')
-  } else if (dx > 20) {
-    isOpen.value = false
-  }
-  isDragging = false
-}
-
-function handleClick() {
-  if (isOpen.value) {
-    isOpen.value = false
-  } else {
-    emit('click')
-  }
-}
+const { openSwipeId } = useSwipe()
 
 defineExpose({
-  close: () => { isOpen.value = false },
-  id: props.id,
-  isOpen
+  close: () => { if (openSwipeId.value === rowId.value) openSwipeId.value = null },
+  id: props.id
 })
 </script>
-
-<style scoped>
-.swipe-hint {
-  margin-left: auto;
-  color: var(--border, #d1c4b8);
-  flex-shrink: 0;
-  font-size: .65rem;
-  pointer-events: none;
-  transition: opacity .2s;
-  opacity: 1;
-}
-.swipe-hint--hidden { opacity: 0; }
-</style>

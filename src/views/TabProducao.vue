@@ -25,112 +25,157 @@
           :class="{ 'card-agendado': grupo.agendado, 'card-locked': s.loteOriginalEmEdicao === grupo.id }">
 
           <!-- Cabeçalho do lote -->
-          <div class="lote-hdr" @click="toggleGrupo(grupo.id)">
-            <div class="lote-dot"
-              :class="s.timer.activeLoteId === grupo.id ? 'dot-running' : grupo.duracaoMinutos > 0 ? 'dot-done' : grupo.agendado ? 'dot-scheduled' : 'dot-pending'">
-            </div>
-            <div class="lote-info">
-              <div class="lote-titulo">{{ dataHoraBR(grupo.data) }}</div>
-              <div class="lote-meta">
-                <!-- Status / tempo -->
-                <span v-if="s.loteOriginalEmEdicao === grupo.id" class="lbadge lbadge-scheduled">
-                  <i class="fas fa-pencil"></i> Editando na Cozinha...
-                </span>
-                <span v-else-if="s.timer.activeLoteId === grupo.id" class="lbadge lbadge-running">
-                  <i class="fas fa-spinner fa-spin"></i> Produzindo...
-                </span>
-                <span v-else-if="grupo.duracaoMinutos > 0" class="lbadge lbadge-done">
-                  <i class="fas fa-clock"></i> {{ fmtTime(grupo.duracaoMinutos) }}
-                </span>
-                <span v-else-if="grupo.agendado" class="lbadge lbadge-scheduled">
-                  <i class="fas fa-calendar-check"></i> Agendado
-                </span>
-                <span v-else-if="tempoEstimadoGrupo[grupo.id] > 0" class="lbadge lbadge-est">
-                  <i class="fas fa-hourglass-half"></i> ~{{ fmtTime(tempoEstimadoGrupo[grupo.id]) }}
-                </span>
-                <span class="lbadge-sep" v-if="grupo.itens.length">·</span>
-                <span class="lbadge-info">{{ grupo.itens.length }} {{ grupo.itens.length === 1 ? 'item' : 'itens' }}</span>
+          <SwipeRow v-if="s.loteOriginalEmEdicao !== grupo.id" :row-id="'lote-' + grupo.id" :width="210" class="lote-swipe">
+            <div class="lote-hdr-row">
+              <div class="lote-hdr" @click="toggleGrupo(grupo.id)">
+                <div class="lote-dot"
+                  :class="s.timer.activeLoteId === grupo.id ? 'dot-running' : grupo.duracaoMinutos > 0 ? 'dot-done' : grupo.agendado ? 'dot-scheduled' : 'dot-pending'">
+                </div>
+                <div class="lote-info">
+                  <div class="lote-titulo">{{ dataHoraBR(grupo.data) }}</div>
+                  <div class="lote-meta">
+                    <!-- Status / tempo -->
+                    <span v-if="s.timer.activeLoteId === grupo.id" class="lbadge lbadge-running">
+                      <i class="fas fa-spinner fa-spin"></i> Produzindo...
+                    </span>
+                    <span v-else-if="grupo.duracaoMinutos > 0" class="lbadge lbadge-done">
+                      <i class="fas fa-clock"></i> {{ fmtTime(grupo.duracaoMinutos) }}
+                    </span>
+                    <span v-else-if="grupo.agendado" class="lbadge lbadge-scheduled">
+                      <i class="fas fa-calendar-check"></i> Agendado
+                    </span>
+                    <span v-else-if="tempoEstimadoGrupo[grupo.id] > 0" class="lbadge lbadge-est">
+                      <i class="fas fa-hourglass-half"></i> ~{{ fmtTime(tempoEstimadoGrupo[grupo.id]) }}
+                    </span>
+                    <span class="lbadge-sep" v-if="grupo.itens.length">·</span>
+                    <span class="lbadge-info">{{ grupo.itens.length }} {{ grupo.itens.length === 1 ? 'item' : 'itens' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Ações fixas: timer precisa de acesso imediato, não fica no swipe -->
+              <div class="lote-acts" @click.stop>
+                <!-- Timer -->
+                <template v-if="!grupo.duracaoMinutos || s.timer.activeLoteId === grupo.id">
+                  <button v-if="s.timer.activeLoteId === grupo.id && s.timer.isRunning"
+                    class="lote-act-btn act-pause" @click="s.pauseTimer" title="Pausar">
+                    <i class="fas fa-pause"></i>
+                  </button>
+                  <button v-else-if="s.timer.activeLoteId === grupo.id && !s.timer.isRunning"
+                    class="lote-act-btn act-play" @click="s.startTimer(grupo.id)" title="Retomar">
+                    <i class="fas fa-play"></i>
+                  </button>
+                  <button v-else
+                    class="lote-act-btn act-play" @click="s.startTimer(grupo.id)" title="Iniciar timer">
+                    <i class="fas fa-play"></i>
+                  </button>
+                  <button v-if="s.timer.activeLoteId === grupo.id"
+                    class="lote-act-btn act-stop" @click="confirmStopTimer" title="Parar timer">
+                    <i class="fas fa-stop"></i>
+                  </button>
+                </template>
+                <!-- Retomar na Cozinha -->
+                <button class="lote-act-btn act-retomar" @click="handleRetomar(grupo)" title="Editar na Cozinha">
+                  <i class="fas fa-utensils"></i>
+                </button>
+                <!-- Expandir/recolher -->
+                <button class="lote-act-btn lote-toggle" @click="toggleGrupo(grupo.id)" title="Ver itens">
+                  <i class="fas fa-chevron-down" :class="{ open: isGrupoAberto(grupo.id) }"></i>
+                </button>
               </div>
             </div>
 
-            <!-- Ações do lote -->
-            <div class="lote-acts" @click.stop>
-              <template v-if="s.loteOriginalEmEdicao !== grupo.id">
-              <!-- Timer -->
-              <template v-if="!grupo.duracaoMinutos || s.timer.activeLoteId === grupo.id">
-                <button v-if="s.timer.activeLoteId === grupo.id && s.timer.isRunning"
-                  class="lote-act-btn act-pause" @click="s.pauseTimer" title="Pausar">
-                  <i class="fas fa-pause"></i>
-                </button>
-                <button v-else-if="s.timer.activeLoteId === grupo.id && !s.timer.isRunning"
-                  class="lote-act-btn act-play" @click="s.startTimer(grupo.id)" title="Retomar">
-                  <i class="fas fa-play"></i>
-                </button>
-                <button v-else
-                  class="lote-act-btn act-play" @click="s.startTimer(grupo.id)" title="Iniciar timer">
-                  <i class="fas fa-play"></i>
-                </button>
-                <button v-if="s.timer.activeLoteId === grupo.id"
-                  class="lote-act-btn act-stop" @click="confirmStopTimer" title="Parar timer">
-                  <i class="fas fa-stop"></i>
-                </button>
-              </template>
-              <!-- Editar datas -->
-              <button class="lote-act-btn" @click="abrirModalEdicaoLote(grupo)" title="Editar datas">
+            <template #actions>
+              <button class="swipe-btn edit" @click="abrirModalEdicaoLote(grupo)">
                 <i class="fas fa-calendar-alt"></i>
+                <span>Data</span>
               </button>
-              <!-- Etiquetas do lote inteiro -->
-              <button class="lote-act-btn" @click="irParaEtiquetas(agruparPorSabor(grupo.itens || []))" title="Imprimir etiquetas do lote">
+              <button class="swipe-btn print" @click="irParaEtiquetas(agruparPorSabor(grupo.itens || []))">
                 <i class="fas fa-tags"></i>
+                <span>Etiquetas</span>
               </button>
-              <!-- Compartilhar -->
-              <button class="lote-act-btn" @click="compartilharLote(grupo)" title="Compartilhar">
+              <button class="swipe-btn share" @click="compartilharLote(grupo)">
                 <i class="fas fa-share-nodes"></i>
+                <span>Enviar</span>
               </button>
-              </template>
-              <!-- Retomar na Cozinha -->
-              <button class="lote-act-btn act-retomar" @click="handleRetomar(grupo)" title="Editar na Cozinha">
+            </template>
+          </SwipeRow>
+
+          <!-- Lote travado (em edição na Cozinha): sem swipe, só status + retomar -->
+          <div v-else class="lote-hdr-row">
+            <div class="lote-hdr" @click="toggleGrupo(grupo.id)">
+              <div class="lote-dot" :class="s.timer.activeLoteId === grupo.id ? 'dot-running' : grupo.duracaoMinutos > 0 ? 'dot-done' : grupo.agendado ? 'dot-scheduled' : 'dot-pending'"></div>
+              <div class="lote-info">
+                <div class="lote-titulo">{{ dataHoraBR(grupo.data) }}</div>
+                <div class="lote-meta">
+                  <span class="lbadge lbadge-scheduled"><i class="fas fa-pencil"></i> Editando na Cozinha...</span>
+                  <span class="lbadge-sep" v-if="grupo.itens.length">·</span>
+                  <span class="lbadge-info">{{ grupo.itens.length }} {{ grupo.itens.length === 1 ? 'item' : 'itens' }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="lote-acts" @click.stop>
+              <button class="lote-act-btn act-retomar" @click="continuarEdicao" title="Continuar editando na Cozinha">
                 <i class="fas fa-utensils"></i>
               </button>
-              <!-- Chevron -->
-              <i v-if="s.loteOriginalEmEdicao !== grupo.id" class="fas fa-chevron-down lote-chevron" :class="{ open: isGrupoAberto(grupo.id) }" @click="toggleGrupo(grupo.id)"></i>
+              <button class="lote-act-btn act-cancelar" @click="cancelarEdicao" title="Cancelar edição">
+                <i class="fas fa-xmark"></i>
+              </button>
             </div>
           </div>
 
           <!-- Itens do lote -->
           <div v-if="isGrupoAberto(grupo.id)" class="lote-body">
-            <div v-for="p in grupo.itens" :key="p.uuid || p.id" class="item-linha">
-              <div class="item-icon" :class="p.eh_intermediaria ? 'ic-blue' : 'ic-gold'">
-                <i :class="p.eh_intermediaria ? 'fas fa-blender' : 'fas fa-cookie-bite'"></i>
+            <template v-if="s.loteOriginalEmEdicao !== grupo.id">
+              <SwipeRow v-for="p in grupo.itens" :key="p.uuid || p.id" :row-id="'item-' + (p.uuid || p.id)" :width="210" class="item-swipe">
+                <div class="item-linha">
+                  <div class="item-icon" :class="p.eh_intermediaria ? 'ic-blue' : 'ic-gold'">
+                    <i :class="p.eh_intermediaria ? 'fas fa-blender' : 'fas fa-cookie-bite'"></i>
+                  </div>
+                  <div class="item-info">
+                    <span class="item-nome">{{ limpar(p.nome_receita || p.receita_nome) }}</span>
+                  </div>
+                  <div class="item-qtd" v-if="!itemEditando || itemEditando !== (p.uuid || p.id)">
+                    {{ p.quantidade_produzida || p.quantidade }} <small>{{ p.unidade_rendimento || 'un' }}</small>
+                  </div>
+                  <!-- Edição inline de quantidade -->
+                  <div v-else class="item-edit-inline" @click.stop>
+                    <input type="number" class="item-qty-input" v-model.number="editQtd"
+                      inputmode="decimal" @keyup.enter="salvarEdicaoItem(p)" @blur="cancelarEdicaoItem" />
+                    <button class="item-edit-ok" @mousedown.prevent="salvarEdicaoItem(p)">
+                      <i class="fas fa-check"></i>
+                    </button>
+                  </div>
+                </div>
+                <template #actions>
+                  <button class="swipe-btn edit" @click="iniciarEdicaoItem(p)">
+                    <i class="fas fa-pencil"></i>
+                    <span>Editar</span>
+                  </button>
+                  <button class="swipe-btn print" @click="imprimirEtiqueta(p)">
+                    <i class="fas fa-tag"></i>
+                    <span>Etiqueta</span>
+                  </button>
+                  <button class="swipe-btn del" @click="estornar(p)">
+                    <i class="fas fa-trash"></i>
+                    <span>Excluir</span>
+                  </button>
+                </template>
+              </SwipeRow>
+            </template>
+            <template v-else>
+              <div v-for="p in grupo.itens" :key="p.uuid || p.id" class="item-linha">
+                <div class="item-icon" :class="p.eh_intermediaria ? 'ic-blue' : 'ic-gold'">
+                  <i :class="p.eh_intermediaria ? 'fas fa-blender' : 'fas fa-cookie-bite'"></i>
+                </div>
+                <div class="item-info">
+                  <span class="item-nome">{{ limpar(p.nome_receita || p.receita_nome) }}</span>
+                </div>
+                <div class="item-qtd">
+                  {{ p.quantidade_produzida || p.quantidade }} <small>{{ p.unidade_rendimento || 'un' }}</small>
+                </div>
               </div>
-              <div class="item-info">
-                <span class="item-nome">{{ limpar(p.nome_receita || p.receita_nome) }}</span>
-                <span class="item-custo">{{ R$(getCustoProducao(p)) }}</span>
-              </div>
-              <div class="item-qtd" v-if="!itemEditando || itemEditando !== (p.uuid || p.id)">
-                {{ p.quantidade_produzida || p.quantidade }} <small>{{ p.unidade_rendimento || 'un' }}</small>
-              </div>
-              <!-- Edição inline de quantidade -->
-              <div v-else class="item-edit-inline">
-                <input type="number" class="item-qty-input" v-model.number="editQtd"
-                  inputmode="decimal" @keyup.enter="salvarEdicaoItem(p)" @blur="cancelarEdicaoItem" />
-                <button class="item-edit-ok" @mousedown.prevent="salvarEdicaoItem(p)">
-                  <i class="fas fa-check"></i>
-                </button>
-              </div>
-              <!-- Ações inline -->
-              <div class="item-acoes" v-if="s.loteOriginalEmEdicao !== grupo.id">
-                <button class="item-act edit" @click="iniciarEdicaoItem(p)" title="Editar quantidade">
-                  <i class="fas fa-pencil"></i>
-                </button>
-                <button class="item-act print" @click="imprimirEtiqueta(p)" title="Etiqueta">
-                  <i class="fas fa-tag"></i>
-                </button>
-                <button class="item-act del" @click="estornar(p)" title="Excluir">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </div>
-            </div>
+            </template>
           </div>
         </div>
       </div>
@@ -191,6 +236,7 @@ import { useStore } from '../store.js';
 import { R$, dataHoraBR, fmtQtd as fmtQ, getNowLocal, normalizar, isInsumoOculto, textoEtiquetaReceita, limparApenasSabor } from '../utils.js'; // Corrected import
 import BaseModal from '../components/BaseModal.vue'
 import AppListRow from '../components/AppListRow.vue'
+import SwipeRow from '../components/SwipeRow.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
 import { useSwipe } from '../composables/useSwipe.js'
 import { useModalStack } from '../composables/useModalStack.js'
@@ -463,6 +509,20 @@ async function handleRetomar(grupo) {
   s.retomarLoteNaCozinha(grupo.id)
 }
 
+// Lote já está travado em edição: só volta pra Cozinha, sem perguntar de novo
+function continuarEdicao() {
+  s.setTab('cozinha')
+}
+
+async function cancelarEdicao() {
+  const ok = await confirm.ask(
+    'Cancelar a edição deste lote? As alterações feitas na Cozinha que ainda não foram salvas serão perdidas, e o lote volta ao estado original.',
+    { title: 'Cancelar Edição', icon: 'fas fa-xmark', confirmLabel: 'Cancelar edição', type: 'warning' }
+  )
+  if (!ok) return
+  s.cancelarEdicaoLote()
+}
+
 function abrirModalEdicaoLote(grupo) {
   formEdicaoLote.data_producao_original = grupo.data || ''
   formEdicaoLote.data_producao = isoParaLocal(grupo.data)
@@ -538,6 +598,7 @@ const itemEditando = ref(null)
 const editQtd = ref(0)
 
 function iniciarEdicaoItem(p) {
+  closeAll()
   itemEditando.value = p.uuid || p.id
   editQtd.value = p.quantidade_produzida || p.quantidade || 0
 }
@@ -587,11 +648,20 @@ onMounted(() => {
 .card-agendado { border-color:var(--gold); background:var(--gold-bg); }
 
 /* Cabeçalho do lote */
+.lote-hdr-row { display:flex; align-items:center; width:100%; }
 .lote-hdr {
+  flex:1; min-width:0;
   display:flex; align-items:center; gap:10px;
-  padding:12px 14px; cursor:pointer; user-select:none;
+  padding:12px 4px 12px 14px; cursor:pointer; user-select:none;
 }
 .lote-hdr:active { background:var(--bg); }
+
+/* SwipeRow do cabeçalho do lote: remove o "cartão dentro do cartão",
+   já que .production-card já fornece a borda/sombra externas */
+:deep(.lote-swipe.swipe-wrap) {
+  margin:0 !important; border:none !important; border-radius:0 !important;
+  box-shadow:none !important; background:transparent !important;
+}
 .lote-dot {
   width:9px; height:9px; border-radius:50%; flex-shrink:0; margin-top:1px;
 }
@@ -615,8 +685,8 @@ onMounted(() => {
 .lbadge-sep       { color:var(--border2); font-size:.7rem; }
 .lbadge-info      { font-size:.68rem; color:var(--muted); }
 
-/* Ações do lote */
-.lote-acts { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+/* Ações do lote (fixas, fora do swipe: timer precisa de acesso imediato) */
+.lote-acts { display:flex; align-items:center; gap:4px; flex-shrink:0; padding-right:14px; }
 .lote-act-btn {
   width:32px; height:32px; border-radius:var(--r-md); border:1px solid var(--border);
   background:var(--surface); color:var(--muted); font-size:.8rem;
@@ -628,8 +698,9 @@ onMounted(() => {
 .act-pause { background:var(--blue-bg); color:var(--blue); border-color:var(--blue-dim); }
 .act-stop  { background:var(--orange-bg); color:var(--orange); border-color:var(--orange-dim); }
 .act-retomar { background:var(--gold-bg); color:var(--gold-dark); border-color:var(--gold); }
-.lote-chevron      { color:var(--border2); font-size:.78rem; transition:transform var(--t); margin-left:2px; }
-.lote-chevron.open { transform:rotate(180deg); }
+.act-cancelar { background:var(--red-bg, #FCEBEB); color:var(--red, #A32D2D); border-color:var(--red, #A32D2D); }
+.lote-toggle i { transition:transform var(--t); }
+.lote-toggle i.open { transform:rotate(180deg); }
 
 .card-locked { opacity: 0.8; border-style: dashed; }
 
@@ -637,9 +708,9 @@ onMounted(() => {
 .lote-body { border-top:1px solid var(--border); background:var(--bg); }
 .item-linha {
   display:flex; align-items:center; gap:8px; padding:10px 14px;
-  border-bottom:1px solid var(--border);
 }
-.item-linha:last-child { border-bottom:none; }
+.lote-body > .item-linha { border-bottom:1px solid var(--border); }
+.lote-body > .item-linha:last-child { border-bottom:none; }
 .item-icon {
   width:28px; height:28px; border-radius:var(--r-sm); flex-shrink:0;
   display:flex; align-items:center; justify-content:center; font-size:.78rem;
@@ -648,10 +719,9 @@ onMounted(() => {
 .ic-blue { background:var(--blue-bg); color:var(--blue); }
 .item-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .item-nome { font-size:.82rem; font-weight:700; color:var(--brown-dark); }
-.item-custo { font-size:.65rem; color:var(--orange); font-weight:700; }
-.item-qtd { font-size:.85rem; font-weight:800; font-family:var(--mono); color:var(--brown); flex-shrink:0; }
+.item-qtd { font-size:.85rem; font-weight:800; font-family:var(--mono); color:var(--brown); flex-shrink:0; padding-right:14px; }
 .item-qtd small { font-size:.65rem; font-weight:400; }
-.item-edit-inline { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.item-edit-inline { display:flex; align-items:center; gap:4px; flex-shrink:0; padding-right:14px; }
 .item-qty-input {
   width:58px; padding:4px 6px; border-radius:var(--r-sm); border:1.5px solid var(--blue);
   font-size:.85rem; font-weight:800; font-family:var(--mono); text-align:center; background:var(--surface);
@@ -660,15 +730,15 @@ onMounted(() => {
   width:28px; height:28px; border-radius:var(--r-sm); background:var(--green);
   color:#fff; border:none; font-size:.78rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
 }
-.item-acoes { display:flex; gap:3px; flex-shrink:0; }
-.item-act {
-  width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border);
-  background:transparent; font-size:.72rem; color:var(--muted);
-  display:flex; align-items:center; justify-content:center; cursor:pointer;
+
+/* SwipeRow do item: mesmo raciocínio do cabeçalho, sem cartão duplicado */
+:deep(.item-swipe.swipe-wrap) {
+  margin:0 !important; border:none !important; border-radius:0 !important; box-shadow:none !important; background:transparent !important;
 }
-.item-act.edit:active  { background:var(--blue-bg); color:var(--blue); }
-.item-act.print:active { background:var(--gold-bg); color:var(--gold-dark); }
-.item-act.del:active   { background:var(--red-bg, #FCEBEB); color:var(--red, #A32D2D); }
+/* Divisória na largura total da linha (swipe-content), não no item-linha,
+   que fica comprimido pelo indicador de swipe e deixaria a linha cortada */
+:deep(.item-swipe .swipe-content) { border-bottom:1px solid var(--border); }
+:deep(.item-swipe:last-child .swipe-content) { border-bottom:none; }
 
 /* Tela fullscreen adicionar ao lote */
 .add-lote-screen {

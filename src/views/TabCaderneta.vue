@@ -83,12 +83,10 @@
           <p>{{ buscaLojas ? 'Nenhuma loja encontrada' : 'Nenhuma loja cadastrada.\nToque em + para adicionar.' }}</p>
         </div>
         <CadernetaSwipeItem
-          v-for="l in lojasFiltradas" :key="l.id" :id="l.id"
+          v-for="l in lojasFiltradas" :key="l.id" :id="l.id" scope="lojas"
           @click="escolherLoja(l)"
           @edit="abrirModalLoja(l)"
           @delete="confirmarExcluirLoja(l)"
-          @opened="fecharOutrosLojas(l.id)"
-          ref="swipeLojas"
         >
           <div class="cad-list-icon">🏪</div>
           <div class="cad-list-info">
@@ -123,12 +121,10 @@
           <p>{{ buscaClientes ? 'Nenhum cliente encontrado' : 'Nenhuma cliente nesta loja.\nToque em + para adicionar.' }}</p>
         </div>
         <CadernetaSwipeItem
-          v-for="c in clientesFiltrados" :key="c.id" :id="c.id"
+          v-for="c in clientesFiltrados" :key="c.id" :id="c.id" scope="clientes"
           @click="escolherCliente(c)"
           @edit="abrirModalCliente(c)"
           @delete="confirmarExcluirCliente(c)"
-          @opened="fecharOutrosClientes(c.id)"
-          ref="swipeClientes"
         >
           <div class="cad-list-icon pessoa">👩</div>
           <div class="cad-list-info">
@@ -228,6 +224,9 @@
             <button class="cad-resumo-seg-btn" :class="{ active: modoResumo === 'abertos' }" @click="modoResumo = 'abertos'">
               Aberto
             </button>
+            <button class="cad-resumo-seg-btn" :class="{ active: modoResumo === 'vencidos' }" @click="modoResumo = 'vencidos'">
+              Vencidos
+            </button>
             <button class="cad-resumo-seg-btn" :class="{ active: modoResumo === 'historico' }" @click="modoResumo = 'historico'">
               Histórico
             </button>
@@ -246,7 +245,7 @@
           <div class="cad-kpi-item-val">R$ {{ fmt(stats.totalAberto) }}</div>
         </div>
         <div class="cad-kpi-divider"></div>
-        <div class="cad-kpi-item">
+        <div class="cad-kpi-item" style="cursor:pointer" @click="modoResumo = 'vencidos'">
           <div class="cad-kpi-item-label">Vencidos</div>
           <div class="cad-kpi-item-val cad-kpi-item-val--red">R$ {{ fmt(stats.totalVencido) }}</div>
         </div>
@@ -260,38 +259,8 @@
           <p>{{ textoVazioResumo }}</p>
         </div>
 
-        <!-- Agendamentos: seção de vencimentos quando no modo abertos -->
+        <!-- Agendamentos: seção de itens sem vencimento, quando no modo abertos -->
         <template v-if="modoResumo === 'abertos' && !buscaResumo.trim()">
-
-          <!-- Vencidos -->
-          <div v-if="fiadosVencidos.length" class="cad-secao cad-secao--red">
-            <div class="cad-secao-header">
-              <span class="cad-secao-ico">🔴</span>
-              <span class="cad-secao-titulo">Vencidos</span>
-              <span class="cad-secao-badge">{{ fiadosVencidos.length }}</span>
-            </div>
-            <div v-for="f in fiadosVencidos" :key="f.id" class="cad-agend-row cad-agend-row--red">
-              <div class="cad-agend-avatar cad-agend-avatar--red">{{ iniciais(f.clienteNome) }}</div>
-              <div class="cad-agend-info">
-                <div class="cad-agend-nome">{{ f.clienteNome }}</div>
-                <div class="cad-agend-loja">{{ f.lojaNome }}</div>
-                <div class="cad-agend-itens" :title="resumoItens(f.itens)">{{ resumoItens(f.itens) }}</div>
-              </div>
-              <div class="cad-agend-dir">
-                <div class="cad-agend-val">R$ {{ fmt(f.saldo) }}</div>
-                <div class="cad-agend-data cad-agend-data--red">{{ fmtBR(f.dataVenc) }}</div>
-                <div class="cad-agend-acoes">
-                  <button class="cad-btn-receber-sm" @click.stop="abrirReceber(f)" title="Receber">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>
-                  </button>
-                  <button v-if="f.clienteTel" class="cad-btn-zap-sm" @click.stop="abrirWhatsappFiado(f)" title="Enviar WhatsApp">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
 
           <!-- Sem data de vencimento -->
           <div v-if="fiadosSemData.length" class="cad-secao cad-secao--gray">
@@ -369,14 +338,12 @@
 
               <div class="cad-compras-lista" :class="{ colapsado: clienteColapsado(g, c) }">
                 <CadernetaSwipeItem
-                  v-for="f in c.fiados" :key="f.id" :id="f.id"
+                  v-for="f in c.fiados" :key="f.id" :id="f.id" scope="compras"
                   :class="{ 'compra-atrasada': f.atrasada }"
                   :actions="compraSwipeActions(f)"
                   @edit="abrirEditarFiado(f)"
                   @receive="abrirReceber(f)"
                   @delete="confirmarExcluirFiado(f)"
-                  @opened="fecharOutrosCompras(f.id, c)"
-                  ref="swipeCompras"
                 >
                   <div class="cad-compra-esq">
                     <span class="cad-compra-data">{{ fmtDataHora(f) }}</span>
@@ -766,7 +733,6 @@ const modalLoja  = ref(null)
 const formLoja   = ref({ nome: '', referencia: '' })
 const editandoLoja   = ref(null)
 const paraExcluirLoja = ref(null)
-const swipeLojas = ref([])
 
 const lojasFiltradas = computed(() =>
   lojas.value
@@ -792,10 +758,6 @@ async function salvarLoja_() {
   await carregarLojas()
 }
 
-function fecharOutrosLojas(id) {
-  swipeLojas.value?.forEach(item => { if (item && item.id !== id) item.close?.() })
-}
-
 function confirmarExcluirLoja(l) { paraExcluirLoja.value = l }
 async function excluirLoja_() {
   await dbExcluirLoja(paraExcluirLoja.value.id)
@@ -818,7 +780,6 @@ const modalCliente   = ref(null)
 const formCliente    = ref({ nome: '', telefone: '' })
 const editandoCliente = ref(null)
 const paraExcluirCliente = ref(null)
-const swipeClientes  = ref([])
 
 // Verifica se o navegador suporta a API de seleção de contatos
 const canImportContact = computed(() => !!(navigator.contacts && navigator.contacts.select))
@@ -875,10 +836,6 @@ async function salvarCliente_() {
   modalCliente.value = null
   s.notify(editandoCliente.value ? 'Cliente atualizada!' : 'Cliente cadastrada!')
   await carregarClientes()
-}
-
-function fecharOutrosClientes(id) {
-  swipeClientes.value?.forEach(item => { if (item && item.id !== id) item.close?.() })
 }
 
 function confirmarExcluirCliente(c) { paraExcluirCliente.value = c }
@@ -1037,7 +994,6 @@ const produtosEditar     = ref([])
 const qtdsEditar         = reactive({})
 const fiadoEditarData    = ref('')
 const fiadoEditarHora    = ref('')
-const swipeCompras       = ref([])
 
 async function carregarResumo() {
   // Modo abertos: usa índice — não carrega histórico completo
@@ -1067,11 +1023,6 @@ const fiadosAbertosEnriquecidos = computed(() => {
 })
 
 // Seções de agendamento
-const fiadosVencidos = computed(() =>
-  fiadosAbertosEnriquecidos.value
-    .filter(f => f.atrasada)
-    .sort((a, b) => (a.dataVenc||'').localeCompare(b.dataVenc||''))
-)
 const fiadosSemData = computed(() =>
   fiadosAbertosEnriquecidos.value.filter(f => !f.dataVenc)
 )
@@ -1089,11 +1040,13 @@ function fmtVencLabel(dataVenc) {
 const fiadosAbertos = computed(() => fiadosTodos.value.filter(f => f.saldo > 0.01))
 const textoVazioResumo = computed(() => {
   if (buscaResumo.value.trim()) return 'Nenhum cliente encontrado.'
+  if (modoResumo.value === 'vencidos') return 'Nenhum fiado vencido. 🎉'
   return modoResumo.value === 'historico' ? 'Nenhum histórico registrado.' : 'Nenhum fiado em aberto.'
 })
 
 const tituloListaResumo = computed(() => {
   if (buscaResumo.value.trim()) return 'Resultados da busca'
+  if (modoResumo.value === 'vencidos') return 'Vencidos por Cliente'
   return modoResumo.value === 'historico' ? 'Histórico de Clientes' : 'Aberto por Cliente'
 })
 
@@ -1102,7 +1055,11 @@ const gruposResumo = computed(() => montarGrupos())
 function montarGrupos() {
   const hj    = hoje()
   const termo = normalizar(buscaResumo.value.trim())
-  const fonte = modoResumo.value === 'historico' ? fiadosTodos.value : fiadosAbertos.value
+  const fonte = modoResumo.value === 'historico'
+    ? fiadosTodos.value
+    : modoResumo.value === 'vencidos'
+      ? fiadosAbertos.value.filter(f => f.dataVenc && f.dataVenc < hj)
+      : fiadosAbertos.value
   const filtrados = fonte.filter(f => {
     if (!termo) return true
     const telefone = telMap.value[f.clienteId] || f.clienteTel || ''
@@ -1192,15 +1149,6 @@ function abrirWhatsapp(c) {
   window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank')
 }
 
-function abrirWhatsappFiado(f) {
-  const tel = (f.clienteTel || '').replace(/\D/g, '')
-  const itens = resumoItens(f.itens)
-  let msg = `Oi ${f.clienteNome}, tudo bem! Passando para falar sobre a venda do dia ${fmtBR(f.dataVenda)}${f.horaVenda ? ' às ' + f.horaVenda : ''} no valor de R$ ${fmt(f.saldo)}.`
-  if (itens) msg += `\n\nItens:\n${itens}`
-  const msgEncoded = encodeURIComponent(msg)
-  window.open(`https://wa.me/55${tel}?text=${msgEncoded}`, '_blank')
-}
-
 function abrirReceber(f) { fiadoReceber.value = f; valorReceber.value = f.saldo }
 async function confirmarReceber() {
   const f = fiadoReceber.value
@@ -1279,10 +1227,6 @@ function compraSwipeActions(f) {
   // No modo histórico não mostra receber/editar
   if (modoResumo.value === 'historico') return ['edit', 'delete']
   return f.saldo > 0.01 ? ['receive', 'edit', 'delete'] : ['edit', 'delete']
-}
-function fecharOutrosCompras(id, cliente) {
-  // Fecha outros swipes abertos dentro do mesmo cliente
-  swipeCompras.value?.forEach(item => { if (item && item.id !== id) item.close?.() })
 }
 async function salvarEdicaoFiado() {
   const f = fiadoEditar.value
@@ -1483,11 +1427,9 @@ onMounted(async () => {
   flex: 1; border: none; background: transparent; font-size: 15px;
   color: var(--text); outline: none; font-family: var(--font);
 }
-.cad-scroll-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 14px 100px; }
+.cad-scroll-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 0 100px; }
 
 /* ── List items ──────────────────────────────────────── */
-.cad-list-icon { font-size: 24px; flex-shrink: 0; margin-right: 12px; }
-.cad-list-icon.pessoa { font-size: 20px; }
 .cad-list-info { flex: 1; min-width: 0; }
 .cad-list-nome { font-size: 15px; font-weight: 700; }
 .cad-list-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
@@ -1664,8 +1606,28 @@ onMounted(async () => {
 .cad-kpi-item-val   { font-size: 15px; font-weight: 800; color: var(--brown); font-family: var(--mono); margin-top: 2px; }
 .cad-kpi-item-val--red { color: var(--red, #dc2626); }
 
+/* Seção "Sem vencimento" — card único (mesma linguagem visual do
+   cad-cli-card/cad-grupo-loja usados no restante desta tela) */
+.cad-secao {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-md); overflow: hidden; margin: 0 0 12px;
+}
+.cad-secao-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--cream);
+}
+.cad-secao-ico { font-size: 13px; }
+.cad-secao-titulo { flex: 1; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.cad-secao-badge {
+  font-size: 11px; font-weight: 800; background: var(--border2); color: var(--muted);
+  padding: 2px 8px; border-radius: var(--r-full);
+}
+
+.cad-agend-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
 .cad-agend-row:last-child { border-bottom: none; }
-.cad-agend-row--red    { background: #fff9f9; }
 .cad-agend-row--gray   { background: var(--cream); }
 
 .cad-agend-avatar {
@@ -1673,7 +1635,6 @@ onMounted(async () => {
   background: var(--cream-deep); color: var(--brown-mid); font-size: 11px; font-weight: 800;
   display: flex; align-items: center; justify-content: center; border: 1.5px solid var(--border2);
 }
-.cad-agend-avatar--red  { background: #fef2f2; color: var(--red, #dc2626); border-color: #fecaca; }
 .cad-agend-avatar--gray { background: var(--border); color: var(--muted); }
 
 .cad-agend-info { flex: 1; min-width: 0; }
@@ -1690,21 +1651,6 @@ onMounted(async () => {
 .cad-agend-dir   { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; min-width: 84px; }
 .cad-agend-val   { font-size: 14px; font-weight: 800; font-family: var(--mono); color: var(--brown); }
 .cad-agend-data  { font-size: 10px; color: var(--muted); font-weight: 700; }
-.cad-agend-data--red    { color: var(--red, #dc2626); }
-.cad-agend-acoes { display: flex; gap: 4px; }
-
-.cad-btn-receber-sm {
-  width: 32px; height: 32px; border-radius: 50%; border: none;
-  background: var(--green); color: #fff;
-  display: flex; align-items: center; justify-content: center; cursor: pointer;
-}
-.cad-btn-zap-sm {
-  display: flex; align-items: center; gap: 3px; white-space: nowrap;
-  padding: 5px 9px; border-radius: var(--r-full); border: none;
-  background: #25D366; color: #fff;
-  font-family: var(--font); font-size: 11px; font-weight: 700; cursor: pointer;
-}
-.cad-btn-zap-sm:active { opacity: .85; }
 .cad-btn-agendar {
   display: flex; align-items: center; gap: 4px; white-space: nowrap;
   padding: 5px 10px; border: 1.5px solid var(--border2); border-radius: var(--r-full);
@@ -1963,18 +1909,16 @@ onMounted(async () => {
   box-shadow: 0 2px 8px rgba(61,31,7,.2);
 }
 
-/* SwipeItem layout */
-:deep(.swipe-wrap) { position: relative; overflow: hidden; border-radius: var(--r-md); box-shadow: var(--shadow); flex-shrink: 0; margin-bottom: 8px; }
-:deep(.swipe-wrap:last-child) { margin-bottom: 0; }
+/* SwipeItem layout — SwipeRow compartilhado: o "cartão" (borda, cantos
+   arredondados, sombra, espaçamento entre itens) já vem do padrão do
+   componente .swipe-wrap (mesmo usado no Estoque via AppListRow). Aqui só
+   definimos o layout interno do conteúdo (.swipe-front). */
 :deep(.swipe-front) {
-  position: relative; z-index: 2; background: var(--surface); border: 1.5px solid var(--border);
-  border-radius: var(--r-md); display: flex; align-items: center; gap: 12px;
-  padding: 13px 14px; cursor: pointer; transition: transform .22s cubic-bezier(.4,0,.2,1);
-  will-change: transform; min-height: 64px;
+  position: relative; z-index: 2; background: var(--surface);
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px; cursor: pointer; min-height: 64px;
 }
-:deep(.swipe-front.open) { transform: translateX(-140px); border-color: var(--border2); }
-:deep(.swipe-front:active:not(.open)) { background: var(--cream); border-color: var(--brown-light); }
-:deep(.swipe-actions) { position: absolute; right: 0; top: 0; bottom: 0; width: 140px; display: flex; z-index: 1; }
+:deep(.swipe-front:active) { background: var(--cream); }
 :deep(.swipe-action-btn) {
   flex: 1; border: none; color: #fff; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 2px;
@@ -1984,7 +1928,6 @@ onMounted(async () => {
 :deep(.swipe-action-btn.receive) { background: var(--green); }
 :deep(.swipe-action-btn.edit) { background: var(--brown-light); }
 :deep(.swipe-action-btn.del)  { background: var(--red, #dc2626); }
-:deep(.swipe-hint) { margin-left: auto; color: var(--muted); flex-shrink: 0; }
 
 .cad-list-icon {
   width: 42px; height: 42px; border-radius: 50%; background: var(--gold-bg); color: var(--gold);

@@ -21,7 +21,7 @@
           :id="p.uuid"
           @click="abrir(p)"
           :chevron="false"
-          :actions-width="210"
+          :actions-width="280"
         >
           <template #icon>
             <div class="ing-icon" :class="p.tipo === 'embalagem' ? 'badge-orange' : 'badge-muted'">
@@ -37,10 +37,22 @@
             </span>
           </template>
           <template #actions>
-            <button class="swipe-btn edit" @click="abrir(p)"><i class="fas fa-pencil"></i></button>
-            <button class="swipe-btn print" @click="abrirHistorico(p)" title="Histórico"><i class="fas fa-chart-line"></i></button>
-            <button class="swipe-btn copy" @click="duplicar(p)"><i class="fas fa-copy"></i></button>
-            <button class="swipe-btn del" @click="excluir(p)"><i class="fas fa-trash"></i></button>
+            <button class="swipe-btn edit" @click="abrir(p)">
+              <i class="fas fa-pencil"></i>
+              <span>Editar</span>
+            </button>
+            <button class="swipe-btn print" @click="abrirHistorico(p)">
+              <i class="fas fa-chart-line"></i>
+              <span>Histórico</span>
+            </button>
+            <button class="swipe-btn copy" @click="duplicar(p)">
+              <i class="fas fa-copy"></i>
+              <span>Copiar</span>
+            </button>
+            <button class="swipe-btn del" @click="excluir(p)">
+              <i class="fas fa-trash"></i>
+              <span>Excluir</span>
+            </button>
           </template>
         </AppListRow>
       </template>

@@ -1673,6 +1673,16 @@ async function registrarProducaoFantasma(dados) {
     setTab('cozinha')
   }
 
+  // Cancela a correção em andamento sem precisar entrar na Cozinha.
+  // Descarta o rascunho local (cozinhaLote) e destrava o lote no Histórico.
+  function cancelarEdicaoLote() {
+    cozinhaLote.value = []
+    cozinhaChecklist.value = {}
+    loteOriginalEmEdicao.value = null
+    salvarCozinhaLocal()
+    notify('Edição cancelada')
+  }
+
   async function estornarProducao(uuid) {
     if (!uuid) return console.error('Tentativa de estornar produção sem UUID')
     const p = await db.producoes.get(uuid)
@@ -2212,6 +2222,7 @@ async function registrarProducaoFantasma(dados) {
     // Ações
     init, carregarProducoes, registrarProducao, atualizarLoteProducao, adicionarItensAoLote, editarItemProducao,
     registrarLoteProducao, estornarProducao, salvarProduto, excluirProduto, retomarLoteNaCozinha,
+    cancelarEdicaoLote,
     salvarReceita, excluirReceita, getCustoTotal, getLucroInfo, getPesoTotal,
     insumosCriticos, baixarEstoqueInsumos, cozinhaLote, cozinhaChecklist, salvarCozinhaLocal,
     hasLocalChanges, recomporEstoqueInsumos, historicoPrecoProduto, estornarLotePorData,
