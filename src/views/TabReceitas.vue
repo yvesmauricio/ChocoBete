@@ -97,15 +97,23 @@
             <div class="hint">Se vazio, a etiqueta usa o nome da receita sem a categoria.</div>
           </div>
 
+          <label class="receita-toggle-line">
+            <input type="checkbox" v-model="form.usar_em_etiquetas" />
+            <span>
+              <strong>Usar em etiquetas</strong>
+              <small>Mostra esta receita na tela de impressão de etiquetas.</small>
+            </span>
+          </label>
+
           <!-- Tipo: toggle visual -->
           <div class="fg">
             <label class="label">Tipo</label>
             <div class="option-grid option-grid-2">
-              <button type="button" class="option-card" :class="{ active: Number(form.eh_intermediaria) === 0 }" @click="form.eh_intermediaria = 0">
+              <button type="button" class="option-card" :class="{ active: Number(form.eh_intermediaria) === 0 }" @click="definirTipoReceita(0)">
                 <i class="fas fa-cookie-bite option-ico"></i>
                 <span class="option-label">Produto Final</span>
               </button>
-              <button type="button" class="option-card" :class="{ active: Number(form.eh_intermediaria) === 1 }" @click="form.eh_intermediaria = 1">
+              <button type="button" class="option-card" :class="{ active: Number(form.eh_intermediaria) === 1 }" @click="definirTipoReceita(1)">
                 <i class="fas fa-blender option-ico"></i>
                 <span class="option-label">Base / Recheio</span>
               </button>
@@ -635,6 +643,7 @@ const getEmptyForm = () => ({
   uuid: null,
   nome: '',
   nome_etiqueta: '',
+  usar_em_etiquetas: true,
   categoria: '',
   eh_intermediaria: 0,
   rendimento: null,
@@ -853,6 +862,12 @@ watch(() => form.eh_intermediaria, (val) => {
   if (!form.uuid && val === 1) form.categoria = 'Base'
 })
 
+function definirTipoReceita(tipo) {
+  form.eh_intermediaria = tipo
+  form.usar_em_etiquetas = Number(tipo) === 0
+  if (Number(tipo) === 1) form.categoria = 'Base'
+}
+
 /* ── Helpers ──────────────────────────────────────────────────── */
 function getNomeIng(ing) {
   if (!ing.id) return ''
@@ -1007,7 +1022,9 @@ function restoreAndFocusIngrediente(idx) {
 function abrir(r) {
   Object.assign(form, getEmptyForm())
   if (r) Object.assign(form, {
-    uuid: r.uuid, nome: r.nome, nome_etiqueta: r.nome_etiqueta || '', categoria: r.categoria, eh_intermediaria: r.eh_intermediaria,
+    uuid: r.uuid, nome: r.nome, nome_etiqueta: r.nome_etiqueta || '',
+    usar_em_etiquetas: r.usar_em_etiquetas ?? !Number(r.eh_intermediaria),
+    categoria: r.categoria, eh_intermediaria: r.eh_intermediaria,
     rendimento: r.rendimento, unidade_rendimento: r.unidade_rendimento, peso_unitario: r.peso_unitario,
     preco_sugerido: r.preco_sugerido, modo_preparo: r.modo_preparo, tempo_preparo_min: r.tempo_preparo_min,
     ingredientes: (r.ingredientes || []).map(i => ({ ...i, _key: i.id + Math.random() }))
@@ -1117,6 +1134,22 @@ async function excluirDireto(r) {
 }
 /* Quando seção está fechada, o form-section-label não tem margin-bottom */
 .form-section-label.sec-toggle { margin-bottom: 0; }
+
+.receita-toggle-line {
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:var(--r-md);
+  background:var(--surface);
+  color:var(--text);
+  cursor:pointer;
+}
+.receita-toggle-line input { margin-top:2px; accent-color:var(--brown); flex-shrink:0; }
+.receita-toggle-line span { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.receita-toggle-line strong { font-size:.84rem; color:var(--brown-dark); }
+.receita-toggle-line small { font-size:.72rem; color:var(--muted); line-height:1.3; }
 
 /* stepper de ingredientes → main.css */
 .ing-tooltip-flutuante {

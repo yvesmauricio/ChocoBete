@@ -1,6 +1,16 @@
 <template>
   <SwipeRow :row-id="id" :width="actionsWidth">
-    <div class="list-row" :class="accentClass" @click="$emit('click')">
+    <div
+      class="list-row"
+      :class="accentClass"
+      @click="$emit('click', $event)"
+      @mousedown="$emit('mousedown', $event)"
+      @mouseup="$emit('mouseup', $event)"
+      @mouseleave="$emit('mouseleave', $event)"
+      @touchstart.passive="$emit('touchstart', $event)"
+      @touchend="$emit('touchend', $event)"
+      @touchmove.passive="$emit('touchmove', $event)"
+    >
       <div v-if="accentClass" class="row-accent-bar"></div>
       <div v-if="$slots.icon" class="row-icon-wrap">
         <slot name="icon" />
@@ -28,7 +38,7 @@ defineProps({
   chevron: { type: Boolean, default: true },
   accentClass: { type: String, default: '' }
 })
-defineEmits(['click'])
+defineEmits(['click', 'mousedown', 'mouseup', 'mouseleave', 'touchstart', 'touchend', 'touchmove'])
 </script>
 
 <style scoped>

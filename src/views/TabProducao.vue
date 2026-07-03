@@ -12,7 +12,13 @@
         <i class="fas fa-search search-icon"></i>
         <input v-model="busca" class="search-input" type="search" placeholder="Buscar por receita, categoria ou data..." />
       </div>
-      <CategoryFilter v-model="s.producaoFiltroAtivo" :items="filtrosNorm" />
+      <div class="cat-filter-wrap">
+        <div class="cal-header mes-nav-producao">
+          <button class="cal-nav" :disabled="!podeVoltarMes" @click="mesAnterior"><i class="fas fa-chevron-left"></i></button>
+          <span class="cal-titulo mes-nav-producao-titulo">{{ labelMesAtivo }}</span>
+          <button class="cal-nav" :disabled="!podeAvancarMes" @click="mesProximo"><i class="fas fa-chevron-right"></i></button>
+        </div>
+      </div>
     </div>
 
     <div v-if="s.loading" class="loading-box">
@@ -237,7 +243,6 @@ import { R$, dataHoraBR, fmtQtd as fmtQ, getNowLocal, normalizar, isInsumoOculto
 import BaseModal from '../components/BaseModal.vue'
 import AppListRow from '../components/AppListRow.vue'
 import SwipeRow from '../components/SwipeRow.vue'
-import CategoryFilter from '../components/CategoryFilter.vue'
 import { useSwipe } from '../composables/useSwipe.js'
 import { useModalStack } from '../composables/useModalStack.js'
 import { useConfirm } from '../composables/useConfirm.js'
@@ -248,8 +253,6 @@ const s = useStore()
 const { closeAll } = useSwipe()
 const { modal: currentModal, abrirModal, fecharModal } = useModalStack()
 const confirm = useConfirm()
-
-const filtroAtivo = computed(() => s.producaoFiltroAtivo)
 
 const formEdicaoLote = reactive({ data_producao_original: '', data_producao: '', data_inicio: '', data_fim: '' })
 
@@ -308,34 +311,59 @@ const { busca, listaFiltrada } = useListFilter(
   'Todas'
 )
 
-const filtros = [
-  { v: 'hoje', l: 'Hoje' },
-  { v: '7dias', l: '7 dias' },
-  { v: 'mes_atual', l: 'Este Mês' },
-  { v: '30dias', l: '30 dias' },
-  { v: 'total', l: 'Tudo' }
-]
-const filtrosNorm = filtros.map(f => ({ value: f.v, label: f.l }))
-
 watch(busca, (val) => s.producaoBusca = val)
+
+// ── Navegação mensal ──────────────────────────────────────────
+const hoje = new Date()
+const mesAtualBase = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+const mesAtivo = ref(new Date(mesAtualBase))
+
+const mesesDisponiveis = computed(() => {
+  const set = new Set()
+  s.producoes.forEach(p => {
+    if (!p.data_producao) return
+    const d = new Date(p.data_producao)
+    if (isNaN(d.getTime())) return
+    set.add(d.getFullYear() + '-' + d.getMonth())
+  })
+  set.add(mesAtualBase.getFullYear() + '-' + mesAtualBase.getMonth())
+  return [...set]
+    .map(chave => {
+      const [ano, mes] = chave.split('-').map(Number)
+      return new Date(ano, mes, 1)
+    })
+    .sort((a, b) => a - b)
+})
+
+const mesMaisAntigo = computed(() => mesesDisponiveis.value[0] || mesAtualBase)
+
+const podeVoltarMes = computed(() => mesAtivo.value > mesMaisAntigo.value)
+const podeAvancarMes = computed(() => mesAtivo.value < mesAtualBase)
+
+const labelMesAtivo = computed(() => {
+  const txt = mesAtivo.value.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  return txt.charAt(0).toUpperCase() + txt.slice(1)
+})
+
+function mesAnterior() {
+  if (!podeVoltarMes.value) return
+  mesAtivo.value = new Date(mesAtivo.value.getFullYear(), mesAtivo.value.getMonth() - 1, 1)
+}
+
+function mesProximo() {
+  if (!podeAvancarMes.value) return
+  mesAtivo.value = new Date(mesAtivo.value.getFullYear(), mesAtivo.value.getMonth() + 1, 1)
+}
 
 // ── Computados ────────────────────────────────────────────────
 const listaPeriodo = computed(() => {
-  const agora = new Date()
+  const ano = mesAtivo.value.getFullYear()
+  const mes = mesAtivo.value.getMonth()
   return listaFiltrada.value
     .filter(p => {
-      if (filtroAtivo.value === 'hoje') {
-        return (p.data_producao || '').slice(0, 10) === agora.toISOString().slice(0, 10)
-      }
-      if (filtroAtivo.value === 'total') return true
-      let limite
-      if (filtroAtivo.value === 'mes_atual') {
-        limite = new Date(agora.getFullYear(), agora.getMonth(), 1)
-      } else {
-        const dias = filtroAtivo.value === '7dias' ? 7 : 30
-        limite = new Date(); limite.setDate(agora.getDate() - dias)
-      }
-      return new Date(p.data_producao) >= limite
+      if (!p.data_producao) return false
+      const d = new Date(p.data_producao)
+      return d.getFullYear() === ano && d.getMonth() === mes
     })
     .sort((a, b) => (b.data_producao || '').localeCompare(a.data_producao || ''))
 })
@@ -407,11 +435,6 @@ const tempoEstimadoGrupo = computed(() => {
 })
 
 // ── Métodos ───────────────────────────────────────────────────
-function carregarDadosPorFiltro(v) {
-  const dias = v === 'hoje' ? 1 : v === '7dias' ? 7 : v === '30dias' ? 30 : 0
-  s.carregarProducoes(dias)
-}
-
 function toggleGrupo(id) {
   gruposAbertos.value[id] = !gruposAbertos.value[id]
 }
@@ -570,8 +593,7 @@ function compartilharLote(grupo) {
 }
 
 function gerarRelatorio() {
-  const filtroTxt = filtros.find(f => f.v === filtroAtivo.value)?.l || 'Personalizado'
-  const periodo = filtroTxt + (busca.value.trim() ? ' · Busca: ' + busca.value : '')
+  const periodo = labelMesAtivo.value + (busca.value.trim() ? ' · Busca: ' + busca.value : '')
   
   const dadosGrupos = gruposProducao.value.map(g => ({
     data: dataHoraBR(g.data),
@@ -630,15 +652,33 @@ async function salvarEdicaoLote() {
   } finally { saving.value = false }
 }
 
-watch(() => s.producaoFiltroAtivo, carregarDadosPorFiltro)
-
 onMounted(() => {
   busca.value = s.producaoBusca
-  carregarDadosPorFiltro(s.producaoFiltroAtivo)
+  s.carregarProducoes(0)
 })
 </script>
 
 <style scoped>
+/* ── Navegação mensal (mesmo padrão do cal-header em TabPainel) ── */
+.cal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.cal-nav {
+  width: 34px; height: 34px; border: none; background: transparent;
+  color: var(--brown-mid); font-size: .9rem; border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.cal-nav:active { background: var(--gold-bg); }
+.cal-nav:disabled { opacity: .35; pointer-events: none; }
+.cal-titulo {
+  font-size: .82rem; font-weight: 700; color: var(--brown-dark);
+  text-transform: capitalize;
+}
+.mes-nav-producao { padding: 0 16px; margin-bottom: 0; }
+.mes-nav-producao-titulo { font-size: .95rem; }
+
 /* ── Cards de lote (nova UI) ── */
 .production-groups { display:flex; flex-direction:column; gap:10px; padding:8px 0 }
 .production-card {

@@ -196,7 +196,7 @@
         <div class="painel-pesar-hdr">
           <div class="painel-pesar-titulo">
             <i class="fas fa-scale-balanced"></i>
-            Total para pesar
+            Total para pesar (Consolidado)
           </div>
           <div class="painel-pesar-timer" v-if="s.timerDisplay">
             <i class="fas fa-stopwatch" :class="{ 'fa-beat-fade': s.timer.isRunning }"></i>
@@ -206,6 +206,13 @@
             <i class="fas fa-xmark"></i>
           </button>
         </div>
+        <div class="painel-pesar-receitas" v-if="s.cozinhaLote.length">
+          <span
+            v-for="item in s.cozinhaLote"
+            :key="item.receita_id"
+            class="painel-pesar-receita-chip"
+          >{{ item.qtd_produzir }}× {{ item.nome }}</span>
+        </div>
         <div class="painel-pesar-lista">
           <div
             v-for="(ing, idx) in ingredientesParaPesar"
@@ -213,8 +220,16 @@
             class="painel-pesar-item"
             :class="{ 'painel-pesar-destaque': idx === 0 }"
           >
-            <span class="painel-pesar-nome">{{ ing.nome.replace('🥣 ', '') }}</span>
-            <span class="painel-pesar-qtd">{{ fmtQ(ing.total, ing.unidade) }}</span>
+            <div class="painel-pesar-item-main">
+              <span class="painel-pesar-nome">{{ ing.nome.replace('🥣 ', '') }}</span>
+              <span class="painel-pesar-qtd">{{ fmtQ(ing.total, ing.unidade) }}</span>
+            </div>
+            <div v-if="ing.subIngredientes?.length" class="plan-sub-list painel-pesar-composicao">
+              <div v-for="sub in ing.subIngredientes" :key="sub.id" class="plan-sub-item">
+                <span><span class="c-brown">└</span> {{ sub.nome }}</span>
+                <span>{{ fmtQ(sub.total, sub.unidade) }}</span>
+              </div>
+            </div>
           </div>
           <div v-if="!ingredientesParaPesar.length" class="painel-pesar-vazio">
             Nenhum ingrediente no lote ainda.
@@ -996,11 +1011,17 @@ watch(catAtiva, () => {
   -webkit-overflow-scrolling: touch;
 }
 .painel-pesar-item {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; flex-direction: column;
   padding: 14px 24px;
   border-bottom: 1px solid var(--border);
 }
 .painel-pesar-item:last-child { border-bottom: none; }
+.painel-pesar-item-main {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.painel-pesar-composicao {
+  margin-top: 8px;
+}
 .painel-pesar-destaque {
   background: var(--gold-bg);
   border-left: 4px solid var(--brown);
@@ -1008,6 +1029,19 @@ watch(catAtiva, () => {
 }
 .painel-pesar-nome {
   font-size: 1.05rem; font-weight: 500; color: var(--text);
+}
+.painel-pesar-receitas {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 12px 20px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.painel-pesar-receita-chip {
+  font-size: .72rem; font-weight: 700;
+  color: var(--brown-dark);
+  background: var(--gold-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
 }
 .painel-pesar-destaque .painel-pesar-nome {
   font-weight: 800; color: var(--brown-dark);

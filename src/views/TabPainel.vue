@@ -324,134 +324,25 @@
           </div>
         </div>
         </Teleport>
+        <ModalCompra
+          :modal-preco="modalPreco"
+          :fechar-modal-preco="fecharModalPreco"
+          :on-preco-emb-input="onPrecoEmbInput"
+          :on-frac-valor-input="onFracValorInput"
+          :bloquear-letras="bloquearLetras"
+          :calc-fracionado="calcFracionado"
+          :confirmar-preco-emb="confirmarPrecoEmb"
+          :confirmar-preco-frac="confirmarPrecoFrac"
+          v-model:modo-preco="modoPreco"
+          v-model:preco-emb-input="precoEmbInput"
+          v-model:preco-emb-calculado="precoEmbCalculado"
+          v-model:frac-valor="fracValor"
+          v-model:frac-qtd="fracQtd"
+          v-model:frac-resultado="fracResultado"
+          v-model:qtd-entrada-input="qtdEntradaInput"
+        />
 
-        <!-- Modal de atualização de preço -->
-        <Teleport to="body">
-        <div v-if="modalPreco" class="bottom-sheet-overlay" @click.self="modalPreco = null">
-          <div class="lc-modal">
-            <div class="lc-modal-hdr">
-              <span class="lc-modal-titulo"><i class="fas fa-tag"></i> {{ modalPreco.nome }}</span>
-              <button class="lc-modal-close" @click="modalPreco = null"><i class="fas fa-xmark"></i></button>
-            </div>
-            <div class="lc-modal-body">
-
-              <!-- Modo toggle -->
-              <div class="preco-mode-toggle">
-                <button class="preco-mode-btn" :class="{ active: modoPreco === 'embalagem' }" @click="modoPreco = 'embalagem'">
-                  <i class="fas fa-box"></i> Preço da embalagem
-                </button>
-                <button class="preco-mode-btn" :class="{ active: modoPreco === 'fracionado' }" @click="modoPreco = 'fracionado'">
-                  <i class="fas fa-scale-balanced"></i> Compra a granel
-                </button>
-              </div>
-
-              <!-- MODO: Preço da embalagem inteira -->
-              <div v-if="modoPreco === 'embalagem'" class="preco-form">
-                <div class="preco-field">
-                  <label class="preco-label">
-                    Preço da embalagem
-                    <span v-if="modalPreco.fatorConv > 0" class="preco-label-sub">({{ fmtQ(modalPreco.fatorConv, modalPreco.unidade) }})</span>
-                  </label>
-                  <div class="preco-input-row">
-                    <span class="preco-prefix">R$</span>
-                    <input class="preco-input" type="text" inputmode="numeric"
-                      :value="precoEmbInput"
-                      @input="onPrecoEmbInput"
-                      @keydown="bloquearLetras"
-                      placeholder="0,00" />
-                  </div>
-                </div>
-                <div v-if="precoEmbCalculado > 0" class="preco-resultado">
-                  <i class="fas fa-calculator"></i>
-                  Custo/{{ modalPreco.unidade }}: <strong>{{ R$(precoEmbCalculado) }}</strong>
-                  <span v-if="modalPreco.unidade === 'g'">· {{ R$(precoEmbCalculado * 1000) }}/kg</span>
-                  <span v-if="modalPreco.unidade === 'ml'">· {{ R$(precoEmbCalculado * 1000) }}/L</span>
-                </div>
-
-                <!-- Quantidade recebida -->
-                <div class="preco-field mt-12">
-                  <label class="preco-label">Qtd. recebida</label>
-                  <div class="qtd-entrada-row">
-                    <button class="qtd-e-btn" @click="qtdEntradaInput = String(Math.max(1, (parseFloat(qtdEntradaInput)||1) - 1))">−</button>
-                    <input class="qtd-e-input" type="text" inputmode="numeric"
-                      :value="qtdEntradaInput"
-                      @input="e => qtdEntradaInput = e.target.value.replace(/\D/g,'')"
-                      @keydown="bloquearLetras" />
-                    <button class="qtd-e-btn" @click="qtdEntradaInput = String((parseFloat(qtdEntradaInput)||0) + 1)">+</button>
-                    <span class="qtd-e-unid">{{ modalPreco.nomeEmbPlural || 'un' }}</span>
-                  </div>
-                </div>
-
-                <button class="btn btn-primary btn-sm mt-12" :disabled="!(parseMoney(precoEmbInput) > 0)" @click="confirmarPrecoEmb">
-                  <i class="fas fa-boxes-stacking"></i> Confirmar compra
-                </button>
-              </div>
-
-              <!-- MODO: Compra fracionada / a granel -->
-              <div v-if="modoPreco === 'fracionado'" class="preco-form">
-                <div class="preco-grid-2">
-                  <div class="preco-field">
-                    <label class="preco-label">Valor pago (R$)</label>
-                    <div class="preco-input-row">
-                      <span class="preco-prefix">R$</span>
-                      <input class="preco-input" type="text" inputmode="numeric"
-                        :value="fracValor"
-                        @input="onFracValorInput"
-                        @keydown="bloquearLetras"
-                        placeholder="5,00" />
-                    </div>
-                  </div>
-                  <div class="preco-field">
-                    <label class="preco-label">Qtd. ({{ modalPreco.unidade }})</label>
-                    <div class="preco-input-row">
-                      <input class="preco-input" type="text" inputmode="numeric"
-                        :value="fracQtd"
-                        @input="e => { fracQtd = e.target.value.replace(/[^\d,\.]/g,''); calcFracionado() }"
-                        @keydown="bloquearLetras"
-                        :placeholder="modalPreco.unidade === 'g' ? '167' : '0'" />
-                      <span class="preco-suffix">{{ modalPreco.unidade }}</span>
-                    </div>
-                  </div>
-                </div>
-                <div v-if="fracResultado > 0" class="preco-resultado">
-                  <i class="fas fa-calculator"></i>
-                  <span v-if="modalPreco.unidade === 'g'"><strong>{{ R$(fracResultado * 1000) }}/kg</strong></span>
-                  <span v-else-if="modalPreco.unidade === 'ml'"><strong>{{ R$(fracResultado * 1000) }}/L</strong></span>
-                  <span v-else>{{ R$(fracResultado) }}/{{ modalPreco.unidade }}</span>
-                </div>
-                <div v-if="fracResultado > 0 && modalPreco.fatorConv > 0" class="preco-resultado preco-resultado-sec">
-                  <i class="fas fa-box"></i>
-                  Embalagem de {{ fmtQ(modalPreco.fatorConv, modalPreco.unidade) }} custaria
-                  <strong>{{ R$(fracResultado * modalPreco.fatorConv) }}</strong>
-                </div>
-
-                <!-- Quantidade recebida -->
-                <div class="preco-field mt-12">
-                  <label class="preco-label">Qtd. recebida</label>
-                  <div class="qtd-entrada-row">
-                    <button class="qtd-e-btn" @click="qtdEntradaInput = String(Math.max(1, (parseFloat(qtdEntradaInput)||1) - 1))">−</button>
-                    <input class="qtd-e-input" type="text" inputmode="numeric"
-                      :value="qtdEntradaInput"
-                      @input="e => qtdEntradaInput = e.target.value.replace(/\D/g,'')"
-                      @keydown="bloquearLetras" />
-                    <button class="qtd-e-btn" @click="qtdEntradaInput = String((parseFloat(qtdEntradaInput)||0) + 1)">+</button>
-                    <span class="qtd-e-unid">{{ modalPreco.nomeEmbPlural || 'un' }}</span>
-                  </div>
-                </div>
-
-                <button class="btn btn-primary btn-sm mt-12"
-                  :disabled="!(fracResultado > 0)"
-                  @click="confirmarPrecoFrac">
-                  <i class="fas fa-boxes-stacking"></i> Confirmar compra
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </div>
-        </Teleport>
-
-        <!-- Modal histórico de preços -->
+        <!-- Modal historico de precos -->
         <Teleport to="body">
         <div v-if="modalHistorico" class="bottom-sheet-overlay" @click.self="modalHistorico = null">
           <div class="lc-modal">
@@ -562,10 +453,12 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useStore } from '../store.js'
 import CategoryFilter from '../components/CategoryFilter.vue'
-import { R$, avatarColor, fmtQtd as fmtQ, getMesRef, maskMoney, parseMoney, normalizar } from '../utils.js'
+import { R$, avatarColor, fmtQtd as fmtQ, getMesRef, normalizar } from '../utils.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
 import SwipeRow from '../components/SwipeRow.vue'
 import { useSwipe } from '../composables/useSwipe.js'
+import ModalCompra from '../components/ModalCompra.vue'
+import { montarItemLista, useModalCompra } from '../composables/useModalCompra.js'
 
 const s = useStore()
 const { openSwipeId } = useSwipe()
@@ -800,7 +693,7 @@ const produtosParaSeletor = computed(() => {
 
 function adicionarItemNaLista(prod, origem = 'manual') {
   if (listaCompras.value.some(i => i.id === prod.uuid)) return
-  const item = montarItemLista(prod, prod.fator_conversao || 1, origem)
+  const item = montarItemLista(prod, prod.fator_conversao || 1, origem, 0, s)
   listaCompras.value = [item, ...listaCompras.value]
   totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
   mostrarSeletorItem.value = false
@@ -819,14 +712,31 @@ watch(semanasProjecao, () => {
   if (aba.value === 'lista') carregarListaCompras()
 })
 
-const modalPreco = ref(null)
-const modoPreco = ref('embalagem')
-const precoEmbInput = ref('')
-const precoEmbCalculado = ref(0)
-const fracValor = ref('')
-const fracQtd = ref('')
-const fracResultado = ref(0)
-const qtdEntradaInput = ref('')  // quantidade recebida em embalagens
+const {
+  modalPreco,
+  modoPreco,
+  precoEmbInput,
+  precoEmbCalculado,
+  fracValor,
+  fracQtd,
+  fracResultado,
+  qtdEntradaInput,
+  abrirModalPreco,
+  fecharModalPreco,
+  onPrecoEmbInput,
+  onFracValorInput,
+  bloquearLetras,
+  calcFracionado,
+  confirmarPrecoEmb,
+  confirmarPrecoFrac,
+} = useModalCompra({
+  onCompraConfirmada: ({ item }) => {
+    listaCompras.value = listaCompras.value.filter(i => i.id !== item.id)
+    totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
+    ignoredIds.value.add(item.id)
+    localStorage.setItem(IGNORED_KEY, JSON.stringify([...ignoredIds.value]))
+  }
+})
 
 // ── Long press para abrir compra ─────────────────────────────
 let _lpTimer = null
@@ -843,145 +753,9 @@ function lpCancel() {
   if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null }
 }
 
-function abrirModalPreco(item) {
-  modalPreco.value = item
-  modoPreco.value = item.fatorConv > 1 ? 'embalagem' : 'fracionado'
-  precoEmbInput.value = item.custoPorEmbalagem > 0 ? maskMoney(item.custoPorEmbalagem) : ''
-  precoEmbCalculado.value = item.custoPorEmbalagem > 0 && item.fatorConv > 0 ? item.custoPorEmbalagem / item.fatorConv : 0
-  fracValor.value = ''
-  fracQtd.value = ''
-  fracResultado.value = 0
-  qtdEntradaInput.value = item.embalagensFinal > 0 ? String(item.embalagensFinal) : '1'
-}
-
-// Máscara monetária ao digitar
-function onPrecoEmbInput(e) {
-  const raw = e.target.value.replace(/\D/g, '')
-  const num = parseInt(raw || '0') / 100
-  precoEmbInput.value = num > 0 ? maskMoney(num) : ''
-  const fator = modalPreco.value?.fatorConv || 1
-  precoEmbCalculado.value = num > 0 && fator > 0 ? num / fator : 0
-}
-
-function onFracValorInput(e) {
-  const raw = e.target.value.replace(/\D/g, '')
-  const num = parseInt(raw || '0') / 100
-  fracValor.value = num > 0 ? maskMoney(num) : ''
-  calcFracionado()
-}
-
-// Bloqueia qualquer tecla não numérica nos campos de valor
-function bloquearLetras(e) {
-  const permitidas = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Enter']
-  if (permitidas.includes(e.key)) return
-  if (!/^\d$/.test(e.key)) e.preventDefault()
-}
-
-function calcPrecoEmb() {
-  const val = parseMoney(precoEmbInput.value)
-  const fator = modalPreco.value?.fatorConv || 1
-  precoEmbCalculado.value = (!isNaN(val) && val > 0 && fator > 0) ? val / fator : 0
-}
-
-function calcFracionado() {
-  const valor = parseMoney(fracValor.value)
-  const qtd   = parseFloat(fracQtd.value.replace(',', '.'))
-  fracResultado.value = (valor > 0 && qtd > 0) ? valor / qtd : 0
-}
-
-async function _confirmarCompra(item, custoPorEmbalagem) {
-  const prod = s.produtos.find(p => p.uuid === item.id)
-  if (!prod) { s.notify('Produto não encontrado', 'error'); return }
-
-  const qtdEmb   = parseFloat(qtdEntradaInput.value) || 1
-  // Garante fator válido tanto no cálculo quanto no objeto enviado ao banco
-  const fator     = Number(prod.fator_conversao) > 0 ? Number(prod.fator_conversao) : 1
-  const novoEstoque = (Number(prod.estoque_atual) || 0) + (qtdEmb * fator)
-
-  let salvo = false
-  try {
-    await s.salvarProduto({
-      ...prod,
-      fator_conversao: fator,          // garante que não vai 0/null para a validação
-      custo_por_unidade: custoPorEmbalagem,
-      estoque_atual: novoEstoque
-    })
-    salvo = true
-  } catch (e) {
-    s.notify(e?.message || 'Erro ao salvar produto', 'error')
-  }
-
-  // Só remove da lista se realmente salvou no banco
-  if (salvo) {
-    listaCompras.value = listaCompras.value.filter(i => i.id !== item.id)
-    totalEstimado.value = listaCompras.value.reduce((acc, i) => acc + i.custoEstimado, 0)
-    // Persiste no ignoredIds para o item não voltar após refresh
-    ignoredIds.value.add(item.id)
-    localStorage.setItem(IGNORED_KEY, JSON.stringify([...ignoredIds.value]))
-  }
-}
-
-async function confirmarPrecoEmb() {
-  const val = parseMoney(precoEmbInput.value)
-  if (isNaN(val) || val <= 0) return
-  await _confirmarCompra(modalPreco.value, val)
-  modalPreco.value = null
-}
-
-async function confirmarPrecoFrac() {
-  const item = modalPreco.value
-  const prod = s.produtos.find(p => p.uuid === item.id)
-  if (!prod || fracResultado.value <= 0) return
-  const novoCustoPorEmb = fracResultado.value * (prod.fator_conversao || 1)
-  await _confirmarCompra(item, novoCustoPorEmb)
-  modalPreco.value = null
-}
-
 async function abrirLista() {
   aba.value = 'lista'
   if (!listaCompras.value.length) await carregarListaCompras()
-}
-
-// Monta um item de lista a partir de um produto + quantidade sugerida (kg/g/un na unidade base)
-function montarItemLista(prod, qtdSug, origem = 'auto', mediaMensal = 0) {
-  const unidadeBase = prod?.unidade_base || 'un'
-  const fatorConv = prod?.fator_conversao || 0
-  const custoPorEmbalagem = prod?.custo_por_unidade || 0
-  const unidCompra = prod?.unidade_compra || prod?.unidade_base || unidadeBase
-
-  const nomeEmbMap = {
-    'kg': ['pacote', 'pacotes'], 'g': ['pacote', 'pacotes'],
-    'L': ['frasco', 'frascos'], 'l': ['frasco', 'frascos'], 'ml': ['frasco', 'frascos'],
-    'cx': ['caixa', 'caixas'], 'pct': ['pacote', 'pacotes'],
-    'dz': ['dúzia', 'dúzias'], 'un': ['unidade', 'unidades'],
-  }
-  const [nomeEmbDefault, nomeEmbPluralDefault] = nomeEmbMap[unidCompra] || ['unid.', 'unid.']
-
-  let embalagens = 0, nomeEmb = nomeEmbDefault, nomeEmbPlural = nomeEmbPluralDefault, custo = 0
-
-  if (unidadeBase === 'un') {
-    embalagens = Math.ceil(qtdSug) || 1
-    nomeEmb = 'unidade'; nomeEmbPlural = 'unidades'
-    if (fatorConv > 1) {
-      embalagens = Math.ceil(qtdSug / fatorConv) || 1
-      nomeEmb = nomeEmbDefault; nomeEmbPlural = nomeEmbPluralDefault
-    }
-    custo = custoPorEmbalagem > 0 ? embalagens * custoPorEmbalagem : s.getPrecoUnitarioInsumo(prod) * qtdSug
-  } else if (fatorConv > 0) {
-    embalagens = Math.ceil(qtdSug / fatorConv) || 1
-    custo = custoPorEmbalagem > 0 ? embalagens * custoPorEmbalagem : s.getPrecoUnitarioInsumo(prod) * qtdSug
-  } else {
-    embalagens = 1
-    custo = s.getPrecoUnitarioInsumo(prod) * qtdSug
-  }
-
-  return {
-    id: prod.uuid, nome: prod.nome, unidade: unidadeBase,
-    mediaMensal, qtdSugerida: qtdSug, custoEstimado: custo,
-    embalagens, embalagensFinal: embalagens || 1,
-    nomeEmb, nomeEmbPlural, fatorConv, custoPorEmbalagem,
-    checked: false, origem // 'auto' | 'critico' | 'manual'
-  }
 }
 
 // Produtos com estoque zerado ou abaixo do mínimo configurado — sempre visível, independe de produção
@@ -1053,9 +827,9 @@ async function carregarListaCompras() {
     // Não sugere se o estoque atual já cobre a quantidade sugerida
     // (mas se zerou, sempre mostra — independe do ignoredIds)
     const estoqueAtual = Number(prod.estoque_atual || 0)
-    if (estoqueAtual <= 0) return montarItemLista(prod, qtdSug, 'auto', mediaMensal)
+    if (estoqueAtual <= 0) return montarItemLista(prod, qtdSug, 'auto', mediaMensal, s)
     if (estoqueAtual >= qtdSug) return null
-    return montarItemLista(prod, qtdSug, 'auto', mediaMensal)
+    return montarItemLista(prod, qtdSug, 'auto', mediaMensal, s)
   }).filter(Boolean)
 
   // Críticos: produtos com estoque <= mínimo OU estoque zerado (mesmo sem mínimo definido)
@@ -1071,7 +845,7 @@ async function carregarListaCompras() {
              !ignoredIds.value.has(p.uuid)
     })
     .map(p => {
-      const item = montarItemLista(p, p.estoque_minimo || 1, 'critico', 0)
+      const item = montarItemLista(p, p.estoque_minimo || 1, 'critico', 0, s)
       item.estoqueAtual = p.estoque_atual || 0
       item.estoqueMinimo = p.estoque_minimo || 0
       return item

@@ -20,6 +20,12 @@
           :key="p.uuid"
           :id="p.uuid"
           @click="abrir(p)"
+          @mousedown="lpStart($event, p)"
+          @mouseup="lpCancel"
+          @mouseleave="lpCancel"
+          @touchstart.passive="lpStart($event, p)"
+          @touchend="lpCancel"
+          @touchmove.passive="lpCancel"
           :chevron="false"
           :actions-width="280"
         >
@@ -33,7 +39,7 @@
             <span class="ing-preco">{{ R$(p.custo_por_unidade || 0) }}</span>
             <span class="ing-dot">•</span>
             <span :class="{'c-red fw700': (p.estoque_atual || 0) <= (p.estoque_minimo || 0)}">
-              Estoque: {{ fmtQ(p.estoque_atual, p.unidade_compra || p.unidade_base) }}
+              Estoque: {{ fmtQ(p.estoque_atual, p.unidade_base) }}
             </span>
           </template>
           <template #actions>
@@ -155,7 +161,7 @@
             <template v-else-if="historicoPrecos.length === 0">
               <div class="lc-hist-empty">
                 <i class="fas fa-clock-rotate-left"></i>
-                <p>Nenhum registro ainda.<br>O histórico é criado quando você altera o preço de compra.</p>
+                <p>Nenhum registro ainda.<br>O histórico é criado a cada compra (entrada de estoque) ou alteração de preço.</p>
               </div>
             </template>
             <template v-else>
@@ -193,6 +199,7 @@
               <div class="lc-hist-tabela">
                 <div v-for="(h, idx) in [...historicoPrecos].reverse()" :key="idx" class="lc-hist-row">
                   <span class="lc-hist-data">{{ new Date(h.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' }) }}</span>
+                  <span class="lc-hist-qtd" v-if="h.quantidade_comprada">+{{ fmtQ(h.quantidade_comprada, modalHistorico?.unidade_base) }}</span>
                   <span class="lc-hist-preco">{{ R$(h.custo_por_unidade) }}</span>
                 </div>
               </div>
@@ -201,6 +208,24 @@
         </div>
       </div>
     </Teleport>
+
+    <ModalCompra
+      :modal-preco="modalPreco"
+      :fechar-modal-preco="fecharModalPreco"
+      :on-preco-emb-input="onPrecoEmbInput"
+      :on-frac-valor-input="onFracValorInput"
+      :bloquear-letras="bloquearLetras"
+      :calc-fracionado="calcFracionado"
+      :confirmar-preco-emb="confirmarPrecoEmb"
+      :confirmar-preco-frac="confirmarPrecoFrac"
+      v-model:modo-preco="modoPreco"
+      v-model:preco-emb-input="precoEmbInput"
+      v-model:preco-emb-calculado="precoEmbCalculado"
+      v-model:frac-valor="fracValor"
+      v-model:frac-qtd="fracQtd"
+      v-model:frac-resultado="fracResultado"
+      v-model:qtd-entrada-input="qtdEntradaInput"
+    />
   </div>
 </template>
 
@@ -213,6 +238,8 @@ import AppListRow from '../components/AppListRow.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
 import { useModalStack } from '../composables/useModalStack.js'
 import { useConfirm } from '../composables/useConfirm.js'
+import ModalCompra from '../components/ModalCompra.vue'
+import { useModalCompra } from '../composables/useModalCompra.js'
 
 const s = useStore()
 
@@ -227,6 +254,24 @@ watch(() => s.tab, (tab) => {
 })
 const { modal, abrirModal, fecharModal } = useModalStack()
 const confirm = useConfirm()
+const {
+  modalPreco,
+  modoPreco,
+  precoEmbInput,
+  precoEmbCalculado,
+  fracValor,
+  fracQtd,
+  fracResultado,
+  qtdEntradaInput,
+  abrirModalPreco,
+  fecharModalPreco,
+  onPrecoEmbInput,
+  onFracValorInput,
+  bloquearLetras,
+  calcFracionado,
+  confirmarPrecoEmb,
+  confirmarPrecoFrac,
+} = useModalCompra()
 
 const busca = ref('')
 const catAtiva = ref('Todas')
@@ -244,6 +289,27 @@ const listaFiltrada = computed(() => {
 })
 
 const form = reactive({ uuid: null, nome: '', tipo: 'insumo', unidade_compra: 'kg', unidade_base: 'g', fator_conversao: 1000, custo_por_unidade: 0, estoque_atual: 0, estoque_minimo: 0 })
+
+let _lpTimer = null
+let _lpOpened = false
+function lpStart(e, produto) {
+  lpCancel()
+  _lpOpened = false
+  _lpTimer = setTimeout(() => {
+    _lpTimer = null
+    _lpOpened = true
+    abrirModalPreco(produto)
+  }, 500)
+}
+function lpCancel() {
+  if (_lpTimer) {
+    clearTimeout(_lpTimer)
+    _lpTimer = null
+  }
+  if (_lpOpened) {
+    setTimeout(() => { _lpOpened = false }, 250)
+  }
+}
 
 // ── Histórico de Preços ──
 const modalHistorico = ref(null)
@@ -268,6 +334,7 @@ async function abrirHistorico(item) {
 }
 
 function abrir(p = null) {
+  if (_lpOpened) return
   if (p) Object.assign(form, JSON.parse(JSON.stringify(p)))
   else Object.assign(form, { uuid: null, nome: '', tipo: 'insumo', unidade_compra: 'kg', unidade_base: 'g', fator_conversao: 1000, custo_por_unidade: 0, estoque_atual: 0, estoque_minimo: 0 })
   abrirModal('detalhe')

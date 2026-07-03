@@ -76,8 +76,6 @@ export const useStore = defineStore('choco', () => {
     slogan: 'Registro de Produção',
     posicao_etiqueta: 0,
     contato_etiqueta: '', // texto livre exibido na etiqueta (whatsapp/instagram)
-    etiquetas_termos_excluidos: ['recheio', 'farofa', 'massa', 'cobertura', 'calda', 'ganache', 'creme', 'base', 'mistura', 'pasta', 'glacê', 'xarope'],
-    etiquetas_excecoes_incluir: [], // uuids de receitas forçadas a aparecer mesmo batendo num termo excluído
     razao_social: '',
     cnpj: '',
     cpf: '',
@@ -1360,15 +1358,24 @@ async function registrarProducaoFantasma(dados) {
     if (Number(obj.estoque_minimo || 0) < 0) failValidation('O estoque minimo nao pode ser negativo.')
 
     const antigo = await db.produtos.get(obj.uuid)
+    const estoqueAntigo = antigo ? Number(antigo.estoque_atual || 0) : 0
+    const estoqueNovo = Number(obj.estoque_atual || 0)
+    const quantidadeComprada = estoqueNovo - estoqueAntigo
+    const houveEntradaEstoque = quantidadeComprada > 0
     const precoMudou = !antigo || antigo.custo_por_unidade !== obj.custo_por_unidade
 
     await db.produtos.put(obj)
 
-    if (precoMudou) {
+    // Registra no historico toda vez que o preco mudar OU que uma compra/entrada
+    // de estoque for feita (aumento do estoque_atual) - antes so registrava
+    // quando o preco mudava, entao compras repetidas pelo mesmo preco sumiam.
+    if (precoMudou || houveEntradaEstoque) {
       await db.historico_precos.add({
         produto_uuid: obj.uuid,
         data: new Date().toISOString(),
-        custo_por_unidade: obj.custo_por_unidade
+        custo_por_unidade: obj.custo_por_unidade,
+        quantidade_comprada: houveEntradaEstoque ? quantidadeComprada : null,
+        estoque_apos: estoqueNovo
       })
     }
 
@@ -1400,6 +1407,7 @@ async function registrarProducaoFantasma(dados) {
     obj.uuid = obj.uuid || crypto.randomUUID()
     obj.nome = String(obj.nome || '').trim() // Normalizar nome antes de salvar
     obj.categoria = normalizeReceitaCategoria(obj.categoria)
+    obj.usar_em_etiquetas = obj.usar_em_etiquetas ?? !Number(obj.eh_intermediaria)
 
     if (!obj.nome) failValidation('Informe o nome da receita.')
     if (hasDuplicateName(receitas.value, obj.nome, obj.uuid)) failValidation('Ja existe uma receita com esse nome.')

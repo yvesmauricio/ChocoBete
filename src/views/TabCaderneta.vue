@@ -1810,17 +1810,18 @@ onMounted(async () => {
 }
 .cad-cli-info  { flex: 1; min-width: 0; }
 .cad-cli-nome  { font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cad-cli-tel   { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.cad-cli-tel   { font-size: 12px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cad-cli-total { font-size: 15px; font-weight: 800; font-family: var(--mono); white-space: nowrap; flex-shrink: 0; }
 .cad-cli-total--red { color: var(--red, #dc2626); }
 .cad-cli-total--ok  { color: var(--green); }
 .cad-cli-chevron { color: var(--brown-light); flex-shrink: 0; transition: transform .22s; }
 .cad-cli-header.colapsado .cad-cli-chevron { transform: rotate(-90deg); }
-.cad-cli-btns { display: flex; gap: 8px; align-items: center; padding: 0 12px 10px 64px; flex-wrap: nowrap; }
+.cad-cli-btns { display: flex; gap: 8px; align-items: center; justify-content: center; padding: 0 12px 10px 12px; flex-wrap: wrap; }
 .cad-btn-venda, .cad-btn-quitar {
   min-height: 40px; padding: 0 12px; border-radius: var(--r-full); border: none;
   color: #fff; font-size: 12px; font-weight: 800; cursor: pointer;
-  font-family: var(--font); display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  font-family: var(--font); display: flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap;
+  flex: 1 1 auto; min-width: 84px;
 }
 .cad-btn-venda  { background: var(--green); }
 .cad-btn-quitar { background: var(--brown); }
@@ -1829,7 +1830,8 @@ onMounted(async () => {
   min-height: 40px; padding: 0 12px; border-radius: var(--r-full); border: none;
   background: #25D366; color: #fff;
   font-size: 12px; font-weight: 800; cursor: pointer;
-  font-family: var(--font); display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  font-family: var(--font); display: flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap;
+  flex: 1 1 auto; min-width: 84px;
 }
 .cad-btn-zap:active { opacity: .85; }
 .cad-compras-lista { border-top: 1.5px dashed var(--border2); overflow: hidden; transition: max-height .28s cubic-bezier(.4,0,.2,1), opacity .22s ease; max-height: 9999px; opacity: 1; }
@@ -2009,11 +2011,6 @@ onMounted(async () => {
 .cad-btn-confirm  { flex: 1; padding: 12px; border: none; border-radius: var(--r-md); background: var(--brown); color: #fff; font-family: var(--font); font-size: 14px; font-weight: 700; cursor: pointer; }
 .cad-btn-confirm.danger { background: var(--red, #dc2626); }
 .cad-btn-confirm:disabled { opacity: .4; cursor: default; }
-
-@media (max-width: 380px) {
-  .cad-cli-btns { padding-left: 12px; }
-  .cad-btn-venda, .cad-btn-quitar, .cad-btn-zap { flex: 1 1 0; justify-content: center; }
-}
 
 /* chip.ativo */
 :deep(.chip.ativo), .chip.ativo {

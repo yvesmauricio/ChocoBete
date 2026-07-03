@@ -15,7 +15,7 @@
         :key="s2.id"
         class="etq-step"
         :class="{ ativo: passoAtual === idx + 1, concluido: passoAtual > idx + 1 }"
-        :disabled="idx + 1 > passoMaximoAlcancado"
+        :disabled="idx + 1 > passoMaximoAlcancado || (folhaCheiaSelecionada && s2.id === 'posicao')"
         @click="irParaPasso(idx + 1)"
       >
         <span class="etq-step-bola">
@@ -34,75 +34,43 @@
           <div v-if="passoAtual === 1" class="etq-passo">
             <p class="hint mb-12">Toque nos sabores para adicionar às etiquetas.</p>
 
-            <div v-if="receitasParaEtiqueta.length" class="etq-sabores-grid">
-              <button
+            <div v-if="receitasParaEtiqueta.length" class="etq-sabores-list">
+              <div
                 v-for="r in receitasParaEtiqueta"
                 :key="r._textoSabor"
-                class="etq-sabor-btn"
-                :class="{ 'etq-sabor-btn--ativo': etqQtds[r._textoSabor] > 0 }"
-                @click="etqQtds[r._textoSabor] = etqQtds[r._textoSabor] > 0 ? 0 : 1"
+                class="etq-sabor-row no-select sticky-touch"
+                :class="{ 'etq-sabor-row--ativo': etqQtds[r._textoSabor] > 0 }"
+                role="button"
+                tabindex="0"
+                @click="selecionarFolhaSabor(r._textoSabor)"
+                @keydown.enter.prevent="selecionarFolhaSabor(r._textoSabor)"
               >
-                <span v-if="etqQtds[r._textoSabor] > 0" class="etq-sabor-badge">{{ etqQtds[r._textoSabor] }}</span>
-                <span class="etq-sabor-nome">{{ r._textoSabor }}</span>
-              </button>
+                <div class="etq-sabor-info">
+                  <span class="etq-sabor-nome">{{ r._textoSabor }}</span>
+                  <span class="badge-shortcut">Folha</span>
+                </div>
+                <div class="qty-ctrl-sm" @click.stop>
+                  <button class="btn-qty-sm" :disabled="!etqQtds[r._textoSabor]" @click="ajustarQtdEtiqueta(r._textoSabor, -1)">-</button>
+                  <input
+                    type="number"
+                    class="qty-input-cozinha"
+                    min="0"
+                    max="77"
+                    :value="etqQtds[r._textoSabor] || 0"
+                    inputmode="numeric"
+                    @change="e => atualizarQtdEtiquetaManual(r._textoSabor, e.target.value)"
+                  />
+                  <button class="btn-qty-sm" :disabled="Number(etqQtds[r._textoSabor] || 0) >= 77" @click="ajustarQtdEtiqueta(r._textoSabor, 1)">+</button>
+                </div>
+              </div>
             </div>
             <p v-else class="hint">Nenhuma receita cadastrada ainda.</p>
 
-            <template v-if="receitasComQtd.length">
-              <div class="section-label" style="margin-top:16px">🏷️ Selecionados</div>
-              <div class="etq-selecionados-list">
-                <div v-for="r in receitasComQtd" :key="r._textoSabor" class="etq-selecionado-row">
-                  <span class="etq-selecionado-nome">{{ r._textoSabor }}</span>
-                  <div class="etq-qtd-ctrl">
-                    <button class="qtd-e-btn" @click="etqQtds[r._textoSabor] = Math.max(1, etqQtds[r._textoSabor] - 1)">−</button>
-                    <input class="qtd-e-input" type="text" inputmode="numeric"
-                      :value="String(etqQtds[r._textoSabor])"
-                      @input="e => etqQtds[r._textoSabor] = parseInt(e.target.value.replace(/\D/g,'')) || 1" />
-                    <button class="qtd-e-btn" @click="etqQtds[r._textoSabor] = etqQtds[r._textoSabor] + 1">+</button>
-                  </div>
-                  <button class="etq-selecionado-remover" @click="etqQtds[r._textoSabor] = 0" title="Remover">
-                    <i class="fas fa-xmark"></i>
-                  </button>
-                </div>
-              </div>
-            </template>
-
-            <button class="etq-config-toggle" @click="mostrarConfigFiltro = !mostrarConfigFiltro">
-              <i class="fas fa-filter"></i>
-              <span>Configurar o que aparece na lista</span>
-              <i class="fas" :class="mostrarConfigFiltro ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-            </button>
-
-            <div v-if="mostrarConfigFiltro" class="etq-config-painel">
-              <div class="section-label"><i class="fas fa-ban"></i> Palavras que escondem uma receita</div>
-              <p class="hint mb-8">Qualquer receita cujo nome contenha uma dessas palavras não aparece na lista de sabores (ex: "recheio" esconde "Recheio Doce de Leite").</p>
-              <div class="etq-termos-chips">
-                <span v-for="termo in (company.etiquetas_termos_excluidos || [])" :key="termo" class="etq-termo-chip">
-                  {{ termo }}
-                  <button @click="removerTermoExcluido(termo)"><i class="fas fa-xmark"></i></button>
-                </span>
-                <p v-if="!(company.etiquetas_termos_excluidos || []).length" class="hint">Nenhuma palavra bloqueada.</p>
-              </div>
-              <div class="etq-termo-add">
-                <input v-model="novoTermoExcluido" class="input" placeholder="Ex: trufa, ovo, mini..." @keyup.enter="adicionarTermoExcluido" />
-                <button class="btn btn-secondary btn-sm" @click="adicionarTermoExcluido"><i class="fas fa-plus"></i></button>
-              </div>
-
-              <div v-if="receitasExcluidasEtiqueta.length" class="section-label mt-16"><i class="fas fa-eye-slash"></i> Receitas escondidas pelo filtro</div>
-              <p v-if="receitasExcluidasEtiqueta.length" class="hint mb-8">Marque para forçar a aparecer na lista mesmo batendo numa palavra bloqueada.</p>
-              <div v-if="receitasExcluidasEtiqueta.length" class="etq-receitas-list">
-                <div v-for="r in receitasExcluidasEtiqueta" :key="r.uuid" class="etq-receita-item etq-receita-oculta">
-                  <button class="etq-receita-nome" @click="alternarExcecaoReceita(r)">
-                    <i class="fas" :class="(company.etiquetas_excecoes_incluir || []).includes(r.uuid) ? 'fa-square-check' : 'fa-square'"></i>
-                    <span>{{ r.nome }}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+            <p class="hint mt-12">Para mostrar ou esconder uma receita aqui, ajuste “Usar em etiquetas” no cadastro da receita.</p>
           </div>
 
           <!-- ════════════════ PASSO 2 — POSIÇÃO NA FOLHA ════════════════ -->
-          <div v-if="passoAtual === 2" class="etq-passo">
+          <div v-if="passoAtual === 2 && !folhaCheiaSelecionada" class="etq-passo">
             <p class="hint mb-12">Diga ao sistema onde, na folha física, as próximas etiquetas devem ser impressas.</p>
 
             <!-- Seletor de modo: cartões grandes, fácil de tocar -->
@@ -128,7 +96,7 @@
               </div>
             </div>
 
-            <p v-if="modoManual" class="hint mb-8 mt-16">Toque nas células vazias para marcar onde imprimir. As etiquetas da sua lista são distribuídas na ordem em que você for marcando.</p>
+            <p v-if="modoManual" class="hint mb-8 mt-16">Marque exatamente {{ totalEtiquetasSelecionadas }} posição{{ totalEtiquetasSelecionadas > 1 ? 'ões' : '' }} na folha. As etiquetas da sua lista são distribuídas na ordem em que você for marcando.</p>
 
             <!-- Preview da folha -->
             <div class="etq-preview-wrap">
@@ -163,10 +131,10 @@
                 </div>
               </div>
 
-              <div v-if="modoManual && posicoesManualMarcadas.size" class="etq-resumo etq-resumo-manual">
+              <div v-if="modoManual" class="etq-resumo etq-resumo-manual">
                 <i class="fas fa-circle-info"></i>
-                {{ posicoesManualMarcadas.size }} posiç{{ posicoesManualMarcadas.size > 1 ? 'ões marcadas' : 'ão marcada' }}
-                <button class="etq-limpar-marcas" @click="posicoesManualMarcadas.clear()">Limpar</button>
+                {{ posicoesManualMarcadas.size }} / {{ totalEtiquetasSelecionadas }} posiç{{ totalEtiquetasSelecionadas > 1 ? 'ões marcadas' : 'ão marcada' }}
+                <button v-if="posicoesManualMarcadas.size" class="etq-limpar-marcas" @click="posicoesManualMarcadas.clear()">Limpar</button>
               </div>
             </div>
           </div>
@@ -190,7 +158,7 @@
               </div>
               <div class="etq-resumo-card-total">
                 <span><i class="fas fa-tags"></i> {{ totalEtiquetasSelecionadas }} etiqueta{{ totalEtiquetasSelecionadas > 1 ? 's' : '' }}</span>
-                <span>{{ modoManual ? `${posicoesManualMarcadas.size} posição marcada` : `${totalFolhasEtiqueta} folha${totalFolhasEtiqueta > 1 ? 's' : ''}` }}</span>
+                <span>{{ folhaCheiaSelecionada ? '1 folha completa' : (modoManual ? `${posicoesManualMarcadas.size} posição marcada` : `${totalFolhasEtiqueta} folha${totalFolhasEtiqueta > 1 ? 's' : ''}`) }}</span>
               </div>
             </div>
 
@@ -219,7 +187,7 @@
 <script setup>
 import { ref, reactive, watch, computed } from 'vue'
 import { useStore } from '../store.js'
-import { normalizar, textoEtiquetaReceita } from '../utils.js'
+import { textoEtiquetaReceita } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { gerarArquivoEtiquetas } from '../composables/useEtiquetas.js'
 
@@ -242,27 +210,51 @@ const passoAtual = ref(1)
 const passoMaximoAlcancado = ref(1)
 
 function irParaPasso(n) {
+  if (folhaCheiaSelecionada.value && n === 2) return
   if (n <= passoMaximoAlcancado.value) passoAtual.value = n
 }
 
 function avancarPasso() {
   if (!podeAvancar.value) return
+  if (passoAtual.value === 1 && folhaCheiaSelecionada.value) {
+    modoManual.value = false
+    posicoesManualMarcadas.clear()
+    company.posicao_etiqueta = 1
+    passoAtual.value = 3
+    passoMaximoAlcancado.value = 3
+    return
+  }
   passoAtual.value = Math.min(3, passoAtual.value + 1)
   passoMaximoAlcancado.value = Math.max(passoMaximoAlcancado.value, passoAtual.value)
 }
 
 const podeAvancar = computed(() => {
   if (passoAtual.value === 1) return totalEtiquetasSelecionadas.value > 0
-  if (passoAtual.value === 2) return modoManual.value ? posicoesManualMarcadas.size > 0 : true
+  if (passoAtual.value === 2) return modoManual.value ? posicoesManualMarcadas.size === totalEtiquetasSelecionadas.value : true
   return true
 })
 
 // ── Etiquetas ──────────────────────────────────────────────────
 const etqQtds = reactive({})
-const novoTermoExcluido = ref('')
-const mostrarConfigFiltro = ref(false)
 const mostrarLegenda = ref(false)
 const folhaPreviewAtual = ref(1)
+const ETIQUETAS_POR_FOLHA = 77
+
+function limitarQtdEtiqueta(valor) {
+  return Math.min(ETIQUETAS_POR_FOLHA, Math.max(0, Number.parseInt(valor, 10) || 0))
+}
+
+function selecionarFolhaSabor(texto) {
+  etqQtds[texto] = Number(etqQtds[texto] || 0) > 0 ? 0 : ETIQUETAS_POR_FOLHA
+}
+
+function ajustarQtdEtiqueta(texto, delta) {
+  etqQtds[texto] = limitarQtdEtiqueta(Number(etqQtds[texto] || 0) + delta)
+}
+
+function atualizarQtdEtiquetaManual(texto, valor) {
+  etqQtds[texto] = limitarQtdEtiqueta(valor)
+}
 
 // ── Modo manual: marcação individual de posições na folha ──
 const modoManual = ref(false)
@@ -275,18 +267,14 @@ function definirModo(manual) {
   posicoesManualMarcadas.clear()
 }
 
-function ehComponenteInterno(r) {
-  if ((company.etiquetas_excecoes_incluir || []).includes(r.uuid)) return false
-  if (r.eh_intermediaria) return true
-  const nome = normalizar(r.nome || '')
-  const termos = company.etiquetas_termos_excluidos || []
-  return termos.some(termo => termo.trim() && nome.includes(normalizar(termo)))
+function usaEtiqueta(r) {
+  return r.usar_em_etiquetas ?? !Number(r.eh_intermediaria)
 }
 
 const receitasParaEtiqueta = computed(() => {
   const vistos = new Map()
   const ordenadas = [...s.receitas]
-    .filter(r => !ehComponenteInterno(r))
+    .filter(usaEtiqueta)
     .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
   for (const r of ordenadas) {
     const texto = textoEtiquetaReceita(r)
@@ -296,13 +284,6 @@ const receitasParaEtiqueta = computed(() => {
   return [...vistos.entries()]
     .map(([texto, r]) => ({ ...r, _textoSabor: texto }))
     .sort((a, b) => a._textoSabor.localeCompare(b._textoSabor))
-})
-
-const receitasExcluidasEtiqueta = computed(() => {
-  const vistas = new Set(receitasParaEtiqueta.value.map(r => r.uuid))
-  return [...s.receitas]
-    .filter(r => !vistas.has(r.uuid) && !r.eh_intermediaria)
-    .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
 })
 
 // ── Pré-seleção vinda de Produção (botão "Etiqueta" num lote/produção) ──
@@ -316,16 +297,16 @@ function aplicarPreSelecao(preSelecao) {
     // Garante que o sabor exista na lista visível (pode estar filtrado/escondido)
     const existe = receitasParaEtiqueta.value.some(r => r._textoSabor === texto)
     if (!existe) continue
-    etqQtds[texto] = Number(qtd) || 1
+    etqQtds[texto] = limitarQtdEtiqueta(qtd || 1)
     algumEncontrado = true
   }
 
   s.etiquetasPreSelecao = null // consome o sinal — não reaplica em próximas visitas
 
   if (algumEncontrado) {
-    // Pula direto para o passo de Posição, já que os sabores vieram prontos
-    passoMaximoAlcancado.value = 2
-    passoAtual.value = 2
+    // Se já ocupa uma folha inteira, não precisa escolher posição.
+    passoMaximoAlcancado.value = folhaCheiaSelecionada.value ? 3 : 2
+    passoAtual.value = folhaCheiaSelecionada.value ? 3 : 2
   } else {
     s.notify('Não foi possível localizar os sabores dessa produção na lista de etiquetas. Verifique o filtro de palavras bloqueadas.', 'error')
   }
@@ -337,6 +318,10 @@ watch(() => s.etiquetasPreSelecao, (val) => {
 
 const totalEtiquetasSelecionadas = computed(() =>
   Object.values(etqQtds).reduce((acc, q) => acc + (Number(q) || 0), 0)
+)
+
+const folhaCheiaSelecionada = computed(() =>
+  totalEtiquetasSelecionadas.value === ETIQUETAS_POR_FOLHA
 )
 
 const receitasComQtd = computed(() =>
@@ -354,6 +339,7 @@ const listaEtiquetasPlana = computed(() => {
 })
 
 const totalFolhasEtiqueta = computed(() => {
+  if (folhaCheiaSelecionada.value) return 1
   const startPos = Math.max(0, (Number(company.posicao_etiqueta || 1) || 1) - 1)
   return Math.max(1, Math.ceil((startPos + totalEtiquetasSelecionadas.value) / 77))
 })
@@ -383,7 +369,7 @@ function toggleCelulaManual(cel) {
 }
 
 const podeGerar = computed(() =>
-  modoManual.value ? posicoesManualMarcadas.size > 0 : totalEtiquetasSelecionadas.value > 0
+  modoManual.value ? posicoesManualMarcadas.size === totalEtiquetasSelecionadas.value : totalEtiquetasSelecionadas.value > 0
 )
 
 const celulasPreview = computed(() => {
@@ -436,31 +422,6 @@ watch([() => company.posicao_etiqueta, totalEtiquetasSelecionadas], () => {
   if (!modoManual.value) folhaPreviewAtual.value = 1
 })
 
-function adicionarTermoExcluido() {
-  const termo = novoTermoExcluido.value.trim().toLowerCase()
-  if (!termo) return
-  if (!company.etiquetas_termos_excluidos) company.etiquetas_termos_excluidos = []
-  if (!company.etiquetas_termos_excluidos.includes(termo)) {
-    company.etiquetas_termos_excluidos.push(termo)
-    s.saveCompany({ ...company })
-  }
-  novoTermoExcluido.value = ''
-}
-
-function removerTermoExcluido(termo) {
-  company.etiquetas_termos_excluidos = (company.etiquetas_termos_excluidos || []).filter(t => t !== termo)
-  s.saveCompany({ ...company })
-}
-
-function alternarExcecaoReceita(r) {
-  const lista = company.etiquetas_excecoes_incluir || []
-  company.etiquetas_excecoes_incluir = lista.includes(r.uuid)
-    ? lista.filter(id => id !== r.uuid)
-    : [...lista, r.uuid]
-  s.saveCompany({ ...company })
-}
-
-
 function resetarWizard() {
   passoAtual.value = 1
   passoMaximoAlcancado.value = 1
@@ -471,7 +432,7 @@ async function gerarEtiquetasAvulsas() {
 
   // ── Modo manual: gera a partir das posições marcadas no preview ──
   if (modoManual.value) {
-    if (!posicoesManualMarcadas.size) return
+    if (posicoesManualMarcadas.size !== totalEtiquetasSelecionadas.value) return
 
     const posicoesOrdenadas = [...posicoesManualMarcadas.keys()]
     const etiquetas = listaEtiquetasPlana.value
@@ -499,8 +460,8 @@ async function gerarEtiquetasAvulsas() {
   const etiquetas = listaEtiquetasPlana.value
   if (!etiquetas.length) return
 
-  let startPos = Math.max(0, (Number(company.posicao_etiqueta || 1) || 1) - 1)
-  if (startPos > 0) {
+  let startPos = folhaCheiaSelecionada.value ? 0 : Math.max(0, (Number(company.posicao_etiqueta || 1) || 1) - 1)
+  if (!folhaCheiaSelecionada.value && startPos > 0) {
     const continuar = await confirmar.ask(
       `A próxima etiqueta livre é a ${startPos + 1}. Toque em "Continuar" para reaproveitar a folha atual ou em "Nova folha" para recomeçar da primeira etiqueta.`,
       {
@@ -561,56 +522,34 @@ async function gerarEtiquetasAvulsas() {
 .etq-passo-nav .btn { flex: 1; }
 .btn-full { width: 100%; }
 
-/* ── Sabores: grade de botões grandes (mesmo padrão do "toque rápido" da
-   Cozinha), + lista dos selecionados com o controle de quantidade ── */
-.etq-sabores-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px;
-  max-height: 42vh; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 2px;
+/* ── Sabores: lista no mesmo ritmo dos itens planejados da Cozinha ── */
+.etq-sabores-list {
+  display:flex; flex-direction:column; gap:8px;
+  max-height:50vh; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:2px;
 }
-.etq-sabor-btn {
-  position: relative; background: var(--surface); border: 1.5px solid var(--border);
-  border-radius: var(--r-md); padding: 16px 10px; min-height: 64px;
-  display: flex; align-items: center; justify-content: center; text-align: center;
-  box-shadow: var(--shadow-sm); cursor: pointer; user-select: none; -webkit-touch-callout: none;
-  transition: border-color var(--t), background var(--t);
+.etq-sabor-row {
+  background:#fff; border:1px solid var(--border); border-radius:var(--r-md);
+  padding:10px 12px; display:flex; justify-content:space-between; align-items:center; gap:10px;
+  cursor:pointer; user-select:none; -webkit-touch-callout:none; transition:background var(--t), border-color var(--t);
 }
-.etq-sabor-btn:active { transform: scale(.97); }
-.etq-sabor-btn--ativo { border-color: var(--brown); background: var(--gold-bg); }
-.etq-sabor-nome { font-size: .85rem; font-weight: 700; color: var(--text); line-height: 1.25; }
-.etq-sabor-btn--ativo .etq-sabor-nome { color: var(--brown-dark); }
-.etq-sabor-badge {
-  position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 5px;
-  border-radius: 11px; background: var(--brown); color: #fff; font-size: .68rem; font-weight: 800;
-  display: flex; align-items: center; justify-content: center; pointer-events: none;
-  box-shadow: 0 1px 3px rgba(61,32,8,.25);
+.etq-sabor-row:active { background:var(--gold-bg); transform:scale(.99); }
+.etq-sabor-row--ativo { border-color:var(--gold-dark); background:var(--gold-bg); }
+.etq-sabor-info { flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
+.etq-sabor-nome {
+  font-weight:700; font-size:.9rem; color:var(--brown);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%;
 }
-
-.etq-selecionados-list { display: flex; flex-direction: column; gap: 6px; }
-.etq-selecionado-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 8px 8px 8px 12px; border: 1px solid var(--border); border-radius: var(--r-md);
-  background: var(--surface);
+.badge-shortcut {
+  padding:2px 10px; border-radius:var(--r-full); background:var(--gold-bg); border:1px solid #e8d5a0;
+  color:var(--gold-dark); font-size:.68rem; font-weight:700; white-space:nowrap;
 }
-.etq-selecionado-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .83rem; font-weight: 600; color: var(--text); }
-.etq-selecionado-remover {
-  width: 30px; height: 30px; border-radius: 50%; border: none; background: transparent;
-  color: var(--muted); font-size: .8rem; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; flex-shrink: 0;
-}
-.etq-selecionado-remover:active { background: #fff5f5; color: var(--red, #dc2626); }
-
-.etq-receitas-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.etq-receita-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--r-md);
-  background: var(--surface); transition: border-color var(--t), background var(--t);
-}
-.etq-receita-item.ativa { border-color: var(--brown); background: var(--gold-bg); }
-.etq-receita-nome { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; border: none; background: transparent; text-align: left; padding: 0; font-size: .85rem; font-weight: 500; color: var(--text); }
-.etq-receita-nome i { color: var(--muted); font-size: 1rem; flex-shrink: 0; }
-.etq-receita-item.ativa .etq-receita-nome i { color: var(--brown); }
-.etq-receita-nome span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.etq-qtd-ctrl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.qty-ctrl-sm { display:flex; align-items:center; gap:12px; background:var(--bg); border-radius:20px; padding:4px; border:1px solid var(--border); flex-shrink:0; }
+.btn-qty-sm { border:none; background:#fff; width:32px; height:32px; border-radius:50%; font-size:1.2rem; font-weight:bold; color:var(--gold-dark); box-shadow:var(--shadow-sm); cursor:pointer; }
+.btn-qty-sm:disabled { opacity:.35; cursor:default; }
+.qty-input-cozinha { width:60px; border:none; background:#fff; border-radius:4px; text-align:center; font-family:var(--mono); font-weight:800; font-size:1.1rem; color:var(--brown-dark); padding:0; appearance:none; -moz-appearance:textfield; }
+.qty-input-cozinha::-webkit-outer-spin-button,
+.qty-input-cozinha::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.qty-input-cozinha:focus { outline:none; }
 
 /* ── Cartões de modo (passo 2) ── */
 .etq-modo-cards { display: flex; gap: 10px; }
@@ -673,21 +612,6 @@ async function gerarEtiquetasAvulsas() {
 .etq-cel-selecionada { background: var(--brown-dark); border: .5px solid var(--brown-dark); }
 .etq-cel-inicio { background: var(--gold); border: 1.5px solid var(--gold-dark); }
 .etq-cel-txt { font-size: 5px; color: #fff; text-align: center; line-height: 1.1; padding: 1px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
-
-.etq-config-toggle { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--brown-dark); font-size: .8rem; font-weight: 600; }
-.etq-config-toggle i:first-child { color: var(--brown-mid); }
-.etq-config-toggle span { flex: 1; text-align: left; }
-.etq-config-toggle i:last-child { color: var(--muted); font-size: .7rem; }
-
-.etq-config-painel { margin-top: 10px; padding: 12px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--cream); }
-.etq-termos-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.etq-termo-chip { display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 10px; border-radius: var(--r-full); background: var(--surface); border: 1px solid var(--border); font-size: .76rem; font-weight: 600; color: var(--text); }
-.etq-termo-chip button { color: var(--muted); font-size: .68rem; padding: 2px; }
-.etq-termo-chip button:active { color: #a32d2d; }
-.etq-termo-add { display: flex; gap: 6px; }
-.etq-termo-add .input { flex: 1; }
-.etq-receita-oculta { opacity: .85; }
-.etq-receita-oculta .etq-receita-nome i { color: var(--muted); }
 
 .input-with-icon { position: relative; }
 .input-with-icon i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .85rem; }
