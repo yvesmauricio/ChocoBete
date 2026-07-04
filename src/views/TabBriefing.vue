@@ -180,7 +180,7 @@
 <script setup>
 import { ref, computed, reactive, onUnmounted } from 'vue'
 import { useStore } from '../store.js'
-import { fmtQtd as fmtQ, normalizar, isInsumoOculto } from '../utils.js'
+import { fmtQtd as fmtQ, normalizar } from '../utils.js'
 
 const s = useStore()
 
@@ -280,7 +280,7 @@ const ingredientesAgrupados = computed(() => {
     const mapa = s.getProductionIngredients(pseudo, fator)
     for (const key in mapa) {
       const ing = mapa[key]
-      if (isInsumoOculto(ing.nome)) continue
+      if (ing.oculto) continue
       if (!acum[key]) {
         acum[key] = { ...ing, nome: (ing.tipo === 'receita' ? '🥣 ' : '') + ing.nome, total: 0, subIngredientes: [] }
       }
@@ -305,7 +305,7 @@ function ingredientesReceita(item) {
   const pseudo = { eh_intermediaria: item.eh_intermediaria, ingredientes: item.ingredientes }
   const mapa = s.getProductionIngredients(pseudo, fator)
   return Object.values(mapa)
-    .filter(i => !isInsumoOculto(i.nome))
+    .filter(i => !i.oculto)
     .map(i => ({ ...i, nome: (i.tipo === 'receita' ? '🥣 ' : '') + i.nome,
       total: i.unidade === 'un' ? Math.ceil(i.total - 0.001) : i.total }))
     .sort((a, b) => a.nome.localeCompare(b.nome))

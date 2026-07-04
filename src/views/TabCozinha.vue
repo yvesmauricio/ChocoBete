@@ -252,7 +252,7 @@
 import '../assets/checklist.css'
 import { ref, computed, reactive, watch, nextTick, onUnmounted, onMounted, inject } from 'vue'
 import { useStore } from '../store.js'
-import { fmtQtd as fmtQ, getNowLocal, normalizar, isInsumoOculto, dataHoraBR } from '../utils.js' // Corrected import
+import { fmtQtd as fmtQ, getNowLocal, normalizar, dataHoraBR } from '../utils.js' // Corrected import
 import { useConfirm } from '../composables/useConfirm.js'
 
 const s = useStore()
@@ -623,7 +623,7 @@ function calcularIngredientesItem(item) {
   
   const mapa = s.getProductionIngredients(pseudoRecipe, fator);
   return Object.values(mapa)
-    .filter(ing => !isInsumoOculto(ing.nome))
+    .filter(ing => !ing.oculto)
     .map(ing => ({
       ...ing,
       nome: (ing.tipo === 'receita' ? '🥣 ' : '') + ing.nome,
@@ -645,7 +645,7 @@ const ingredientesAgrupados = computed(() => {
       const ing = prodIngredients[key];
 
       // Filtra insumos ocultos antes de acumular
-      if (isInsumoOculto(ing.nome)) continue;
+      if (ing.oculto) continue;
 
       if (!acumulador[key]) {
         acumulador[key] = { 

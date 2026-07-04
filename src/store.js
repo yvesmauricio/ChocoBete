@@ -12,7 +12,7 @@ import {
   getBackupTimestamp,
   getBackupBakTimestamp
 } from './services/googleDriveBackup.js'
-import { isInsumoSemPeso, normalizar, getMesRef, dataHoraBR } from './utils.js'
+import { isProdutoEmbalagem, normalizar, getMesRef, dataHoraBR } from './utils.js'
 
 export const useStore = defineStore('choco', () => {
 
@@ -55,7 +55,8 @@ export const useStore = defineStore('choco', () => {
     isRunning: false,
     startTime: null, // Date.now()
     accumulatedMs: 0,
-    activeLoteId: null // ID do grupo (data_producao)
+    activeLoteId: null, // ID do grupo (data_producao)
+    dataInicioReal: null // Horário real (ISO) em que o timer foi acionado pela 1ª vez neste lote
   })
 
   const activeLoteName = computed(() => {
@@ -1543,6 +1544,12 @@ async function registrarProducaoFantasma(dados) {
     if (timer.value.activeLoteId !== loteId) {
       // Se mudou de lote, reseta o anterior
       timer.value.accumulatedMs = 0
+      timer.value.dataInicioReal = null
+    }
+    // Só marca o "início real" na primeira vez que o play é acionado para este lote.
+    // Pausas/retomadas seguintes não sobrescrevem esse horário.
+    if (!timer.value.dataInicioReal) {
+      timer.value.dataInicioReal = new Date().toISOString()
     }
     timer.value.activeLoteId = loteId
     timer.value.startTime = Date.now()
@@ -1576,6 +1583,7 @@ async function registrarProducaoFantasma(dados) {
 
     if (loteId && totalMin > 0) {
       await atualizarLoteProducao(loteId, {
+        data_inicio: timer.value.dataInicioReal || undefined,
         data_fim: new Date().toISOString(),
         tempo_real_min: totalMin
       })
@@ -1585,7 +1593,7 @@ async function registrarProducaoFantasma(dados) {
   }
 
   function resetTimer() {
-    timer.value = { isRunning: false, startTime: null, accumulatedMs: 0, activeLoteId: null }
+    timer.value = { isRunning: false, startTime: null, accumulatedMs: 0, activeLoteId: null, dataInicioReal: null }
     configSet('active_timer', null)
     clearInterval(tickerId); tickerId = null
   }
@@ -1837,10 +1845,15 @@ async function registrarProducaoFantasma(dados) {
 
       const key = `${ing.tipo}-${ing.id}`
       if (!mapa[key]) {
+        // Prioridade: escolha manual (gera_peso) > tipo cadastrado do produto > heurística por nome (legado)
+        const oculto = ing.gera_peso === false
+          ? true
+          : (ing.tipo === 'produto' ? isProdutoEmbalagem(alvo) : false)
         mapa[key] = {
           id: ing.id, tipo: ing.tipo, nome: alvo.nome, total: 0,
           unidade: ing.tipo === 'receita' ? alvo.unidade_rendimento : alvo.unidade_base,
-          subIngredientes: []
+          subIngredientes: [],
+          oculto
         }
       }
       mapa[key].total += qtdEscalada
@@ -1852,7 +1865,11 @@ async function registrarProducaoFantasma(dados) {
           const subAlvo = sub.tipo === 'receita' 
             ? receitas.value.find(x => x.uuid === sub.id) 
             : produtos.value.find(p => p.uuid === sub.id)
-          if (!subAlvo || isInsumoSemPeso(subAlvo.nome)) return
+          if (!subAlvo) return
+          const subOculto = sub.gera_peso === false
+            ? true
+            : (sub.tipo !== 'receita' && isProdutoEmbalagem(subAlvo))
+          if (subOculto) return
 
           const existingSub = mapa[key].subIngredientes.find(s => s.id === sub.id)
           if (existingSub) {
@@ -1977,10 +1994,14 @@ async function registrarProducaoFantasma(dados) {
         ? receitas.value.find(x => x.uuid === ing.id)
         : produtos.value.find(x => x.uuid === ing.id)
 
-      // Prioridade total à escolha manual (gera_peso), senão fallback por tipo/nome
-      let soma = ing.gera_peso ?? true
-      if (alvo?.tipo === 'embalagem') soma = false // Embalagens não somam peso
-      if (alvo && isInsumoSemPeso(alvo.nome)) soma = false
+      // Prioridade total à escolha manual (gera_peso); senão, tipo cadastrado do produto;
+      // heurística por nome só como último recurso (produtos legados sem `tipo` definido)
+      let soma
+      if (ing.gera_peso !== undefined && ing.gera_peso !== null) {
+        soma = ing.gera_peso
+      } else {
+        soma = !isProdutoEmbalagem(alvo)
+      }
 
       if (!soma) return acc
 

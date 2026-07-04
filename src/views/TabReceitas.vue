@@ -527,7 +527,7 @@
 <script setup>
 import { ref, computed, reactive, watch, nextTick, onMounted, onUnmounted, inject } from 'vue'
 import { useStore } from '../store.js';
-import { R$, normalizar, getNowLocal, maskMoney, parseMoney, isInsumoSemPeso } from '../utils.js';
+import { R$, normalizar, getNowLocal, maskMoney, parseMoney, isProdutoEmbalagem } from '../utils.js';
 import BaseModal from '../components/BaseModal.vue'
 import AppListRow from '../components/AppListRow.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
@@ -980,7 +980,7 @@ function selecionarItem(item) {
   const ing = form.ingredientes[pickerIndex.value]
   ing.id = item.id; ing.tipo = item.tipo
   // Define o padrão automaticamente: embalagens e itens com nomes específicos começam desativados
-  ing.gera_peso = item.tipo !== 'embalagem' && !isInsumoSemPeso(item.nome)
+  ing.gera_peso = !isProdutoEmbalagem(item)
   
   fecharPicker()
   restoreAndFocusIngrediente(pickerIndex.value)

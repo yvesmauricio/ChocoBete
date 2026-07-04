@@ -211,6 +211,20 @@ export const isInsumoSemPeso = (nome) => {
 /** @alias isInsumoSemPeso — mesmo critério, nome usado em contexto de pesagem/cozinha */
 export const isInsumoOculto = isInsumoSemPeso
 
+/**
+ * Decide se um produto é embalagem (não deve contar no peso/pesagem).
+ * Prioriza o campo `tipo` cadastrado no produto (fonte confiável);
+ * só recorre à busca por palavra-chave no nome quando o produto não tem
+ * `tipo` definido (dado legado), para evitar falsos positivos como
+ * "Leite Condensado Caixa" (ingrediente, mas o nome contém "caixa").
+ */
+export const isProdutoEmbalagem = (produto) => {
+  if (!produto) return false
+  if (produto.tipo === 'embalagem') return true
+  if (produto.tipo === 'insumo') return false
+  return isInsumoSemPeso(produto.nome)
+}
+
 // Data ISO para datetime-local input
 export const getNowLocal = () => {
   const now = new Date();
