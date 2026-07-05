@@ -106,6 +106,40 @@
             </button>
           </div>
 
+          <div class="section-label mt-24"><i class="fas fa-tags"></i> Categorias de Lançamento</div>
+          <p class="hint mt-4 mb-12">
+            São as categorias que aparecem ao editar um lançamento. Os nomes aqui
+            já batem com o que a importação de extratos usa automaticamente —
+            se você editar um nome, os lançamentos antigos com aquela categoria
+            são atualizados junto.
+          </p>
+
+          <div v-for="grupo in gruposCategorias" :key="grupo.nome" class="contas-list mb-16">
+            <p class="hint" style="font-weight:800; text-transform:uppercase; font-size:.7rem; letter-spacing:.05em;">{{ grupo.nome }}</p>
+            <div v-for="cat in grupo.categorias" :key="cat.nome" class="conta-item">
+              <div class="conta-icon">
+                <i class="fas" :class="cat.icon || 'fa-tag'"></i>
+              </div>
+              <div class="conta-info">
+                <strong>{{ cat.nome }}</strong>
+                <span>{{ labelNaturezaCategoria(cat.natureza) }}</span>
+              </div>
+              <div class="conta-item-acts">
+                <button class="btn-action-edit" title="Editar categoria" @click="abrirModalCategoria(cat)"><i class="fas fa-pencil"></i></button>
+                <button class="btn-action-del" title="Excluir categoria" @click="confirmarExclusaoCategoria(cat)"><i class="fas fa-trash-alt"></i></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="fg-row mt-8">
+            <button class="btn-add-outline" style="flex:2" @click="abrirModalCategoria(null)">
+              <i class="fas fa-plus"></i> Nova Categoria
+            </button>
+            <button class="btn-add-outline" @click="confirmarRestaurarCategorias">
+              <i class="fas fa-rotate-left"></i> Restaurar Padrão
+            </button>
+          </div>
+
           <div class="section-label mt-24"><i class="fas fa-sack-dollar"></i> Metas e Parâmetros</div>
           <div class="form-grid mt-12">
             <div class="fg">
@@ -353,6 +387,40 @@
         <button class="btn btn-primary" :disabled="!formConta.nome" @click="salvarConta">Salvar</button>
       </template>
     </BaseModal>
+
+    <BaseModal v-if="modalCategoria" :title="formCategoria.nomeOriginal ? 'Editar Categoria' : 'Nova Categoria'" @close="modalCategoria = false">
+      <div class="form-section">
+        <div class="fg">
+          <label class="label">Nome</label>
+          <input v-model="formCategoria.nome" class="input" placeholder="Ex: Insumos e Matéria-Prima" />
+        </div>
+        <div class="fg">
+          <label class="label">Grupo</label>
+          <input v-model="formCategoria.grupo" class="input" placeholder="Ex: Negócio" list="grupos-categoria" />
+          <datalist id="grupos-categoria">
+            <option v-for="g in gruposCategorias" :key="g.nome" :value="g.nome" />
+          </datalist>
+        </div>
+        <div class="fg">
+          <label class="label">Natureza</label>
+          <select v-model="formCategoria.natureza" class="input">
+            <option value="entrada">Entrada (receita)</option>
+            <option value="operacional">Operacional (custo do negócio)</option>
+            <option value="pessoal">Pessoal</option>
+            <option value="interna">Interna (transferência)</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="label">Ícone <span class="label-opt">(Font Awesome, opcional)</span></label>
+          <input v-model="formCategoria.icon" class="input" placeholder="Ex: fa-cookie" />
+        </div>
+      </div>
+      <template #foot>
+        <div class="spacer"></div>
+        <button class="btn btn-secondary" @click="modalCategoria = false">Cancelar</button>
+        <button class="btn btn-primary" :disabled="!formCategoria.nome" @click="salvarCategoriaModal">Salvar</button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -442,6 +510,56 @@ async function salvarCaderneta() {
 function save() {
   s.saveCompany({ ...company })
   s.notify('Alterações salvas com sucesso!')
+}
+
+// ── Categorias Financeiras ──
+const gruposCategorias = computed(() => {
+  const map = new Map()
+  s.categoriasFinanceiro.forEach(cat => {
+    if (!map.has(cat.grupo)) map.set(cat.grupo, { nome: cat.grupo, categorias: [] })
+    map.get(cat.grupo).categorias.push(cat)
+  })
+  return [...map.values()]
+})
+
+function labelNaturezaCategoria(natureza) {
+  return { entrada: 'Entrada', operacional: 'Operacional', pessoal: 'Pessoal', interna: 'Interna' }[natureza] || natureza
+}
+
+const modalCategoria = ref(false)
+const formCategoria = reactive({ nomeOriginal: null, nome: '', grupo: 'Negócio', natureza: 'operacional', icon: '' })
+
+function abrirModalCategoria(cat = null) {
+  if (cat) {
+    Object.assign(formCategoria, { nomeOriginal: cat.nome, nome: cat.nome, grupo: cat.grupo, natureza: cat.natureza, icon: cat.icon || '' })
+  } else {
+    Object.assign(formCategoria, { nomeOriginal: null, nome: '', grupo: 'Negócio', natureza: 'operacional', icon: '' })
+  }
+  modalCategoria.value = true
+}
+
+async function salvarCategoriaModal() {
+  await s.salvarCategoriaFinanceiro(
+    { nome: formCategoria.nome.trim(), grupo: formCategoria.grupo.trim() || 'Negócio', natureza: formCategoria.natureza, icon: formCategoria.icon.trim() },
+    formCategoria.nomeOriginal
+  )
+  modalCategoria.value = false
+}
+
+async function confirmarExclusaoCategoria(cat) {
+  const ok = await confirmar.ask(
+    `Deseja remover a categoria "${cat.nome}"? Lançamentos que já usam essa categoria serão movidos para "Outras Despesas"/"Outras Receitas" (nada é apagado).`,
+    { title: 'Remover Categoria', confirmLabel: 'Remover', type: 'danger' }
+  )
+  if (ok) await s.excluirCategoriaFinanceiro(cat.nome)
+}
+
+async function confirmarRestaurarCategorias() {
+  const ok = await confirmar.ask(
+    'Isso substitui suas categorias personalizadas pela lista padrão do app. Lançamentos existentes não são apagados, mas podem ficar com uma categoria que não existe mais na lista até você reclassificá-los. Continuar?',
+    { title: 'Restaurar Categorias Padrão', confirmLabel: 'Restaurar', type: 'warning' }
+  )
+  if (ok) await s.restaurarCategoriasFinanceiroPadrao()
 }
 
 async function removerConta(idx) {

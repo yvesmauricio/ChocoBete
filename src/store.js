@@ -275,26 +275,46 @@ export const useStore = defineStore('choco', () => {
   // Transferências entre contas PRÓPRIAS (Itaú→PagBank ou PagBank→Itaú):
   //   natureza 'interna' → excluída dos totais de receita e despesa.
 
-  const CATEGORIAS_MEI = [
+  // Lista PADRÃO de fábrica. Os nomes aqui são EXATAMENTE os mesmos usados
+  // em classificarLancamentoFinanceiro() (a lógica de importação) — assim,
+  // um lançamento importado sempre aparece com a categoria certa já marcada
+  // ao abrir "Editar Lançamento". Se você mudar algo aqui, mude também lá.
+  const CATEGORIAS_MEI_PADRAO = [
     // ── RECEITAS ──────────────────────────────────────────────
-    { nome: 'Vendas',            natureza: 'entrada',      grupo: 'Receitas', icon: 'fa-arrow-trend-up' },
-    { nome: 'Rendimentos',       natureza: 'entrada',      grupo: 'Receitas', icon: 'fa-piggy-bank' },
-    { nome: 'Outras entradas',   natureza: 'entrada',      grupo: 'Receitas', icon: 'fa-plus-circle' },
+    { nome: 'Receita de Vendas',      natureza: 'entrada',      grupo: 'Receitas', icon: 'fa-arrow-trend-up' },
+    { nome: 'Rendimento Financeiro',  natureza: 'entrada',      grupo: 'Receitas', icon: 'fa-piggy-bank' },
+    { nome: 'Outras Receitas',        natureza: 'entrada',      grupo: 'Receitas', icon: 'fa-plus-circle' },
 
     // ── CUSTOS DO NEGÓCIO ─────────────────────────────────────
-    { nome: 'Ingredientes',           natureza: 'operacional', grupo: 'Negócio', icon: 'fa-cookie' },
-    { nome: 'Embalagens',             natureza: 'operacional', grupo: 'Negócio', icon: 'fa-box' },
-    { nome: 'Transporte e entregas',  natureza: 'operacional', grupo: 'Negócio', icon: 'fa-car' },
-    { nome: 'DAS-MEI e taxas',        natureza: 'operacional', grupo: 'Negócio', icon: 'fa-file-invoice-dollar' },
-    { nome: 'Outros custos',          natureza: 'operacional', grupo: 'Negócio', icon: 'fa-receipt' },
+    { nome: 'Insumos e Matéria-Prima', natureza: 'operacional', grupo: 'Negócio', icon: 'fa-cookie' },
+    { nome: 'Embalagens e Materiais',  natureza: 'operacional', grupo: 'Negócio', icon: 'fa-box' },
+    { nome: 'Transporte e Entrega',    natureza: 'operacional', grupo: 'Negócio', icon: 'fa-car' },
+    { nome: 'Impostos e Contribuições',natureza: 'operacional', grupo: 'Negócio', icon: 'fa-file-invoice-dollar' },
+    { nome: 'Tarifas Bancárias',       natureza: 'operacional', grupo: 'Negócio', icon: 'fa-building-columns' },
+    { nome: 'Manutenção e Reparos',    natureza: 'operacional', grupo: 'Negócio', icon: 'fa-screwdriver-wrench' },
+    { nome: 'Serviços e Assinaturas',  natureza: 'operacional', grupo: 'Negócio', icon: 'fa-rectangle-list' },
+    { nome: 'Outras Despesas',         natureza: 'operacional', grupo: 'Negócio', icon: 'fa-receipt' },
 
     // ── PESSOAL ───────────────────────────────────────────────
-    { nome: 'Retirada (pró-labore)', natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-user-tie' },
-    { nome: 'Despesas pessoais',     natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-house' },
+    { nome: 'Renda Pessoal',           natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-hand-holding-dollar' },
+    { nome: 'Pró-labore / Retirada',   natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-user-tie' },
+    { nome: 'Moradia',                 natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-house' },
+    { nome: 'Condomínio',              natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-building' },
+    { nome: 'Energia Elétrica',        natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-bolt' },
+    { nome: 'Gás',                     natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-fire' },
+    { nome: 'Internet e Telefonia',    natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-wifi' },
+    { nome: 'Alimentação Pessoal',     natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-utensils' },
+    { nome: 'Saúde e Bem-Estar',       natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-heart-pulse' },
+    { nome: 'Vestuário e Compras',     natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-shirt' },
+    { nome: 'Compras no Débito',       natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-credit-card' },
+    { nome: 'Lazer e Outros Pessoais', natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-mask' },
 
     // ── ESPECIAL ──────────────────────────────────────────────
     { nome: 'Transferência Interna', natureza: 'interna', grupo: 'Especial', icon: 'fa-arrow-right-arrow-left' },
   ];
+
+  // Lista efetiva (padrão + personalizações salvas pelo usuário em Configurações)
+  const categoriasFinanceiro = ref(CATEGORIAS_MEI_PADRAO.map(c => ({ ...c })))
 
   // Termos que identificam remetente/destinatário como conta própria
   const TERMOS_CONTA_PROPRIA = [
@@ -444,7 +464,7 @@ export const useStore = defineStore('choco', () => {
 
     // ── 0. Prioridade para Notas Fiscais (Importação de Compras) ──
     if (tipoNorm === 'nota fiscal') {
-      return { categoria: 'Insumos: Chocolate e Bases', natureza: 'operacional' }
+      return { categoria: 'Insumos e Matéria-Prima', natureza: 'operacional' }
     }
 
     // ── 1. Transferência de saída entre contas próprias ──────
@@ -770,14 +790,18 @@ export const useStore = defineStore('choco', () => {
     await garantirPersistencia()
     loading.value = true
     try {
-      const [p, r, pr, fin, cfg, contasCfg] = await Promise.all([
+      const [p, r, pr, fin, cfg, contasCfg, categoriasCfg] = await Promise.all([
         db.produtos.toArray(),
         db.receitas.toArray(),
         db.producoes.toArray(), // Carrega todas as produções para o resumoProducaoPorMes
         db.financeiro.orderBy('data').reverse().toArray(),
         configGet('company'),
-        configGet('contas_financeiras')
+        configGet('contas_financeiras'),
+        configGet('categorias_financeiro')
       ])
+      if (Array.isArray(categoriasCfg) && categoriasCfg.length) {
+        categoriasFinanceiro.value = categoriasCfg
+      }
       produtos.value = p
       receitas.value = r.map(receita => ({
         ...receita,
@@ -1227,7 +1251,7 @@ async function registrarProducaoFantasma(dados) {
       ...lancamento,
       ...dadosAtualizacao,
       natureza: dadosAtualizacao.categoria
-        ? (CATEGORIAS_MEI.find(c => c.nome === dadosAtualizacao.categoria)?.natureza ?? lancamento.natureza)
+        ? (categoriasFinanceiro.value.find(c => c.nome === dadosAtualizacao.categoria)?.natureza ?? lancamento.natureza)
         : (dadosAtualizacao.natureza ?? lancamento.natureza),
       editado_manualmente: true
     }
@@ -1241,7 +1265,7 @@ async function registrarProducaoFantasma(dados) {
     if (!ids.length) return
     const lancamentos = await db.financeiro.where('id').anyOf(ids).toArray()
     const naturezaCategoria = dadosAtualizacao.categoria
-      ? (CATEGORIAS_MEI.find(c => c.nome === dadosAtualizacao.categoria)?.natureza ?? null)
+      ? (categoriasFinanceiro.value.find(c => c.nome === dadosAtualizacao.categoria)?.natureza ?? null)
       : null
     const atualizados = lancamentos.map(item => ({
       ...item,
@@ -1794,6 +1818,95 @@ async function registrarProducaoFantasma(dados) {
     agendarSync()
   }
 
+  // ── CATEGORIAS FINANCEIRAS (edição/lista de lançamentos) ──────
+  // OBS: isso só afeta como os lançamentos são rotulados e organizados
+  // no app (não tem relação com mes_ref nem com nada usado no relatório
+  // fiscal/MEI, que continua fixo por data e mês-calendário).
+
+  /**
+   * Cria uma nova categoria ou edita uma existente (passe `nomeOriginal`
+   * para editar). Se o nome for alterado, todos os lançamentos que já
+   * usavam o nome antigo são atualizados automaticamente para o novo nome
+   * — assim nada fica "órfão" ou deixa de aparecer marcado na edição.
+   */
+  async function salvarCategoriaFinanceiro(dados, nomeOriginal = null) {
+    const nova = {
+      nome: String(dados.nome || '').trim(),
+      natureza: dados.natureza || 'operacional',
+      grupo: dados.grupo || 'Negócio',
+      icon: dados.icon || 'fa-tag'
+    }
+    if (!nova.nome) return
+
+    const lista = categoriasFinanceiro.value.slice()
+    const idxExistenteMesmoNome = lista.findIndex(c => c.nome === nova.nome && c.nome !== nomeOriginal)
+    if (idxExistenteMesmoNome !== -1) {
+      notify('Já existe uma categoria com esse nome.', 'error')
+      return
+    }
+
+    if (nomeOriginal) {
+      const idx = lista.findIndex(c => c.nome === nomeOriginal)
+      if (idx !== -1) lista[idx] = nova
+      else lista.push(nova)
+    } else {
+      lista.push(nova)
+    }
+    categoriasFinanceiro.value = lista
+    await configSet('categorias_financeiro', lista)
+
+    // Renomeou? Atualiza os lançamentos antigos para o novo nome/natureza.
+    if (nomeOriginal && nomeOriginal !== nova.nome) {
+      const afetados = financeiro.value.filter(item => item.categoria === nomeOriginal)
+      if (afetados.length) {
+        const atualizados = afetados.map(item => ({ ...item, categoria: nova.nome, natureza: nova.natureza }))
+        await db.financeiro.bulkPut(atualizados)
+        financeiro.value = await db.financeiro.orderBy('data').reverse().toArray()
+        notify(`Categoria renomeada! ${afetados.length} lançamento(s) atualizado(s).`)
+      } else {
+        notify('Categoria salva!')
+      }
+    } else {
+      notify('Categoria salva!')
+    }
+    agendarSync()
+  }
+
+  /**
+   * Remove uma categoria da lista. Lançamentos que já usavam essa
+   * categoria NÃO são apagados — passam a usar "Outras Despesas" ou
+   * "Outras Receitas" (conforme a natureza), pra continuar visíveis e
+   * editáveis.
+   */
+  async function excluirCategoriaFinanceiro(nome) {
+    const cat = categoriasFinanceiro.value.find(c => c.nome === nome)
+    if (!cat) return
+
+    categoriasFinanceiro.value = categoriasFinanceiro.value.filter(c => c.nome !== nome)
+    await configSet('categorias_financeiro', categoriasFinanceiro.value)
+
+    const afetados = financeiro.value.filter(item => item.categoria === nome)
+    if (afetados.length) {
+      const substituta = cat.natureza === 'entrada' ? 'Outras Receitas' : 'Outras Despesas'
+      const naturezaSubstituta = cat.natureza === 'entrada' ? 'entrada' : 'operacional'
+      const atualizados = afetados.map(item => ({ ...item, categoria: substituta, natureza: naturezaSubstituta }))
+      await db.financeiro.bulkPut(atualizados)
+      financeiro.value = await db.financeiro.orderBy('data').reverse().toArray()
+      notify(`Categoria removida. ${afetados.length} lançamento(s) movido(s) para "${substituta}".`)
+    } else {
+      notify('Categoria removida!')
+    }
+    agendarSync()
+  }
+
+  /** Restaura a lista de categorias para o padrão de fábrica. */
+  async function restaurarCategoriasFinanceiroPadrao() {
+    categoriasFinanceiro.value = CATEGORIAS_MEI_PADRAO.map(c => ({ ...c }))
+    await configSet('categorias_financeiro', categoriasFinanceiro.value)
+    notify('Categorias restauradas para o padrão!')
+    agendarSync()
+  }
+
   // ── LÓGICA DE NEGÓCIO (Cálculos de Custos e Pesos) ───────────
 
   /** Custo por unidade de medida (ex: preço por grama) */
@@ -2275,6 +2388,6 @@ async function registrarProducaoFantasma(dados) {
 
     // Helpers e Constantes
     getContaFinanceiraById, getContasFinanceirasPorBanco,
-    CATEGORIAS_MEI
+    categoriasFinanceiro, salvarCategoriaFinanceiro, excluirCategoriaFinanceiro, restaurarCategoriasFinanceiroPadrao
   }
 })

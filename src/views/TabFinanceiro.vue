@@ -1067,7 +1067,7 @@ const filtrosBanco = computed(() => {
 const categoriasParaFiltro = computed(() =>
   [
     { value: '', label: 'Todas' },
-    ...s.CATEGORIAS_MEI
+    ...s.categoriasFinanceiro
       .map(cat => ({ value: cat.nome, label: cat.nome }))
       .sort((a, b) => a.label.localeCompare(b.label))
   ]
@@ -1075,7 +1075,7 @@ const categoriasParaFiltro = computed(() =>
 
 const gruposCategoriasFiltro = computed(() => {
   const map = new Map()
-  s.CATEGORIAS_MEI.forEach(cat => {
+  s.categoriasFinanceiro.forEach(cat => {
     if (!map.has(cat.grupo)) map.set(cat.grupo, { nome: cat.grupo, categorias: [] })
     map.get(cat.grupo).categorias.push(cat)
   })

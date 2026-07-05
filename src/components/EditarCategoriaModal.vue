@@ -99,7 +99,7 @@ const mesmaDescricaoRelacionados = computed(() => {
 
 const gruposOrdenados = computed(() => {
   const map = new Map()
-  for (const cat of s.CATEGORIAS_MEI) {
+  for (const cat of s.categoriasFinanceiro) {
     if (!map.has(cat.grupo)) map.set(cat.grupo, { nome: cat.grupo, natureza: cat.natureza, categorias: [] })
     map.get(cat.grupo).categorias.push(cat)
   }
