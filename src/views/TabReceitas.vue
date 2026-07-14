@@ -17,6 +17,21 @@
         <input v-model="busca" class="search-input" type="search" placeholder="Buscar receita…" />
       </div>
       <CategoryFilter v-model="categoriaAtiva" :items="categoriasFiltro" />
+      <div class="tamanho-seg-wrap">
+        <div class="tamanho-seg">
+          <button
+            v-for="opt in tamanhoOpcoes"
+            :key="opt.value"
+            class="tamanho-seg-btn"
+            :class="[{ active: tamanhoAtivo === opt.value }, opt.value]"
+            @click="tamanhoAtivo = opt.value"
+          >
+            <i :class="opt.icon"></i>
+            <span>{{ opt.label }}</span>
+            <span v-if="opt.value !== 'todos'" class="tamanho-seg-count">{{ contagemPorTamanho[opt.value] }}</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <section class="tab-content">
@@ -726,11 +741,44 @@ const categoryMap = categoriasFiltro.reduce((acc, cat) => {
   return acc
 }, {})
 
-const { busca, categoriaAtiva, listaFiltrada } = useListFilter(
+const { busca, categoriaAtiva, listaFiltrada: listaFiltradaPorCategoria } = useListFilter(
   computed(() => s.receitas.map(r => ({ ...r, tipo: r.eh_intermediaria ? 'Base' : r.categoria }))),
   categoryMap,
   'Trufa'
 )
+
+// Filtro adicional: Padrão x Festa, para não misturar as duas variantes na
+// mesma listagem. Usa o campo `tamanho` (já existente, preenchido por
+// duplicarComoTamanhoFesta) em vez de depender de categoria.
+const tamanhoOpcoes = [
+  { value: 'todos',  label: 'Todas',  icon: 'fas fa-layer-group' },
+  { value: 'padrao', label: 'Padrão', icon: 'fas fa-cookie-bite' },
+  { value: 'festa',  label: 'Festa',  icon: 'fas fa-champagne-glasses' },
+]
+const tamanhoAtivo = ref('todos')
+
+function ehFesta(r) {
+  return normalizar(r.tamanho) === 'festa'
+}
+
+const listaFiltrada = computed(() => {
+  if (tamanhoAtivo.value === 'todos') return listaFiltradaPorCategoria.value
+  if (tamanhoAtivo.value === 'festa') {
+    return listaFiltradaPorCategoria.value.filter(ehFesta)
+  }
+  // 'padrao' = qualquer receita sem tamanho "Festa" (inclui as sem tamanho definido)
+  return listaFiltradaPorCategoria.value.filter(r => !ehFesta(r))
+})
+
+// Contagem por opção, respeitando a categoria/busca já ativas — assim o
+// segmented control sempre mostra números coerentes com o que está visível.
+const contagemPorTamanho = computed(() => {
+  const total = listaFiltradaPorCategoria.value
+  return {
+    festa:  total.filter(ehFesta).length,
+    padrao: total.filter(r => !ehFesta(r)).length,
+  }
+})
 
 const mediaTempoRealProducao = computed(() => {
   return form.uuid ? s.getMediaTempoReceita(form.uuid) : 0
@@ -1416,6 +1464,68 @@ async function excluirDireto(r) {
 
 <style scoped>
 .tab-content { padding-top: 12px; }
+
+/* ── Segmented control: Todas / Padrão / Festa ── */
+.tamanho-seg-wrap {
+  padding: 2px 16px 12px;
+  background: var(--surface);
+}
+.tamanho-seg {
+  display: flex; gap: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  padding: 3px;
+}
+.tamanho-seg-btn {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px 10px;
+  border: none; border-radius: var(--r-full);
+  background: transparent; color: var(--muted);
+  font-size: .76rem; font-weight: 700;
+  cursor: pointer; transition: all .18s var(--t-spring, ease);
+  white-space: nowrap;
+}
+.tamanho-seg-btn i { font-size: .78rem; opacity: .75; }
+.tamanho-seg-btn:active { transform: scale(.96); }
+
+.tamanho-seg-btn.todos.active {
+  background: var(--brown-dark); color: var(--cream);
+  box-shadow: 0 2px 6px rgba(61,31,7,.25);
+}
+.tamanho-seg-btn.padrao.active {
+  background: var(--gold-dark); color: #fff;
+  box-shadow: 0 2px 6px rgba(163,104,0,.25);
+}
+.tamanho-seg-btn.festa.active {
+  background: var(--purple, #8b5cf6); color: #fff;
+  box-shadow: 0 2px 6px rgba(124,58,237,.3);
+}
+.tamanho-seg-btn.active i { opacity: 1; }
+
+.tamanho-seg-count {
+  font-size: .62rem; font-weight: 800;
+  background: rgba(255,255,255,.28);
+  color: inherit;
+  border-radius: 10px; padding: 1px 6px; line-height: 1.5;
+  min-width: 16px;
+}
+.tamanho-seg-btn:not(.active) .tamanho-seg-count {
+  background: var(--border); color: var(--muted);
+}
+
+/* Badge "Festa" no título da receita, dentro da lista */
+.recipe-tamanho-badge {
+  display: inline-flex; align-items: center;
+  font-size: .62rem; font-weight: 800;
+  color: var(--purple, #8b5cf6);
+  background: var(--purple-bg, #f5f3ff);
+  border-radius: var(--r-full);
+  padding: 1px 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
 
 /* ── Accordion de seções ── */
 .sec-toggle {

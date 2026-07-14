@@ -14,7 +14,7 @@
             <i class="fas fa-clock-rotate-left"></i>
           </button>
         </div>
-        <p class="tab-subtitle">Monte o cardápio a partir das receitas da categoria "Festa" e defina o preço por quantidade</p>
+        <p class="tab-subtitle">Monte o cardápio a partir das receitas no tamanho "Festa" e defina o preço por quantidade</p>
       </div>
 
       <div class="cad-body kf-body">
@@ -51,7 +51,7 @@
         <!-- GRID DE SABORES (seleção rápida, toque pra marcar/desmarcar) -->
         <div v-if="!receitasFiltradas.length" class="cad-empty">
           <div class="cad-empty-ico">🍫</div>
-          <p v-if="!receitasFesta.length">Nenhuma receita na categoria "Festa" ainda. Vá em Receitas → categoria Festa → "Importar de 30g" pra criar a primeira.</p>
+          <p v-if="!receitasFesta.length">Nenhuma receita no tamanho "Festa" ainda. Vá em Receitas, abra uma trufa e toque em "Festa" (no menu de ações) pra criar a primeira.</p>
           <p v-else>Nenhum sabor encontrado.</p>
         </div>
 
@@ -228,7 +228,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useStore } from '../store.js'
-import { R$ } from '../utils.js'
+import { R$, normalizar } from '../utils.js'
 import {
   FAIXAS_PADRAO, PARAMETROS_PADRAO,
   getCustoUnitarioFesta, sugerirFaixasPreco, verificarAlertaPreco,
@@ -261,7 +261,11 @@ const itens = reactive({})
 // Kit Festa agora consome as receitas já materializadas na categoria
 // "Festa" (criadas em Receitas por importação vinculada a partir da receita
 // tradicional) — ingredientes reais, custo sempre vivo, sem conversão no ar.
-const receitasFesta = computed(() => (s.receitas || []).filter(r => r.categoria === 'Festa'))
+// Antes filtrava por r.categoria === 'Festa', mas nenhuma tela do app cria
+// receitas com essa categoria — o botão "Festa" em Receitas só define
+// r.tamanho = 'Festa' (mantendo a categoria original, ex: "Trufa"). Por isso
+// o Kit Festa nunca encontrava as receitas criadas por lá.
+const receitasFesta = computed(() => (s.receitas || []).filter(r => normalizar(r.tamanho) === 'festa'))
 
 const receitasFiltradas = computed(() => {
   const termo = busca.value.trim().toLowerCase()
