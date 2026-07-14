@@ -5,6 +5,10 @@
         <h2 class="tab-title"><i class="fas fa-book-open"></i> Receitas</h2>
         <div class="tab-actions">
           <button class="btn-icon" @click="s.setTab('insumos')" title="Ver Estoque"><i class="fas fa-boxes"></i></button>
+          <button class="btn-icon" @click="rodarAnaliseReceitas" title="Analisar discrepâncias entre receitas">
+            <i class="fas fa-magnifying-glass-chart"></i>
+            <span v-if="alertasAnalise.length" class="badge-alerta">{{ alertasAnalise.length }}</span>
+          </button>
           <button class="btn-icon" @click="gerarRelatorio" title="Gerar Relatório de Receitas"><i class="fas fa-file-pdf"></i></button>
         </div>
       </div>
@@ -25,14 +29,17 @@
           :id="r.uuid"
           @click="abrir(r)"
           :chevron="false"
-          :actions-width="280"
+          :actions-width="ehTrufa(r) ? 350 : 280"
         >
           <template #icon>
             <div class="recipe-icon" :class="r.eh_intermediaria ? 'badge-blue' : 'badge-gold'">
               <i :class="r.eh_intermediaria ? 'fas fa-blender' : 'fas fa-cookie-bite'"></i>
             </div>
           </template>
-          <template #title>{{ r.nome }}</template>
+          <template #title>
+            {{ r.nome }}
+            <span v-if="r.tamanho" class="recipe-tamanho-badge">{{ r.tamanho }}<template v-if="r.peso_unitario"> · {{ r.peso_unitario }}g</template></span>
+          </template>
           <template #sub>
             <span class="recipe-price">Venda: {{ R$(r.preco_sugerido || 0) }}</span>
             <span class="ing-dot">•</span>
@@ -53,6 +60,10 @@
             <button class="swipe-btn copy" @click="duplicarReceita(r)">
               <i class="fas fa-copy"></i>
               <span>Copiar</span>
+            </button>
+            <button v-if="ehTrufa(r)" class="swipe-btn festa" @click="duplicarComoTamanhoFesta(r)">
+              <i class="fas fa-champagne-glasses"></i>
+              <span>Festa</span>
             </button>
             <button class="swipe-btn share" @click="compartilharReceita(r)">
               <i class="fas fa-share-nodes"></i>
@@ -167,6 +178,15 @@
         </div>
 
         <div class="fg">
+          <label class="label">Tamanho / Variante <span class="label-opt">(opcional — ex: Festa, Mini, Padrão)</span></label>
+          <input v-model="form.tamanho" class="input" type="text" placeholder="Deixe em branco para o tamanho padrão" />
+          <div class="hint">
+            Use quando existir mais de um tamanho do mesmo sabor (ex: Trufa 30g "Padrão" e Trufa 19g "Festa").
+            Receitas com tamanhos diferentes são comparadas separadamente na Análise de Receitas.
+          </div>
+        </div>
+
+        <div class="fg">
           <label class="label">Tempo de Preparo Total (minutos)</label>
           <input v-model.number="form.tempo_preparo_min" class="input" type="number" inputmode="numeric" placeholder="Soma: Ativo + Passivo + Limpeza" />
           <div class="hint">Ex: 150 para 2h30. O custo da mão de obra será calculado sobre este tempo.</div>
@@ -258,7 +278,7 @@
           <div v-for="(ing, i) in form.ingredientes" :key="ing._key" class="ing-row-slim">
           <SwipeRow
             :row-id="ing._key"
-            :width="118"
+            :width="177"
           >
             <div
               class="ing-row-content"
@@ -278,6 +298,7 @@
               >
                 <span class="ing-ico-sm">{{ ing.tipo === 'receita' ? '🥣' : '📦' }}</span>
                 <span class="ing-name-txt">{{ getNomeIng(ing) || 'Selecionar…' }}</span>
+                <span v-if="ing.papel" class="ing-papel-chip" :class="`chip-${ing.papel}`">{{ ing.papel === 'casca' ? 'Casca' : 'Recheio' }}</span>
               </button>
 
               <!-- Stepper de quantidade -->
@@ -307,6 +328,16 @@
               >
                 <i class="fas fa-balance-scale"></i>
                 <span>{{ ing.gera_peso !== false ? 'Peso' : 'S/ peso' }}</span>
+              </button>
+              <button
+                type="button"
+                class="swipe-action-btn"
+                :class="`swipe-btn-papel-${ing.papel || 'off'}`"
+                @click.stop="ciclarPapel(ing)"
+                title="Marcar se este ingrediente é da Casca ou do Recheio (ajuda a duplicar em outros tamanhos com precisão)"
+              >
+                <i class="fas fa-layer-group"></i>
+                <span>{{ ing.papel === 'casca' ? 'Casca' : (ing.papel === 'recheio' ? 'Recheio' : 'Papel') }}</span>
               </button>
               <button
                 type="button"
@@ -470,6 +501,71 @@
       </div>
     </BaseModal>
 
+    <BaseModal v-if="modal === 'analise-receitas'" title="Análise de Receitas por Categoria" @close="fecharModal">
+      <div class="lc-modal-body analise-receitas">
+        <template v-if="!alertasAnalise.length && !alertasOcultos.length">
+          <div class="analise-vazia">
+            <i class="fas fa-circle-check"></i>
+            <span>Nenhuma discrepância encontrada — pesos e custos das receitas estão coerentes dentro de cada categoria.</span>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="analise-topo">
+            <p class="analise-resumo">
+              {{ alertasAnalise.length }} ponto(s) para revisar, comparando cada receita com as demais da mesma categoria.
+            </p>
+            <button v-if="alertasOcultos.length" class="btn btn-ghost btn-sm" @click="mostrarOcultos = !mostrarOcultos">
+              {{ mostrarOcultos ? 'Ocultar ocultos' : `Ver ocultados (${alertasOcultos.length})` }}
+            </button>
+          </div>
+
+          <div v-if="alertasAnalise.length" class="analise-lista">
+            <div
+              v-for="a in alertasAnalise"
+              :key="a.receitaId + a.tipo + a.titulo"
+              class="analise-item"
+              :class="`gravidade-${a.gravidade}`"
+              @click="abrirReceitaDaAnalise(a.receitaId)"
+            >
+              <div class="analise-item-hdr">
+                <span class="analise-badge" :class="`badge-${a.gravidade}`">
+                  {{ a.gravidade === 'alta' ? 'Atenção' : 'Verificar' }}
+                </span>
+                <span class="analise-categoria">{{ a.categoria }}</span>
+                <button class="btn btn-ghost btn-sm" @click.stop="desconsiderarAviso(a)">Ocultar</button>
+              </div>
+              <div class="analise-item-titulo">{{ a.nome }} — {{ a.titulo }}</div>
+              <div class="analise-item-msg">{{ a.mensagem }}</div>
+            </div>
+          </div>
+
+          <div v-else class="analise-vazia analise-vazia-suave">
+            <i class="fas fa-eye-slash"></i>
+            <span>Todas as discrepâncias desta análise estão ocultas no momento.</span>
+          </div>
+
+          <div v-if="mostrarOcultos && alertasOcultos.length" class="analise-secao-oculta">
+            <div class="analise-secao-titulo">Mensagens ocultas</div>
+            <div
+              v-for="a in alertasOcultos"
+              :key="a.receitaId + a.tipo + a.titulo + '-oculto'"
+              class="analise-item analise-item-oculta"
+              @click="abrirReceitaDaAnalise(a.receitaId)"
+            >
+              <div class="analise-item-hdr">
+                <span class="analise-badge badge-oculta">Oculto</span>
+                <span class="analise-categoria">{{ a.categoria }}</span>
+                <button class="btn btn-secondary btn-sm" @click.stop="restaurarAviso(a)">Mostrar de novo</button>
+              </div>
+              <div class="analise-item-titulo">{{ a.nome }} — {{ a.titulo }}</div>
+              <div class="analise-item-msg">{{ a.mensagem }}</div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </BaseModal>
+
     <BaseModal v-if="modal === 'ingredientes-detalhes'" title="Detalhes dos Ingredientes" @close="fecharModal">
       <div class="modal-inner">
       <div v-if="detalhesIngredientes.length" class="details-list">
@@ -538,6 +634,7 @@ import SwipeRow from '../components/SwipeRow.vue'
 import { useSwipe } from '../composables/useSwipe.js'
 import { useListFilter } from '../composables/useListFilter.js'
 import { gerarRelatorioReceitas } from '../composables/useGerarDocumento.js'
+import { analisarReceitas } from '../composables/useAnaliseReceitas.js'
 
 const s = useStore()
 const { modal, abrirModal, fecharModal } = useModalStack()
@@ -645,6 +742,7 @@ const getEmptyForm = () => ({
   nome_etiqueta: '',
   usar_em_etiquetas: true,
   categoria: '',
+  tamanho: '',
   eh_intermediaria: 0,
   rendimento: null,
   unidade_rendimento: 'un',
@@ -730,6 +828,162 @@ function compartilharReceita(r) {
   } else {
     navigator.clipboard.writeText(msg)
     s.notify('Texto da receita copiado!')
+  }
+}
+
+// Peso-alvo padrão para a variante "Festa" de trufas (12 cavidades por forma).
+// Ajuste aqui se um dia precisar de outro tamanho-alvo por padrão.
+const TAMANHO_FESTA_PESO = 19
+const TAMANHO_FESTA_LABEL = 'Festa'
+
+function ciclarPapel(ing) {
+  // '' (sem papel) → casca → recheio → '' ...
+  ing.papel = ing.papel === 'casca' ? 'recheio' : (ing.papel === 'recheio' ? '' : 'casca')
+}
+
+function ehTrufa(r) {
+  return normalizar(r.categoria).includes('trufa') || normalizar(r.nome).includes('trufa')
+}
+
+// Escala um grupo de ingredientes (ex.: só a casca, ou só o recheio) por `fator`
+// e MUTA `ing.quantidade` de cada um para um valor inteiro, garantindo que a
+// soma final bata exatamente com `alvoGramas` (ex.: 6g de casca, 13g de recheio).
+// Método "maiores restos": arredonda todo mundo para baixo e distribui as
+// unidades que faltam para quem tem a maior parte fracionária — assim nenhum
+// ingrediente fica quebrado (5,91g) e a simetria/soma da receita se mantém.
+// Produtos "contados" (unidade/embalagem, ex.: 1 forminha, 1 saquinho) não
+// entram no rateio — continuam arredondados para cima, como antes.
+function aplicarRateioInteiro(itens, alvoGramas) {
+  const pool = []
+  let pesoJaAlocado = 0
+
+  itens.forEach(({ ing, fator }) => {
+    const orig = Number(ing.quantidade || 0)
+    let contado = false
+    if (ing.tipo === 'produto') {
+      const prod = s.produtos.find(p => p.uuid === ing.id)
+      if (prod && (prod.unidade_base === 'un' || isProdutoEmbalagem(prod))) {
+        contado = true
+        const nova = Math.max(1, Math.ceil(orig * fator))
+        ing.quantidade = nova
+        pesoJaAlocado += prod.peso_unitario ? nova * prod.peso_unitario : 0
+      }
+    }
+    if (!contado) pool.push({ ing, bruto: orig * fator })
+  })
+
+  if (pool.length === 0) return
+
+  const alvoPool = Math.max(0, Math.round(alvoGramas - pesoJaAlocado))
+  const pisos = pool.map(p => Math.floor(p.bruto))
+  const somaPisos = pisos.reduce((a, b) => a + b, 0)
+  let resto = alvoPool - somaPisos
+
+  const ordem = pool
+    .map((p, i) => ({ i, frac: p.bruto - Math.floor(p.bruto) }))
+    .sort((a, b) => b.frac - a.frac)
+
+  const valores = [...pisos]
+  let k = 0
+  while (resto > 0 && k < ordem.length) { valores[ordem[k].i]++; resto--; k++ }
+  k = ordem.length - 1
+  while (resto < 0 && k >= 0) {
+    if (valores[ordem[k].i] > 0) { valores[ordem[k].i]--; resto++ }
+    k--
+  }
+
+  pool.forEach((p, i) => { p.ing.quantidade = valores[i] })
+}
+
+function duplicarComoTamanhoFesta(r) {
+  const pesoAtual = Number(r.peso_unitario) || 0
+  const rendimentoAtual = Number(r.rendimento) || 1
+  const pesoTotalAtual = s.getPesoTotal(r) // peso físico total do lote (casca + recheio)
+
+  const clone = JSON.parse(JSON.stringify(r))
+  clone.uuid = null
+  clone.tamanho = TAMANHO_FESTA_LABEL
+  clone.peso_unitario = TAMANHO_FESTA_PESO
+  clone.nome = `${clone.nome} - ${TAMANHO_FESTA_LABEL} ${TAMANHO_FESTA_PESO}g`
+
+  const ingredientesCasca = (r.ingredientes || []).filter(i => i.papel === 'casca')
+  const ingredientesRecheio = (r.ingredientes || []).filter(i => i.papel !== 'casca')
+  const temCascaMarcada = ingredientesCasca.length > 0
+
+  if (pesoAtual > 0 && pesoTotalAtual > 0 && temCascaMarcada) {
+    // ── Casca e recheio NÃO encolhem na mesma proporção ───────────────────
+    // A casca é uma camada fina (proporcional à ÁREA da trufa); o recheio é
+    // o "miolo" (proporcional ao VOLUME). Numa esfera, área ~ raio² e
+    // volume ~ raio³ — por isso, ao diminuir o peso total, o peso da casca
+    // cai menos que proporcionalmente. Aproximamos isso escalando a casca
+    // por (pesoNovo / pesoAtual) ^ (2/3) e deixando o recheio absorver o
+    // restante do peso da unidade.
+    const pesoCascaAtualTotal = s.getPesoTotal({ ingredientes: ingredientesCasca })
+    const pesoRecheioAtualTotal = s.getPesoTotal({ ingredientes: ingredientesRecheio })
+
+    const cascaPorUnidadeAtual = pesoCascaAtualTotal / rendimentoAtual
+    let cascaPorUnidadeNova = cascaPorUnidadeAtual * Math.pow(TAMANHO_FESTA_PESO / pesoAtual, 2 / 3)
+    // Arredondar a casca para inteiro (ex.: 5.9 -> 6) e ajustar recheio para preservar 19g
+    const cascaPorUnidadeArredondada = Math.round(cascaPorUnidadeNova)
+    cascaPorUnidadeNova = cascaPorUnidadeArredondada
+    const recheioPorUnidadeNova = Math.max(TAMANHO_FESTA_PESO - cascaPorUnidadeNova, 0)
+
+    // Se a receita original é "por unidade" (rendimento = 1), mantemos o
+    // rendimento como 1 e apenas escalamos as quantidades por unidade.
+    // Caso contrário, calculamos quantas unidades "Festa" cabem no lote
+    // total de ingredientes original.
+    const rendimentoNovo = rendimentoAtual === 1
+      ? 1
+      : Math.max(1, Math.round(pesoTotalAtual / TAMANHO_FESTA_PESO))
+    clone.rendimento = rendimentoNovo
+
+    const cascaTotalNova = cascaPorUnidadeNova * rendimentoNovo
+    const recheioTotalNova = recheioPorUnidadeNova * rendimentoNovo
+
+    const fatorCasca = pesoCascaAtualTotal > 0 ? cascaTotalNova / pesoCascaAtualTotal : 1
+    const fatorRecheio = pesoRecheioAtualTotal > 0 ? recheioTotalNova / pesoRecheioAtualTotal : 1
+
+    aplicarRateioInteiro(
+      clone.ingredientes.filter(i => i.papel === 'casca').map(ing => ({ ing, fator: fatorCasca })),
+      cascaTotalNova
+    )
+    aplicarRateioInteiro(
+      clone.ingredientes.filter(i => i.papel !== 'casca').map(ing => ({ ing, fator: fatorRecheio })),
+      recheioTotalNova
+    )
+  } else if (pesoTotalAtual > 0) {
+    // Nenhum ingrediente marcado como "Casca": não dá pra diferenciar casca
+    // de recheio. Se a receita original for "por unidade" (rendimento=1),
+    // fazemos escala uniforme por unidade. Senão, interpretamos os ingredientes
+    // como lote e calculamos o novo rendimento a partir do peso total.
+    if (rendimentoAtual === 1 && pesoAtual > 0) {
+      const fator = TAMANHO_FESTA_PESO / pesoAtual
+      aplicarRateioInteiro(
+        clone.ingredientes.map(ing => ({ ing, fator })),
+        TAMANHO_FESTA_PESO
+      )
+      clone.rendimento = 1
+    } else {
+      clone.rendimento = Math.max(1, Math.round(pesoTotalAtual / TAMANHO_FESTA_PESO))
+    }
+  }
+
+  // Ponto de partida para o preço: mantém a MESMA margem por grama da receita
+  // original — o usuário pode reajustar antes de salvar, usando os botões de markup.
+  clone.preco_sugerido = pesoAtual > 0
+    ? arredondarPrecoSugerido((r.preco_sugerido || 0) * (TAMANHO_FESTA_PESO / pesoAtual))
+    : null
+
+  if (clone.ingredientes) {
+    clone.ingredientes.forEach(i => i._key = Math.random().toString(36).slice(2, 11))
+  }
+
+  Object.assign(form, getEmptyForm())
+  Object.assign(form, clone)
+  abrirModal('receita')
+
+  if (!temCascaMarcada) {
+    s.notify('Nenhum ingrediente estava marcado como "Casca" nesta receita — os valores foram estimados com escala uniforme. Marque a casca (botão "Papel" ao arrastar o ingrediente) para um cálculo mais preciso da próxima vez.', 'warning', 6000)
   }
 }
 
@@ -829,7 +1083,8 @@ const pesoEsperado  = computed(() => (!form.rendimento || !form.peso_unitario) ?
 const diferencaPeso = computed(() => !pesoEsperado.value ? 0 : totalIngredientesG.value - pesoEsperado.value)
 
 function arredondarPrecoSugerido(valor) {
-  return Math.round(valor * 100) / 100
+  // Arredonda para o meio real mais próximo (R$ 0.50)
+  return Math.round(valor * 2) / 2
 }
 
 /* ── Watchers ─────────────────────────────────────────────────── */
@@ -963,7 +1218,7 @@ function limparPrefixoCategoria(nome) {
 
 /* ── Ingredientes ─────────────────────────────────────────────── */
 function addNovoItem() {
-  form.ingredientes.push({ _key: Math.random().toString(36).slice(2, 11), id: '', tipo: 'produto', quantidade: null, gera_peso: true })
+  form.ingredientes.push({ _key: Math.random().toString(36).slice(2, 11), id: '', tipo: 'produto', quantidade: null, gera_peso: true, papel: '' })
   abrirPicker(form.ingredientes.length - 1)
 }
 
@@ -1024,7 +1279,7 @@ function abrir(r) {
   if (r) Object.assign(form, {
     uuid: r.uuid, nome: r.nome, nome_etiqueta: r.nome_etiqueta || '',
     usar_em_etiquetas: r.usar_em_etiquetas ?? !Number(r.eh_intermediaria),
-    categoria: r.categoria, eh_intermediaria: r.eh_intermediaria,
+    categoria: r.categoria, tamanho: r.tamanho || '', eh_intermediaria: r.eh_intermediaria,
     rendimento: r.rendimento, unidade_rendimento: r.unidade_rendimento, peso_unitario: r.peso_unitario,
     preco_sugerido: r.preco_sugerido, modo_preparo: r.modo_preparo, tempo_preparo_min: r.tempo_preparo_min,
     ingredientes: (r.ingredientes || []).map(i => ({ ...i, _key: i.id + Math.random() }))
@@ -1037,6 +1292,47 @@ function abrir(r) {
   abrirModal('receita')
 }
 
+const alertasAnalise = ref([])
+const alertasOcultos = ref([])
+const mostrarOcultos = ref(false)
+const todasAlertasAnalise = ref([])
+
+function chaveAviso(a) {
+  return `${a.receitaId}|${a.tipo}`
+}
+
+function aplicarAlertasAnalise(todas, ignorados = []) {
+  todasAlertasAnalise.value = Array.isArray(todas) ? todas : []
+  const ignoradas = new Set((ignorados || []).filter(Boolean))
+  alertasAnalise.value = todasAlertasAnalise.value.filter(a => !ignoradas.has(chaveAviso(a)))
+  alertasOcultos.value = todasAlertasAnalise.value.filter(a => ignoradas.has(chaveAviso(a)))
+}
+
+async function rodarAnaliseReceitas() {
+  const todas = analisarReceitas(s)
+  mostrarOcultos.value = false
+  try {
+    const ignorados = await s.getAnaliseIgnorados()
+    aplicarAlertasAnalise(todas, ignorados)
+  } catch (e) {
+    aplicarAlertasAnalise(todas, [])
+  }
+  abrirModal('analise-receitas')
+}
+
+function abrirReceitaDaAnalise(receitaId) {
+  const receita = s.receitas.find(r => r.uuid === receitaId)
+  if (!receita) return
+
+  if (modal.value === 'analise-receitas') {
+    fecharModal()
+    setTimeout(() => abrir(receita), 0)
+    return
+  }
+
+  abrir(receita)
+}
+
 function gerarRelatorio() {
   gerarRelatorioReceitas({
     empresa: s.company,
@@ -1044,6 +1340,28 @@ function gerarRelatorio() {
     produtos: s.produtos,
     todasReceitas: s.receitas
   })
+}
+
+async function desconsiderarAviso(a) {
+  try {
+    await s.ignorarAnalise(chaveAviso(a))
+    const ignorados = await s.getAnaliseIgnorados()
+    aplicarAlertasAnalise(todasAlertasAnalise.value, ignorados)
+    s.notify('Aviso ocultado')
+  } catch (e) {
+    s.notify('Falha ao ocultar aviso', 'error')
+  }
+}
+
+async function restaurarAviso(a) {
+  try {
+    await s.desfazerIgnorarAnalise(chaveAviso(a))
+    const ignorados = await s.getAnaliseIgnorados()
+    aplicarAlertasAnalise(todasAlertasAnalise.value, ignorados)
+    s.notify('Aviso restaurado')
+  } catch (e) {
+    s.notify('Falha ao restaurar aviso', 'error')
+  }
 }
 
 /* ── Salvar / Excluir ─────────────────────────────────────────── */
@@ -1206,4 +1524,145 @@ async function excluirDireto(r) {
 .swipe-btn-peso-on:active  { background: #2563eb; }
 .swipe-btn-peso-off:active { background: #e5e7eb; }
 .swipe-btn-del:active      { background: #dc2626; }
+
+.swipe-btn-papel-casca   { background: var(--brown-mid, #92400e); color: #fff; }
+.swipe-btn-papel-recheio { background: var(--pink, #ec4899); color: #fff; }
+.swipe-btn-papel-off     { background: var(--muted-bg, #f3f4f6); color: var(--muted, #9ca3af); }
+
+.ing-papel-chip {
+  font-size: .58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 6px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.ing-papel-chip.chip-casca   { background: var(--brown-mid, #92400e); }
+.ing-papel-chip.chip-recheio { background: var(--pink, #ec4899); }
+
+/* ── Análise de discrepâncias entre receitas ──────────────────── */
+.tab-actions .btn-icon { position: relative; }
+.badge-alerta {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--red, #ef4444);
+  color: #fff;
+  font-size: .62rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+}
+
+.analise-receitas {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.analise-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.analise-vazia {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--green, #16a34a);
+  font-weight: 600;
+  padding: 12px 4px;
+  margin: 0;
+}
+
+.analise-vazia-suave {
+  color: var(--muted, #6b7280);
+}
+
+.analise-resumo {
+  font-size: .85rem;
+  color: var(--muted, #6b7280);
+  margin: 0;
+}
+
+.analise-lista,
+.analise-secao-oculta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.analise-secao-titulo {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-top: 2px;
+}
+
+.analise-item {
+  border: 1px solid var(--border, #e5e7eb);
+  border-left-width: 4px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: var(--surface, #fff);
+  transition: background .15s, border-color .15s;
+}
+.analise-item:active { background: var(--muted-bg, #f3f4f6); }
+.analise-item.gravidade-alta  { border-left-color: var(--red, #ef4444); }
+.analise-item.gravidade-media { border-left-color: var(--amber, #f59e0b); }
+.analise-item-oculta { background: var(--muted-bg, #f9fafb); }
+
+.analise-item-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.analise-badge {
+  font-size: .62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #fff;
+}
+.analise-badge.badge-alta  { background: var(--red, #ef4444); }
+.analise-badge.badge-media { background: var(--amber, #f59e0b); }
+.analise-badge.badge-oculta { background: var(--muted, #6b7280); }
+
+.analise-categoria {
+  font-size: .72rem;
+  color: var(--muted, #6b7280);
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+.analise-item-titulo {
+  font-weight: 700;
+  font-size: .9rem;
+  margin-bottom: 2px;
+  color: var(--brown-dark, #4b2e2e);
+}
+
+.analise-item-msg {
+  font-size: .82rem;
+  color: var(--muted, #6b7280);
+  line-height: 1.35;
+}
 </style>

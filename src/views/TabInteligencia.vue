@@ -746,36 +746,29 @@ async function atualizarPreco() {
 
   // ── IA Consultora ─────────────────────────────────────────────────────────
 
-const promptsIA = [
-  {
-    id: 'precificacao',
-    titulo: 'Análise de Rentabilidade',
-    sub: 'Preço, lucro por produto e retorno pelo esforço',
-    icon: 'fas fa-tag',
-    bg: '#E6F1FB', cor: '#185FA5'
-  },
-  {
-    id: 'lucro',
-    titulo: 'Plano para Aumentar Retirada',
-    sub: 'Como chegar ao pró-labore mensal desejado',
-    icon: 'fas fa-chart-line',
-    bg: '#EAF3DE', cor: '#3B6D11'
-  },
-  {
-    id: 'geral',
-    titulo: 'Diagnóstico Estratégico',
-    sub: 'Finanças, clientes, vendas e próximos passos',
-    icon: 'fas fa-stethoscope',
-    bg: '#EEEDFE', cor: '#3C3489'
-  },
-  {
-    id: 'crescimento',
-    titulo: 'Estratégia de Crescimento',
-    sub: 'Aumentar vendas usando clientes recorrentes',
-    icon: 'fas fa-users',
-    bg: '#FAEEDA', cor: '#854F0B'
-  }
-]
+  const promptsIA = [
+    {
+      id: 'precificacao',
+      titulo: 'Análise de Precificação',
+      sub: 'Margem, preço mínimo e posicionamento',
+      icon: 'fas fa-tag',
+      bg: '#E6F1FB', cor: '#185FA5'
+    },
+    {
+      id: 'lucro',
+      titulo: 'Estratégia de Lucro',
+      sub: 'O que produzir mais para bater a meta',
+      icon: 'fas fa-chart-line',
+      bg: '#EAF3DE', cor: '#3B6D11'
+    },
+    {
+      id: 'geral',
+      titulo: 'Diagnóstico Geral',
+      sub: 'Análise completa do negócio',
+      icon: 'fas fa-stethoscope',
+      bg: '#EEEDFE', cor: '#3C3489'
+    }
+  ]
 
   function buildContexto() {
     const mes = comparativoPorMes.value[0]
@@ -814,130 +807,37 @@ ${comparativoPorMes.value.slice(1, 4).map(m => `  ${m.mes}: esperado R$${m.esper
   function gerarPrompt(id) {
     const ctx = buildContexto()
 
-const prompts = {
-  precificacao: `${ctx}
-
-CONTEXTO IMPORTANTE:
-Sou uma confeitaria artesanal MEI (Chocobete).
-Não produzo estoque: produzo principalmente conforme pedidos de clientes.
-Tenho clientes recorrentes há mais de 5 anos.
-Minha meta é retirar R$${metaSalarioMensal.value.toFixed(2)}/mês da empresa.
+    const prompts = {
+      precificacao: `${ctx}
 
 TAREFA:
-Analise minha precificação considerando:
-- lucro por unidade;
-- tempo de produção;
-- facilidade de venda;
-- recorrência do cliente;
-- impacto no pró-labore.
+Analise a precificação focando na relação entre esforço de produção e lucro.
+- Identifique quais produtos (especialmente trufas e cones) estão com margem baixa (< 35%)
+- Avalie se o volume produzido justifica a margem atual ou se estou "trocando dinheiro"
+- Sugira novos preços de venda para equilibrar o lucro pelo tempo gasto
+- Considere que sou MEI com meta de retirada de R$${metaSalarioMensal.value.toFixed(2)}/mês
+Seja direto e prático, com valores concretos.`,
 
-Não recomende simplesmente remover produtos com margem menor, pois eles podem ser importantes para clientes fiéis.
-
-Quero saber:
-- quais produtos têm melhor relação lucro x tempo;
-- quais produtos merecem ser mais divulgados;
-- quais produtos precisam de reajuste de preço;
-- quais combos ou estratégias de venda aumentariam o ticket médio;
-- quanto cada produto precisa vender para atingir minha meta mensal.
-
-Seja prática, usando valores e exemplos reais.`,
-
-  lucro: `${ctx}
-
-CONTEXTO IMPORTANTE:
-Sou MEI de confeitaria artesanal.
-A venda é principalmente porta a porta.
-Tenho uma base de clientes antigos (mais de 5 anos).
-Minha esposa faz o relacionamento com clientes e eu faço a produção.
-A empresa já separa dinheiro pessoal e empresarial e possui pró-labore.
+      lucro: `${ctx}
 
 TAREFA:
-Analise como aumentar minha retirada mensal para R$${metaSalarioMensal.value.toFixed(2)}.
+Analise minha produção e finanças e me diga como aumentar meu lucro para atingir a meta de R$${metaSalarioMensal.value.toFixed(2)}/mês.
+- Quais produtos devo priorizar (menos esforço, mais lucro)?
+- Identifique "vampiros de tempo": produtos que produzo muito mas que rendem pouco lucro total.
+- Quanto preciso vender a mais dos meus produtos mais rentáveis para compensar os de baixa margem?
+- Sugira uma meta de produção semanal baseada nos itens de melhor retorno.
+Quero um plano de ação prático com números.`,
 
-Considere:
-- faturamento histórico;
-- lucro operacional;
-- margem;
-- quantidade de clientes;
-- ticket médio;
-- frequência de compra.
-
-Quero descobrir:
-- quanto preciso faturar por mês para atingir a retirada;
-- quantas vendas por semana preciso fazer;
-- se devo buscar novos clientes ou aumentar vendas dos clientes atuais;
-- estratégias para aumentar ticket médio sem prejudicar o relacionamento;
-- quais produtos devo incentivar nas vendas.
-
-Monte um plano de ação de 90 dias com metas numéricas.`,
-
-  geral: `${ctx}
-
-CONTEXTO IMPORTANTE:
-Faça uma análise da Chocobete considerando que:
-- sou MEI;
-- venda é porta a porta;
-- tenho clientes recorrentes há mais de 5 anos;
-- produzo conforme pedidos;
-- minha esposa é responsável pelo relacionamento comercial;
-- eu sou responsável pela produção e gestão financeira;
-- objetivo principal é independência financeira e retirada mensal de R$${metaSalarioMensal.value.toFixed(2)}.
+      geral: `${ctx}
 
 TAREFA:
-Faça um diagnóstico completo do negócio.
-
-Avalie:
-1. Saúde financeira:
-- faturamento;
-- lucro operacional;
-- pró-labore;
-- caixa da empresa;
-- capacidade de sustentar uma retirada.
-
-2. Operação:
-- esforço de produção;
-- produtos mais rentáveis;
-- produtos estratégicos para manter clientes;
-- gargalos.
-
-3. Vendas:
-- como aumentar ticket médio;
-- como transformar clientes antigos em compras recorrentes;
-- como criar previsibilidade de receita.
-
-4. Estratégia:
-- o que devo parar de fazer;
-- o que devo começar a fazer;
-- qual meta mensal de faturamento devo buscar;
-- qual caminho mais rápido para deixar de depender de ajuda familiar.
-
-Seja honesta, direta e baseada nos números apresentados.`,
-
-crescimento: `${ctx}
-
-TAREFA:
-Atue como consultora de crescimento para uma confeitaria artesanal MEI com clientes recorrentes.
-
-Meu objetivo não é apenas vender mais, é conseguir uma retirada mensal estável de R$${metaSalarioMensal.value.toFixed(2)}.
-
-Analise:
-- minha carteira atual de clientes;
-- frequência de compra;
-- ticket médio;
-- possibilidade de combos;
-- campanhas para clientes antigos;
-- estratégias de recompra.
-
-Crie um plano para aumentar faturamento sem depender exclusivamente de conquistar novos clientes.
-
-Quero metas semanais:
-- número de contatos;
-- número de pedidos;
-- faturamento esperado;
-- retirada possível.`
-
-
-};
+Faça um diagnóstico completo do meu negócio de confeitaria artesanal como consultora especializada em MEI.
+- Pontos fortes e fracos da operação atual
+- Análise de mix: Onde estou gastando muito esforço (quantidade) e tendo pouco retorno (lucro)?
+- Avalie a rentabilidade real de Trufas e Cones vs. outros produtos.
+- Como melhorar a eficiência bancária (atualmente ${comparativoPorMes.value[0]?.eficiencia ?? 0}%)?
+Seja honesta e direta. Quero saber o que parar de fazer e o que começar a priorizar agora.`
+    }
 
     return prompts[id] || ''
   }

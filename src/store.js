@@ -2348,6 +2348,36 @@ async function registrarProducaoFantasma(dados) {
     })
   })
 
+  // ── Gerenciamento de avisos da Análise de Receitas (ignorados) ──
+  async function getAnaliseIgnorados() {
+    try {
+      const arr = await configGet('analise_ignorados', [])
+      return Array.isArray(arr) ? arr : []
+    } catch (e) {
+      return []
+    }
+  }
+
+  async function setAnaliseIgnorados(arr) {
+    await configSet('analise_ignorados', Array.isArray(arr) ? arr : [])
+  }
+
+  async function ignorarAnalise(chave) {
+    if (!chave) return
+    const arr = await getAnaliseIgnorados()
+    if (!arr.includes(chave)) {
+      arr.push(chave)
+      await setAnaliseIgnorados(arr)
+    }
+  }
+
+  async function desfazerIgnorarAnalise(chave) {
+    if (!chave) return
+    const arr = await getAnaliseIgnorados()
+    const novo = arr.filter(x => x !== chave)
+    await setAnaliseIgnorados(novo)
+  }
+
   return {
     // UI
     tab, loading, toast, etiquetasPreSelecao,
@@ -2357,6 +2387,8 @@ async function registrarProducaoFantasma(dados) {
     // Dados
     produtos, receitas, producoes, financeiro, contasFinanceiras,
     timer, timerDisplay, startTimer, pauseTimer, stopTimer, resetTimer,
+    // Analise de receitas: gerenciamento de ignorados
+    getAnaliseIgnorados, ignorarAnalise, desfazerIgnorarAnalise,
 
     // Config
     company, googleDriveAvailable, googleDriveConfigured, saveCompany, saveContasFinanceiras,

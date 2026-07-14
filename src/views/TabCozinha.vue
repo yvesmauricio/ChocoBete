@@ -405,10 +405,11 @@ function resetTouch() {
 
 function getPassoProducao(r) {
   const nome = normalizar(r.nome)
-  if (nome.includes('trufa')) {
+  const categoria = normalizar(r.categoria)
+  if (nome.includes('trufa') || categoria.includes('trufa')) {
     const peso = Number(r.peso_unitario || 0)
     if (peso >= 30) return 8 // Forma de 8 cavidades
-    if (peso > 0) return 12  // Forma de 12 cavidades (19g ou menor)
+    if (peso > 0) return 12  // Forma de 12 cavidades (19g ou menor — ex: tamanho "Festa")
   }
   return r.rendimento || 1
 }
