@@ -78,12 +78,27 @@ export function montarItensCardapio(receitas, config, { apenasAtivos = true } = 
     .filter(r => !r.eh_intermediaria)
     .map(r => {
       const cfg = getItemConfig(config, r.uuid)
+      const tamanho = String(r.tamanho || '').trim().toLowerCase()
+      const categoriaBase = String(r.categoria || '').trim()
+      const categoriaExibicao = cfg.categoria || (
+        tamanho === 'festa' && /trufa/i.test(categoriaBase)
+          ? 'Festa'
+          : categoriaBase || 'Geral'
+      )
+      const nomeBase = String(r.nome || '').trim()
+      const nomeExibicao = tamanho === 'festa' && /trufa/i.test(categoriaBase)
+        ? nomeBase.replace(/\s*-\s*Festa\s*\d*g$/i, '').trim() || nomeBase
+        : nomeBase
+      const pesoUnitario = Number(r.peso_unitario || 0)
+      const pesoEtiqueta = tamanho === 'festa' && /trufa/i.test(categoriaBase) && pesoUnitario > 0
+        ? `Festa • ${pesoUnitario}g`
+        : ''
       return {
         uuid: r.uuid,
-        nome: r.nome,
-        categoria: cfg.categoria || r.categoria || 'Geral',
+        nome: nomeExibicao,
+        categoria: categoriaExibicao,
         preco: cfg.preco_exibido != null ? Number(cfg.preco_exibido) : Number(r.preco_sugerido || 0),
-        descricao: cfg.descricao || '',
+        descricao: cfg.descricao || pesoEtiqueta,
         emoji: cfg.emoji || '🍫',
         foto: cfg.foto || null,
         destaque: !!cfg.destaque,

@@ -289,8 +289,15 @@
             <span>Toque em <strong>+ Adicionar</strong> para incluir ingredientes ou bases de outras receitas</span>
           </div>
 
-          <div v-if="form.ingredientes.length" class="ing-list-card">
-          <div v-for="(ing, i) in form.ingredientes" :key="ing._key" class="ing-row-slim">
+          <TransitionGroup v-if="form.ingredientes.length" tag="div" name="ing-drag" class="ing-list-card">
+          <div
+            v-for="(ing, i) in form.ingredientes"
+            :key="ing._key"
+            :ref="el => setRowRef(el, i)"
+            class="ing-row-slim"
+            :class="{ 'is-dragging': dragIndex === i }"
+            :style="dragRowStyle(i)"
+          >
           <SwipeRow
             :row-id="ing._key"
             :width="177"
@@ -303,6 +310,21 @@
                 'is-duplicate': ingredienteDuplicado(ing, i)
               }"
             >
+              <button
+                type="button"
+                class="ing-drag-handle"
+                v-if="form.ingredientes.length > 1"
+                title="Arraste para reordenar"
+                @pointerdown="onHandleDown(i, $event)"
+                @pointermove="onHandleMove"
+                @pointerup="onHandleUp"
+                @pointercancel="onHandleUp"
+                @touchstart.stop
+                @click.stop
+              >
+                <span class="ing-drag-dots"><i class="fas fa-grip-vertical"></i></span>
+              </button>
+
               <!-- Nome -->
               <button
                 class="ing-btn-name"
@@ -373,7 +395,7 @@
             </div>
           </div>
 
-          </div><!-- /ing-list-card -->
+          </TransitionGroup><!-- /ing-list-card -->
 
           <button class="btn-add-ing" @click="addNovoItem">
             <i class="fas fa-plus"></i> Adicionar ingrediente
@@ -1278,7 +1300,74 @@ function abrirPicker(idx) {
 function fecharPicker() {
   showPicker.value = false
 }
-function removerIngrediente(idx) { form.ingredientes.splice(idx, 1) }
+function reordenarIngrediente(de, para) {
+  if (para < 0 || para >= form.ingredientes.length || de === para) return
+  const itens = [...form.ingredientes]
+  const [item] = itens.splice(de, 1)
+  itens.splice(para, 0, item)
+  form.ingredientes = itens
+}
+
+// ── Arrastar para reordenar (drag & drop por toque/mouse) ──────
+const rowRefs   = ref([])
+const dragIndex = ref(null)
+const dragY     = ref(0)
+let dragStartY  = 0
+let dragRowTops = []
+let dragRowH    = 56
+
+function setRowRef(el, i) {
+  if (el) rowRefs.value[i] = el
+}
+
+function dragRowStyle(i) {
+  if (dragIndex.value !== i) return {}
+  return { transform: `translateY(${dragY.value}px)`, transition: 'none' }
+}
+
+function onHandleDown(i, e) {
+  if (form.ingredientes.length < 2) return
+  e.stopPropagation()
+  dragIndex.value = i
+  dragY.value = 0
+  dragStartY = e.clientY
+  dragRowTops = rowRefs.value.slice(0, form.ingredientes.length).map(el => el?.getBoundingClientRect().top ?? 0)
+  dragRowH = rowRefs.value[i]?.getBoundingClientRect().height || 56
+  e.target.closest('.ing-drag-handle')?.setPointerCapture?.(e.pointerId)
+  if (navigator.vibrate) navigator.vibrate(8)
+}
+
+function onHandleMove(e) {
+  if (dragIndex.value === null) return
+  dragY.value = e.clientY - dragStartY
+
+  const pointerTop = dragRowTops[0] ?? 0
+  let alvo = Math.round((dragRowTops[dragIndex.value] + dragY.value - pointerTop) / dragRowH)
+  alvo = Math.max(0, Math.min(form.ingredientes.length - 1, alvo))
+
+  if (alvo !== dragIndex.value) {
+    dragStartY += (dragRowTops[alvo] - dragRowTops[dragIndex.value])
+    reordenarIngrediente(dragIndex.value, alvo)
+    dragIndex.value = alvo
+  }
+}
+
+function onHandleUp(e) {
+  if (dragIndex.value === null) return
+  e.target.closest('.ing-drag-handle')?.releasePointerCapture?.(e.pointerId)
+  dragIndex.value = null
+  dragY.value = 0
+}
+async function removerIngrediente(idx) {
+  const ing = form.ingredientes[idx]
+  if (!ing) return
+
+  const nome = getNomeIng(ing) || 'este item'
+  const ok = await confirm.ask(`Remover ${nome} da receita?`, { type: 'danger' })
+  if (!ok) return
+
+  form.ingredientes.splice(idx, 1)
+}
 function selecionarItem(item) {
   const ing = form.ingredientes[pickerIndex.value]
   ing.id = item.id; ing.tipo = item.tipo
@@ -1610,6 +1699,71 @@ async function excluirDireto(r) {
 
 /* ── Swipe de ingredientes ─────────────────────────────────── */
 .ing-row-slim { margin-bottom: 4px; }
+
+/* ── Alça de arrastar (drag handle) ─────────────────────────── */
+.ing-drag-handle {
+  width: 30px;
+  height: 44px;
+  margin-right: 4px;
+  margin-left: -4px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-faint, #b89070);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  padding: 0;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: color .15s, background .15s;
+  border-radius: var(--r-sm, 8px);
+}
+.ing-drag-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 30px;
+  border-radius: 7px;
+  font-size: .82rem;
+  transition: background .15s, color .15s;
+  pointer-events: none;
+}
+.ing-drag-handle:active,
+.ing-row-slim.is-dragging .ing-drag-handle {
+  cursor: grabbing;
+}
+.ing-drag-handle:active .ing-drag-dots,
+.ing-row-slim.is-dragging .ing-drag-dots {
+  background: var(--gold-bg, #fef5e4);
+  color: var(--gold-dark, #a36800);
+}
+
+/* Linha sendo arrastada: destaca-se do resto da lista */
+.ing-row-slim {
+  position: relative;
+}
+.ing-row-slim.is-dragging {
+  z-index: 20;
+  border-radius: var(--r-md, 12px);
+}
+.ing-row-slim.is-dragging .ing-row-content,
+.ing-row-slim.is-dragging .ing-row-meta {
+  background: var(--surface, #fff);
+  box-shadow: var(--shadow-md, 0 4px 20px rgba(61,31,7,.13));
+  border-radius: var(--r-md, 12px);
+}
+.ing-row-slim.is-dragging .swipe-wrap {
+  box-shadow: none !important;
+}
+
+/* Animação de reordenação (as demais linhas "deslizam" para o novo lugar) */
+.ing-drag-move {
+  transition: transform .28s var(--t-spring, cubic-bezier(.34,1.56,.64,1));
+}
 
 .swipe-action-btn {
   display: flex;

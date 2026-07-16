@@ -186,8 +186,16 @@ export const useStore = defineStore('choco', () => {
           db.financeiro.orderBy('data').reverse().toArray(),
           configGet('contas_financeiras')
         ])
+        const receitasCarregadas = (Array.isArray(r) ? r : []).map(normalizarReceitaCarregada)
+        const receitasComAlteracoes = receitasCarregadas.filter((receita, index) => {
+          const original = (Array.isArray(r) ? r : [])[index] || {}
+          return (original.categoria || '') !== (receita.categoria || '') || (original.tamanho || '') !== (receita.tamanho || '')
+        })
+        if (receitasComAlteracoes.length) {
+          await db.receitas.bulkPut(receitasComAlteracoes)
+        }
         produtos.value = p
-        receitas.value = r
+        receitas.value = receitasCarregadas
         producoes.value = pr
         financeiro.value = fin
         contasFinanceiras.value = Array.isArray(contasCfg)
@@ -784,6 +792,37 @@ export const useStore = defineStore('choco', () => {
     if (ms > 0) _toastTimer = setTimeout(() => toast.value = null, ms)
   }
 
+  function inferirCategoriaReceita(receita) {
+    const nome = String(receita?.nome || '')
+    const n = normalizar(nome)
+    if (n.includes('trufa')) return 'Trufa'
+    if (n.includes('cone')) return 'Cone'
+    if (n.includes('barra')) return 'Barra'
+    if (n.includes('brownie')) return 'Brownie'
+    if (n.includes('bolo')) return 'Bolo'
+    if (n.includes('ovo')) return 'Ovo'
+    if (n.includes('recheio')) return 'Base'
+    return ''
+  }
+
+  function normalizarReceitaCarregada(receita) {
+    const categoriaOriginal = String(receita?.categoria || '').trim()
+    const categoriaFinal = categoriaOriginal === 'Festa'
+      ? inferirCategoriaReceita(receita)
+      : (categoriaOriginal === 'Nenhuma' ? '' : categoriaOriginal)
+
+    const tamanhoAtual = String(receita?.tamanho || '').trim()
+    const tamanhoFinal = categoriaOriginal === 'Festa' && !tamanhoAtual
+      ? 'Festa'
+      : tamanhoAtual
+
+    return {
+      ...receita,
+      categoria: categoriaFinal === 'Nenhuma' ? '' : categoriaFinal,
+      tamanho: tamanhoFinal
+    }
+  }
+
   // ── INIT ──────────────────────────────────
   async function init() {
     await migrateLegacyDbIfNeeded()
@@ -799,14 +838,19 @@ export const useStore = defineStore('choco', () => {
         configGet('contas_financeiras'),
         configGet('categorias_financeiro')
       ])
+      const receitasCarregadas = (Array.isArray(r) ? r : []).map(normalizarReceitaCarregada)
+      const receitasComAlteracoes = receitasCarregadas.filter((receita, index) => {
+        const original = (Array.isArray(r) ? r : [])[index] || {}
+        return (original.categoria || '') !== (receita.categoria || '') || (original.tamanho || '') !== (receita.tamanho || '')
+      })
+      if (receitasComAlteracoes.length) {
+        await db.receitas.bulkPut(receitasComAlteracoes)
+      }
       if (Array.isArray(categoriasCfg) && categoriasCfg.length) {
         categoriasFinanceiro.value = categoriasCfg
       }
       produtos.value = p
-      receitas.value = r.map(receita => ({
-        ...receita,
-        categoria: receita.categoria === 'Nenhuma' ? '' : receita.categoria
-      }))
+      receitas.value = receitasCarregadas
       producoes.value = pr
       financeiro.value = fin
       
