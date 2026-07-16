@@ -599,11 +599,24 @@ const producoesFiltradas = computed(() => {
   return s.producoes.filter(p => getMesRef(p.data_producao) === val)
 })
 
+const producoesFinanceiras = computed(() =>
+  producoesFiltradas.value.filter(p => p.gerar_financeiro !== false)
+)
+
 const stats = computed(() => {
   let totalQtd = 0, totalCusto = 0, totalVenda = 0
   const catMap = {}, recMap = {}
 
-  producoesFiltradas.value.forEach(p => {
+  producoesFinanceiras.value.forEach(p => {
+    const r = s.receitas.find(rec => rec.uuid === p.receita_id)
+    if (!r) return
+    const qtd = p.quantidade_produzida || 0
+    if (!r.eh_intermediaria) {
+      totalQtd += qtd
+    }
+  })
+
+  producoesFinanceiras.value.forEach(p => {
     const r = s.receitas.find(rec => rec.uuid === p.receita_id)
     if (!r) return
     const qtd = p.quantidade_produzida || 0
@@ -613,7 +626,7 @@ const stats = computed(() => {
     const pu = p.preco_unitario_snapshot ?? (r.preco_sugerido || 0)
 
     if (!r.eh_intermediaria) {
-      totalQtd += qtd; totalCusto += cu * qtd; totalVenda += pu * qtd
+      totalCusto += cu * qtd; totalVenda += pu * qtd
       catMap[r.categoria || 'Outros'] = (catMap[r.categoria || 'Outros'] || 0) + qtd
     }
     if (!recMap[r.uuid]) recMap[r.uuid] = { nome: r.nome, qtd: 0, custo: 0, venda: 0, unidade: r.unidade_rendimento }

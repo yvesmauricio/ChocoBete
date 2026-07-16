@@ -895,6 +895,7 @@ export function gerarRelatorioProducao({ empresa, grupos, periodo }) {
         <td class="cen">${item.qtd}</td>
         <td class="num">${BRL(item.custo)}</td>
         <td class="num">${BRL(item.venda)}</td>
+        <td class="num">${BRL((item.lucro || 0))}</td>
       </tr>`).join('')
 
     return `
@@ -905,8 +906,9 @@ export function gerarRelatorioProducao({ empresa, grupos, periodo }) {
             <tr>
               <th>Receita</th>
               <th style="width:15%">Qtd</th>
-              <th style="width:20%">Custo Total (R$)</th>
-              <th style="width:20%">Venda Total (R$)</th>
+              <th style="width:18%">Custo Total (R$)</th>
+              <th style="width:18%">Venda Total (R$)</th>
+              <th style="width:18%">Lucro (R$)</th>
             </tr>
           </thead>
           <tbody>
@@ -915,6 +917,7 @@ export function gerarRelatorioProducao({ empresa, grupos, periodo }) {
               <td colspan="2" style="text-align:right">TOTAIS DO LOTE</td>
               <td class="num">${BRL(g.custoTotal)}</td>
               <td class="num">${BRL(g.vendaTotal)}</td>
+              <td class="num">${BRL(g.lucroTotal || ( (g.vendaTotal||0) - (g.custoTotal||0) ))}</td>
             </tr>
           </tbody>
         </table>

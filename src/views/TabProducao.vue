@@ -96,14 +96,15 @@
                 <i class="fas fa-calendar-alt"></i>
                 <span>Data</span>
               </button>
+              <button v-if="grupo.agendado" class="swipe-btn gift" @click="togglePresenteLote(grupo)">
+                <i :class="isGrupoPresente(grupo) ? 'fas fa-rotate-left' : 'fas fa-gift'"></i>
+                <span>{{ isGrupoPresente(grupo) ? 'Reverter' : 'Presentear' }}</span>
+              </button>
               <button class="swipe-btn print" @click="irParaEtiquetas(agruparPorSabor(grupo.itens || []))">
                 <i class="fas fa-tags"></i>
                 <span>Etiquetas</span>
               </button>
-              <button class="swipe-btn share" @click="compartilharLote(grupo)">
-                <i class="fas fa-share-nodes"></i>
-                <span>Enviar</span>
-              </button>
+              <!-- 'Enviar' button removed to give more space for 'Presentear' -->
             </template>
           </SwipeRow>
 
@@ -161,6 +162,10 @@
                   <button class="swipe-btn print" @click="imprimirEtiqueta(p)">
                     <i class="fas fa-tag"></i>
                     <span>Etiqueta</span>
+                  </button>
+                  <button class="swipe-btn info" @click="abrirDetalheCusto(p)">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Custo</span>
                   </button>
                   <button class="swipe-btn del" @click="estornar(p)">
                     <i class="fas fa-trash"></i>
@@ -232,6 +237,55 @@
       </template>
     </BaseModal>
 
+    <!-- Modal: Detalhamento de Custo por Item -->
+    <BaseModal v-if="currentModal === 'detalhe-custo'" title="Detalhamento de Custo" @close="fecharModal">
+      <div class="modal-inner">
+        <div v-if="detalheItem">
+          <div class="form-section">
+            <div class="form-section-label">{{ limpar(detalheItem.nome_receita || detalheItem.receita_nome) }}</div>
+            <div class="fg">
+              <label class="label">Quantidade</label>
+              <div>{{ detalheItem.quantidade_produzida || detalheItem.quantidade }} {{ detalheItem.unidade_rendimento || 'un' }}</div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-label">Ingredientes</div>
+            <div v-if="detalheBreakdown.ingredientes.length" class="details-list">
+              <div v-for="ing in detalheBreakdown.ingredientes" :key="ing.id + '-' + ing.total + '-' + ing.cost" class="details-row">
+                <div class="details-main">
+                  <div class="details-name">{{ ing.nome }}</div>
+                  <div class="details-sub">
+                    {{ fmtQ(ing.total, ing.unidade) }} {{ ing.unidade }} · {{ R$(ing.unitPrice || 0) }} / {{ ing.unidade }}
+                  </div>
+                </div>
+                <div class="details-value">{{ R$(ing.cost || 0) }}</div>
+              </div>
+            </div>
+            <div v-else class="picker-vazio">Nenhum ingrediente encontrado.</div>
+
+            <div class="details-total">
+              <span>Total insumos</span>
+              <strong>{{ R$(detalheBreakdown.ingredientes.reduce((sum, ing) => sum + (ing.cost || 0), 0)) }}</strong>
+            </div>
+            <div v-if="detalheBreakdown.maoDeObra > 0" class="details-total" style="margin-top: 6px; background: var(--surface)">
+              <span>Mão-de-obra</span>
+              <strong>{{ R$(detalheBreakdown.maoDeObra) }}</strong>
+            </div>
+            <div class="details-total" style="margin-top: 6px; background: var(--cream)">
+              <span>Total estimado</span>
+              <strong>{{ R$(detalheBreakdown.total || 0) }}</strong>
+            </div>
+          </div>
+        </div>
+        <div v-else class="picker-vazio">Nenhum item selecionado.</div>
+      </div>
+      <template #foot>
+        <div class="spacer"></div>
+        <button class="btn btn-secondary" @click="fecharModal">Fechar</button>
+      </template>
+    </BaseModal>
+
     <!-- Painel de pesagem consolidado do lote — somente leitura -->
     <Teleport to="body">
       <Transition name="fade">
@@ -255,7 +309,7 @@
                 v-for="item in loteParaPesar.itens"
                 :key="item.uuid || item.receita_id"
                 class="painel-pesar-receita-chip"
-              >{{ item.quantidade_produzida || item.quantidade }}× {{ limpar(item.nome_receita || item.receita_nome) }}</span>
+                  >{{ item.quantidade_produzida || item.quantidade }}× {{ limpar(item.nome_receita || item.receita_nome) }}</span>
             </div>
             <div class="painel-pesar-lista">
               <div
@@ -313,6 +367,66 @@ const confirm = useConfirm()
 
 const formEdicaoLote = reactive({ data_producao_original: '', data_producao: '', data_inicio: '', data_fim: '' })
 
+const detalheItem = ref(null)
+const detalheBreakdown = ref({ ingredientes: [], maoDeObra: 0, total: 0 })
+
+function abrirDetalheCusto(p) {
+  detalheItem.value = p
+  detalheBreakdown.value = calcularBreakdown(p)
+  abrirModal('detalhe-custo')
+}
+
+function calcularBreakdown(p) {
+  const receita = s.receitas.find(r => r.uuid === p.receita_id) || (p.receita_snapshot && p.receita_snapshot)
+  const qtd = Number(p.quantidade_produzida || p.quantidade || 0)
+  if (!receita || qtd <= 0) return { ingredientes: [], maoDeObra: 0, total: 0 }
+
+  const rendimento = Number(receita.rendimento || 1) || 1
+  const fator = qtd / rendimento
+  const pseudoRecipe = { ingredientes: p.ingredientes_snapshot || receita.ingredientes || [] }
+  const mapa = s.getProductionIngredients(pseudoRecipe, fator)
+
+  const ingredientes = []
+  let custoInsumos = 0
+
+  for (const key in mapa) {
+    const entry = mapa[key]
+    if (entry.tipo === 'produto') {
+      const prod = s.produtos.find(x => x.uuid === entry.id)
+      const unitPrice = prod ? s.getPrecoUnitarioInsumo(prod) : 0
+      const cost = unitPrice * (entry.total || 0)
+      ingredientes.push({ id: entry.id, nome: entry.nome, total: entry.total, unidade: entry.unidade, unitPrice, cost })
+      custoInsumos += cost
+      if (entry.subIngredientes?.length) {
+        entry.subIngredientes.forEach(sub => {
+          const prod2 = s.produtos.find(x => x.uuid === sub.id)
+          const up = prod2 ? s.getPrecoUnitarioInsumo(prod2) : 0
+          const c = up * (sub.total || 0)
+          ingredientes.push({ id: sub.id, nome: sub.nome, total: sub.total, unidade: sub.unidade, unitPrice: up, cost: c })
+          custoInsumos += c
+        })
+      }
+    } else if (entry.tipo === 'receita') {
+      // sub-recipe: its direct subIngredientes already provided
+      entry.subIngredientes.forEach(sub => {
+        const prod2 = s.produtos.find(x => x.uuid === sub.id)
+        const up = prod2 ? s.getPrecoUnitarioInsumo(prod2) : 0
+        const c = up * (sub.total || 0)
+        ingredientes.push({ id: sub.id, nome: sub.nome, total: sub.total, unidade: sub.unidade, unitPrice: up, cost: c })
+        custoInsumos += c
+      })
+    }
+  }
+
+  // Mão-de-obra
+  const maoDeObra = (p.tempo_real_min != null && p.tempo_real_min !== undefined)
+    ? s.getCustoMaoDeObra(receita, p.tempo_real_min)
+    : (s.getCustoMaoDeObra(receita) * fator)
+
+  const total = custoInsumos + (maoDeObra || 0)
+  return { ingredientes, maoDeObra, total }
+}
+
 // Converte ISO UTC para string datetime-local (YYYY-MM-DDTHH:MM) no fuso local
 function isoParaLocal(iso) {
   if (!iso) return ''
@@ -359,6 +473,8 @@ function prioridadePesagem(nome) {
   }
   return ORDEM_PESAGEM.length
 }
+
+// formasParaItem logic intentionally removed from TabProducao — kept only in TabCozinha pesagem panel
 
 function abrirPainelPesagem(grupo) {
   loteParaPesar.value = grupo
@@ -534,6 +650,7 @@ const gruposProducao = computed(() => {
     grupo.custoTotal += getCustoProducao(item)
     grupo.vendaTotal += getVendaProducao(item) // Isso pode ser ajustado para usar o preço de venda do snapshot se houver
     grupo.quantidadeTotalNum += Number(item.quantidade_produzida || item.quantidade || 0)
+    grupo.agendado = grupo.agendado || Boolean(item.agendado)
     if (item.eh_intermediaria) grupo.temBase = true
     else grupo.temFinal = true
   }
@@ -671,6 +788,31 @@ async function handleRetomar(grupo) {
   s.retomarLoteNaCozinha(grupo.id)
 }
 
+function isGrupoPresente(grupo) {
+  return Array.isArray(grupo.itens) && grupo.itens.every(item => item.origem === 'bete' && item.gerar_financeiro === false)
+}
+
+async function togglePresenteLote(grupo) {
+  if (!grupo.agendado) return
+
+  const marcado = isGrupoPresente(grupo)
+  const titulo = marcado ? 'Reverter Produção de Presente' : 'Registrar Produção como Presente'
+  const mensagem = marcado
+    ? `Deseja reverter este lote de presente para produção normal? O histórico financeiro voltará a contar como produção comum.`
+    : `Deseja marcar este lote agendado como produção de presente? O estoque continuará a ser baixado, mas ele não será registrado como financeiro.`
+
+  const ok = await confirm.ask(mensagem, {
+    title: titulo,
+    icon: marcado ? 'fas fa-rotate-left' : 'fas fa-gift',
+    confirmLabel: marcado ? 'Reverter' : 'Presentear',
+    type: marcado ? 'secondary' : 'primary'
+  })
+  if (!ok) return
+
+  await s.atualizarLoteFinanceiro(grupo.id, marcado ? true : false)
+  s.notify(marcado ? 'Lote revertido para produção normal.' : 'Lote marcado como produção de presente.')
+}
+
 // Lote já está travado em edição: só volta pra Cozinha, sem perguntar de novo
 function continuarEdicao() {
   s.setTab('cozinha')
@@ -741,10 +883,12 @@ function gerarRelatorio() {
       nome: limpar(p.nome_receita || p.receita_nome),
       qtd: `${p.quantidade_produzida || p.quantidade} ${p.unidade_rendimento || 'un'}`,
       custo: getCustoProducao(p),
-      venda: getVendaProducao(p)
+      venda: getVendaProducao(p),
+      lucro: getVendaProducao(p) - getCustoProducao(p)
     })),
     custoTotal: g.custoTotal,
-    vendaTotal: g.vendaTotal
+    vendaTotal: g.vendaTotal,
+    lucroTotal: (g.vendaTotal || 0) - (g.custoTotal || 0)
   }))
 
   gerarRelatorioProducao({

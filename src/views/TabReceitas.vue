@@ -605,35 +605,36 @@
 
     <BaseModal v-if="modal === 'ingredientes-detalhes'" title="Detalhes dos Ingredientes" @close="fecharModal">
       <div class="modal-inner">
-      <div v-if="detalhesIngredientes.length" class="details-list">
-        <div v-for="item in detalhesIngredientes" :key="item.key" class="details-row">
-          <div class="details-main">
-            <div class="details-name">{{ item.nome }}</div>
-            <div class="details-sub">{{ item.quantidade }}</div>
-          </div>
-          <div class="details-value">{{ item.custo }}</div>
-        </div>
-        
-        <!-- Mão de Obra no detalhamento -->
-        <div v-if="custoMaoDeObraTotal > 0" class="details-row" style="border-color: var(--blue-bg); background: var(--blue-bg)">
-          <div class="details-main">
-            <div class="details-name">Mão de Obra (Tempo de Preparo)</div>
-            <div class="details-sub">{{ form.tempo_preparo_min }} minutos</div>
-          </div>
-          <div class="details-value">{{ R$(custoMaoDeObraTotal) }}</div>
-        </div>
-      </div>
-      <div v-else class="picker-vazio">Nenhum ingrediente adicionado</div>
+        <div class="form-section">
+          <div v-if="detalhesIngredientes.length" class="details-list">
+            <div v-for="item in detalhesIngredientes" :key="item.key" class="details-row">
+              <div class="details-main">
+                <div class="details-name">{{ item.nome }}</div>
+                <div class="details-sub">{{ item.quantidade }}</div>
+              </div>
+              <div class="details-value">{{ item.custo }}</div>
+            </div>
 
-      <div v-if="detalhesIngredientes.length" class="details-total">
-        <span>Total Ingredientes</span>
-        <strong>{{ R$(s.getCustoTotal(form)) }}</strong>
-      </div>
-      <div v-if="custoMaoDeObraTotal > 0" class="details-total" style="margin-top: 6px; background: var(--surface)">
-        <span>Custo Final (com M.O)</span>
-        <strong>{{ R$(s.getCustoTotal(form) + custoMaoDeObraTotal) }}</strong>
-      </div>
+            <!-- Mão de Obra no detalhamento -->
+            <div v-if="custoMaoDeObraTotal > 0" class="details-row" style="border-color: var(--blue-bg); background: var(--blue-bg)">
+              <div class="details-main">
+                <div class="details-name">Mão de Obra (Tempo de Preparo)</div>
+                <div class="details-sub">{{ form.tempo_preparo_min }} minutos</div>
+              </div>
+              <div class="details-value">{{ R$(custoMaoDeObraTotal) }}</div>
+            </div>
+          </div>
+          <div v-else class="picker-vazio">Nenhum ingrediente adicionado</div>
 
+          <div v-if="detalhesIngredientes.length" class="details-total">
+            <span>Total Ingredientes</span>
+            <strong>{{ R$(s.getCustoTotal(form)) }}</strong>
+          </div>
+          <div v-if="custoMaoDeObraTotal > 0" class="details-total" style="margin-top: 6px; background: var(--surface)">
+            <span>Custo Final (com M.O)</span>
+            <strong>{{ R$(s.getCustoTotal(form) + custoMaoDeObraTotal) }}</strong>
+          </div>
+        </div>
       </div>
       <template #foot>
         <div class="spacer"></div>

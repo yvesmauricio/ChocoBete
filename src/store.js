@@ -1607,6 +1607,28 @@ async function registrarProducaoFantasma(dados) {
     await carregarProducoes(0) // Recarrega todas as produções para garantir que a lista esteja atualizada
   }
 
+  async function atualizarLoteFinanceiro(dataProducao, gerarFinanceiro, origem = 'bete') {
+    const itens = producoes.value.filter(p => p.data_producao === dataProducao)
+    if (!itens.length) return
+
+    for (const item of itens) {
+      const atualizado = clean({
+        ...item,
+        gerar_financeiro: gerarFinanceiro,
+        origem: gerarFinanceiro
+          ? (item.origem === 'bete' ? undefined : item.origem)
+          : (item.origem || origem)
+      })
+      await db.producoes.put(atualizado)
+      const idx = producoes.value.findIndex(p => p.uuid === item.uuid)
+      if (idx !== -1) {
+        producoes.value.splice(idx, 1, atualizado)
+      }
+    }
+    agendarSync()
+    await carregarProducoes(0)
+  }
+
   // ── Ações do Cronômetro ───────────────────
   function startTimer(loteId) {
     if (timer.value.activeLoteId !== loteId) {
@@ -2438,7 +2460,7 @@ async function registrarProducaoFantasma(dados) {
     company, googleDriveAvailable, googleDriveConfigured, saveCompany, saveContasFinanceiras,
 
     // Ações
-    init, carregarProducoes, registrarProducao, atualizarLoteProducao, adicionarItensAoLote, editarItemProducao,
+    init, carregarProducoes, registrarProducao, atualizarLoteProducao, atualizarLoteFinanceiro, adicionarItensAoLote, editarItemProducao,
     registrarLoteProducao, estornarProducao, salvarProduto, excluirProduto, retomarLoteNaCozinha,
     cancelarEdicaoLote,
     salvarReceita, excluirReceita, getCustoTotal, getLucroInfo, getPesoTotal,

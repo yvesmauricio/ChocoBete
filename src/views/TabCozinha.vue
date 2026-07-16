@@ -148,9 +148,11 @@
           <button v-if="!s.loteOriginalEmEdicao" class="btn btn-secondary btn-lg" @click="finalizarLote(true)">
             <i class="fas fa-calendar-plus"></i> Agendar
           </button>
+          <button v-if="!s.loteOriginalEmEdicao" class="btn btn-secondary btn-lg" @click="finalizarLote(false, true)">
+            <i class="fas fa-gift"></i> Presentear
+          </button>
           <button class="btn btn-primary btn-lg" :class="{ 'btn-full': s.loteOriginalEmEdicao }" @click="finalizarLote(false)">
             <i class="fas fa-check-double"></i> {{ s.loteOriginalEmEdicao ? 'Salvar Produção' : 'Produzir' }}
-
           </button>
         </div>
 
@@ -211,7 +213,7 @@
             v-for="item in s.cozinhaLote"
             :key="item.receita_id"
             class="painel-pesar-receita-chip"
-          >{{ item.qtd_produzir }}× {{ item.nome }}</span>
+          >{{ item.qtd_produzir }}× {{ item.nome }}<span v-if="formasParaItem(item)"> ({{ formasParaItem(item) }})</span></span>
         </div>
         <div class="painel-pesar-lista">
           <div
@@ -294,7 +296,7 @@ const tempoEstimadoLote = computed(() => {
   return Math.round(total)
 })
 
-const categorias = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base']
+const categorias = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base', 'Festa']
 const catAtiva = ref('Trufa')
 const chipsEl = ref(null)
 const chipRefs = ref({})
@@ -325,10 +327,32 @@ function pararHold() {
   holdInterval.value = null
 }
 
+function ehTrufa(r) {
+  return normalizar(r.categoria).includes('trufa') || normalizar(r.nome).includes('trufa')
+}
+
+function ehFesta(r) {
+  return normalizar(r.tamanho) === 'festa'
+}
+
 const receitasFiltradas = computed(() => {
-  const base = catAtiva.value === 'Todas'
-    ? s.receitas
-    : s.receitas.filter(r => r.categoria === catAtiva.value)
+  if (catAtiva.value === 'Todas') {
+    return [...s.receitas].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+  }
+
+  if (catAtiva.value === 'Festa') {
+    return [...s.receitas]
+      .filter(r => ehTrufa(r) && ehFesta(r))
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+  }
+
+  if (catAtiva.value === 'Trufa') {
+    return [...s.receitas]
+      .filter(r => ehTrufa(r) && !ehFesta(r))
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+  }
+
+  const base = s.receitas.filter(r => r.categoria === catAtiva.value)
   return [...base].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
 })
 
@@ -633,6 +657,14 @@ function calcularIngredientesItem(item) {
     .sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
+function formasParaItem(item) {
+  const r = s.receitas.find(rcp => rcp.uuid === item.receita_id)
+  if (!r) return null
+  const passo = getPassoProducao(r) || (r.rendimento || 1)
+  if (!passo || passo <= 1) return null
+  return Math.ceil((item.qtd_produzir || 0) / passo)
+}
+
 const ingredientesAgrupados = computed(() => {
   const acumulador = {};
   s.cozinhaLote.forEach(item => {
@@ -749,24 +781,26 @@ function compartilharComprasLote() {
   }
 }
 
-async function finalizarLote(apenasAgendar = false) {
+async function finalizarLote(apenasAgendar = false, isPresente = false) {
   // MELHORIA 5: Resumo detalhado antes de confirmar
   const linhas = s.cozinhaLote.map(item => `• ${item.qtd_produzir} ${item.unidade}  —  ${item.nome}`)
   const totalItens = s.cozinhaLote.reduce((acc, item) => acc + item.qtd_produzir, 0)
   const tempoStr = tempoEstimadoLote.value > 0 ? `\n⏱ Tempo estimado: ${fmtTime(tempoEstimadoLote.value)}` : ''
   const resumo = linhas.join('\n') + `\n\nTotal: ${totalItens} unidades${tempoStr}`
 
-  const titulo = apenasAgendar 
+  const titulo = apenasAgendar
     ? `Agendar ${s.cozinhaLote.length} receita(s) na agenda?`
-    : `Registrar ${s.cozinhaLote.length} receita(s)?`
+    : isPresente
+      ? `Registrar produção de presente?`
+      : `Registrar ${s.cozinhaLote.length} receita(s)?`
 
   const ok = await confirm.ask(
     resumo,
-    { 
-      title: titulo, 
-      icon: apenasAgendar ? 'fas fa-calendar-plus' : 'fas fa-check-double', 
-      confirmLabel: apenasAgendar ? 'Agendar' : 'Registrar', 
-      type: 'primary' 
+    {
+      title: titulo,
+      icon: apenasAgendar ? 'fas fa-calendar-plus' : isPresente ? 'fas fa-gift' : 'fas fa-check-double',
+      confirmLabel: apenasAgendar ? 'Agendar' : isPresente ? 'Presentear' : 'Registrar',
+      type: 'primary'
     }
   )
   if (!ok) return
@@ -816,7 +850,9 @@ async function finalizarLote(apenasAgendar = false) {
       return s.getCustoProducaoReceita(r, item.qtd_produzir, tempoItem) / (item.qtd_produzir || 1)
     })(),
     preco_unitario_snapshot: s.receitas.find(rec => rec.uuid === item.receita_id)?.preco_sugerido || 0,
-    custo_snapshot_version: 2
+    custo_snapshot_version: 2,
+    gerar_financeiro: isPresente ? false : true,
+    origem: isPresente ? 'bete' : undefined
   }))
   await s.registrarLoteProducao(producoes)
   
@@ -826,7 +862,7 @@ async function finalizarLote(apenasAgendar = false) {
   }
 
   limparLote()
-  s.notify(apenasAgendar ? 'Lote agendado!' : 'Lote registrado! Inicie o cronômetro na lista de produção.')
+  s.notify(apenasAgendar ? 'Lote agendado!' : isPresente ? 'Presente registrado!' : 'Lote registrado! Inicie o cronômetro na lista de produção.')
   s.setTab('producao')
 }
 
