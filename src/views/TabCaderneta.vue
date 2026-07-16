@@ -67,6 +67,13 @@
       </div>
     </div>
 
+    <!-- ══ TELA: CARDÁPIO DIGITAL ═══════════════════════════ -->
+    <!-- Sem o wrapper .cad-tela (que tem overflow:hidden + height:100%): o
+         Cardápio Digital foi feito pra rolar junto com o scroll ambiente da
+         página (mesmo esquema do perfil do Yves), não com scroll interno
+         próprio como as outras telas da Bete. -->
+    <TabCardapio v-else-if="tela === 'cardapio'" standalone />
+
     <!-- ══ TELA: LOJAS ══════════════════════════════════════ -->
     <div v-else-if="tela === 'lojas'" class="cad-tela">
       <div class="tab-hdr">
@@ -442,7 +449,7 @@
     </div>
 
     <!-- ── BARRA DE NAVEGAÇÃO INFERIOR (Bete) ── -->
-    <nav class="nav cad-nav-fixa" v-if="['dashboard', 'lojas', 'resumo', 'calculadora'].includes(tela)">
+    <nav class="nav cad-nav-fixa" v-if="['dashboard', 'lojas', 'resumo', 'calculadora', 'cardapio'].includes(tela)">
       <button class="nav-btn" :class="{ active: navAtivo === 'dashboard' }" @click="navSwitch('dashboard')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         <span>Início</span>
@@ -455,12 +462,16 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/><path d="M8 4h8v4H8z"/></svg>
         <span>Resumo</span>
       </button>
+      <button class="nav-btn" :class="{ active: navAtivo === 'cardapio' }" @click="navSwitch('cardapio')">
+        <i class="fas fa-book-bookmark" style="font-size:20px"></i>
+        <span>Cardápio</span>
+      </button>
     </nav>
 
     <!-- ── BOTÃO FLUTUANTE: NOVO FIADO ── -->
     <Teleport to="body">
       <button
-        v-if="!['lojas', 'clientes', 'lancar'].includes(tela)"
+        v-if="!['lojas', 'clientes', 'lancar', 'cardapio'].includes(tela)"
         class="cad-fab-taxas"
         @click="irParaNovaVenda"
         title="Novo Fiado"
@@ -668,6 +679,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted, watch, nextTick } from 'vue'
 import CadernetaSwipeItem from '../components/CadernetaSwipeItem.vue'
+import TabCardapio from './TabCardapio.vue'
 import {
   getLojas, salvarLoja, excluirLoja as dbExcluirLoja,
   getClientes, getTodosClientes, salvarCliente, excluirCliente as dbExcluirCliente,
@@ -706,7 +718,7 @@ const calcInputRef = ref(null)
 
 function irPara(dest) {
   tela.value = dest
-  if (['dashboard','lojas','resumo','calculadora'].includes(dest)) navAtivo.value = dest
+  if (['dashboard','lojas','resumo','calculadora','cardapio'].includes(dest)) navAtivo.value = dest
 
   // Garante o carregamento dos dados ao trocar de tela
   if (dest === 'lojas')       carregarLojas()

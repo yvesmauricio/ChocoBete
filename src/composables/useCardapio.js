@@ -152,6 +152,11 @@ export const CSS_CARDAPIO = `
     page-break-after: always;
   }
   @media print {
+    /* Sem isso, o navegador ignora cor de fundo na impressão por padrão
+       (pra "economizar tinta") — é por isso que o PDF saía com fundo
+       branco em vez do preto/dourado do tema. Isso força a impressão a
+       respeitar as cores de fundo definidas no CSS. */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
     html, body { background: #0e0c0a; }
     .cardapio-doc { margin: 0; page-break-after: always; }
     .no-print { display: none !important; }
@@ -329,6 +334,48 @@ async function getHtml2Canvas() {
   })
 }
 
+const GOOGLE_FONTS_URL = 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap'
+
+// O CSS_CARDAPIO carrega essas fontes via @import — funciona bem na tela
+// cheia/PDF (que tem tempo de sobra pra carregar antes da pessoa olhar), mas
+// na captura de imagem (html2canvas) a fonte às vezes ainda não tinha
+// terminado de carregar na hora da "foto", saindo com uma fonte substituta
+// mal ajustada — o que deixava o texto espremido/ilegível. Injetando essas
+// fontes como um <link> de verdade (não só @import dentro de um <style>
+// criado na hora) e esperando o carregamento de cada uma explicitamente,
+// garantimos que a captura sempre espera a fonte certa estar pronta. Como
+// isso já é chamado assim que a aba Cardápio abre, na hora de compartilhar
+// a fonte normalmente já está em cache — a espera fica quase instantânea.
+let fontesPromise = null
+export function garantirFontesCarregadas() {
+  if (fontesPromise) return fontesPromise
+  fontesPromise = new Promise((resolve) => {
+    let link = document.querySelector(`link[href="${GOOGLE_FONTS_URL}"]`)
+    if (!link) {
+      link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = GOOGLE_FONTS_URL
+      link.onload = () => resolve()
+      link.onerror = () => resolve() // não trava a geração se a fonte falhar — usa fallback
+      document.head.appendChild(link)
+    } else {
+      resolve()
+    }
+  }).then(async () => {
+    try {
+      await Promise.all([
+        document.fonts.load('700 30pt "Playfair Display"'),
+        document.fonts.load('800 15pt "Playfair Display"'),
+        document.fonts.load('italic 500 14pt "Cormorant Garamond"'),
+        document.fonts.load('600 14pt "Cormorant Garamond"'),
+        document.fonts.load('700 12pt "Plus Jakarta Sans"'),
+      ])
+      await document.fonts.ready
+    } catch { /* segue mesmo assim — melhor uma imagem com fonte de fallback do que travar */ }
+  })
+  return fontesPromise
+}
+
 async function renderizarComoImagem(elemento, { largura, escala = 2.5 } = {}) {
   const html2canvas = await getHtml2Canvas()
   const canvas = await html2canvas(elemento, {
@@ -356,9 +403,8 @@ async function comContainerOffscreen(htmlInterno, largura, callback) {
   wrapper.style.top = '0'
   wrapper.innerHTML = `<style>${cssImagem()}</style>${htmlInterno}`
   document.body.appendChild(wrapper)
-  // aguarda fontes carregarem para a captura sair nítida
-  await document.fonts?.ready?.catch(() => {})
-  await new Promise(r => setTimeout(r, 60))
+  // aguarda as fontes carregarem de verdade antes de "fotografar"
+  await garantirFontesCarregadas()
   try {
     return await renderizarComoImagem(wrapper.firstElementChild ? wrapper : wrapper, { largura })
   } finally {

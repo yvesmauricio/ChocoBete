@@ -200,10 +200,17 @@ import {
   carregarConfigCardapio, salvarConfigCardapio, ITEM_DEFAULT,
   montarItensCardapio, agruparPorCategoria, redimensionarImagem,
   gerarHtmlCardapio, gerarPdfCardapio, gerarImagemCardapioCompleto, gerarImagemItem,
-  compartilharImagem,
+  compartilharImagem, garantirFontesCarregadas,
 } from '../composables/useCardapio.js'
 
 const s = useStore()
+
+// Quando usado dentro do perfil da Bete (embutido na tela dela, sem o menu
+// "Mais" do Yves), o componente é montado/desmontado a cada navegação —
+// diferente do perfil "ym", onde fica sempre montado (v-show) e a aba ativa
+// é controlada por s.tab. standalone=true avisa que "montou = a pessoa
+// acabou de entrar aqui agora", sem precisar checar s.tab.
+const props = defineProps({ standalone: { type: Boolean, default: false } })
 
 const R$ = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -215,20 +222,25 @@ const telaCheiaAberta = ref(false)
 const gerandoImagem = ref(null) // null | 'completo' | uuid do item
 
 onMounted(async () => {
+  garantirFontesCarregadas() // dispara em paralelo, sem bloquear — só "esquenta" o cache
   const carregado = await carregarConfigCardapio()
   Object.assign(config, carregado)
   // Modo "mostrar pro cliente": abre direto na tela cheia. Pra editar o
   // cardápio, é só tocar em "Editar cardápio" — volta pra esta tela normalmente.
-  if (config.abrir_tela_cheia_padrao && s.tab === 'cardapio') telaCheiaAberta.value = true
+  if (config.abrir_tela_cheia_padrao && (props.standalone || s.tab === 'cardapio')) {
+    telaCheiaAberta.value = true
+  }
 })
 
-// As abas do app usam v-show (montam uma única vez quando o app abre), então
-// onMounted() acima só dispara no primeiro carregamento — não toda vez que a
-// pessoa toca em "Cardápio" no menu. Esse watch cobre as próximas vezes: toda
-// vez que a aba ativa vira "cardapio", reabre a tela cheia (se o modo estiver
-// ligado), mesmo que ela tenha sido fechada antes pra editar.
+// As abas do perfil "ym" usam v-show (montam uma única vez quando o app
+// abre), então onMounted() acima só cobre o primeiro carregamento — não toda
+// vez que a pessoa toca em "Cardápio" no menu. Esse watch cobre as próximas
+// vezes: toda vez que a aba ativa vira "cardapio", reabre a tela cheia (se o
+// modo estiver ligado), mesmo que ela tenha sido fechada antes pra editar.
+// (No modo standalone da Bete isso não é necessário — lá o componente é
+// remontado a cada visita, então o onMounted acima já cobre tudo.)
 watch(() => s.tab, (aba) => {
-  if (aba === 'cardapio' && config.abrir_tela_cheia_padrao) telaCheiaAberta.value = true
+  if (!props.standalone && aba === 'cardapio' && config.abrir_tela_cheia_padrao) telaCheiaAberta.value = true
 })
 
 function marcarTodos(valor) {
