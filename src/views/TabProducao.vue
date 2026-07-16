@@ -31,7 +31,7 @@
           :class="{ 'card-agendado': grupo.agendado, 'card-locked': s.loteOriginalEmEdicao === grupo.id }">
 
           <!-- Cabeçalho do lote -->
-          <SwipeRow v-if="s.loteOriginalEmEdicao !== grupo.id" :row-id="'lote-' + grupo.id" :width="210" class="lote-swipe">
+          <SwipeRow v-if="s.loteOriginalEmEdicao !== grupo.id" :row-id="'lote-' + grupo.id" :width="larguraAcoesLote(grupo)" class="lote-swipe">
             <div class="lote-hdr-row">
               <div class="lote-hdr" @click="toggleGrupo(grupo.id)">
                 <div class="lote-dot"
@@ -52,6 +52,11 @@
                     </span>
                     <span v-else-if="tempoEstimadoGrupo[grupo.id] > 0" class="lbadge lbadge-est">
                       <i class="fas fa-hourglass-half"></i> ~{{ fmtTime(tempoEstimadoGrupo[grupo.id]) }}
+                    </span>
+                    <!-- Independente da cadeia acima: pode aparecer junto com o tempo já registrado -->
+                    <span v-if="grupo.temTempoSuspeito" class="lbadge lbadge-warning"
+                      title="Tempo cronometrado bem acima do padrão da receita — provável cronômetro esquecido ligado. O custo deste lote usou o tempo padrão da receita. Se o tempo real estiver correto, edite o horário de início/fim.">
+                      <i class="fas fa-triangle-exclamation"></i> Tempo revisado
                     </span>
                     <span class="lbadge-sep" v-if="grupo.itens.length">·</span>
                     <span class="lbadge-info">{{ grupo.itens.length }} {{ grupo.itens.length === 1 ? 'item' : 'itens' }}</span>
@@ -134,7 +139,7 @@
           <!-- Itens do lote -->
           <div v-if="isGrupoAberto(grupo.id)" class="lote-body">
             <template v-if="s.loteOriginalEmEdicao !== grupo.id">
-              <SwipeRow v-for="p in grupo.itens" :key="p.uuid || p.id" :row-id="'item-' + (p.uuid || p.id)" :width="210" class="item-swipe">
+              <SwipeRow v-for="p in grupo.itens" :key="p.uuid || p.id" :row-id="'item-' + (p.uuid || p.id)" :width="280" class="item-swipe">
                 <div class="item-linha">
                   <div class="item-icon" :class="p.eh_intermediaria ? 'ic-blue' : 'ic-gold'">
                     <i :class="p.eh_intermediaria ? 'fas fa-blender' : 'fas fa-cookie-bite'"></i>
@@ -239,46 +244,40 @@
 
     <!-- Modal: Detalhamento de Custo por Item -->
     <BaseModal v-if="currentModal === 'detalhe-custo'" title="Detalhamento de Custo" @close="fecharModal">
-      <div class="modal-inner">
+      <div class="form-section">
         <div v-if="detalheItem">
-          <div class="form-section">
-            <div class="form-section-label">{{ limpar(detalheItem.nome_receita || detalheItem.receita_nome) }}</div>
-            <div class="fg">
-              <label class="label">Quantidade</label>
-              <div>{{ detalheItem.quantidade_produzida || detalheItem.quantidade }} {{ detalheItem.unidade_rendimento || 'un' }}</div>
-            </div>
+          <div class="form-section-label">{{ limpar(detalheItem.nome_receita || detalheItem.receita_nome) }}</div>
+          <div class="fg">
+            <label class="label">Quantidade</label>
+            <div>{{ detalheItem.quantidade_produzida || detalheItem.quantidade }} {{ detalheItem.unidade_rendimento || 'un' }}</div>
           </div>
-
-          <div class="form-section">
-            <div class="form-section-label">Ingredientes</div>
-            <div v-if="detalheBreakdown.ingredientes.length" class="details-list">
-              <div v-for="ing in detalheBreakdown.ingredientes" :key="ing.id + '-' + ing.total + '-' + ing.cost" class="details-row">
-                <div class="details-main">
-                  <div class="details-name">{{ ing.nome }}</div>
-                  <div class="details-sub">
-                    {{ fmtQ(ing.total, ing.unidade) }} {{ ing.unidade }} · {{ R$(ing.unitPrice || 0) }} / {{ ing.unidade }}
-                  </div>
-                </div>
-                <div class="details-value">{{ R$(ing.cost || 0) }}</div>
-              </div>
-            </div>
-            <div v-else class="picker-vazio">Nenhum ingrediente encontrado.</div>
-
-            <div class="details-total">
-              <span>Total insumos</span>
-              <strong>{{ R$(detalheBreakdown.ingredientes.reduce((sum, ing) => sum + (ing.cost || 0), 0)) }}</strong>
-            </div>
-            <div v-if="detalheBreakdown.maoDeObra > 0" class="details-total" style="margin-top: 6px; background: var(--surface)">
-              <span>Mão-de-obra</span>
-              <strong>{{ R$(detalheBreakdown.maoDeObra) }}</strong>
-            </div>
-            <div class="details-total" style="margin-top: 6px; background: var(--cream)">
-              <span>Total estimado</span>
-              <strong>{{ R$(detalheBreakdown.total || 0) }}</strong>
-            </div>
+          <div class="form-section-label">Ingredientes</div>
+          <div class="tabela-wrap">
+          <table class="tabela">
+            <thead>
+              <tr><th>Insumo</th><th class="cen">Qtd</th><th class="cen">Un</th><th class="num">Preço unit.</th><th class="num">Custo</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="ing in detalheBreakdown.ingredientes" :key="ing.id">
+                <td>{{ ing.nome }}</td>
+                <td class="cen">{{ fmtQ(ing.total, ing.unidade) }}</td>
+                <td class="cen">{{ ing.unidade }}</td>
+                <td class="num">{{ R$(ing.unitPrice || 0) }}</td>
+                <td class="num">{{ R$(ing.cost || 0) }}</td>
+              </tr>
+              <tr class="total">
+                <td colspan="4" style="text-align:right">Mão-de-obra</td>
+                <td class="num">{{ R$(detalheBreakdown.maoDeObra || 0) }}</td>
+              </tr>
+              <tr class="total">
+                <td colspan="4" style="text-align:right">Total estimado</td>
+                <td class="num">{{ R$(detalheBreakdown.total || 0) }}</td>
+              </tr>
+            </tbody>
+          </table>
           </div>
         </div>
-        <div v-else class="picker-vazio">Nenhum item selecionado.</div>
+        <div v-else class="cen">Nenhum item selecionado.</div>
       </div>
       <template #foot>
         <div class="spacer"></div>
@@ -641,12 +640,14 @@ const gruposProducao = computed(() => {
         quantidadeTotalNum: 0,
         unidadeResumo: item.unidade_rendimento || 'un',
         temBase: false,
-        temFinal: false
+        temFinal: false,
+        temTempoSuspeito: false
       })
     }
 
     const grupo = mapa.get(key)
     grupo.itens.push(item)
+    if (item.tempo_suspeito) grupo.temTempoSuspeito = true
     grupo.custoTotal += getCustoProducao(item)
     grupo.vendaTotal += getVendaProducao(item) // Isso pode ser ajustado para usar o preço de venda do snapshot se houver
     grupo.quantidadeTotalNum += Number(item.quantidade_produzida || item.quantidade || 0)
@@ -691,6 +692,15 @@ const tempoEstimadoGrupo = computed(() => {
 })
 
 // ── Métodos ───────────────────────────────────────────────────
+// Largura da faixa de ações do swipe do lote: cada botão (.swipe-btn) tem
+// 70px fixos no CSS. 'Presentear/Reverter' só aparece quando o lote está
+// agendado, então a largura da faixa precisa acompanhar isso — senão os
+// botões ficam desalinhados (sobra ou falta espaço na faixa revelada).
+function larguraAcoesLote(grupo) {
+  const qtdBotoes = 2 + (grupo.agendado ? 1 : 0) // Data + Etiquetas (+ Presentear/Reverter)
+  return qtdBotoes * 70
+}
+
 function toggleGrupo(id) {
   gruposAbertos.value[id] = !gruposAbertos.value[id]
 }
@@ -1004,6 +1014,7 @@ onMounted(() => {
 .lbadge-done      { background:var(--blue-bg); border-color:var(--blue-dim); color:var(--blue); }
 .lbadge-running   { background:var(--blue-bg); border-color:var(--blue-dim); color:var(--blue); }
 .lbadge-scheduled { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); }
+.lbadge-warning   { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); cursor:help; }
 .lbadge-est       { background:var(--cream); border-color:var(--border); color:var(--muted); }
 .lbadge-sep       { color:var(--border2); font-size:.7rem; }
 .lbadge-info      { font-size:.68rem; color:var(--muted); }
@@ -1041,6 +1052,31 @@ onMounted(() => {
   will-change: transform;
   animation: slideUp .25s var(--t-spring);
 }
+/* Tabela de detalhamento de custo — alinhada ao padrão visual do app (cartão, cabeçalho creme) */
+.tabela-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface);
+}
+.tabela { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.tabela th {
+  background: var(--cream);
+  color: var(--brown-dark);
+  font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
+  padding: 10px 10px; text-align: left; border-bottom: 1px solid var(--border);
+}
+.tabela td {
+  padding: 10px; color: var(--text); border-bottom: 1px solid var(--border); vertical-align: middle;
+}
+.tabela tbody tr:last-child td { border-bottom: none; }
+.tabela .cen { text-align: center; }
+.tabela .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tabela tr.total td {
+  font-weight: 800; color: var(--brown-dark); background: var(--gold-bg); border-bottom: none;
+}
+.tabela tr.total:first-of-type td { border-top: 1px solid var(--border2); }
+
 .painel-pesar-hdr {
   display: flex; align-items: center; gap: 10px;
   padding: 16px 20px 14px;

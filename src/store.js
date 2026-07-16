@@ -1561,6 +1561,7 @@ async function registrarProducaoFantasma(dados) {
     }
 
     // 2. Prepara os objetos limpos (sem Proxies) para o banco de dados
+    let algumSuspeito = false
     const atualizados = itensLote.map(item => {
       const cleanedItem = clean(item); // Garante que o item original é um objeto puro
       const rId = cleanedItem.receita_id;
@@ -1568,8 +1569,14 @@ async function registrarProducaoFantasma(dados) {
       const r = receitas.value.find(rec => rec.uuid === rId);
       const qtd = cleanedItem.quantidade_produzida || cleanedItem.quantidade || 1;
 
+      // Confere o tempo cronometrado contra o tempo padrão da receita: se estiver
+      // muito acima do esperado (ex.: cronômetro esquecido ligado), o custeio usa
+      // o tempo padrão em vez do bruto, evitando inflar a mão de obra do lote.
+      const avaliacao = avaliarTempoProducao(r, tempoItem, qtd)
+      if (avaliacao.suspeito) algumSuspeito = true
+
       const novoCustoSnapshot = r
-        ? getCustoProducaoReceita(r, qtd, tempoItem) / qtd
+        ? getCustoProducaoReceita(r, qtd, avaliacao.tempo) / qtd
         : cleanedItem.custo_unitario_snapshot;
 
       return clean({ // Aplica clean novamente para o objeto final
@@ -1577,7 +1584,9 @@ async function registrarProducaoFantasma(dados) {
         data_producao: novosDados.data_producao_nova || cleanedItem.data_producao,
         data_inicio: novosDados.data_inicio || dataProducaoOriginal,
         data_fim: novosDados.data_fim || dataProducaoOriginal,
-        tempo_real_min: tempoItem,
+        tempo_real_min: avaliacao.tempo,
+        tempo_registrado_bruto_min: avaliacao.tempoBruto,
+        tempo_suspeito: avaliacao.suspeito,
         custo_unitario_snapshot: novoCustoSnapshot,
         preco_unitario_snapshot: cleanedItem.preco_unitario_snapshot ?? (r?.preco_sugerido || 0),
         custo_snapshot_version: 2
@@ -1587,7 +1596,11 @@ async function registrarProducaoFantasma(dados) {
     try {
       await db.producoes.bulkPut(atualizados)
       await carregarProducoes(0)
-      notify('Lote atualizado com sucesso!')
+      if (algumSuspeito) {
+        notify('Tempo registrado ficou bem acima do padrão da receita (possível cronômetro esquecido ligado). Usamos o tempo padrão no custo deste lote — se o tempo real informado estiver correto, edite o horário de início/fim do lote.', 'warning', 6000)
+      } else {
+        notify('Lote atualizado com sucesso!')
+      }
       agendarSync()
     } catch (error) {
       console.error('Erro ao atualizar lote:', error)
@@ -2119,6 +2132,41 @@ async function registrarProducaoFantasma(dados) {
       return (tempo / 60) * company.value.custo_hora_trabalho
     }
     return 0
+  }
+
+  // ── Sanidade do cronômetro de produção ─────────────────────
+  // Quanto o tempo cronometrado pode passar do tempo padrão da receita antes de
+  // ser tratado como "fora do padrão" (cenário típico: cronômetro esquecido ligado).
+  const LIMITE_TEMPO_MULTIPLICADOR = 2.5
+  const LIMITE_TEMPO_MARGEM_MIN = 15 // tolerância mínima em minutos, para receitas curtas
+
+  /**
+   * Compara o tempo cronometrado de um lote com o tempo padrão esperado da receita
+   * (para a quantidade produzida) e sinaliza quando o valor foge muito do esperado.
+   * Quando sinalizado, o custo/relatórios usam o tempo padrão no lugar do tempo bruto,
+   * para não inflar mão de obra por causa de um cronômetro esquecido ligado.
+   * O valor bruto cronometrado nunca é descartado — fica preservado à parte para conferência.
+   */
+  function avaliarTempoProducao(recipe, tempoRealMin, quantidade) {
+    const bruto = Number(tempoRealMin || 0)
+    if (bruto <= 0) return { tempo: 0, tempoBruto: 0, tempoPadrao: 0, suspeito: false }
+
+    const rendimento = Number(recipe?.rendimento || 1) || 1
+    const qtd = Number(quantidade || rendimento)
+    const tempoPadrao = Number(recipe?.tempo_preparo_min || 0) * (qtd / rendimento)
+
+    // Sem tempo padrão cadastrado na receita não há referência para comparar.
+    if (tempoPadrao <= 0) return { tempo: bruto, tempoBruto: bruto, tempoPadrao: 0, suspeito: false }
+
+    const suspeito = bruto > (tempoPadrao * LIMITE_TEMPO_MULTIPLICADOR) &&
+      (bruto - tempoPadrao) > LIMITE_TEMPO_MARGEM_MIN
+
+    return {
+      tempo: suspeito ? tempoPadrao : bruto,
+      tempoBruto: bruto,
+      tempoPadrao,
+      suspeito
+    }
   }
 
   /** 

@@ -298,6 +298,10 @@ function lpStart(e, produto) {
   _lpTimer = setTimeout(() => {
     _lpTimer = null
     _lpOpened = true
+    // Fecha histórico/edição antes de abrir a entrada, para nunca
+    // termos dois modais sobrepostos (mesmo z-index) ao mesmo tempo.
+    modalHistorico.value = null
+    if (modal.value === 'detalhe') fecharModal()
     abrirModalPreco(produto)
   }, 500)
 }
@@ -324,6 +328,12 @@ const variacaoPreco = computed(() => {
 })
 
 async function abrirHistorico(item) {
+  // Garante que nenhum outro modal (entrada/edição) fique aberto por baixo,
+  // senão ele acaba renderizado por cima do histórico (mesmo z-index).
+  lpCancel()
+  fecharModalPreco()
+  if (modal.value === 'detalhe') fecharModal()
+
   modalHistorico.value = item
   loadingHistorico.value = true
   try {
@@ -335,6 +345,8 @@ async function abrirHistorico(item) {
 
 function abrir(p = null) {
   if (_lpOpened) return
+  modalHistorico.value = null
+  fecharModalPreco()
   if (p) Object.assign(form, JSON.parse(JSON.stringify(p)))
   else Object.assign(form, { uuid: null, nome: '', tipo: 'insumo', unidade_compra: 'kg', unidade_base: 'g', fator_conversao: 1000, custo_por_unidade: 0, estoque_atual: 0, estoque_minimo: 0 })
   abrirModal('detalhe')

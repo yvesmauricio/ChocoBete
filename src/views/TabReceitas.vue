@@ -604,37 +604,36 @@
     </BaseModal>
 
     <BaseModal v-if="modal === 'ingredientes-detalhes'" title="Detalhes dos Ingredientes" @close="fecharModal">
-      <div class="modal-inner">
-        <div class="form-section">
-          <div v-if="detalhesIngredientes.length" class="details-list">
-            <div v-for="item in detalhesIngredientes" :key="item.key" class="details-row">
-              <div class="details-main">
-                <div class="details-name">{{ item.nome }}</div>
-                <div class="details-sub">{{ item.quantidade }}</div>
-              </div>
-              <div class="details-value">{{ item.custo }}</div>
-            </div>
-
-            <!-- Mão de Obra no detalhamento -->
-            <div v-if="custoMaoDeObraTotal > 0" class="details-row" style="border-color: var(--blue-bg); background: var(--blue-bg)">
-              <div class="details-main">
-                <div class="details-name">Mão de Obra (Tempo de Preparo)</div>
-                <div class="details-sub">{{ form.tempo_preparo_min }} minutos</div>
-              </div>
-              <div class="details-value">{{ R$(custoMaoDeObraTotal) }}</div>
-            </div>
+      <div class="modal-inner modal-inner-padded">
+      <div v-if="detalhesIngredientes.length" class="details-list">
+        <div v-for="item in detalhesIngredientes" :key="item.key" class="details-row">
+          <div class="details-main">
+            <div class="details-name">{{ item.nome }}</div>
+            <div class="details-sub">{{ item.quantidade }}</div>
           </div>
-          <div v-else class="picker-vazio">Nenhum ingrediente adicionado</div>
-
-          <div v-if="detalhesIngredientes.length" class="details-total">
-            <span>Total Ingredientes</span>
-            <strong>{{ R$(s.getCustoTotal(form)) }}</strong>
-          </div>
-          <div v-if="custoMaoDeObraTotal > 0" class="details-total" style="margin-top: 6px; background: var(--surface)">
-            <span>Custo Final (com M.O)</span>
-            <strong>{{ R$(s.getCustoTotal(form) + custoMaoDeObraTotal) }}</strong>
-          </div>
+          <div class="details-value">{{ item.custo }}</div>
         </div>
+        
+        <!-- Mão de Obra no detalhamento -->
+        <div v-if="custoMaoDeObraTotal > 0" class="details-row" style="border-color: var(--blue-bg); background: var(--blue-bg)">
+          <div class="details-main">
+            <div class="details-name">Mão de Obra (Tempo de Preparo)</div>
+            <div class="details-sub">{{ form.tempo_preparo_min }} minutos</div>
+          </div>
+          <div class="details-value">{{ R$(custoMaoDeObraTotal) }}</div>
+        </div>
+      </div>
+      <div v-else class="picker-vazio">Nenhum ingrediente adicionado</div>
+
+      <div v-if="detalhesIngredientes.length" class="details-total">
+        <span>Total Ingredientes</span>
+        <strong>{{ R$(s.getCustoTotal(form)) }}</strong>
+      </div>
+      <div v-if="custoMaoDeObraTotal > 0" class="details-total" style="margin-top: 6px; background: var(--surface)">
+        <span>Custo Final (com M.O)</span>
+        <strong>{{ R$(s.getCustoTotal(form) + custoMaoDeObraTotal) }}</strong>
+      </div>
+
       </div>
       <template #foot>
         <div class="spacer"></div>
@@ -1458,13 +1457,29 @@ async function rodarAnaliseReceitas() {
   abrirModal('analise-receitas')
 }
 
+// Fechar um modal é assíncrono aqui: fecharModal() aciona o botão "Voltar" do
+// navegador e só troca `modal` quando o evento popstate chega. Por isso não dá
+// pra abrir o próximo modal logo em seguida (setTimeout(0) corria risco de abrir
+// a receita antes do fechamento da análise terminar, e o popstate atrasado acabava
+// fechando o modal errado — sintoma: "pisca e volta pra análise"). Em vez disso,
+// guardamos a receita pendente e observamos `modal` até ele realmente sair de
+// 'analise-receitas' pra então abrir a receita.
+let receitaPendenteAposFecharAnalise = null
+watch(modal, (novo) => {
+  if (receitaPendenteAposFecharAnalise && novo !== 'analise-receitas') {
+    const r = receitaPendenteAposFecharAnalise
+    receitaPendenteAposFecharAnalise = null
+    abrir(r)
+  }
+})
+
 function abrirReceitaDaAnalise(receitaId) {
   const receita = s.receitas.find(r => r.uuid === receitaId)
   if (!receita) return
 
   if (modal.value === 'analise-receitas') {
+    receitaPendenteAposFecharAnalise = receita
     fecharModal()
-    setTimeout(() => abrir(receita), 0)
     return
   }
 
@@ -1554,6 +1569,11 @@ async function excluirDireto(r) {
 
 <style scoped>
 .tab-content { padding-top: 12px; }
+
+/* Modal "Detalhes dos Ingredientes": .modal-inner base (main.css) só tem padding
+   vertical — aqui soma-se o padding lateral padrão do app, sem afetar o outro
+   uso de .modal-inner (picker de ingredientes) que é intencionalmente edge-to-edge. */
+.modal-inner-padded { padding-left: 16px; padding-right: 16px; }
 
 /* ── Segmented control: Todas / Padrão / Festa ── */
 .tamanho-seg-wrap {

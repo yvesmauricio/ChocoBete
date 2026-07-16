@@ -4,7 +4,7 @@
     <div class="ajustes-sticky-top">
       <div class="tab-hdr">
         <div class="tab-hdr-top">
-          <h2 class="tab-title"><i class="fas fa-sliders"></i> Configurações</h2>
+          <h2 class="tab-title"><i class="fas fa-sliders"></i> Ajustes</h2>
         </div>
         <p class="tab-subtitle">Dados do negócio, gerenciamento de contas e segurança</p>
       </div>
@@ -32,10 +32,17 @@
               <input v-model="company.nome" class="input" placeholder="Ex: ChocoBete" />
             </div>
             <div class="fg">
+              <label class="label">CPF do Titular</label>
+              <input 
+                :value="company.cpf" 
+                @input="e => company.cpf = maskCpf(e.target.value)"
+                class="input" placeholder="000.000.000-00" />
+            </div>
+            <div class="fg">
               <label class="label">Razão Social</label>
               <input v-model="company.razao_social" class="input" placeholder="Nome completo ou Razão Social" />
             </div>
-            <div class="fg-row">
+            <div class="fg">
               <div class="fg fg-2">
                 <label class="label">CNPJ</label>
                 <input 
@@ -44,13 +51,6 @@
                   class="input" 
                   placeholder="00.000.000/0001-00" 
                 />
-              </div>
-              <div class="fg" style="flex: 1.5">
-                <label class="label">CPF do Titular</label>
-                <input 
-                  :value="company.cpf" 
-                  @input="e => company.cpf = maskCpf(e.target.value)"
-                  class="input" placeholder="000.000.000-00" />
               </div>
             </div>
             <div class="fg-row">
@@ -504,7 +504,7 @@ watch(abaAtiva, (val) => {
 async function salvarCaderneta() {
   await salvarProdutosCaderneta(produtosCaderneta.value.filter(p => p.nome.trim()))
   await salvarTaxas({ ...taxasCaderneta })
-  s.notify('Configurações da Caderneta salvas!')
+  s.notify('Ajustes da Caderneta salvos!')
 }
 
 function save() {
@@ -629,7 +629,7 @@ function addProdutoCaderneta() {
 
 .contas-list { display: flex; flex-direction: column; gap: 8px; }
 .conta-item { display: flex; align-items: center; gap: 12px; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-md); }
-.conta-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: .9rem; }
+.conta-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: .9rem; background: var(--brown-mid); }
 .conta-icon.pagbank { background: var(--gold); color: #000; }
 .conta-icon.itau { background: var(--orange); }
 .conta-icon.bb { background: var(--gold); color: var(--blue); }
