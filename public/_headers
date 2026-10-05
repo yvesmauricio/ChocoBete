@@ -1,0 +1,29 @@
+# Cloudflare Pages lê este arquivo pra definir cabeçalhos HTTP por rota.
+# As páginas públicas do cardápio (o link que vai pro cliente) precisam
+# sempre vir fresquinhas do servidor — nunca guardadas em cache do
+# navegador ou da rede do Cloudflare — porque mudam toda vez que alguém
+# publica uma edição (preço, item novo, etc). Sem isso, um cliente que
+# abre o link de novo depois de uma edição recente podia continuar vendo
+# a versão antiga por um tempo, dependendo do navegador/rede dele.
+#
+# Cada página precisa das DUAS formas — com ".html" e sem (URL "limpa",
+# que o Cloudflare também serve automaticamente) — senão a forma que
+# ficar de fora continua sem essa regra.
+/pedido.html
+  Cache-Control: no-cache, must-revalidate
+
+/pedido
+  Cache-Control: no-cache, must-revalidate
+
+/pedido-diaadia.html
+  Cache-Control: no-cache, must-revalidate
+
+/pedido-diaadia
+  Cache-Control: no-cache, must-revalidate
+
+/pedido-festa.html
+  Cache-Control: no-cache, must-revalidate
+
+/pedido-festa
+  Cache-Control: no-cache, must-revalidate
+

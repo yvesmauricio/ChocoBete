@@ -1,0 +1,14 @@
+<svg width="640" height="640" viewBox="0 0 640 640" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="320" cy="320" r="304" fill="none" stroke="#c8890a" stroke-width="3"/>
+  <circle cx="320" cy="320" r="288" fill="#2a1504"/>
+  <circle cx="320" cy="320" r="268" fill="none" stroke="#a36800" stroke-width="1" opacity="0.6"/>
+
+  <path d="M320 132 C303 158 303 190 320 212 C337 190 337 158 320 132 Z" fill="#f5c842"/>
+  <line x1="320" y1="212" x2="320" y2="234" stroke="#f5c842" stroke-width="2.5" stroke-linecap="round"/>
+
+  <text x="320" y="410" text-anchor="middle" font-family="Liberation Serif, Georgia, serif" font-style="italic" font-weight="700" font-size="228" letter-spacing="-10" fill="#f5c842">CB</text>
+
+  <line x1="222" y1="452" x2="284" y2="452" stroke="#a36800" stroke-width="1.5"/>
+  <rect x="313" y="445" width="14" height="14" transform="rotate(45 320 452)" fill="#a36800"/>
+  <line x1="356" y1="452" x2="418" y2="452" stroke="#a36800" stroke-width="1.5"/>
+</svg>

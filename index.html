@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#3d2008">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>ChocoBete</title>
+  <link rel="icon" href="/icon-192.png">
+  <!-- Font Awesome já vem embutido no build via import no main.js (pacote
+       npm @fortawesome/fontawesome-free) — funciona 100% offline, sem
+       depender de rede. O link pro cdnjs.cloudflare.com que existia aqui
+       era uma cópia redundante: carregava a mesma coisa de novo, mas
+       dependendo da internet — se não tivesse rede nem cache, travava a
+       1ª renderização do app inteiro esperando. Removido. -->
+  <!-- Fonte do app carregada sem travar a 1ª renderização (mesmo motivo do
+       cardápio): um <link rel="stylesheet"> comum aqui seguraria a tela em
+       branco até a fonte responder — se estiver sem rede e sem cache
+       pronto, trava o app inteiro. O truque media="print" faz o navegador
+       não esperar por isso pra pintar a tela; o onload troca pra
+       media="all" assim que carrega (ou nunca troca, se a rede falhar —
+       o app segue normal com a fonte de reserva do sistema). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ChocoBete — Monte seu pedido</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: #0e0c0a; color: #f3e9d6; font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { padding-bottom: 130px; }
+  .ip-capa { text-align: center; padding: 30px 20px 12px; }
+  .ip-capa .selo { width: 56px; height: 56px; margin: 0 auto 10px; border-radius: 50%; border: 1.5px solid #d4af37; display: flex; align-items: center; justify-content: center; font-size: 24px; background: rgba(212,175,55,.08); }
+  .ip-capa .marca { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 22pt; color: #f3e9d6; }
+  .ip-capa .subtitulo { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 12pt; color: #d4af37; margin-top: 4px; }
+  .ip-capa .dica { font-size: 10.5px; color: #c9bda3; margin-top: 10px; line-height: 1.5; }
+
+  .categoria-bloco { padding: 0 18px; }
+  .categoria-titulo { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 13pt; color: #d4af37; text-transform: uppercase; letter-spacing: 1.2px; text-align: center; margin: 20px 0 8px; }
+  .categoria-selo-minimo {
+    display: block; font-family: 'Plus Jakarta Sans', sans-serif; text-transform: none;
+    letter-spacing: normal; font-weight: 700; font-size: 8.5pt; color: #0e0c0a;
+    background: #d4af37; border-radius: 999px; padding: 2px 10px; margin: 5px auto 0;
+    width: fit-content;
+  }
+
+  .ip-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px dashed rgba(212,175,55,.2); }
+  .ip-item-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; background: rgba(212,175,55,.1); border: 1px solid rgba(212,175,55,.5); display: flex; align-items: center; justify-content: center; font-size: 18px; overflow: hidden; }
+  .ip-item-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .ip-item-corpo { flex: 1; min-width: 0; }
+  .ip-item-nome { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 13pt; color: #f3e9d6; }
+  .ip-item-desc { font-size: 8.5pt; color: #c9bda3; font-style: italic; margin-top: 2px; }
+  .ip-item-preco { font-weight: 700; font-size: 10.5pt; color: #d4af37; margin-top: 3px; }
+
+  .ip-qtd { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .ip-qtd-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(212,175,55,.5); background: transparent; color: #d4af37; font-size: 16px; font-weight: 700; line-height: 1; }
+  .ip-qtd-btn:active { background: rgba(212,175,55,.15); }
+  .ip-qtd-valor { min-width: 16px; text-align: center; font-weight: 700; font-size: 13px; color: #f3e9d6; }
+
+  .ip-politica { margin: 22px 18px 0; border: 1.5px solid rgba(212,175,55,.5); border-radius: 8px; padding: 12px 14px; background: rgba(212,175,55,.06); }
+  .ip-politica--alerta { border-color: #e05a4b; background: rgba(224,90,75,.12); }
+  .ip-politica-titulo { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 9.5pt; color: #d4af37; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
+  .ip-politica--alerta .ip-politica-titulo { color: #ff8a7a; }
+  .ip-politica-linha { font-size: 9pt; color: #e9dfc9; line-height: 1.5; margin-top: 4px; }
+  .ip-politica-linha:first-of-type { margin-top: 0; }
+  .ip-politica-linha b { color: #f3e9d6; }
+
+  .ip-rodape { text-align: center; margin: 22px 18px 0; padding-top: 14px; border-top: 1px solid rgba(212,175,55,.25); }
+  .ip-rodape .contato { font-size: 8.5pt; color: #c9bda3; letter-spacing: .3px; }
+
+  .ip-barra { position: fixed; left: 0; right: 0; bottom: 0; background: #171310; border-top: 1px solid rgba(212,175,55,.3); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; }
+  .ip-barra-linha { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .ip-aviso-minimo { font-size: 10px; line-height: 1.4; color: #ffb199; background: rgba(224,90,75,.15); border: 1px solid rgba(224,90,75,.4); border-radius: 6px; padding: 6px 10px; }
+  .ip-aviso-minimo b { color: #ff8a7a; }
+  .ip-barra-info { font-size: 11px; color: #c9bda3; }
+  .ip-barra-info strong { display: block; font-size: 15px; color: #d4af37; font-family: 'Cormorant Garamond', serif; }
+  .ip-btn-enviar { flex-shrink: 0; background: #d4af37; color: #0e0c0a; font-weight: 700; font-size: 13px; border: none; border-radius: 999px; padding: 12px 18px; }
+  .ip-btn-enviar:disabled { opacity: .4; }
+
+  .ip-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 200;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .ip-modal-card {
+    width: 100%; max-width: 480px; max-height: 82vh; overflow-y: auto;
+    background: #171310; border: 1px solid rgba(212,175,55,.35); border-bottom: none;
+    border-radius: 18px 18px 0 0; padding: 22px 18px calc(18px + env(safe-area-inset-bottom));
+  }
+  .ip-modal-titulo { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 15pt; color: #d4af37; text-align: center; margin-bottom: 14px; }
+  .ip-modal-itens { border-top: 1px solid rgba(212,175,55,.2); }
+  .ip-modal-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; color: #f3e9d6; padding: 8px 0; border-bottom: 1px dashed rgba(212,175,55,.2); }
+  .ip-modal-total { display: flex; align-items: baseline; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(212,175,55,.3); }
+  .ip-modal-total span { font-size: 11px; color: #c9bda3; text-transform: uppercase; letter-spacing: .5px; }
+  .ip-modal-total strong { font-family: 'Cormorant Garamond', serif; font-size: 20pt; color: #d4af37; }
+  .ip-modal-politica { margin-top: 14px; font-size: 9.5pt; color: #c9bda3; line-height: 1.55; white-space: pre-line; background: rgba(212,175,55,.06); border: 1px solid rgba(212,175,55,.3); border-radius: 8px; padding: 10px 12px; }
+  .ip-modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
+  .ip-modal-btn { flex: 1; border-radius: 999px; padding: 13px; font-weight: 700; font-size: 12px; }
+  .ip-modal-btn--voltar { background: transparent; border: 1px solid rgba(212,175,55,.5); color: #d4af37; }
+  .ip-modal-btn--confirmar { background: #d4af37; border: none; color: #0e0c0a; }
+</style>
+</head>
+<body>
+  <div class="ip-capa">
+    <div class="selo">🍫</div>
+    <div class="marca">ChocoBete</div>
+    <div class="subtitulo">Chocolates Artesanais</div>
+    <div class="dica">Toque em + pra adicionar itens ao seu pedido</div>
+  </div>
+
+  
+  
+    <div class="categoria-bloco">
+      <div class="categoria-titulo">Festa<span class="categoria-selo-minimo">💰 Pedido mínimo: 50 un.</span></div>
+      
+        <div class="ip-item">
+          <div class="ip-item-avatar">🍫</div>
+          <div class="ip-item-corpo">
+            <div class="ip-item-nome">Trufa Amarula</div>
+            <div class="ip-item-desc">Festa • 19g</div>
+            <div class="ip-item-preco">R$ 4,00</div>
+          </div>
+          <div class="ip-qtd">
+            <button type="button" class="ip-qtd-btn" onclick="alterarQtd(0, -1)">−</button>
+            <span class="ip-qtd-valor" id="qtd-0">0</span>
+            <button type="button" class="ip-qtd-btn" onclick="alterarQtd(0, 1)">+</button>
+          </div>
+        </div>
+    </div>
+  
+    <div class="ip-politica">
+      <div class="ip-politica-titulo">📋 Como funciona a encomenda</div>
+      <div class="ip-politica-linha">📅 Encomendas com <b>2 dias de antecedência</b>.</div><div class="ip-politica-linha">🔒 Encomendas confirmadas mediante pagamento de um sinal. Após a confirmação, o sinal não é reembolsável, pois é usado para a compra dos insumos da sua encomenda.</div>
+    </div>
+
+  <div class="ip-rodape">
+    <div class="contato">Bete 9 9943-0023</div>
+  </div>
+
+  <div class="ip-barra">
+    <div id="ip-aviso-minimo" class="ip-aviso-minimo" style="display:none;"></div>
+    <div class="ip-barra-linha">
+      <div class="ip-barra-info">
+        <span id="ip-contador">0</span> item(ns)
+        <strong id="ip-total">R$ 0,00</strong>
+      </div>
+      <button type="button" class="ip-btn-enviar" id="ip-btn-enviar" disabled onclick="abrirConfirmacao()">Enviar pedido</button>
+    </div>
+  </div>
+
+  <div id="ip-modal-overlay" class="ip-modal-overlay" style="display:none;" onclick="if (event.target === this) fecharConfirmacao()">
+    <div class="ip-modal-card">
+      <div class="ip-modal-titulo">Confirme seu pedido</div>
+      <div id="ip-modal-itens" class="ip-modal-itens"></div>
+      <div class="ip-modal-total">
+        <span>Total</span>
+        <strong id="ip-modal-total-valor">R$ 0,00</strong>
+      </div>
+      <div id="ip-modal-politica" class="ip-modal-politica" style="display:none;"></div>
+      <div class="ip-modal-acoes">
+        <button type="button" class="ip-modal-btn ip-modal-btn--voltar" onclick="fecharConfirmacao()">Voltar e editar</button>
+        <button type="button" class="ip-modal-btn ip-modal-btn--confirmar" onclick="confirmarEnvio()">Confirmar e abrir WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var ITENS = [{"nome":"Trufa Amarula","preco":4,"categoria":"Festa"}];
+    var qtds = ITENS.map(function () { return 0 });
+    var MINIMOS = {"Festa":{"valor":0,"unidades":50}};
+    var POLITICA_TEXTO = "📅 Encomendas com 2 dias de antecedência.\n🔒 Encomendas confirmadas mediante pagamento de um sinal. Após a confirmação, o sinal não é reembolsável, pois é usado para a compra dos insumos da sua encomenda.";
+    var NUMERO = "5521999430023";
+
+    function fmtBRL(v) {
+      return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function subtotaisPorCategoria() {
+      var dados = {};
+      for (var i = 0; i < ITENS.length; i++) {
+        if (qtds[i] > 0) {
+          var cat = ITENS[i].categoria;
+          if (!dados[cat]) dados[cat] = { valor: 0, unidades: 0 };
+          dados[cat].valor += ITENS[i].preco * qtds[i];
+          dados[cat].unidades += qtds[i];
+        }
+      }
+      return dados;
+    }
+    function pendenciasMinimo() {
+      var atuais = subtotaisPorCategoria();
+      var pendencias = [];
+      for (var cat in MINIMOS) {
+        var min = MINIMOS[cat];
+        var atual = atuais[cat] || { valor: 0, unidades: 0 };
+        if (atual.unidades === 0) continue; // categoria sem nenhum item selecionado ainda — nada a cobrar
+        var faltaValor = min.valor > 0 && atual.valor < min.valor ? (min.valor - atual.valor) : 0;
+        var faltaUnidades = min.unidades > 0 && atual.unidades < min.unidades ? (min.unidades - atual.unidades) : 0;
+        if (faltaValor > 0 || faltaUnidades > 0) {
+          pendencias.push({ categoria: cat, faltaValor: faltaValor, faltaUnidades: faltaUnidades });
+        }
+      }
+      return pendencias;
+    }
+    function alterarQtd(idx, delta) {
+      qtds[idx] = Math.max(0, qtds[idx] + delta);
+      document.getElementById('qtd-' + idx).textContent = qtds[idx];
+      atualizarResumo();
+    }
+    function atualizarResumo() {
+      var total = 0, totalItens = 0;
+      for (var i = 0; i < ITENS.length; i++) { total += ITENS[i].preco * qtds[i]; totalItens += qtds[i]; }
+      document.getElementById('ip-total').textContent = fmtBRL(total);
+      document.getElementById('ip-contador').textContent = totalItens;
+
+      var pendencias = pendenciasMinimo();
+      var avisoEl = document.getElementById('ip-aviso-minimo');
+      if (pendencias.length) {
+        avisoEl.innerHTML = pendencias.map(function (p) {
+          var partes = [];
+          if (p.faltaValor > 0) partes.push(fmtBRL(p.faltaValor));
+          if (p.faltaUnidades > 0) partes.push(p.faltaUnidades + ' un.');
+          return '⚠️ Faltam ' + partes.join(' e ') + ' em <b>' + p.categoria + '</b> pra atingir o pedido mínimo dessa categoria.';
+        }).join('<br>');
+        avisoEl.style.display = 'block';
+      } else {
+        avisoEl.style.display = 'none';
+      }
+      document.getElementById('ip-btn-enviar').disabled = totalItens === 0 || pendencias.length > 0;
+    }
+    var ultimoResumo = null;
+
+    function abrirConfirmacao() {
+      var linhas = [], total = 0, itensSelecionados = [];
+      for (var i = 0; i < ITENS.length; i++) {
+        if (qtds[i] > 0) {
+          var subtotal = ITENS[i].preco * qtds[i];
+          linhas.push('• ' + qtds[i] + 'x ' + ITENS[i].nome + ' — ' + fmtBRL(subtotal));
+          total += subtotal;
+          itensSelecionados.push({ nome: ITENS[i].nome, qtd: qtds[i], subtotal: subtotal });
+        }
+      }
+      if (!itensSelecionados.length) return;
+      if (pendenciasMinimo().length) return;
+      if (!NUMERO) { alert('Este cardápio ainda não tem o WhatsApp da loja configurado. Peça pra loja atualizar o arquivo.'); return; }
+
+      ultimoResumo = { linhas: linhas, total: total };
+
+      // Monta a lista de itens do modal via DOM (não innerHTML) pra não correr
+      // risco nenhum de interpretar caracteres do nome do item como HTML.
+      var itensEl = document.getElementById('ip-modal-itens');
+      itensEl.innerHTML = '';
+      itensSelecionados.forEach(function (it) {
+        var linha = document.createElement('div');
+        linha.className = 'ip-modal-item';
+        var nomeSpan = document.createElement('span');
+        nomeSpan.textContent = it.qtd + 'x ' + it.nome;
+        var precoSpan = document.createElement('span');
+        precoSpan.textContent = fmtBRL(it.subtotal);
+        linha.appendChild(nomeSpan);
+        linha.appendChild(precoSpan);
+        itensEl.appendChild(linha);
+      });
+      document.getElementById('ip-modal-total-valor').textContent = fmtBRL(total);
+
+      var politicaEl = document.getElementById('ip-modal-politica');
+      if (POLITICA_TEXTO) {
+        politicaEl.textContent = POLITICA_TEXTO;
+        politicaEl.style.display = 'block';
+      } else {
+        politicaEl.style.display = 'none';
+      }
+
+      document.getElementById('ip-modal-overlay').style.display = 'flex';
+    }
+    function fecharConfirmacao() {
+      document.getElementById('ip-modal-overlay').style.display = 'none';
+    }
+    function confirmarEnvio() {
+      if (!ultimoResumo) return;
+      var msg = 'Olá! Gostaria de fazer o seguinte pedido:\n\n' + ultimoResumo.linhas.join('\n') + '\n\nTotal: ' + fmtBRL(ultimoResumo.total);
+      if (POLITICA_TEXTO) msg += '\n\n' + POLITICA_TEXTO;
+      window.location.href = 'https://wa.me/' + NUMERO + '?text=' + encodeURIComponent(msg);
+    }
+  </script>
+</body>
+</html>

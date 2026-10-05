@@ -1,0 +1,2124 @@
+<template>
+  <div class="tab-caderneta cardapio-tab" :class="{ 'cp-bete': props.standalone }">
+
+    <!-- Cabeçalho: no perfil da Bete usa a identidade "caderninho" (mesma
+         do Início); no perfil do Yves mantém o cabeçalho padrão das abas.
+         O seletor de cardápio (Dia a dia/Festa) saiu daqui — competia
+         espaço com o título — e virou a faixa de abas .cp-tabs logo
+         abaixo, que também responde a swipe no conteúdo. -->
+    <template v-if="props.standalone">
+      <div class="cad-spiral">
+        <span v-for="n in 12" :key="n"></span>
+      </div>
+      <div class="cad-hdr">
+        <div class="cad-hdr-row">
+          <div class="cad-hdr-titulo-group">
+            <button class="cad-hdr-icon-btn" @click="emit('fechar')" title="Voltar">
+              <i class="fas fa-arrow-left"></i>
+            </button>
+            <div>
+              <h2 class="cad-hdr-titulo"><i class="fas fa-book-bookmark"></i> Cardápio</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+    <div v-else class="tab-hdr">
+      <div class="tab-hdr-top">
+        <h2 class="tab-title"><i class="fas fa-book-bookmark"></i> Cardápio Digital</h2>
+      </div>
+    </div>
+
+    <!-- ── Abas do cardápio ── indicador claro de qual cardápio está
+         aberto (nome + ícone + traço embaixo), e ao mesmo tempo o "alvo"
+         visual do swipe: arrasta o dedo pra esquerda/direita em qualquer
+         ponto do conteúdo abaixo pra trocar. Tocar na aba também troca,
+         pra quem prefere/usa mouse. -->
+    <div class="cp-tabs" :style="{ '--cp-seg-count': CARDAPIOS.length, '--cp-seg-index': cardapioAtivoIndex }">
+      <span class="cp-tabs-underline"></span>
+      <button v-for="c in CARDAPIOS" :key="c.id" class="cp-tab" :class="{ active: cardapioAtivo === c.id }"
+        @click="trocarCardapio(c.id)">
+        <i class="fas" :class="c.icone"></i> {{ c.label }}
+      </button>
+    </div>
+
+    <div class="cad-body cp-body" @touchstart.passive="onSwipeStart" @touchend="onSwipeEnd">
+
+      <!-- ── Ação principal ──
+           Só o essencial fica visível: enviar (ação do dia a dia) e tela
+           cheia (modo balcão). Tudo que é configuração — capa/rodapé, prazo
+           e sinal, WhatsApp de pedidos, aparência e opções avançadas (PDF,
+           link permanente, pedidos do balcão) — mexe-se uma vez e quase não
+           se toca de novo, então fica dentro do modal "Configurações", em
+           vez de disputar espaço com a lista de itens (o que se usa toda hora). -->
+      <div class="cp-acoes-bloco" :class="{ 'cp-acoes--bete': props.standalone }">
+        <button class="cp-acao-tela-cheia" @click="telaCheiaAberta = true">
+          <i class="fas fa-expand"></i>
+          <span>Abrir cardápio em tela cheia</span>
+        </button>
+        <div class="cp-acoes">
+          <button class="cp-acao cp-acao--principal" :disabled="gerandoPedidoInterativo" @click="gerarCardapioInterativo">
+            <i class="fas fa-share-nodes"></i> {{ gerandoPedidoInterativo ? 'Gerando...' : 'Enviar pro cliente' }}
+          </button>
+          <button v-if="publicacaoDisponivel" class="cp-acao cp-acao--secundaria" :disabled="publicandoLink || linkStatus === 'aguardando'" @click="publicarLinkCardapioInterativo" title="Atualiza o link que você já divulgou (bio, status) com as mudanças de agora — suas edições já ficam salvas sozinhas, isso aqui só é pra quem já tinha compartilhado o link antes">
+            <i class="fas" :class="publicandoLink ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-up'"></i> {{ publicandoLink ? 'Atualizando...' : linkStatus === 'aguardando' ? `Atualizar link online (${linkSegundosRestantes}s)` : 'Atualizar link online' }}
+          </button>
+          <button class="cp-acao cp-acao--secundaria cp-acao--icone" @click="configModalAberto = true" title="Configurações do cardápio">
+            <i class="fas fa-gear"></i>
+          </button>
+        </div>
+      </div>
+
+      <p v-if="!todosItensAtivos.length" class="cp-aviso">
+        <i class="fas fa-circle-info"></i> Nenhum item ativo ainda — ative pelo menos uma receita na lista abaixo pra gerar o cardápio.
+      </p>
+
+      <!-- ── Busca ── -->
+      <div class="cad-search-bar">
+        <div class="cad-search-wrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input class="cad-search-input" placeholder="Buscar receita..." v-model="busca">
+        </div>
+      </div>
+
+      <div v-if="!gruposFiltrados.length" class="cad-empty">
+        <div class="cad-empty-ico"><i class="fas fa-cookie-bite"></i></div>
+        <p v-if="!todosGrupos.length">Nenhuma receita cadastrada ainda. Cadastre na aba Receitas pra montar seu cardápio.</p>
+        <p v-else>Nenhum sabor encontrado.</p>
+      </div>
+
+      <!-- ── Lista por categoria ── -->
+      <div v-else class="cp-grupos">
+        <div v-for="grupo in gruposFiltrados" :key="grupo.categoria" class="cp-grupo">
+          <div class="cp-grupo-cabecalho">
+            <div class="cp-grupo-titulo-bloco">
+              <div class="cp-grupo-titulo">{{ grupo.categoria }}</div>
+              <div v-if="categoriaTemMinimo(grupo.categoria) || grupoEstado(grupo) !== 'ativa'" class="cp-grupo-tags">
+                <span v-if="categoriaTemMinimo(grupo.categoria)" class="cp-grupo-selo-minimo">
+                  <i class="fas fa-sack-dollar"></i> mín. {{ categoriaMinimoLabel(grupo.categoria) }}
+                </span>
+                <span v-if="grupoEstado(grupo) === 'parcial'" class="cp-grupo-selo-estado cp-grupo-selo-estado--parcial">
+                  {{ grupoEstadoLabel(grupo) }}
+                </span>
+                <span v-else-if="grupoEstado(grupo) === 'oculta'" class="cp-grupo-selo-estado cp-grupo-selo-estado--oculta">
+                  Categoria oculta
+                </span>
+              </div>
+            </div>
+            <div class="cp-grupo-cabecalho-acoes">
+              <button type="button" class="cp-grupo-opcoes-btn" @click="abrirOpcoesGrupo(grupo)" title="Opções da categoria (mínimo e preço em massa)">
+                <i class="fas fa-ellipsis-vertical"></i>
+              </button>
+              <button type="button" class="cp-switch-btn" @click="alternarGrupo(grupo)" :title="grupoEstadoLabel(grupo)">
+                <span class="cp-switch" :class="{ on: grupoEstado(grupo) !== 'oculta', partial: grupoEstado(grupo) === 'parcial' }"><span class="cp-switch-bola"></span></span>
+              </button>
+            </div>
+          </div>
+
+          <div v-for="r in grupo.itens" :key="r.uuid" class="cp-item" :class="{ 'cp-item--inativo': !itemCfg(r.uuid).ativo }">
+            <div class="cp-item-topo">
+              <button class="cp-switch-btn" @click="itemCfg(r.uuid).ativo = !itemCfg(r.uuid).ativo; salvar()">
+                <span class="cp-switch" :class="{ on: itemCfg(r.uuid).ativo }"><span class="cp-switch-bola"></span></span>
+              </button>
+
+              <div class="cp-item-avatar">
+                <img v-if="itemCfg(r.uuid).foto" :src="itemCfg(r.uuid).foto" alt="">
+                <span v-else>{{ itemCfg(r.uuid).emoji || '🍫' }}</span>
+              </div>
+
+              <button class="cp-item-corpo" @click="expandido = expandido === r.uuid ? null : r.uuid">
+                <div class="cp-item-linha1">
+                  <span class="cp-item-nome">{{ r.nome }}</span>
+                  <span class="cp-item-preco">{{ R$(precoExibido(r)) }}</span>
+                </div>
+                <div v-if="itemCfg(r.uuid).destaque || itemCfg(r.uuid).sob_encomenda" class="cp-item-selos">
+                  <span v-if="itemCfg(r.uuid).destaque" class="cp-item-selo-destaque"><i class="fas fa-star"></i> Mais pedido</span>
+                  <span v-if="itemCfg(r.uuid).sob_encomenda" class="cp-item-selo-encomenda"><i class="fas fa-clock"></i> Sob encomenda</span>
+                </div>
+                <div v-if="itemCfg(r.uuid).descricao" class="cp-item-desc">{{ itemCfg(r.uuid).descricao }}</div>
+              </button>
+
+              <button class="cp-item-expand" @click="expandido = expandido === r.uuid ? null : r.uuid">
+                <i class="fas" :class="expandido === r.uuid ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+              </button>
+            </div>
+
+            <!-- Painel expandido -->
+            <div v-if="expandido === r.uuid" class="cp-item-painel">
+              <div class="cp-field">
+                <div class="cp-field-cabecalho">
+                  <span>Descrição de venda (curta)</span>
+                  <div class="cp-field-cabecalho-btns">
+                    <button type="button" class="cp-copiar-btn" @click="abrirCopiarDeOutroItem(r)">
+                      <i class="fas fa-copy"></i> Copiar de outro item
+                    </button>
+                    <button type="button" class="cp-ia-btn" @click="copiarPromptDescricao(r)">
+                      <i class="fas fa-wand-magic-sparkles"></i> Pedir ideia à IA
+                    </button>
+                  </div>
+                </div>
+                <textarea v-model="itemCfg(r.uuid).descricao" maxlength="120" rows="2"
+                  placeholder="Ex: trufa de chocolate belga com recheio de doce de leite"
+                  @change="salvar"></textarea>
+              </div>
+
+              <div class="cp-field-linha">
+                <label class="cp-field">
+                  <span>
+                    Preço no cardápio
+                    <button type="button" class="cp-hist-preco-btn" title="Ver histórico de preços" @click="abrirHistoricoPreco(r)">
+                      <i class="fas fa-clock-rotate-left"></i>
+                    </button>
+                  </span>
+                  <div class="input-with-prefix">
+                    <span class="input-prefix">R$</span>
+                    <input
+                      :value="maskMoney(precoExibido(r))"
+                      @input="e => digitarPreco(r, e.target.value)"
+                      @change="confirmarPreco(r)"
+                      @blur="confirmarPreco(r)"
+                      @keyup.enter="e => e.target.blur()"
+                      @focus="e => e.target.select()"
+                      class="input input-prefixed" type="text" inputmode="numeric" placeholder="0,00"
+                    >
+                  </div>
+                  <div class="hint">Esse preço também atualiza o preço de venda sugerido na receita.</div>
+                </label>
+                <label class="cp-field cp-field--emoji">
+                  <span>Emoji</span>
+                  <input v-model="itemCfg(r.uuid).emoji" maxlength="4" @change="salvar">
+                </label>
+              </div>
+
+              <div class="cp-foto-linha">
+                <label class="cp-upload">
+                  <input type="file" accept="image/*" hidden @change="e => onFotoSelecionada(r, e)">
+                  <i class="fas fa-camera"></i> {{ itemCfg(r.uuid).foto ? 'Trocar foto' : 'Adicionar foto' }}
+                </label>
+                <button v-if="itemCfg(r.uuid).foto" class="cp-remover-foto" @click="itemCfg(r.uuid).foto = null; salvar()">
+                  <i class="fas fa-trash"></i> Remover
+                </button>
+              </div>
+              <p class="cp-hint">Foto: JPG, PNG ou WEBP, qualquer tamanho — é redimensionada e comprimida automaticamente. Fotos de iPhone em HEIC podem não abrir; se der problema, exporte como JPG antes.</p>
+
+              <label class="cp-check">
+                <input type="checkbox" v-model="itemCfg(r.uuid).destaque" @change="salvar">
+                <span>Marcar como "Mais pedido" <i class="fas fa-star"></i></span>
+              </label>
+
+              <label class="cp-check cp-check--encomenda">
+                <input type="checkbox" v-model="itemCfg(r.uuid).sob_encomenda" @change="salvar">
+                <span>Sob encomenda (sem entrega na hora) <i class="fas fa-clock"></i></span>
+              </label>
+              <p v-if="itemCfg(r.uuid).sob_encomenda" class="cp-hint">
+                Continua visível e pedível no cardápio, só que com o aviso "Sob encomenda" — o cliente já sabe que precisa esperar. Usa o mesmo prazo e sinal configurados em Configurações → Antecedência e sinal deste cardápio.
+              </p>
+
+              <div class="cp-item-acoes">
+                <div class="cp-ordem-btns">
+                  <button type="button" class="cp-ordem-btn" @click="mover(r, -1)" title="Subir"><i class="fas fa-arrow-up"></i></button>
+                  <button type="button" class="cp-ordem-btn" @click="mover(r, 1)" title="Descer"><i class="fas fa-arrow-down"></i></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CONFIGURAÇÕES DO CARDÁPIO (modal) ══════════════════════════
+         Tudo que se configura uma vez e raramente se mexe de novo — fica
+         separado da lista de itens, que é o que se usa no dia a dia. -->
+    <BaseModal v-if="configModalAberto" @close="configModalAberto = false">
+      <template #title>
+        <span class="cp-modal-titulo">
+          Configurações
+          <span class="cp-modal-titulo-badge"><i class="fas" :class="cardapioAtivoObj?.icone"></i> {{ cardapioAtivoObj?.label }}</span>
+        </span>
+      </template>
+      <div class="cp-modal-config-body">
+
+        <!-- ── Personalizar capa/rodapé ── -->
+        <div class="cp-config-card">
+          <button class="cp-config-toggle" @click="configAberta = !configAberta">
+            <span><i class="fas fa-pen"></i> Personalizar capa e rodapé</span>
+            <i class="fas" :class="configAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div v-if="configAberta" class="cp-config-corpo">
+            <label class="cp-field">
+              <span>Nome do cardápio</span>
+              <input v-model="config.nome_cardapio" :placeholder="s.company.nome || 'ChocoBete'" @change="salvar">
+            </label>
+            <label class="cp-field">
+              <span>Subtítulo</span>
+              <input v-model="config.subtitulo" placeholder="Chocolates Artesanais" @change="salvar">
+            </label>
+            <label class="cp-field">
+              <span>Mensagem no rodapé</span>
+              <input v-model="config.mensagem_rodape" placeholder="Peça já e encomende o seu! 🍫" @change="salvar">
+            </label>
+            <p class="cp-hint">O contato do rodapé é o mesmo texto configurado em Ajustes → dados usados na etiqueta.</p>
+          </div>
+        </div>
+
+        <!-- ── Prazo de encomenda e sinal ── -->
+        <div class="cp-config-card">
+          <button class="cp-config-toggle" @click="politicaAberta = !politicaAberta">
+            <span><i class="fas fa-clock"></i> Prazo de encomenda e sinal</span>
+            <i class="fas" :class="politicaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div v-if="politicaAberta" class="cp-config-corpo">
+            <label class="cp-field cp-field--dias">
+              <span>Antecedência mínima para encomendas</span>
+              <div class="cp-dias-linha">
+                <input class="input" type="number" min="0" v-model.number="config.antecedencia_dias" @change="salvar">
+                <span class="cp-dias-sufixo">dia(s) — 0 pra não mostrar aviso</span>
+              </div>
+            </label>
+
+            <label class="cp-check">
+              <input type="checkbox" v-model="config.sinal_ativo" @change="salvar">
+              <span>Exigir sinal para confirmar a encomenda</span>
+            </label>
+
+            <label class="cp-check">
+              <input type="checkbox" v-model="config.pagamento_ativo" @change="salvar">
+              <span>Ativar pagamento no cardápio enviado ao cliente</span>
+            </label>
+            <p class="cp-hint">Desmarcado, o cliente apenas seleciona os produtos, confere o total e envia o pedido pelo WhatsApp. Não aparecem as etapas de recebimento, pagamento ou Pix.</p>
+
+            <label v-if="config.sinal_ativo && config.pagamento_ativo" class="cp-field cp-field--dias">
+              <span>Porcentagem cobrada como sinal via Pix</span>
+              <div class="cp-dias-linha">
+                <input class="input" type="number" min="1" max="100" v-model.number="config.sinal_percentual" @change="salvar">
+                <span class="cp-dias-sufixo">% do total — o cardápio interativo já calcula o valor do sinal e gera o código Pix sozinho</span>
+              </div>
+            </label>
+
+            <label v-if="config.sinal_ativo && config.pagamento_ativo" class="cp-field">
+              <span>Texto explicando o sinal (aparece no cardápio)</span>
+              <textarea v-model="config.sinal_texto" maxlength="220" rows="3"
+                placeholder="Ex: Encomendas confirmadas mediante pagamento de um sinal de 50%. Após a confirmação, o sinal não é reembolsável, pois é usado para a compra dos insumos da sua encomenda."
+                @change="salvar"></textarea>
+            </label>
+
+            <p class="cp-hint">Esse aviso aparece automaticamente: como uma caixa destacada no cardápio completo (PDF e tela cheia), como um resumo curto no rodapé de cada foto compartilhada, e como uma foto extra só com essas regras no fim do álbum enviado pro WhatsApp.</p>
+            <p v-if="config.pagamento_ativo" class="cp-hint"><i class="fas fa-credit-card"></i> O botão de Pix no cardápio interativo usa sua chave do tipo telefone — o mesmo número do "WhatsApp pra receber os pedidos" logo abaixo, sem cadastro extra. {{ config.sinal_ativo ? 'Com o sinal ativo, ele cobra só a porcentagem definida acima; o restante fica combinado pra entrega.' : 'Sem sinal ativo, ele cobra o valor total do pedido.' }}</p>
+          </div>
+        </div>
+
+        <!-- ── Retirada e entrega (só existe no cardápio Dia a dia) ── -->
+        <div v-if="cardapioAtivo === 'diaadia'" class="cp-config-card">
+          <button class="cp-config-toggle" @click="entregaAberta = !entregaAberta">
+            <span><i class="fas fa-motorcycle"></i> Retirada e entrega</span>
+            <i class="fas" :class="entregaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div v-if="entregaAberta" class="cp-config-corpo">
+            <label class="cp-field cp-field--dias">
+              <span>Taxa de entrega</span>
+              <div class="cp-dias-linha">
+                <span class="cp-dias-sufixo">R$</span>
+                <input
+                  class="input" type="text" inputmode="numeric" placeholder="0,00"
+                  :value="maskMoney(config.taxa_entrega)"
+                  @input="e => config.taxa_entrega = parseMoney(e.target.value)"
+                  @change="salvar"
+                >
+              </div>
+            </label>
+            <p class="cp-hint">Esse valor aparece pro cliente quando ele escolhe "Receber em casa" no cardápio interativo. Deixe 0 se ainda não tiver um valor definido — nesse caso o cardápio mostra "a combinar" em vez de cobrar errado.</p>
+          </div>
+        </div>
+
+        <!-- ── Aparência e comportamento ── -->
+        <div class="cp-config-card">
+          <button class="cp-config-toggle" @click="aparenciaAberta = !aparenciaAberta">
+            <span><i class="fas fa-sliders"></i> Aparência e comportamento</span>
+            <i class="fas" :class="aparenciaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div v-if="aparenciaAberta" class="cp-config-corpo">
+            <div class="cp-mais-opcoes-item">
+              <div class="cp-modo-cliente-texto">
+                <strong><i class="fas fa-store"></i> Abrir sempre em tela cheia</strong>
+                <span>Ideal pra deixar o celular no balcão mostrando o cardápio. Pra editar, toque no X da tela cheia pra voltar aqui.</span>
+              </div>
+              <button class="cp-grupo-switch-btn" @click="config.abrir_tela_cheia_padrao = !config.abrir_tela_cheia_padrao; salvar()">
+                <span class="cp-switch" :class="{ on: config.abrir_tela_cheia_padrao }"><span class="cp-switch-bola"></span></span>
+              </button>
+            </div>
+
+            <div class="cp-mais-opcoes-divisor"></div>
+
+            <div class="cp-mais-opcoes-item">
+              <div class="cp-modo-cliente-texto">
+                <strong><i class="fas fa-thumbtack"></i> Aba padrão ao abrir</strong>
+                <span>Qual cardápio já vem selecionado quando você entra aqui.</span>
+              </div>
+              <div class="cp-aba-padrao-grupo">
+                <button
+                  v-for="c in CARDAPIOS" :key="c.id"
+                  type="button" class="cp-aba-padrao-btn" :class="{ active: abaPadrao === c.id }"
+                  @click="definirAbaPadrao(c.id)"
+                >{{ c.label }}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Avançado: PDF (plano B), link permanente e pedidos do balcão ── -->
+        <div class="cp-config-card">
+          <button class="cp-config-toggle" @click="avancadoAberta = !avancadoAberta">
+            <span><i class="fas fa-toolbox"></i> Avançado</span>
+            <i class="fas" :class="avancadoAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div v-if="avancadoAberta" class="cp-config-corpo">
+
+            <div class="cp-mais-opcoes-item">
+              <div class="cp-modo-cliente-texto">
+                <strong><i class="fas fa-file-pdf"></i> Resumo em PDF</strong>
+                <span>Folha única (A5), com QR code pro cardápio online — use como plano C, pra quem prefere ver tudo numa folha só em vez do cardápio interativo.</span>
+              </div>
+            </div>
+            <p v-if="!urlCardapioPublicado" class="cp-hint">
+              O QR code só aparece se o cardápio online estiver publicado — sem isso, sai só o rodapé de texto. <button type="button" class="cp-link-inline" @click="s.setTab('ajustes')">Configurar publicação</button>
+            </p>
+            <div class="cp-pdf-config-linha">
+              <button class="cp-acao" :disabled="gerandoPdf" @click="baixarPdf">
+                <i class="fas" :class="gerandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i> {{ gerandoPdf ? 'Gerando...' : 'Baixar' }}
+              </button>
+            </div>
+
+            <div class="cp-mais-opcoes-divisor"></div>
+
+            <div class="cp-mais-opcoes-item">
+              <div class="cp-modo-cliente-texto">
+                <strong><i class="fas fa-link"></i> Link permanente</strong>
+                <span>Endereço fixo do cardápio (bom pra bio do Instagram) — só atualiza quando você clica em "Atualizar link online". Pro dia a dia, "Enviar pro cliente" já resolve sem precisar disso.</span>
+              </div>
+            </div>
+
+            <template v-if="!publicacaoDisponivel">
+              <p class="cp-hint">
+                Publicação ainda não configurada.
+                <button type="button" class="cp-link-inline" @click="s.setTab('ajustes')">Configurar em Ajustes → Backup</button>
+              </p>
+            </template>
+            <template v-else>
+              <a v-if="urlCardapioPublicado" :href="urlCardapioPublicado" target="_blank" rel="noopener noreferrer" class="cp-link-url-linha">
+                <code class="cp-link-url cp-link-url--clicavel">{{ urlCardapioPublicado }} <i class="fas fa-arrow-up-right-from-square"></i></code>
+              </a>
+
+              <p v-if="linkStatus === 'publicando'" class="cp-link-status is-publicando">
+                <i class="fas fa-spinner fa-spin"></i> Publicando o cardápio...
+              </p>
+              <p v-else-if="linkStatus === 'aguardando'" class="cp-link-status is-aguardando">
+                <i class="fas fa-clock"></i> Publicado! Ainda propagando. Espere antes de enviar esse link pro cliente.
+              </p>
+              <p v-else-if="linkStatus === 'pronto'" class="cp-link-status is-pronto">
+                <i class="fas fa-circle-check"></i> Pronto! O link já deve estar atualizado — pode enviar.
+              </p>
+
+              <button class="cp-acao" style="width:100%; justify-content:center;" :disabled="publicandoLink || linkStatus === 'aguardando'" @click="publicarLinkCardapioInterativo">
+                <i class="fas fa-link"></i> {{ publicandoLink ? 'Atualizando...' : linkStatus === 'aguardando' ? `Atualizar link agora (${linkSegundosRestantes}s)` : 'Atualizar link agora' }}
+              </button>
+              <p class="cp-hint">Esse mesmo botão também aparece como "Atualizar link online" no topo da tela. Nada é enviado sozinho: toda edição fica salva aqui no app na hora, mas só vai pro link quando você aperta esse botão — assim ele nunca muda sem você mandar.</p>
+            </template>
+          </div>
+        </div>
+
+      </div>
+    </BaseModal>
+
+    <!-- ══ OPÇÕES DA CATEGORIA (pedido mínimo + preço em massa) ══ -->
+    <BaseModal v-if="opcoesGrupoAberto" :title="opcoesGrupoAberto.categoria" @close="fecharOpcoesGrupo">
+      <div class="cp-opcoes-grupo">
+        <section class="cp-opcoes-secao">
+          <div class="cp-opcoes-secao-titulo"><i class="fas fa-pen"></i> Nome da categoria</div>
+          <p class="cp-opcoes-secao-hint">Muda o nome em tudo que usa essa categoria: aqui no editor, no PDF, na imagem, no link publicado e no cardápio enviado pro cliente.</p>
+          <label class="cp-grupo-minimo-campo cp-opcoes-campo-preco">
+            <span>Nome</span>
+            <input
+              v-model="novoNomeCategoria"
+              class="input" type="text" maxlength="40"
+              @keyup.enter="renomearCategoria(opcoesGrupoAberto)"
+            >
+          </label>
+          <button
+            type="button" class="cp-acao cp-acao--principal cp-opcoes-btn-aplicar"
+            :disabled="!novoNomeCategoria.trim() || novoNomeCategoria.trim() === opcoesGrupoAberto.categoria"
+            @click="renomearCategoria(opcoesGrupoAberto)"
+          >
+            Salvar nome
+          </button>
+        </section>
+
+        <div class="cp-opcoes-divisor"></div>
+
+        <section class="cp-opcoes-secao">
+          <div class="cp-opcoes-secao-titulo"><i class="fas fa-sack-dollar"></i> Pedido mínimo</div>
+          <p class="cp-opcoes-secao-hint">O cliente precisa atingir esse valor ou essa quantidade só de itens desta categoria pra poder fechar o pedido.</p>
+          <div class="cp-grupo-minimo-form">
+            <label class="cp-grupo-minimo-campo">
+              <span>R$ mínimo</span>
+              <input
+                type="number" min="0" step="1" class="cp-grupo-minimo-input"
+                :value="categoriaMinimo(opcoesGrupoAberto.categoria)?.valor || ''"
+                placeholder="0"
+                @change="e => definirCategoriaMinimo(opcoesGrupoAberto.categoria, 'valor', e.target.value)"
+              >
+            </label>
+            <label class="cp-grupo-minimo-campo">
+              <span>Unidades mín.</span>
+              <input
+                type="number" min="0" step="1" class="cp-grupo-minimo-input"
+                :value="categoriaMinimo(opcoesGrupoAberto.categoria)?.unidades || ''"
+                placeholder="0"
+                @change="e => definirCategoriaMinimo(opcoesGrupoAberto.categoria, 'unidades', e.target.value)"
+              >
+            </label>
+          </div>
+          <button v-if="categoriaTemMinimo(opcoesGrupoAberto.categoria)" type="button" class="cp-link cp-link--perigo" @click="removerCategoriaMinimo(opcoesGrupoAberto.categoria)">
+            remover pedido mínimo
+          </button>
+        </section>
+
+        <div class="cp-opcoes-divisor"></div>
+
+        <!-- Preço em massa: define um preço só e aplica pra todos os itens
+             dessa categoria de uma vez (ex: toda a categoria "Barra" passa a
+             custar R$ 12 — sem editar item por item). Dá pra ajustar algum
+             item específico depois, individualmente, como sempre. -->
+        <section class="cp-opcoes-secao">
+          <div class="cp-opcoes-secao-titulo"><i class="fas fa-tags"></i> Preço em massa</div>
+          <p class="cp-opcoes-secao-hint">Define um preço só e aplica de uma vez pra todos os {{ opcoesGrupoAberto.itens.length }} {{ opcoesGrupoAberto.itens.length === 1 ? 'item' : 'itens' }} desta categoria.</p>
+          <label class="cp-grupo-minimo-campo cp-opcoes-campo-preco">
+            <span>Novo preço pra todos</span>
+            <div class="input-with-prefix">
+              <span class="input-prefix">R$</span>
+              <input
+                :value="precoCategoriaValor"
+                @input="e => precoCategoriaValor = maskMoney(e.target.value)"
+                @keyup.enter="aplicarPrecoCategoria(opcoesGrupoAberto)"
+                class="input input-prefixed" type="text" inputmode="numeric" placeholder="0,00"
+              >
+            </div>
+          </label>
+          <button type="button" class="cp-acao cp-acao--principal cp-opcoes-btn-aplicar" @click="aplicarPrecoCategoria(opcoesGrupoAberto)">
+            Aplicar a {{ opcoesGrupoAberto.itens.length }} {{ opcoesGrupoAberto.itens.length === 1 ? 'item' : 'itens' }}
+          </button>
+        </section>
+      </div>
+    </BaseModal>
+
+    <!-- ══ COPIAR DE OUTRO ITEM ══════════════════════════════════════
+         Pensado pro caso comum de itens "irmãos" — a mesma receita usada
+         nos dois cardápios, ou uma variação (ex: trufa normal x trufa
+         "Festa" com peso diferente, que são receitas separadas) — pra não
+         reescrever a mesma descrição/foto do zero em cada um. Busca em
+         TODOS os itens com conteúdo preenchido nos dois cardápios, não só
+         no que está aberto agora. -->
+    <BaseModal v-if="copiarDeAberto" title="Copiar de outro item" @close="fecharCopiarDeOutroItem">
+      <div class="cp-copiar-modal">
+        <p class="cp-copiar-hint">
+          Escolha de onde puxar o conteúdo pra <b>{{ copiarDeAberto.nome }}</b>. Só o que estiver marcado abaixo é copiado — o resto do item não muda.
+        </p>
+
+        <div class="cp-copiar-campos">
+          <label class="cp-copiar-campo-check">
+            <input type="checkbox" v-model="copiarCampos.descricao"> Descrição
+          </label>
+          <label class="cp-copiar-campo-check">
+            <input type="checkbox" v-model="copiarCampos.emoji"> Emoji
+          </label>
+          <label class="cp-copiar-campo-check">
+            <input type="checkbox" v-model="copiarCampos.foto"> Foto
+          </label>
+        </div>
+
+        <input
+          v-model="copiarBusca" class="input cp-copiar-busca" type="text"
+          placeholder="Buscar item pelo nome..."
+        >
+
+        <div v-if="candidatosCopia.length" class="cp-copiar-lista">
+          <button
+            v-for="c in candidatosCopia" :key="c.uuid + c.origemId"
+            type="button" class="cp-copiar-item" @click="aplicarCopiaDeOutroItem(c)"
+          >
+            <div class="cp-copiar-item-avatar">
+              <img v-if="c.foto" :src="c.foto" alt="">
+              <span v-else>{{ c.emoji || '🍫' }}</span>
+            </div>
+            <div class="cp-copiar-item-corpo">
+              <div class="cp-copiar-item-nome">
+                {{ c.nome }}
+                <span v-if="c.mesmoItem" class="cp-copiar-item-selo">mesmo item, {{ c.origemLabel }}</span>
+                <span v-else class="cp-copiar-item-selo cp-copiar-item-selo--outro">{{ c.origemLabel }}</span>
+              </div>
+              <div v-if="c.descricao" class="cp-copiar-item-desc">{{ c.descricao }}</div>
+            </div>
+          </button>
+        </div>
+        <p v-else class="cp-copiar-vazio">
+          Nenhum item com descrição, emoji ou foto preenchidos ainda {{ copiarBusca ? 'pra essa busca' : 'nos dois cardápios' }}.
+        </p>
+      </div>
+    </BaseModal>
+
+    <!-- ══ TELA CHEIA ══════════════════════════ -->
+    <Teleport to="body">
+      <div v-if="telaCheiaAberta" class="cp-fullscreen" :class="{ 'cp-fs-bete': props.standalone }">
+        <div v-if="props.standalone" class="cad-spiral cp-fs-spiral">
+          <span v-for="n in 12" :key="n"></span>
+        </div>
+        <div class="cp-fullscreen-barra">
+          <div class="cp-fs-esquerda">
+            <button class="cp-fs-btn" title="Fechar" @click="fecharTelaCheia"><i class="fas fa-xmark"></i></button>
+            <h2 v-if="props.standalone" class="cp-fs-titulo">Cardápio</h2>
+          </div>
+          <div class="cp-fs-switch" :style="{ '--cp-seg-count': CARDAPIOS.length, '--cp-seg-index': cardapioAtivoIndex }">
+            <span class="cp-fs-switch-thumb"></span>
+            <button v-for="c in CARDAPIOS" :key="c.id" class="cp-fs-switch-btn" :class="{ active: cardapioAtivo === c.id }"
+              :title="c.label" :aria-label="c.label" @click="trocarCardapio(c.id)">
+              <i class="fas" :class="c.icone"></i>
+            </button>
+          </div>
+          <div class="cp-fs-acoes">
+            <button class="cp-fs-btn" title="Enviar pro cliente" :disabled="gerandoPedidoInterativo" @click="gerarCardapioInterativo"><i class="fas fa-share-nodes"></i></button>
+            <button class="cp-fs-btn cp-fs-btn--editar" @click="telaCheiaAberta = false"><i class="fas fa-pen"></i> Editar</button>
+          </div>
+        </div>
+        <iframe class="cp-fullscreen-iframe" :key="`${telaCheiaRecarga}-${htmlBalcao}`" :srcdoc="htmlBalcao"></iframe>
+      </div>
+
+      <div v-if="pedidosPainelAberto" class="cp-fullscreen cp-fullscreen--claro" :class="{ 'cp-fs-bete': props.standalone }">
+        <div class="cp-fullscreen-barra cp-fullscreen-barra--clara">
+          <button
+            :class="props.standalone ? 'cad-hdr-icon-btn' : 'cp-fs-btn cp-fs-btn--editar'"
+            title="Voltar"
+            @click="fecharPainelPedidos"
+          >
+            <i class="fas fa-arrow-left"></i><span v-if="!props.standalone">Voltar</span>
+          </button>
+          <div class="cp-pedidos-titulo">Pedidos do balcão</div>
+          <div :style="{ width: props.standalone ? '36px' : '70px' }"></div>
+        </div>
+
+        <div class="cp-pedidos-corpo">
+          <div v-if="!pedidosSalvos.length" class="cp-pedidos-vazio">
+            <i class="fas fa-clipboard-list"></i>
+            <p>Nenhum pedido salvo ainda.<br>Abra a "Tela cheia", monte um pedido junto com o cliente e toque em "Finalizar pedido".</p>
+          </div>
+
+          <template v-else>
+            <div v-for="pedido in pedidosSalvos" :key="pedido.uuid" class="cp-pedido-card" :class="'is-' + pedido.status">
+              <div class="cp-pedido-topo">
+                <div class="cp-pedido-cliente">
+                  <strong>{{ pedido.clienteNome || 'Venda de balcão' }}</strong>
+                  <span class="cp-pedido-data">{{ formatarDataPedido(pedido.criadoEm) }}</span>
+                </div>
+                <span class="cp-pedido-status" :class="'is-' + pedido.status">
+                  <i class="fas" :class="{ 'fa-clock': pedido.status === 'pendente', 'fa-calendar-check': pedido.status === 'agendado', 'fa-circle-check': pedido.status === 'entregue' }"></i>
+                  {{ pedido.status === 'agendado' ? 'Agendado' : pedido.status === 'entregue' ? 'Entregue' : 'Pendente' }}
+                </span>
+              </div>
+
+              <div class="cp-pedido-itens">
+                <div v-for="item in pedido.itens" :key="item.nome">{{ item.qtd }}x {{ item.nome }}</div>
+                <div v-if="pedido.entregaValor">Entrega: {{ R$(pedido.entregaValor) }}</div>
+              </div>
+
+              <div class="cp-pedido-pagamento">
+                <span>Total: <strong>{{ R$(pedido.total) }}</strong></span>
+                <span v-if="pedido.cobrarSinal">Sinal Pix: {{ R$(pedido.valorPix) }} · Falta: {{ R$(pedido.valorRestante) }}</span>
+                <span v-else-if="pedido.valorPix">Pago via Pix: {{ R$(pedido.valorPix) }}</span>
+              </div>
+
+              <!-- Agendado — mostra a data/hora combinada. Só quando não está sendo editada agora. -->
+              <div v-if="pedido.status === 'agendado' && pedidoAgendando !== pedido.uuid" class="cp-pedido-agenda-info">
+                <i class="fas fa-calendar-check"></i>
+                <span>Agendado para <strong>{{ formatarDataAgendada(pedido.agendadoPara) }}</strong><template v-if="pedido.horaAgendada"> às <strong>{{ pedido.horaAgendada }}</strong></template></span>
+              </div>
+
+              <!-- Editor de agendamento — abre inline ao tocar em "Agendar"/"Alterar agendamento". -->
+              <div v-if="pedidoAgendando === pedido.uuid" class="cp-pedido-agenda-editor">
+                <div class="cp-pedido-agenda-editor-titulo"><i class="fas fa-calendar-days"></i> Combinar com o cliente</div>
+                <div class="cp-pedido-agenda-editor-campos">
+                  <label class="cp-pedido-agenda-campo">
+                    <span>Data</span>
+                    <input type="date" class="cp-pedido-agenda-input" v-model="dataAgendamentoEdicao">
+                  </label>
+                  <label class="cp-pedido-agenda-campo cp-pedido-agenda-campo--hora">
+                    <span>Hora <em>(opcional)</em></span>
+                    <input type="time" class="cp-pedido-agenda-input" v-model="horaAgendamentoEdicao">
+                  </label>
+                </div>
+                <div class="cp-pedido-agenda-editor-acoes">
+                  <button class="cp-acao cp-acao--principal" :disabled="!dataAgendamentoEdicao" @click="confirmarAgendamento(pedido)">
+                    <i class="fas fa-check"></i> Confirmar
+                  </button>
+                  <button class="cp-acao" @click="cancelarEdicaoAgendamento">Cancelar</button>
+                </div>
+              </div>
+
+              <template v-if="pedidoAgendando !== pedido.uuid">
+                <div v-if="pedido.status !== 'entregue'" class="cp-pedido-acoes cp-pedido-acoes--secundarias">
+                  <a v-if="pedido.clienteTelefone" class="cp-acao" :href="linkWhatsAppCliente(pedido)" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+                  <button class="cp-acao" @click="iniciarAgendamento(pedido)">
+                    <i class="fas" :class="pedido.status === 'agendado' ? 'fa-calendar' : 'fa-calendar-plus'"></i>
+                    {{ pedido.status === 'agendado' ? 'Alterar agendamento' : 'Agendar' }}
+                  </button>
+                  <button v-if="pedido.status === 'agendado'" class="cp-acao cp-acao--icone" title="Voltar pra pendente" @click="desmarcarAgendamento(pedido)">
+                    <i class="fas fa-rotate-left"></i>
+                  </button>
+                </div>
+
+                <div class="cp-pedido-acoes">
+                  <button v-if="pedido.status !== 'entregue'" class="cp-acao cp-acao--entregue" @click="marcarEntregue(pedido)">
+                    <i class="fas fa-circle-check"></i> Marcar como entregue
+                  </button>
+                  <button v-else class="cp-acao" @click="reabrirPedido(pedido)">
+                    <i class="fas fa-rotate-left"></i> Reabrir pedido
+                  </button>
+                  <button class="cp-acao cp-acao--perigo cp-acao--icone" title="Remover" @click="removerPedido(pedido)"><i class="fas fa-trash"></i></button>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ─── Modal Histórico de Preço de Venda ──────────────────── -->
+    <Teleport to="body">
+      <div v-if="modalHistoricoPreco" class="bottom-sheet-overlay" @click.self="modalHistoricoPreco = null">
+        <div class="lc-modal">
+          <div class="lc-modal-hdr">
+            <span class="lc-modal-titulo"><i class="fas fa-chart-line"></i> {{ modalHistoricoPreco.nome }}</span>
+            <button class="lc-modal-close" @click="modalHistoricoPreco = null"><i class="fas fa-xmark"></i></button>
+          </div>
+          <div class="lc-modal-body">
+            <div v-if="loadingHistoricoPreco" class="loading-box"><div class="spinner spinner-sm"></div></div>
+            <template v-else-if="historicoPrecoVenda.length === 0">
+              <div class="lc-hist-empty">
+                <i class="fas fa-clock-rotate-left"></i>
+                <p>Nenhum registro ainda.<br>O histórico é criado quando o preço muda.</p>
+              </div>
+            </template>
+            <template v-else>
+              <div class="lc-hist-resumo">
+                <div class="lc-hist-kpi">
+                  <span class="lc-hist-kpi-lbl">Atual</span>
+                  <span class="lc-hist-kpi-val">{{ maskMoney(historicoPrecoVenda[historicoPrecoVenda.length-1].preco) }}</span>
+                </div>
+                <div class="lc-hist-kpi" v-if="historicoPrecoVenda.length > 1">
+                  <span class="lc-hist-kpi-lbl">Variação</span>
+                  <span class="lc-hist-kpi-val" :class="variacaoHistoricoPreco >= 0 ? 'c-red' : 'c-green'">
+                    {{ variacaoHistoricoPreco >= 0 ? '+' : '' }}{{ variacaoHistoricoPreco.toFixed(1) }}%
+                  </span>
+                </div>
+              </div>
+              <div class="lc-hist-chart-wrap">
+                <svg class="lc-hist-svg" viewBox="0 0 300 90" preserveAspectRatio="none">
+                  <template v-for="(h, idx) in historicoPrecoVenda" :key="idx">
+                    <rect
+                      :x="idx * (300 / historicoPrecoVenda.length) + 3"
+                      :y="90 - (h.preco / maxHistoricoPreco * 75)"
+                      :width="(300 / historicoPrecoVenda.length) - 6"
+                      :height="(h.preco / maxHistoricoPreco * 75)"
+                      rx="3" fill="var(--brown)" opacity="0.8"
+                    />
+                  </template>
+                </svg>
+              </div>
+              <div class="lc-hist-tabela">
+                <div v-for="(h, idx) in [...historicoPrecoVenda].reverse()" :key="idx" class="lc-hist-row">
+                  <span class="lc-hist-data">{{ new Date(h.data).toLocaleDateString('pt-BR') }}</span>
+                  <span class="lc-hist-preco">{{ maskMoney(h.preco) }}</span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useStore } from '../store.js'
+import { normalizar, maskMoney, parseMoney } from '../utils.js'
+import {
+  carregarConfigCardapio, salvarConfigCardapio, ITEM_DEFAULT, CARDAPIOS,
+  carregarAbaPadraoCardapio, salvarAbaPadraoCardapio,
+  montarItensCardapio, agruparPorCategoria, redimensionarImagem,
+  gerarPdfCardapioCompacto, numeroWhatsAppFormatado,
+  gerarHtmlPedidoInterativo, compartilharArquivo, extrairTelefoneDeTexto,
+  garantirFontesCarregadas,
+} from '../composables/useCardapio.js'
+import { publicarArquivoGitHub, carregarConfigPublicacao, publicacaoConfigurada, urlPublicaFinal } from '../services/githubPublish.js'
+import { salvarPedidoCardapio, listarPedidosCardapio, atualizarStatusPedidoCardapio, excluirPedidoCardapio } from '../db.js'
+import BaseModal from '../components/BaseModal.vue'
+
+const s = useStore()
+
+// Quando usado dentro do perfil da Bete (embutido na tela dela, sem o menu
+// "Mais" do Yves), o componente é montado/desmontado a cada navegação —
+// diferente do perfil "ym", onde fica sempre montado (v-show) e a aba ativa
+// é controlada por s.tab. standalone=true avisa que "montou = a pessoa
+// acabou de entrar aqui agora", sem precisar checar s.tab.
+const props = defineProps({
+  standalone: { type: Boolean, default: false },
+  // true = ignora "abrir sempre em tela cheia" e vai direto pro editor —
+  // usado quando a pessoa toca em "Editar no Cardápio" a partir de outra
+  // tela (ex: Lançar novo fiado), onde a intenção é claramente editar.
+  forcarEdicao: { type: Boolean, default: false },
+  // true = ao montar, pula direto pro painel "Pedidos do balcão" — usado
+  // pelo atalho de acesso rápido do dashboard da Bete.
+  abrirPedidos: { type: Boolean, default: false },
+})
+const emit = defineEmits(['fechar'])
+
+const R$ = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+const config = reactive({ nome_cardapio: '', subtitulo: 'Chocolates Artesanais', mensagem_rodape: 'Peça já e encomende o seu! 🍫', abrir_tela_cheia_padrao: false, pagamento_ativo: true, antecedencia_dias: 2, sinal_ativo: true, sinal_texto: 'Encomendas confirmadas mediante pagamento de um sinal. Após a confirmação, o sinal não é reembolsável, pois é usado para a compra dos insumos da sua encomenda.', taxa_entrega: 0, categorias_min: {}, itens: {} })
+const cardapioAtivo = ref('festa') // 'festa' | 'diaadia' — cada um é um cardápio 100% independente (itens, capa, regras, link)
+const abaPadrao = ref('festa') // qual dos dois abre por padrão ao entrar aqui (configurável em "Mais opções")
+const cardapioAtivoIndex = computed(() => Math.max(0, CARDAPIOS.findIndex(c => c.id === cardapioAtivo.value)))
+// Objeto completo (label + ícone) do cardápio ativo — usado pra deixar
+// claro, no título do modal de Configurações, qual dos dois está sendo
+// editado (cada um tem capa/prazo/sinal/link totalmente independentes).
+const cardapioAtivoObj = computed(() => CARDAPIOS.find(c => c.id === cardapioAtivo.value))
+const configModalAberto = ref(false) // "Configurações do cardápio" — capa/rodapé, prazo/sinal, WhatsApp, aparência e avançado
+const configAberta = ref(false)
+const politicaAberta = ref(false)
+const entregaAberta = ref(false)
+const aparenciaAberta = ref(false)
+const avancadoAberta = ref(false)
+const gerandoPedidoInterativo = ref(false)
+const publicandoLink = ref(false)
+const configPublicacao = ref(null)
+// Status do link permanente nesta sessão: 'idle' (nada feito ainda) →
+// 'publicando' (chamando o GitHub) → 'aguardando' (commit ok, mas o
+// Cloudflare ainda pode estar propagando a versão nova) → 'pronto' (tempo
+// estimado de propagação já passou). Não é uma confirmação real de que o
+// Cloudflare já atualizou (isso exigiria checar o conteúdo do link, o que
+// esbarra em CORS pro domínio publicado) — é uma estimativa de tempo
+// exibida de forma clara, em vez de um único aviso genérico depois do fato.
+const linkStatus = ref('idle')
+const linkSegundosRestantes = ref(0)
+let linkTimerId = null
+
+function pararContagemLink() {
+  if (linkTimerId) { clearInterval(linkTimerId); linkTimerId = null }
+}
+
+function iniciarContagemLink(segundos = 75) {
+  pararContagemLink()
+  linkSegundosRestantes.value = segundos
+  linkStatus.value = 'aguardando'
+  linkTimerId = setInterval(() => {
+    linkSegundosRestantes.value -= 1
+    if (linkSegundosRestantes.value <= 0) {
+      pararContagemLink()
+      linkStatus.value = 'pronto'
+    }
+  }, 1000)
+}
+
+onUnmounted(pararContagemLink)
+const opcoesGrupoAberto = ref(null)
+const novoNomeCategoria = ref('')
+
+// Renomeia a categoria pra todos os itens do grupo (ativos e ocultos). O nome
+// fica salvo como "adereço" de cada item (cfg.categoria) — só vale pra este
+// cardápio, sem mexer na categoria da receita em si (usada nas outras abas).
+// Como o nome exibido (categoriaExibicao) é a mesma fonte usada no PDF, na
+// imagem, na tela cheia, no link publicado e no HTML do GitHub, renomear
+// aqui já reflete em tudo isso — não precisa mudar em mais nenhum lugar.
+function renomearCategoria(grupo) {
+  const novoNome = novoNomeCategoria.value.trim()
+  if (!novoNome || novoNome === grupo.categoria) { fecharOpcoesGrupo(); return }
+  for (const item of grupo.itens) {
+    itemCfg(item.uuid).categoria = novoNome
+  }
+  // Migra o pedido mínimo configurado (se houver) pro novo nome, senão a
+  // regra ficaria "presa" no nome antigo, que não existe mais.
+  if (config.categorias_min?.[grupo.categoria]) {
+    config.categorias_min[novoNome] = config.categorias_min[grupo.categoria]
+    delete config.categorias_min[grupo.categoria]
+  }
+  salvar()
+  s.notify?.(`Categoria renomeada para "${novoNome}".`)
+  fecharOpcoesGrupo()
+}
+
+function abrirOpcoesGrupo(grupo) {
+  novoNomeCategoria.value = grupo.categoria
+  precoCategoriaValor.value = ''
+  opcoesGrupoAberto.value = grupo
+}
+function fecharOpcoesGrupo() {
+  opcoesGrupoAberto.value = null
+}
+// numeroSugerido: fallback pro contato já cadastrado na etiqueta, caso o
+// WhatsApp de pedidos (Ajustes → Identidade) ainda não tenha sido definido.
+const numeroSugerido = computed(() => extrairTelefoneDeTexto(s.company.contato_etiqueta))
+const numeroEfetivoPedido = computed(() => s.company.whatsapp_pedidos || numeroSugerido.value)
+const urlCardapioPublicado = computed(() => {
+  if (!configPublicacao.value?.dominio) return ''
+  return urlPublicaFinal({ ...configPublicacao.value, caminho: `public/pedido-${cardapioAtivo.value}.html` })
+})
+const publicacaoDisponivel = computed(() => publicacaoConfigurada(configPublicacao.value))
+
+const busca = ref('')
+const expandido = ref(null)
+const telaCheiaAberta = ref(false)
+
+
+// ── Recuperação da tela cheia após um tempo em segundo plano ──
+// No celular, se o app fica minimizado (ou processando algo pesado, tipo
+// gerar um PDF/imagem em outra tela) por um tempo, o navegador às vezes
+// libera a memória do <iframe> da tela cheia pra aliviar o app — e ele não
+// volta sozinho, fica em branco até algo forçar o Vue a recriar o elemento
+// do zero (foi o que "trocar de perfil e voltar" estava fazendo without
+// querer). Esse contador força a mesma recriação sempre que o app volta a
+// ficar visível, sem precisar trocar de perfil.
+const telaCheiaRecarga = ref(0)
+function aoVoltarVisivel() {
+  if (document.visibilityState === 'visible' && telaCheiaAberta.value) {
+    telaCheiaRecarga.value++
+  }
+}
+document.addEventListener('visibilitychange', aoVoltarVisivel)
+onUnmounted(() => document.removeEventListener('visibilitychange', aoVoltarVisivel))
+
+// "Fechar" (X) sai de vez da tela cheia — direto pro painel/dashboard, sem
+// passar pela edição do cardápio. "Editar" (o outro botão) só fecha a tela
+// cheia e deixa a pessoa na edição, como já era antes.
+function fecharTelaCheia() {
+  telaCheiaAberta.value = false
+  if (props.standalone) emit('fechar')
+  else s.setTab('painel')
+}
+
+onMounted(async () => {
+  garantirFontesCarregadas() // dispara em paralelo, sem bloquear — só "esquenta" o cache
+  abaPadrao.value = await carregarAbaPadraoCardapio()
+  cardapioAtivo.value = abaPadrao.value
+  const [, publicacao] = await Promise.all([carregarCardapioAtivo(), carregarConfigPublicacao(), carregarPedidosSalvos()])
+  configPublicacao.value = publicacao
+  await nextTick()
+  // Modo "mostrar pro cliente": abre direto na tela cheia. Pra editar o
+  // cardápio, é só tocar em "Editar cardápio" — volta pra esta tela normalmente.
+  // forcarEdicao pula esse modo — a pessoa veio de outra tela justamente
+  // pra editar (ex: "Editar no Cardápio" ao lançar um fiado). abrirPedidos
+  // também pula — a intenção ali é ver os pedidos salvos, não o cardápio.
+  if (config.abrir_tela_cheia_padrao && (props.standalone || s.tab === 'cardapio') && !props.forcarEdicao && !props.abrirPedidos) {
+    telaCheiaAberta.value = true
+  }
+  if (props.abrirPedidos) pedidosPainelAberto.value = true
+})
+
+// ── Pedidos do balcão ───────────────────────────────────────────────────
+// A tela cheia roda o cardápio interativo dentro de um <iframe>. Quando o
+// pedido é finalizado por lá (modo balcão), o próprio HTML manda um
+// postMessage pro app pai — é assim que o pedido chega até aqui pra ser
+// salvo no banco local (o iframe não tem acesso direto ao IndexedDB do app).
+const pedidosPainelAberto = ref(false)
+const pedidosSalvos = ref([])
+
+async function carregarPedidosSalvos() {
+  pedidosSalvos.value = await listarPedidosCardapio()
+}
+
+async function onMensagemJanela(event) {
+  if (event.data === 'cardapio-recarregar') { telaCheiaRecarga.value++; return }
+  if (event.data?.tipo !== 'cardapio:pedido-balcao' || !event.data?.pedido) return
+  const pedido = event.data.pedido
+  try {
+    await salvarPedidoCardapio(pedido)
+    s.notify?.(`Pedido de ${pedido.clienteNome || 'balcão'} salvo!`, 'success')
+    if (pedidosPainelAberto.value) await carregarPedidosSalvos()
+  } catch {
+    s.notify?.('Não deu pra salvar o pedido — tente de novo.')
+  }
+}
+window.addEventListener('message', onMensagemJanela)
+onUnmounted(() => window.removeEventListener('message', onMensagemJanela))
+
+async function abrirPainelPedidos() {
+  pedidosPainelAberto.value = true
+  await carregarPedidosSalvos()
+}
+
+// Se chegou aqui direto pelo atalho "Pedidos" (dashboard da Bete), "Voltar"
+// deve levar de volta pro dashboard — a pessoa nunca esteve no editor do
+// cardápio nesta visita, então cair lá seria confuso. Se abriu a partir do
+// editor (link "Ver" em Configurações → Avançado), volta só pro editor.
+function fecharPainelPedidos() {
+  pedidosPainelAberto.value = false
+  if (props.abrirPedidos) emit('fechar')
+}
+
+// ── Agendamento e entrega do pedido do balcão ──
+// Essa tela não tem ligação nenhuma com a produção (isso é a aba
+// Produção). Três status possíveis:
+//   'pendente'  → ainda sem nada combinado
+//   'agendado'  → tem data (e opcionalmente hora) combinada com o cliente
+//   'entregue'  → já foi retirado/entregue (fim de linha)
+const pedidoAgendando = ref(null) // uuid do pedido com o editor de data/hora aberto agora, ou null
+const dataAgendamentoEdicao = ref('')
+const horaAgendamentoEdicao = ref('')
+
+function hojeISO() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function iniciarAgendamento(pedido) {
+  pedidoAgendando.value = pedido.uuid
+  dataAgendamentoEdicao.value = pedido.agendadoPara || hojeISO()
+  horaAgendamentoEdicao.value = pedido.horaAgendada || ''
+}
+
+function cancelarEdicaoAgendamento() {
+  pedidoAgendando.value = null
+  dataAgendamentoEdicao.value = ''
+  horaAgendamentoEdicao.value = ''
+}
+
+async function confirmarAgendamento(pedido) {
+  if (!dataAgendamentoEdicao.value) return
+  const hora = horaAgendamentoEdicao.value || null
+  pedido.status = 'agendado' // otimista — atualiza a tela na hora
+  pedido.agendadoPara = dataAgendamentoEdicao.value
+  pedido.horaAgendada = hora
+  await atualizarStatusPedidoCardapio(pedido.uuid, 'agendado', { agendadoPara: dataAgendamentoEdicao.value, horaAgendada: hora })
+  cancelarEdicaoAgendamento()
+}
+
+async function desmarcarAgendamento(pedido) {
+  pedido.status = 'pendente' // otimista
+  pedido.agendadoPara = null
+  pedido.horaAgendada = null
+  await atualizarStatusPedidoCardapio(pedido.uuid, 'pendente', { agendadoPara: null, horaAgendada: null })
+}
+
+// Marca como entregue/retirado — não mexe na data/hora combinada, só no
+// status, então o histórico de quando ficou combinado continua salvo.
+async function marcarEntregue(pedido) {
+  pedido.status = 'entregue' // otimista
+  await atualizarStatusPedidoCardapio(pedido.uuid, 'entregue')
+}
+
+// Reabre um pedido marcado como entregue por engano — volta pra "agendado"
+// se já tinha data combinada, senão volta pra "pendente".
+async function reabrirPedido(pedido) {
+  const novoStatus = pedido.agendadoPara ? 'agendado' : 'pendente'
+  pedido.status = novoStatus // otimista
+  await atualizarStatusPedidoCardapio(pedido.uuid, novoStatus)
+}
+
+async function removerPedido(pedido) {
+  if (!confirm(`Remover o pedido de ${pedido.clienteNome || 'balcão'}?`)) return
+  await excluirPedidoCardapio(pedido.uuid)
+  pedidosSalvos.value = pedidosSalvos.value.filter(p => p.uuid !== pedido.uuid)
+}
+
+// Badge do atalho "Pedidos": conta o que ainda está em aberto (não
+// entregue ainda) — inclui pendente e agendado, já que os dois ainda
+// precisam de alguma ação da Bete.
+const pedidosPendentesCount = computed(() => pedidosSalvos.value.filter(p => p.status !== 'entregue').length)
+
+function formatarDataPedido(iso) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+// pedido.agendadoPara vem de <input type="date"> no formato "YYYY-MM-DD".
+// Monta a data local "na unha" (em vez de `new Date(string)`) pra não
+// correr risco do fuso horário empurrar um dia pra trás/frente.
+function formatarDataAgendada(dataStr) {
+  if (!dataStr) return ''
+  const [ano, mes, dia] = dataStr.split('-').map(Number)
+  const d = new Date(ano, (mes || 1) - 1, dia || 1)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })
+}
+
+function linkWhatsAppCliente(pedido) {
+  const numero = numeroWhatsAppFormatado(pedido.clienteTelefone)
+  return numero ? `https://wa.me/${numero}` : '#'
+}
+
+// As abas do perfil "ym" usam v-show (montam uma única vez quando o app
+// abre), então onMounted() acima só cobre o primeiro carregamento — não toda
+// vez que a pessoa toca em "Cardápio" no menu. Esse watch cobre as próximas
+// vezes: toda vez que a aba ativa vira "cardapio", reabre a tela cheia (se o
+// modo estiver ligado), mesmo que ela tenha sido fechada antes pra editar.
+// (No modo standalone da Bete isso não é necessário — lá o componente é
+// remontado a cada visita, então o onMounted acima já cobre tudo.)
+watch(() => s.tab, (aba) => {
+  if (!props.standalone && aba === 'cardapio' && config.abrir_tela_cheia_padrao) telaCheiaAberta.value = true
+})
+
+// Estado real da categoria, considerando os 3 cenários possíveis:
+// 'ativa'   -> todos os itens ligados
+// 'parcial' -> pelo menos 1 ligado e pelo menos 1 desligado
+// 'oculta'  -> nenhum item ligado (é o único caso em que nada dessa
+//              categoria aparece de fato no cardápio publicado)
+function grupoEstado(grupo) {
+  if (!grupo.itens.length) return 'oculta'
+  const ativos = grupo.itens.filter(i => itemCfg(i.uuid).ativo).length
+  if (ativos === 0) return 'oculta'
+  if (ativos === grupo.itens.length) return 'ativa'
+  return 'parcial'
+}
+
+function grupoEstadoLabel(grupo) {
+  const estado = grupoEstado(grupo)
+  if (estado === 'ativa') return 'Categoria ativa'
+  if (estado === 'parcial') {
+    const ativos = grupo.itens.filter(i => itemCfg(i.uuid).ativo).length
+    return `Parcial (${ativos}/${grupo.itens.length})`
+  }
+  return 'Categoria oculta'
+}
+
+// Enquanto houver qualquer item ligado (ativa OU parcial), o botão oculta
+// tudo de uma vez. Só quando a categoria já estiver 100% oculta é que o
+// botão passa a ligar tudo de novo.
+function alternarGrupo(grupo) {
+  const estaOculta = grupoEstado(grupo) === 'oculta'
+  const ligar = estaOculta
+  grupo.itens.forEach(i => { itemCfg(i.uuid).ativo = ligar })
+  salvar()
+}
+
+// Resolve o nome de um ingrediente (produto ou sub-receita) a partir do id salvo na receita
+function resolverNomeIngrediente(ing) {
+  if (ing.tipo === 'produto') return s.produtos?.find(p => p.uuid === ing.id)?.nome || null
+  if (ing.tipo === 'receita') return s.receitas?.find(rec => rec.uuid === ing.id)?.nome || null
+  return null
+}
+
+function gerarPromptDescricao(r) {
+  const receitaCompleta = s.receitas?.find(rec => rec.uuid === r.uuid)
+  const ingredientes = (receitaCompleta?.ingredientes || [])
+    .map(resolverNomeIngrediente)
+    .filter(Boolean)
+  const partes = [
+    `Crie uma descrição de venda curta (máximo 120 caracteres) para um doce artesanal chamado "${r.nome}", categoria "${r.categoria || 'doces'}".`,
+    ingredientes.length ? `Principais ingredientes: ${ingredientes.join(', ')}.` : null,
+    'A descrição vai aparecer num cardápio digital pro cliente final: use um tom convidativo e apetitoso, sem exageros e sem emojis. Responda só com o texto da descrição, sem aspas.',
+  ]
+  return partes.filter(Boolean).join(' ')
+}
+
+async function copiarPromptDescricao(r) {
+  const prompt = gerarPromptDescricao(r)
+  try {
+    await navigator.clipboard.writeText(prompt)
+    s.notify?.('Prompt copiado! Cole numa IA (ChatGPT, Gemini...) e traga a resposta pra cá.')
+  } catch {
+    window.prompt('Copie o prompt abaixo e cole numa IA:', prompt)
+  }
+}
+
+// ── Copiar de outro item (descrição/emoji/foto) ──────────────────────────
+// Cada item do cardápio é um "adereço" preso a UMA receita, num cardápio só
+// (ver comentário no topo de useCardapio.js) — então nada é compartilhado
+// automaticamente entre "Festa" e "Dia a dia", nem entre receitas "irmãs"
+// (ex: uma trufa normal e a mesma trufa em versão Festa de 19g, que são
+// receitas separadas porque o peso muda o rendimento). Isso é intencional
+// (cada canal pode ter um texto de venda diferente), mas pra quando o
+// conteúdo É o mesmo, este picker busca nos itens preenchidos dos DOIS
+// cardápios (não só no que está aberto) e copia só os campos marcados.
+const copiarDeAberto = ref(null) // receita (r) sendo editada agora, ou null
+const copiarBusca = ref('')
+const copiarCampos = reactive({ descricao: true, emoji: true, foto: true })
+const outroCardapioConfigCache = ref(null)
+
+async function abrirCopiarDeOutroItem(r) {
+  copiarDeAberto.value = r
+  copiarBusca.value = ''
+  const outroId = CARDAPIOS.find(c => c.id !== cardapioAtivo.value)?.id
+  outroCardapioConfigCache.value = outroId ? await carregarConfigCardapio(outroId) : null
+}
+function fecharCopiarDeOutroItem() {
+  copiarDeAberto.value = null
+}
+
+const candidatosCopia = computed(() => {
+  if (!copiarDeAberto.value) return []
+  const outroObj = CARDAPIOS.find(c => c.id !== cardapioAtivo.value)
+  const fontes = [
+    { id: cardapioAtivo.value, label: cardapioAtivoObj.value?.label || '', itens: config.itens },
+    { id: outroObj?.id, label: outroObj?.label || '', itens: outroCardapioConfigCache.value?.itens || {} },
+  ]
+  const buscaNorm = normalizar(copiarBusca.value)
+  const lista = []
+  for (const receita of (s.receitas || [])) {
+    for (const fonte of fontes) {
+      const cfg = fonte.itens?.[receita.uuid]
+      if (!cfg || !(cfg.descricao || cfg.foto)) continue
+      // Não lista a própria origem — copiar o item pra ele mesmo não faz sentido
+      if (fonte.id === cardapioAtivo.value && receita.uuid === copiarDeAberto.value.uuid) continue
+      if (buscaNorm && !normalizar(receita.nome).includes(buscaNorm)) continue
+      lista.push({
+        uuid: receita.uuid,
+        origemId: fonte.id,
+        origemLabel: fonte.label,
+        mesmoItem: receita.uuid === copiarDeAberto.value.uuid,
+        nome: receita.nome,
+        descricao: cfg.descricao || '',
+        emoji: cfg.emoji || '',
+        foto: cfg.foto || null,
+      })
+    }
+  }
+  // Mesma receita no outro cardápio primeiro (o caso mais comum — o mesmo
+  // doce vendido nos dois canais), depois o resto em ordem alfabética.
+  lista.sort((a, b) => {
+    if (a.mesmoItem !== b.mesmoItem) return a.mesmoItem ? -1 : 1
+    return a.nome.localeCompare(b.nome, 'pt-BR')
+  })
+  return lista
+})
+
+function aplicarCopiaDeOutroItem(c) {
+  const alvo = itemCfg(copiarDeAberto.value.uuid)
+  if (copiarCampos.descricao) alvo.descricao = c.descricao
+  if (copiarCampos.emoji && c.emoji) alvo.emoji = c.emoji
+  if (copiarCampos.foto) alvo.foto = c.foto
+  salvar()
+  s.notify?.(`Copiado de "${c.nome}".`)
+  fecharCopiarDeOutroItem()
+}
+
+function itemCfg(uuid) {
+  if (!config.itens[uuid]) config.itens[uuid] = ITEM_DEFAULT()
+  return config.itens[uuid]
+}
+
+function precoExibido(r) {
+  // O preço mostrado no Cardápio é sempre o preco_sugerido atual da receita
+  // (fonte única de verdade) — se estiver digitando neste item agora, mostra
+  // o rascunho local em vez do valor salvo, pra não "brigar" com o que a
+  // pessoa está digitando.
+  if (precoDraft[r.uuid] !== undefined) return precoDraft[r.uuid]
+  return Number(r.preco || 0)
+}
+
+// Preço do Cardápio e preço da Receita são a MESMA coisa (não duas cópias
+// que precisam ficar sincronizadas): editar aqui grava direto no
+// preco_sugerido da receita, e editar na tela de Receitas aparece aqui na
+// hora, porque os itens do cardápio são computados a partir de s.receitas.
+// Fica um rascunho local (precoDraft) enquanto a pessoa digita, e só quando
+// ela termina (sai do campo) é que o valor é de fato salvo — evita registrar
+// um preço "pela metade" (ex: só o primeiro dígito digitado) no histórico.
+const precoDraft = reactive({})
+
+function digitarPreco(r, valor) {
+  precoDraft[r.uuid] = valor === '' ? 0 : parseMoney(valor)
+}
+
+async function confirmarPreco(r) {
+  const preco = precoDraft[r.uuid]
+  delete precoDraft[r.uuid]
+  if (preco == null || preco <= 0 || preco === Number(r.preco || 0)) return
+  await s.sincronizarPrecoReceita(r.uuid, preco, `cardapio:${cardapioAtivo.value}`)
+  // Garante que não sobra um preco_exibido "congelado": o cardápio passa a
+  // sempre refletir o preco_sugerido da receita, então uma alteração futura
+  // feita direto na receita aparece aqui automaticamente também.
+  if (itemCfg(r.uuid).preco_exibido != null) {
+    itemCfg(r.uuid).preco_exibido = null
+    salvar()
+  }
+}
+
+const precoCategoriaValor = ref('')
+
+async function aplicarPrecoCategoria(grupo) {
+  const preco = parseMoney(precoCategoriaValor.value)
+  if (!preco || preco <= 0) {
+    s.notify?.('Digite um preço válido antes de aplicar.')
+    return
+  }
+  await Promise.all(grupo.itens.map(item => s.sincronizarPrecoReceita(item.uuid, preco, `cardapio:${cardapioAtivo.value}`)))
+  let mudouConfig = false
+  for (const item of grupo.itens) {
+    if (itemCfg(item.uuid).preco_exibido != null) {
+      itemCfg(item.uuid).preco_exibido = null
+      mudouConfig = true
+    }
+  }
+  if (mudouConfig) salvar()
+  s.notify?.(`Preço atualizado em ${grupo.itens.length} ${grupo.itens.length === 1 ? 'item' : 'itens'} de "${grupo.categoria}". Pode ajustar algum item específico depois, se precisar.`)
+  fecharOpcoesGrupo()
+  precoCategoriaValor.value = ''
+}
+
+// ── Histórico de Preços (venda) ──
+const modalHistoricoPreco = ref(null)
+const historicoPrecoVenda = ref([])
+const loadingHistoricoPreco = ref(false)
+const maxHistoricoPreco = computed(() => Math.max(...historicoPrecoVenda.value.map(h => h.preco), 0.01))
+const variacaoHistoricoPreco = computed(() => {
+  if (historicoPrecoVenda.value.length < 2) return 0
+  const p = historicoPrecoVenda.value[0].preco
+  const u = historicoPrecoVenda.value[historicoPrecoVenda.value.length - 1].preco
+  return p ? ((u - p) / p) * 100 : 0
+})
+
+async function abrirHistoricoPreco(r) {
+  modalHistoricoPreco.value = r
+  loadingHistoricoPreco.value = true
+  try {
+    historicoPrecoVenda.value = await s.historicoPrecoVenda(r.uuid)
+  } finally {
+    loadingHistoricoPreco.value = false
+  }
+}
+
+let salvando = null
+
+function salvar() {
+  clearTimeout(salvando)
+  const idAlvo = cardapioAtivo.value
+  const configCopia = JSON.parse(JSON.stringify(config))
+  salvando = setTimeout(async () => {
+    await salvarConfigCardapio(idAlvo, configCopia)
+  }, 250)
+}
+
+async function flushSalvar() {
+  clearTimeout(salvando)
+  const idAlvo = cardapioAtivo.value
+  const configCopia = JSON.parse(JSON.stringify(config))
+  await salvarConfigCardapio(idAlvo, configCopia)
+}
+
+async function carregarCardapioAtivo() {
+  const carregado = await carregarConfigCardapio(cardapioAtivo.value)
+  Object.assign(config, carregado)
+  // Migração: preços salvos como "override" (preco_exibido) num cardápio
+  // antigo ficam presos naquele valor mesmo se a receita mudar depois. A
+  // partir de agora o preço é um só (o da receita): joga o último valor que
+  // estava salvo como override pra dentro da receita (se ainda não estiver
+  // lá) e limpa o override, pra passar a herdar sempre o preco_sugerido atual.
+  let mudou = false
+  for (const uuid of Object.keys(config.itens || {})) {
+    const override = config.itens[uuid].preco_exibido
+    if (override == null) continue
+    const receita = s.receitas.find(r => r.uuid === uuid)
+    if (receita && Number(receita.preco_sugerido || 0) !== Number(override)) {
+      await s.sincronizarPrecoReceita(uuid, override, `cardapio:${cardapioAtivo.value}`)
+    }
+    config.itens[uuid].preco_exibido = null
+    mudou = true
+  }
+  if (mudou) salvar()
+}
+
+async function trocarCardapio(id) {
+  if (id === cardapioAtivo.value) return
+  flushSalvar() // garante que nenhuma edição recente do cardápio anterior se perca
+  cardapioAtivo.value = id
+  expandido.value = null
+  await carregarCardapioAtivo()
+}
+
+// ── Swipe pra trocar de cardápio ──
+// Substitui o antigo seletor fixo no cabeçalho: arrastar o dedo pra
+// esquerda/direita em qualquer lugar do conteúdo troca entre "Dia a dia" e
+// "Festa", como aba de app. Só dispara com um gesto claramente horizontal
+// (maior que o deslocamento vertical) e acima de um mínimo de distância,
+// pra não atrapalhar o scroll normal da lista nem toques em botões.
+const SWIPE_MIN_DIST = 55
+let swipeStartX = 0
+let swipeStartY = 0
+function onSwipeStart(e) {
+  const t = e.touches[0]
+  swipeStartX = t.clientX
+  swipeStartY = t.clientY
+}
+function onSwipeEnd(e) {
+  const t = e.changedTouches[0]
+  const dx = t.clientX - swipeStartX
+  const dy = t.clientY - swipeStartY
+  if (Math.abs(dx) < SWIPE_MIN_DIST || Math.abs(dx) < Math.abs(dy) * 1.4) return
+  const proximoIndex = cardapioAtivoIndex.value + (dx < 0 ? 1 : -1)
+  const alvo = CARDAPIOS[proximoIndex]
+  if (alvo) trocarCardapio(alvo.id)
+}
+
+async function definirAbaPadrao(id) {
+  if (id === abaPadrao.value) return
+  abaPadrao.value = id
+  await salvarAbaPadraoCardapio(id)
+}
+
+function categoriaMinimo(nomeCategoria) {
+  return config.categorias_min?.[nomeCategoria] || null
+}
+function categoriaTemMinimo(nomeCategoria) {
+  const m = categoriaMinimo(nomeCategoria)
+  return !!(m && (m.valor > 0 || m.unidades > 0))
+}
+function categoriaMinimoLabel(nomeCategoria) {
+  const m = categoriaMinimo(nomeCategoria)
+  if (!m) return ''
+  const partes = []
+  if (m.valor > 0) partes.push(R$(m.valor))
+  if (m.unidades > 0) partes.push(`${m.unidades} un.`)
+  return partes.join(' · ')
+}
+function definirCategoriaMinimo(nomeCategoria, campo, valorBruto) {
+  if (!config.categorias_min) config.categorias_min = {}
+  const atual = config.categorias_min[nomeCategoria] || { valor: 0, unidades: 0 }
+  const novoValor = Math.max(0, Number(valorBruto) || 0)
+  const atualizado = { ...atual, [campo]: novoValor }
+  if (atualizado.valor > 0 || atualizado.unidades > 0) config.categorias_min[nomeCategoria] = atualizado
+  else delete config.categorias_min[nomeCategoria]
+  salvar()
+}
+function removerCategoriaMinimo(nomeCategoria) {
+  if (!config.categorias_min) return
+  delete config.categorias_min[nomeCategoria]
+  salvar()
+}
+
+async function onFotoSelecionada(r, evento) {
+  const arquivo = evento.target.files?.[0]
+  evento.target.value = ''
+  if (!arquivo) return
+  try {
+    const dataUrl = await redimensionarImagem(arquivo)
+    itemCfg(r.uuid).foto = dataUrl
+    salvar()
+  } catch (err) {
+    s.notify?.(err.message || 'Não foi possível processar a imagem.')
+  }
+}
+
+const ordemCategorias = ['Trufa', 'Cone', 'Barra', 'Bolo', 'Brownie']
+
+function ordenarGruposCardapio(grupos) {
+  return [...grupos].sort((a, b) => {
+    const indiceA = ordemCategorias.indexOf(a.categoria)
+    const indiceB = ordemCategorias.indexOf(b.categoria)
+    const posicaoA = indiceA === -1 ? ordemCategorias.length : indiceA
+    const posicaoB = indiceB === -1 ? ordemCategorias.length : indiceB
+    return posicaoA - posicaoB || a.categoria.localeCompare(b.categoria, 'pt-BR')
+  })
+}
+
+// Todas as receitas (inclui inativas) — pra edição
+const todosGrupos = computed(() => ordenarGruposCardapio(agruparPorCategoria(montarItensCardapio(s.receitas, config, { apenasAtivos: false }))))
+// Só as ativas — pra gerar o cardápio de verdade (PDF/tela/imagem)
+const todosItensAtivos = computed(() => montarItensCardapio(s.receitas, config, { apenasAtivos: true }))
+const gruposAtivos = computed(() => ordenarGruposCardapio(agruparPorCategoria(todosItensAtivos.value)))
+
+const gruposFiltrados = computed(() => {
+  const termo = normalizar(busca.value)
+  if (!termo) return todosGrupos.value
+  return todosGrupos.value
+    .map(g => ({ categoria: g.categoria, itens: g.itens.filter(i => normalizar(i.nome).includes(termo)) }))
+    .filter(g => g.itens.length)
+})
+
+function mover(r, direcao) {
+  const grupo = todosGrupos.value.find(g => g.itens.some(i => i.uuid === r.uuid))
+  if (!grupo) return
+  const idx = grupo.itens.findIndex(i => i.uuid === r.uuid)
+  const alvoIdx = idx + direcao
+  if (alvoIdx < 0 || alvoIdx >= grupo.itens.length) return
+  const atual = itemCfg(r.uuid)
+  const vizinho = itemCfg(grupo.itens[alvoIdx].uuid)
+  const ordemAtual = atual.ordem
+  atual.ordem = vizinho.ordem
+  vizinho.ordem = ordemAtual
+  if (atual.ordem === vizinho.ordem) atual.ordem += direcao < 0 ? -1 : 1
+  salvar()
+}
+
+// Tela cheia agora é a MESMA experiência interativa que é enviada pro
+// cliente (mesmo visual, monta pedido tocando em +/−) — só que em "modo
+// balcão": o botão final não tenta abrir o WhatsApp (não faz sentido
+// quando é você segurando o celular), em vez disso pede nome/telefone do
+// cliente e salva o pedido pra consultar depois em "Pedidos do balcão".
+const htmlBalcao = computed(() => {
+  try {
+    const empresaComNumero = { ...s.company, whatsapp_pedidos: numeroEfetivoPedido.value }
+    return gerarHtmlPedidoInterativo({
+      config, grupos: gruposAtivos.value, empresa: empresaComNumero,
+      modoBalcao: true, cardapioId: cardapioAtivo.value,
+    })
+  } catch (err) {
+    console.warn('Falha ao montar a tela cheia do cardápio:', err)
+    return `<!doctype html><html><body style="display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;background:#f7f3ee;color:#3d1f07;text-align:center;padding:24px;box-sizing:border-box;">
+      <div>
+        <p style="font-size:16px;margin-bottom:12px;">Não deu pra carregar o cardápio agora.</p>
+        <button onclick="parent.postMessage('cardapio-recarregar','*')" style="font-size:15px;padding:10px 18px;border-radius:999px;border:none;background:#3d1f07;color:#fff;">Tentar de novo</button>
+      </div>
+    </body></html>`
+  }
+})
+
+function slugNome() {
+  if (config.nome_cardapio) return config.nome_cardapio.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  const base = s.company.nome || 'cardapio'
+  const sufixo = CARDAPIOS.find(c => c.id === cardapioAtivo.value)?.label || cardapioAtivo.value
+  return `${base}-${sufixo}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+}
+
+const gerandoPdf = ref(false)
+async function baixarPdf() {
+  if (!todosItensAtivos.value.length) { s.notify?.('Ative pelo menos uma receita antes de gerar o cardápio.'); return }
+  gerandoPdf.value = true
+  try {
+    await gerarPdfCardapioCompacto({ config, grupos: gruposAtivos.value, empresa: s.company, linkOnline: urlCardapioPublicado.value || null })
+  } catch (err) {
+    s.notify?.(err.message || 'Não foi possível gerar o PDF.')
+  } finally {
+    gerandoPdf.value = false
+  }
+}
+
+
+async function compartilharLinkCardapio(url, { title, text } = {}) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url })
+      return 'compartilhado'
+    } catch {
+      // Continua para fallback
+    }
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(url)
+      return 'copiado'
+    } catch {
+      // Continua para fallback
+    }
+  }
+
+  return 'falha'
+}
+
+async function gerarCardapioInterativo() {
+  if (!todosItensAtivos.value.length) { s.notify?.('Ative pelo menos uma receita antes de gerar o cardápio.'); return }
+  if (!numeroEfetivoPedido.value) {
+    s.notify?.('Preencha seu número de WhatsApp antes de gerar o cardápio interativo.')
+    return
+  }
+  gerandoPedidoInterativo.value = true
+  try {
+    const empresaComNumero = { ...s.company, whatsapp_pedidos: numeroEfetivoPedido.value }
+    const html = gerarHtmlPedidoInterativo({ config, grupos: gruposAtivos.value, empresa: empresaComNumero, cardapioId: cardapioAtivo.value })
+
+    const cfgPub = await carregarConfigPublicacao()
+    const linkPublicacao = urlPublicaFinal({ ...cfgPub, caminho: `public/pedido-${cardapioAtivo.value}.html` })
+    const textoCompartilhamento = `Confira o cardápio de ${config.nome_cardapio || s.company.nome || 'Cardápio'} e monte seu pedido aqui:`
+
+    if (publicacaoConfigurada(cfgPub) && linkPublicacao.startsWith('http')) {
+      try {
+        const { url } = await publicarArquivoGitHub(html, { caminho: `public/pedido-${cardapioAtivo.value}.html` })
+        configPublicacao.value = cfgPub
+        const urlParaCompartilhar = url || linkPublicacao
+        const resultado = await compartilharLinkCardapio(urlParaCompartilhar, {
+          title: `Cardápio ${config.nome_cardapio || s.company.nome || 'Cardápio'}`,
+          text: `${textoCompartilhamento} ${urlParaCompartilhar}`,
+        })
+
+        if (resultado === 'copiado') {
+          s.notify?.('Link copiado para a área de transferência. Cole no WhatsApp do cliente.')
+        } else if (resultado === 'falha') {
+          s.notify?.('Link pronto, mas não foi possível compartilhar automaticamente. Cole o link no WhatsApp do cliente: ' + urlParaCompartilhar)
+        }
+        return
+      } catch (err) {
+        s.notify?.('Não foi possível publicar o cardápio no GitHub. Enviando HTML como alternativa.')
+      }
+    }
+
+    const blob = new Blob([html], { type: 'text/html' })
+    const resultado = await compartilharArquivo(blob, {
+      nomeArquivo: `pedido-${slugNome()}.html`,
+      titulo: `Monte seu pedido — ${config.nome_cardapio || s.company.nome || 'Cardápio'}`,
+      texto: 'Toque no arquivo pra montar seu pedido! 🍫',
+    })
+    if (resultado === 'baixado') {
+      s.notify?.('Arquivo baixado — envie-o pro cliente pelo WhatsApp (como anexo de arquivo).')
+    }
+  } catch (err) {
+    s.notify?.(err.message || 'Não foi possível gerar o cardápio interativo.')
+  } finally {
+    gerandoPedidoInterativo.value = false
+  }
+}
+
+/**
+ * Publica o cardápio interativo num link fixo (via GitHub → Cloudflare Pages)
+ * em vez de gerar um arquivo pra anexar. Depois de publicar, já oferece
+ * compartilhar o link (WhatsApp/qualquer app) ou copia pro clipboard.
+ */
+/**
+ * Publica o cardápio interativo num link fixo (via GitHub → Cloudflare Pages)
+ * em vez de gerar um arquivo pra anexar. Só cuida de publicar e mostrar o
+ * andamento (com um tempo estimado de propagação) — quem decide se e quando
+ * enviar o link pro cliente são os botões "Abrir"/"Copiar" logo abaixo, pra
+ * não sair compartilhando um link que ainda pode estar desatualizado.
+ */
+async function publicarLinkCardapioInterativo() {
+  if (!todosItensAtivos.value.length) { s.notify?.('Ative pelo menos uma receita antes de gerar o cardápio.'); return }
+  if (!numeroEfetivoPedido.value) {
+    s.notify?.('Preencha seu número de WhatsApp antes de gerar o cardápio interativo.')
+    return
+  }
+  const cfgPub = await carregarConfigPublicacao()
+  if (!publicacaoConfigurada(cfgPub)) {
+    s.notify?.('Configure a publicação em Ajustes → Backup (token do GitHub e repositório) antes de gerar o link.')
+    return
+  }
+  publicandoLink.value = true
+  linkStatus.value = 'publicando'
+  pararContagemLink()
+  try {
+    const empresaComNumero = { ...s.company, whatsapp_pedidos: numeroEfetivoPedido.value }
+    const html = gerarHtmlPedidoInterativo({ config, grupos: gruposAtivos.value, empresa: empresaComNumero, cardapioId: cardapioAtivo.value })
+    await publicarArquivoGitHub(html, { caminho: `public/pedido-${cardapioAtivo.value}.html` })
+    configPublicacao.value = cfgPub
+    iniciarContagemLink()
+  } catch (err) {
+    linkStatus.value = 'idle'
+    s.notify?.(err.message || 'Não foi possível publicar o cardápio.')
+  } finally {
+    publicandoLink.value = false
+  }
+}
+
+</script>
+
+<style scoped>
+/* ── Base do corpo da aba ──────────────────────────────
+   As classes "cad-body", "cad-search-bar/wrap/input" e "cad-empty*" vêm do
+   padrão visual da Caderneta, mas o CSS delas está definido só dentro do
+   <style scoped> de TabCaderneta.vue — como cada componente Vue "scoped"
+   recebe um atributo data-v-xxxx próprio, essas regras nunca chegavam a
+   valer aqui. Resultado: corpo sem padding, busca e estado vazio sem
+   estilo nenhum. Redefinindo localmente para esta aba. */
+.cad-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 16px calc(20px + env(safe-area-inset-bottom)); }
+
+/* ── Identidade "caderninho" (perfil da Bete) ──────────
+   Mesmos elementos de assinatura visual do Início (TabCaderneta.vue):
+   lombada perfurada + cabeçalho com fonte manuscrita. Redefinidos aqui
+   pelo mesmo motivo do bloco de comentário acima — <style scoped> não
+   atravessa componentes. Só aparecem quando standalone (perfil da Bete);
+   no perfil do Yves o Cardápio continua com o cabeçalho .tab-hdr padrão. */
+.cad-spiral {
+  display: flex; justify-content: space-evenly; align-items: center;
+  padding: 8px 22px 0; background: var(--surface); flex-shrink: 0;
+}
+.cad-spiral span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--bg); border: 1.5px solid var(--border2);
+  box-shadow: inset 0 1px 2px rgba(61,31,7,.15);
+}
+.cad-hdr {
+  background: var(--surface); padding: 4px 16px 14px; flex-shrink: 0;
+  border-bottom: 1.5px dashed var(--border2);
+}
+.cad-hdr-titulo {
+  font-family: var(--font-hand); font-size: 24px; font-weight: 700; color: var(--brown-dark);
+  margin: 0; display: flex; align-items: center; gap: 8px;
+}
+.cad-hdr-titulo i { font-size: 18px; color: var(--gold-dark); }
+.cad-hdr-date { font-size: 13px; color: var(--muted); font-weight: 700; margin: 3px 0 0; }
+.cad-hdr-titulo-group { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.cad-hdr-titulo-group > div { min-width: 0; }
+.cad-hdr-titulo-group .cad-hdr-titulo { font-size: 23px; white-space: normal; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+.cad-hdr-titulo-group .cad-hdr-date { text-transform: none; white-space: normal; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+.cad-hdr-icon-btn {
+  width: 36px; height: 36px; border-radius: 10px; border: 1.5px solid var(--border2);
+  background: var(--surface); color: var(--brown-mid); display: flex; align-items: center; justify-content: center;
+  font-size: 14px; cursor: pointer; padding: 0; flex-shrink: 0;
+}
+
+/* ── Abas do cardápio (Dia a dia / Festa) ──
+   Faixa fina e full-width logo abaixo do cabeçalho — troca de lugar com o
+   antigo seletor em pílula, que ficava espremido ao lado do título e
+   comia largura da tela. Aqui o nome do cardápio ativo fica em destaque
+   (cor + traço embaixo) e a faixa inteira serve de "trilho" visual pro
+   swipe no conteúdo logo abaixo. */
+.cp-tabs {
+  position: relative; display: grid; grid-template-columns: repeat(var(--cp-seg-count, 2), 1fr);
+  background: var(--surface); border-bottom: 1.5px solid var(--border2); flex-shrink: 0;
+}
+.cp-tabs-underline {
+  position: absolute; bottom: -1.5px; left: 0; height: 2.5px;
+  width: calc(100% / var(--cp-seg-count, 2));
+  background: var(--gold-dark); border-radius: 2px 2px 0 0;
+  transform: translateX(calc(var(--cp-seg-index, 0) * 100%));
+  transition: transform .24s cubic-bezier(.4,0,.2,1);
+}
+.cp-tab {
+  border: none; background: transparent; padding: 11px 6px; font-size: 13px; font-weight: 700;
+  color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 7px;
+  cursor: pointer; transition: color .18s; font-family: var(--font);
+}
+.cp-tab i { font-size: 12px; opacity: .8; }
+.cp-tab.active { color: var(--brown-dark); }
+.cp-bete .cp-tab.active { color: var(--gold-dark); }
+
+/* Título do modal "Configurações" com o badge do cardápio ativo — deixa
+   claro, mesmo depois de aberto por cima da tela, se é Dia a dia ou
+   Festa que está sendo editado. */
+.cp-modal-titulo { display: inline-flex; align-items: center; gap: 7px; }
+.cp-modal-titulo-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; color: var(--gold-dark);
+  background: var(--gold-bg); border: 1px solid var(--gold-light); border-radius: 999px;
+  padding: 3px 9px 3px 8px;
+}
+.cp-modal-titulo-badge i { font-size: 10px; }
+
+/* CTA "Enviar cardápio" no perfil da Bete — mesmo canhoto/ticket do CTA
+   "Lançar novo fiado" do Início, pra manter a mesma linguagem visual. */
+.cp-acoes--bete .cp-acao--principal {
+  position: relative; border: 1.5px dashed var(--gold); background: var(--gold-bg);
+  color: var(--brown-dark); box-shadow: none;
+}
+.cp-acoes--bete .cp-acao--principal i { color: var(--gold-dark); }
+
+.cad-search-bar { padding: 0 0 2px; display: flex; align-items: center; gap: 8px; }
+.cad-search-wrap {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: var(--r-full); padding: 0 14px; height: 44px;
+  color: var(--muted);
+}
+.cad-search-input {
+  flex: 1; border: none; background: transparent; font-size: 15px;
+  color: var(--text); outline: none; font-family: var(--font);
+}
+
+.cad-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.cad-empty-ico { font-size: 40px; margin-bottom: 10px; }
+
+.cp-body { display: flex; flex-direction: column; gap: 14px; }
+
+.cp-acoes-bloco { display: flex; flex-direction: column; gap: 8px; }
+
+/* Ação principal do dia a dia: abrir o cardápio em tela cheia (modo balcão).
+   Fica sozinha, grande e sem disputar espaço com o resto — é o botão que
+   quem atende o cliente (ex: a esposa) precisa achar de primeira. */
+.cp-acao-tela-cheia {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 16px 14px; border-radius: var(--r-lg); border: none;
+  background: var(--gold); color: #2b1a06; font-weight: 800; font-size: 15px;
+  box-shadow: 0 2px 8px rgba(200,137,10,.28); transition: var(--t);
+}
+.cp-acao-tela-cheia i { font-size: 18px; }
+.cp-acao-tela-cheia:active { transform: scale(.98); }
+
+.cp-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.cp-acao {
+  flex: 1; min-width: 104px; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 11px 10px; border-radius: var(--r-lg); border: 1px solid var(--border2);
+  background: var(--surface); color: var(--brown); font-weight: 700; font-size: 12.5px;
+  transition: var(--t);
+}
+.cp-acao:disabled { opacity: .6; }
+.cp-acao--principal { background: var(--brown); color: #fff; border-color: var(--brown); }
+/* "Atualizar link online" e a engrenagem de Configurações formam a dupla
+   secundária/terciária ao lado do CTA principal — antes usavam estilos
+   sem relação entre si (um contorno sólido, outro tracejado), o que dava
+   uma sensação de "três botões de apps diferentes" na mesma barra. Agora
+   os dois dividem a mesma linguagem (contorno + peso), só distinguindo
+   por conteúdo: texto+ícone vs. só ícone. */
+.cp-acao--secundaria { background: var(--surface); color: var(--brown); border-color: var(--border2); }
+.cp-acao--icone { flex: 0 0 auto; min-width: 0; width: 44px; padding: 11px; }
+
+.cp-mais-opcoes-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cp-mais-opcoes-item .cp-acao { flex: 0 0 auto; min-width: 0; padding: 9px 14px; }
+.cp-mais-opcoes-divisor { height: 1px; background: var(--border); margin: 2px 0; }
+
+.cp-link-url-linha { display: block; overflow-x: auto; text-decoration: none; }
+.cp-link-url {
+  display: block; font-size: 11.5px; color: var(--brown-mid); background: var(--cream);
+  border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px 10px; white-space: nowrap;
+}
+.cp-link-url--clicavel { color: var(--brown); font-weight: 700; }
+.cp-link-url--clicavel i { font-size: 10px; margin-left: 4px; opacity: .7; }
+
+/* ── Corpo do modal "Configurações do cardápio" ──
+   O BaseModal não tem padding próprio no body (pra caber conteúdos que
+   precisam de scroll/largura total), então o padding fica por conta de
+   quem usa — igual ao cp-body da tela principal. */
+.cp-modal-config-body { display: flex; flex-direction: column; gap: 14px; padding: 14px; }
+.cp-link-inline { color: var(--brown); font-weight: 700; text-decoration: underline; background: none; border: none; padding: 0; font-size: inherit; }
+.cp-link-status {
+  display: flex; align-items: center; gap: 7px; font-size: 11.5px; line-height: 1.4;
+  border-radius: var(--r-md); padding: 9px 12px; font-weight: 600;
+}
+.cp-link-status.is-publicando { background: var(--gold-bg); color: var(--gold-dark); }
+.cp-link-status.is-aguardando { background: var(--gold-bg); color: var(--gold-dark); }
+.cp-link-status.is-pronto { background: var(--green-bg); color: var(--green); }
+
+.cp-aviso {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--gold-dark);
+  background: var(--gold-bg); border: 1px solid var(--gold-light); border-radius: var(--r-md);
+  padding: 9px 12px;
+}
+
+.cp-modo-cliente-texto { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cp-modo-cliente-texto strong { font-size: 13px; color: var(--brown-dark); display: flex; align-items: center; gap: 6px; }
+.cp-modo-cliente-texto span { font-size: 11px; color: var(--brown-mid); line-height: 1.4; }
+
+.cp-config-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.cp-config-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; font-weight: 700; font-size: 13px; color: var(--brown); background: var(--cream);
+  border: none; text-align: left;
+}
+.cp-config-corpo { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.cp-hint { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+.cp-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 600; min-width: 0; }
+.cp-hist-preco-btn { background: none; border: none; color: var(--brown-mid); padding: 0 0 0 4px; cursor: pointer; font-size: 12px; vertical-align: middle; }
+.cp-hist-preco-btn:hover { color: var(--brown-dark); }
+.cp-field > input, .cp-field > textarea {
+  width: 100%; font: inherit; font-size: 13.5px; color: var(--text); padding: 9px 10px; border-radius: var(--r-md);
+  border: 1px solid var(--border2); background: var(--bg); resize: vertical; box-sizing: border-box;
+}
+.cp-field .input-with-prefix { min-height: 40px; }
+.cp-field .input-with-prefix input { font-size: 13.5px; padding: 9px 10px; min-height: auto; }
+.cp-field-cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.cp-field-cabecalho-btns { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cp-ia-btn {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  font-size: 11px; font-weight: 700; color: var(--gold-dark); background: var(--gold-bg);
+  border: 1px solid var(--gold-light); border-radius: var(--r-full); padding: 4px 10px;
+}
+.cp-copiar-btn {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  font-size: 11px; font-weight: 700; color: var(--terracota-escuro, #7a4520); background: var(--surface);
+  border: 1px solid var(--border2); border-radius: var(--r-full); padding: 4px 10px;
+}
+.cp-field-linha { display: flex; gap: 8px; }
+.cp-field-linha .cp-field { flex: 1; min-width: 0; }
+.cp-field--emoji { flex: 0 0 76px; }
+.cp-field--emoji input { text-align: center; font-size: 18px; padding: 9px 4px; }
+
+.cp-dias-linha { display: flex; align-items: center; gap: 8px; }
+.cp-dias-linha input {
+  width: 64px; flex: 0 0 64px; font: inherit; font-size: 13.5px; color: var(--text);
+  padding: 9px 10px; border-radius: var(--r-md); border: 1px solid var(--border2);
+  background: var(--bg); text-align: center; box-sizing: border-box;
+}
+.cp-dias-sufixo { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+.cp-numero-detectado {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: 13.5px; color: var(--text); font-weight: 600;
+  padding: 9px 10px; border-radius: var(--r-md); border: 1px solid var(--border2); background: var(--bg);
+}
+.cp-link {
+  background: none; border: none; padding: 0; font: inherit; font-size: 11.5px; font-weight: 600;
+  color: var(--gold-dark); text-decoration: underline; cursor: pointer; white-space: nowrap;
+}
+
+/* seletor de cardápio agora usa .seg-control/.seg-btn globais (main.css) */
+.cad-hdr-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+
+.cp-grupos { display: flex; flex-direction: column; gap: 18px; }
+.cp-grupo-cabecalho { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.cp-grupo-titulo-bloco { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; flex: 1; padding-top: 4px; }
+.cp-grupo-titulo {
+  font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase;
+  color: var(--gold-dark); padding-left: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cp-grupo-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-left: 2px; }
+.cp-grupo-selo-minimo {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; font-weight: 700;
+  letter-spacing: normal; text-transform: none; color: #0e0c0a; background: var(--gold);
+  border-radius: 999px; padding: 2px 8px; white-space: nowrap;
+}
+.cp-grupo-selo-estado {
+  display: inline-flex; align-items: center; font-size: 9.5px; font-weight: 700;
+  letter-spacing: normal; text-transform: none; border-radius: 999px; padding: 2px 8px; white-space: nowrap;
+}
+.cp-grupo-selo-estado--parcial { background: var(--orange-bg); color: var(--orange); }
+.cp-grupo-selo-estado--oculta { background: var(--border2); color: var(--muted); }
+.cp-grupo-cabecalho-acoes { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.cp-grupo-opcoes-btn {
+  width: 30px; height: 30px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: none; background: var(--bg); color: var(--brown-mid); font-size: 13px; transition: var(--t);
+}
+.cp-grupo-opcoes-btn:active { background: var(--border2); }
+.cp-aba-padrao-grupo { display: flex; gap: 6px; flex-shrink: 0; }
+.cp-aba-padrao-btn {
+  border: 1px solid var(--border); background: var(--surface); color: var(--brown-mid);
+  font-size: 11.5px; font-weight: 700; padding: 7px 12px; border-radius: 999px; transition: var(--t);
+  white-space: nowrap;
+}
+.cp-aba-padrao-btn.active { border-color: var(--gold); background: var(--gold); color: #fff; }
+.cp-grupo-minimo-form { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.cp-grupo-minimo-campo { display: flex; flex-direction: column; gap: 3px; }
+.cp-grupo-minimo-campo span { font-size: 10px; font-weight: 700; color: var(--muted); }
+.cp-grupo-minimo-input {
+  width: 76px; font: inherit; font-size: 13px; color: var(--text); padding: 6px 8px;
+  border-radius: var(--r-md); border: 1px solid var(--border2); background: var(--bg);
+}
+
+/* ── Modal "Opções da categoria" ── */
+.cp-opcoes-grupo { padding: 16px; display: flex; flex-direction: column; gap: 18px; }
+.cp-opcoes-secao { display: flex; flex-direction: column; gap: 10px; }
+.cp-opcoes-secao-titulo { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 800; color: var(--text); }
+.cp-opcoes-secao-titulo i { color: var(--gold-dark); font-size: 12px; }
+.cp-opcoes-secao-hint { font-size: 12px; color: var(--muted); line-height: 1.45; margin: -2px 0 2px; }
+.cp-opcoes-divisor { height: 1px; background: var(--border); }
+.cp-opcoes-campo-preco { width: 100%; }
+.cp-opcoes-btn-aplicar { width: 100%; justify-content: center; margin-top: 2px; }
+.cp-link--perigo { color: var(--red, #c0392b); align-self: flex-start; }
+
+/* ── Modal "Copiar de outro item" ── */
+.cp-copiar-modal { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.cp-copiar-hint { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.cp-copiar-campos { display: flex; gap: 14px; flex-wrap: wrap; }
+.cp-copiar-campo-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text); }
+.cp-copiar-busca { width: 100%; box-sizing: border-box; font: inherit; font-size: 13.5px; color: var(--text); padding: 9px 10px; border-radius: var(--r-md); border: 1px solid var(--border2); background: var(--bg); }
+.cp-copiar-lista { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; }
+.cp-copiar-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: 8px 10px;
+}
+.cp-copiar-item:active { background: var(--gold-bg); }
+.cp-copiar-item-avatar {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; overflow: hidden;
+  background: var(--gold-bg); border: 1px solid var(--gold-light);
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.cp-copiar-item-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.cp-copiar-item-corpo { flex: 1; min-width: 0; }
+.cp-copiar-item-nome { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cp-copiar-item-selo {
+  font-size: 9.5px; font-weight: 700; color: var(--gold-dark); background: var(--gold-bg);
+  border: 1px solid var(--gold-light); border-radius: var(--r-full); padding: 1px 7px; text-transform: none;
+}
+.cp-copiar-item-selo--outro { color: var(--muted); background: var(--bg); border-color: var(--border2); }
+.cp-copiar-item-desc { font-size: 11.5px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+.cp-copiar-vazio { font-size: 12.5px; color: var(--muted); text-align: center; padding: 20px 0; }
+
+.cp-item { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); margin-bottom: 8px; overflow: hidden; }
+.cp-item--inativo { opacity: .5; }
+.cp-item-topo { display: flex; align-items: center; gap: 8px; padding: 10px; }
+
+.cp-switch-btn { flex-shrink: 0; border: none; background: none; padding: 0; }
+.cp-switch { display: inline-flex; align-items: center; width: 34px; height: 20px; border-radius: 999px; background: var(--border2); padding: 2px; transition: var(--t); }
+.cp-switch.on { background: var(--gold); }
+.cp-switch.on.partial { background: var(--orange); }
+.cp-switch-bola { width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: var(--t); }
+.cp-switch.on .cp-switch-bola { transform: translateX(14px); }
+
+.cp-item-avatar {
+  flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; overflow: hidden;
+  background: var(--gold-bg); border: 1px solid var(--gold-light);
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.cp-item-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.cp-item-corpo { flex: 1; min-width: 0; text-align: left; border: none; background: none; padding: 0; }
+.cp-item-linha1 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cp-item-nome { font-weight: 700; font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-item-selos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.cp-item-selo-destaque {
+  display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700;
+  color: #fff; background: linear-gradient(135deg, var(--gold-light), var(--gold-dark));
+  border-radius: 999px; padding: 1px 7px; width: fit-content;
+}
+.cp-item-selo-destaque i { font-size: 9px; }
+.cp-item-selo-encomenda {
+  display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700;
+  color: #8a5a00; background: #fdf0d5; border: 1px solid #e8c179; border-radius: 999px;
+  padding: 1px 7px; width: fit-content;
+}
+.cp-check--encomenda { margin-top: -4px; }
+.cp-item-preco { font-weight: 800; font-size: 13px; color: var(--gold-dark); white-space: nowrap; }
+.cp-item-desc { font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.cp-item-expand { flex-shrink: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: var(--muted); border: none; background: none; padding: 0; }
+
+.cp-item-painel { padding: 4px 12px 14px; display: flex; flex-direction: column; gap: 10px; border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 12px; }
+
+.cp-foto-linha { display: flex; align-items: center; gap: 8px; }
+.cp-upload {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: var(--r-md);
+  background: var(--cream); border: 1px solid var(--border2); font-size: 12.5px; font-weight: 700; color: var(--brown);
+  white-space: nowrap; flex-shrink: 0;
+}
+.cp-remover-foto { font-size: 12px; color: var(--red); font-weight: 700; padding: 6px 8px; border: none; background: none; }
+
+.cp-check { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text); }
+
+.cp-item-acoes { display: flex; justify-content: flex-end; }
+.cp-ordem-btns { display: inline-flex; border-radius: var(--r-md); border: 1px solid var(--border2); overflow: hidden; }
+.cp-ordem-btn {
+  width: 38px; height: 32px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: none; color: var(--brown-mid); font-size: 12px; transition: var(--t);
+}
+.cp-ordem-btn:not(:last-child) { border-right: 1px solid var(--border2); }
+.cp-ordem-btn:active { background: var(--gold-bg); color: var(--gold-dark); }
+
+/* ── Tela cheia ──
+   Usa as variáveis do design system do app — o cardápio interativo
+   (CSS_PEDIDO) agora usa essa mesma paleta, então a moldura já bate com o
+   conteúdo do iframe desde o primeiro carregamento. */
+.cp-fullscreen { position: fixed; inset: 0; z-index: 2000; background: var(--bg); display: flex; flex-direction: column; }
+.cp-fullscreen-barra {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: max(10px, env(safe-area-inset-top)) 10px 10px; background: #fff;
+  border-bottom: 1px solid var(--border);
+}
+.cp-fs-esquerda { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.cp-fs-acoes { display: flex; gap: 6px; flex-shrink: 0; }
+.cp-fs-btn {
+  width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--gold-bg); border: 1px solid var(--gold-light); color: var(--gold-dark); font-size: 14px;
+  flex-shrink: 0;
+}
+.cp-fs-btn--editar {
+  width: auto; height: 36px; border-radius: 999px; padding: 0 12px; gap: 6px;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.cp-fs-btn:disabled { opacity: .5; }
+.cp-fs-switch {
+  position: relative; display: grid; grid-template-columns: repeat(var(--cp-seg-count, 2), 1fr);
+  gap: 0; background: var(--gold-bg); border: 1px solid var(--gold-light); border-radius: 999px; padding: 3px;
+  flex-shrink: 0;
+}
+.cp-fs-switch-thumb {
+  position: absolute; top: 3px; bottom: 3px; left: 3px;
+  width: calc((100% - 6px) / var(--cp-seg-count, 2));
+  background: #fff; border-radius: 999px; box-shadow: 0 1px 3px rgba(0,0,0,.15);
+  transform: translateX(calc(var(--cp-seg-index, 0) * 100%));
+  transition: transform .22s cubic-bezier(.4,0,.2,1);
+}
+.cp-fs-switch-btn {
+  position: relative; z-index: 1; width: 34px; height: 30px; border: none; background: transparent;
+  color: var(--gold-dark); font-size: 13px; display: flex; align-items: center; justify-content: center;
+  opacity: .6; transition: opacity .22s;
+}
+.cp-fs-switch-btn.active { opacity: 1; }
+.cp-fullscreen-iframe { flex: 1; width: 100%; border: none; background: var(--bg); }
+
+.cp-badge {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px;
+  border-radius: 999px; background: var(--red, #c0392b); color: #fff; font-size: 10.5px; font-weight: 700; padding: 0 5px; margin-left: 4px;
+}
+
+/* "Pedidos do balcão" usa o tema claro normal do app — é uma tela interna,
+   não o cardápio que o cliente vê — só reaproveita a estrutura de overlay
+   em tela cheia. */
+.cp-fullscreen--claro { background: var(--surface, #fff); }
+.cp-fullscreen-barra--clara {
+  background: var(--surface, #fff); border-bottom: 1px solid var(--border);
+}
+.cp-fullscreen-barra--clara .cp-fs-btn--editar { background: transparent; border: 1px solid var(--border); color: var(--brown-dark); }
+.cp-pedidos-titulo { font-weight: 700; font-size: 14px; color: var(--brown-dark); }
+.cp-pedidos-corpo { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Identidade "caderninho" na barra da Tela cheia (perfil da Bete) ──
+   A barra é controle da Bete (fechar/trocar cardápio/enviar/editar), não
+   parte do que o cliente vê dentro do iframe — por isso recebe a mesma
+   linguagem visual do resto do perfil dela. No perfil do Yves a barra
+   mantém a paleta neutra original. */
+.cp-fs-bete .cp-fullscreen-barra:not(.cp-fullscreen-barra--clara) {
+  background: var(--surface); border-bottom: 1.5px dashed var(--border2);
+}
+.cp-fs-bete .cp-fs-btn { background: var(--gold-bg); border-color: var(--gold); color: var(--gold-dark); }
+.cp-fs-bete .cp-fs-btn--editar { background: var(--brown); border-color: var(--brown); color: #fff; }
+.cp-fs-bete .cp-fs-switch { background: var(--cream); border-color: var(--border2); }
+.cp-fs-bete .cp-fs-switch-thumb { background: var(--surface); }
+.cp-fs-bete .cp-fs-switch-btn { color: var(--brown-mid); }
+.cp-fs-bete .cp-fs-switch-btn.active { color: var(--gold-dark); }
+.cp-fs-bete .cp-pedidos-titulo {
+  font-family: var(--font-hand); font-size: 22px; font-weight: 700; color: var(--brown-dark);
+}
+
+/* Título "Cardápio" na barra da Tela cheia — mesma fonte manuscrita e o
+   mesmo botão quadrado-arredondado usados nos cabeçalhos das outras telas
+   (Lojas, Resumo, Cardápio editor), pra fechar a identidade visual. */
+.cp-fs-spiral { background: var(--surface); padding-top: max(6px, env(safe-area-inset-top)); }
+.cp-fs-titulo {
+  font-family: var(--font-hand); font-size: 22px; font-weight: 700; color: var(--brown-dark);
+  margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34vw;
+}
+.cp-fs-bete .cp-fs-btn {
+  border-radius: 9px;
+}
+
+.cp-pedidos-vazio { text-align: center; color: var(--muted); padding: 60px 24px; font-size: 13px; line-height: 1.6; }
+.cp-pedidos-vazio i { font-size: 30px; opacity: .5; display: block; margin-bottom: 10px; }
+
+.cp-pedido-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: 12px 14px; transition: opacity var(--t); }
+.cp-pedido-card.is-agendado { border-color: var(--blue); border-left-width: 3px; }
+.cp-pedido-card.is-entregue { opacity: .62; }
+.cp-pedido-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.cp-pedido-cliente { display: flex; flex-direction: column; }
+.cp-pedido-cliente strong { font-size: 13.5px; color: var(--brown-dark); }
+.cp-pedido-data { font-size: 10.5px; color: var(--muted); }
+.cp-pedido-status {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700;
+  padding: 4px 9px; border-radius: 999px; white-space: nowrap; flex-shrink: 0;
+}
+.cp-pedido-status i { font-size: 9px; }
+.cp-pedido-status.is-pendente { background: var(--gold-bg); color: var(--gold-dark); }
+.cp-pedido-status.is-agendado { background: var(--blue-bg); color: var(--blue); }
+.cp-pedido-status.is-entregue { background: var(--green-bg); color: var(--green); }
+.cp-pedido-itens { font-size: 12.5px; color: var(--brown-mid); margin-top: 8px; line-height: 1.6; }
+.cp-pedido-pagamento { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+.cp-pedido-acoes { display: flex; gap: 8px; margin-top: 10px; }
+.cp-pedido-acoes .cp-acao { flex: 1; justify-content: center; padding: 8px 10px; font-size: 11.5px; }
+.cp-pedido-acoes--secundarias .cp-acao { background: transparent; }
+.cp-acao--perigo { color: var(--red); border-color: var(--red-dim, #f0c4c0); }
+.cp-pedido-acoes .cp-acao--icone { flex: 0 0 auto !important; width: 38px; padding: 8px; }
+.cp-acao--entregue { background: var(--green) !important; border-color: var(--green) !important; color: #fff !important; font-weight: 700; }
+.cp-acao--entregue:active { background: #145c35 !important; }
+
+/* ── Agendamento do pedido — data/hora combinada com o cliente (não tem
+     relação nenhuma com produção, é só "pra quando ficou combinado"). ── */
+.cp-pedido-agenda-info {
+  display: flex; align-items: center; gap: 7px; margin-top: 10px; font-size: 12.5px;
+  color: var(--blue); background: var(--blue-bg); border-radius: var(--r-sm);
+  padding: 9px 11px;
+}
+.cp-pedido-agenda-info i { font-size: 13px; flex-shrink: 0; }
+.cp-pedido-agenda-editor {
+  margin-top: 10px; padding: 12px; border-radius: var(--r-sm); background: var(--blue-bg);
+  border: 1px solid #cfe0fb;
+}
+.cp-pedido-agenda-editor-titulo {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
+  color: var(--blue); margin-bottom: 10px;
+}
+.cp-pedido-agenda-editor-campos { display: flex; gap: 8px; }
+.cp-pedido-agenda-campo { display: flex; flex-direction: column; gap: 4px; flex: 1.3; font-size: 10.5px; color: var(--muted); font-weight: 700; }
+.cp-pedido-agenda-campo--hora { flex: 1; }
+.cp-pedido-agenda-campo em { font-weight: 500; font-style: normal; opacity: .75; }
+.cp-pedido-agenda-input {
+  width: 100%; padding: 9px 10px; border: 1.5px solid var(--border); border-radius: var(--r-sm);
+  font-size: 14px; font-family: var(--font); color: var(--text); background: var(--surface);
+}
+.cp-pedido-agenda-input:focus { outline: none; border-color: var(--blue); }
+.cp-pedido-agenda-editor-acoes { display: flex; gap: 8px; margin-top: 10px; }
+.cp-pedido-agenda-editor-acoes .cp-acao { flex: 1; justify-content: center; padding: 9px 14px; font-size: 12px; }
+.cp-pedido-agenda-editor-acoes .cp-acao--principal { flex: 1.4; }
+</style>
