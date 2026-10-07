@@ -2548,7 +2548,7 @@ function linhasItensMsg(f) {
 
 // Comprovante de UMA venda: saudação, data, itens, desconto (se houver), total e situação.
 function montarMensagemVenda(f, nomeCliente) {
-  const linhas = [`Oi, ${nomeCliente}! Aqui é a Bete 😊`, 'Segue sua compra:', '']
+  const linhas = [`Oi, ${nomeCliente}! 😊`, 'Segue sua compra:', '']
   linhas.push(dataCurtaMsg(f))
   linhas.push(...linhasItensMsg(f))
   if (descontoDe(f) > 0) linhas.push(`Desconto −${fmt(descontoDe(f))}`)
@@ -2630,7 +2630,7 @@ function montarMensagemCobranca(c, abertos, pix = '') {
 
   // Tom de conversa de WhatsApp: curto, sem formalidade. Só o essencial:
   // saudação, datas, produtos e valores, total e Pix.
-  linhas.push(`Oi, ${c.clienteNome}! Aqui é a Bete 😊`)
+  linhas.push(`Oi, ${c.clienteNome}! 😊`)
   linhas.push(`Segue${plural ? 'm' : ''} sua${plural ? 's' : ''} compra${plural ? 's' : ''}:`)
 
   const ordenados = [...abertos].sort((x, y) => String(x.dataVenda || '').localeCompare(String(y.dataVenda || '')))
