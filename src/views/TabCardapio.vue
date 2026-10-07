@@ -351,6 +351,18 @@
 
             <div class="cp-mais-opcoes-item">
               <div class="cp-modo-cliente-texto">
+                <strong><i class="fas fa-image"></i> Mostrar foto em cada sabor</strong>
+                <span>Desligue pra exibir só o banner da categoria no cardápio digital, sem foto ou emoji nos itens. As fotos continuam guardadas.</span>
+              </div>
+              <button class="cp-grupo-switch-btn" @click="config.mostrar_foto_itens = config.mostrar_foto_itens === false; salvar()">
+                <span class="cp-switch" :class="{ on: config.mostrar_foto_itens !== false }"><span class="cp-switch-bola"></span></span>
+              </button>
+            </div>
+
+            <div class="cp-mais-opcoes-divisor"></div>
+
+            <div class="cp-mais-opcoes-item">
+              <div class="cp-modo-cliente-texto">
                 <strong><i class="fas fa-thumbtack"></i> Aba padrão ao abrir</strong>
                 <span>Qual cardápio já vem selecionado quando você entra aqui.</span>
               </div>
@@ -423,6 +435,19 @@
               </button>
               <p class="cp-hint">Esse mesmo botão também aparece como "Atualizar link online" no topo da tela. Nada é enviado sozinho: toda edição fica salva aqui no app na hora, mas só vai pro link quando você aperta esse botão — assim ele nunca muda sem você mandar.</p>
             </template>
+
+            <div class="cp-mais-opcoes-divisor"></div>
+
+            <div class="cp-mais-opcoes-item">
+              <div class="cp-modo-cliente-texto">
+                <strong><i class="fas fa-clipboard-list"></i> Pedidos do balcão</strong>
+                <span>Toda vez que você fecha um pedido pela tela cheia (com o cliente na sua frente), ele fica salvo aqui — com nome, telefone e pra quando ficou combinado.</span>
+              </div>
+              <button class="cp-acao" @click="configModalAberto = false; abrirPainelPedidos()">
+                <i class="fas fa-clipboard-list"></i> Ver
+                <span v-if="pedidosPendentesCount" class="cp-badge">{{ pedidosPendentesCount }}</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -450,6 +475,27 @@
           >
             Salvar nome
           </button>
+        </section>
+
+        <div class="cp-opcoes-divisor"></div>
+
+        <section class="cp-opcoes-secao">
+          <div class="cp-opcoes-secao-titulo"><i class="fas fa-image"></i> Imagem da categoria</div>
+          <p class="cp-opcoes-secao-hint">Aparece como banner com o título no cardápio digital. Sem imagem aqui, usa a foto do primeiro sabor que tiver foto.</p>
+          <div class="cp-capa-previa" :class="{ vazio: !imagemDaCategoria(opcoesGrupoAberto) }">
+            <img v-if="imagemDaCategoria(opcoesGrupoAberto)" :src="imagemDaCategoria(opcoesGrupoAberto)" alt="">
+            <div v-else class="cp-capa-previa-vazio"><i class="fas fa-image"></i><span>Sem imagem escolhida</span></div>
+            <div class="cp-capa-previa-titulo">{{ opcoesGrupoAberto.categoria }}</div>
+          </div>
+          <div class="cp-capa-acoes">
+            <label class="cp-acao cp-acao--principal cp-capa-btn">
+              <input type="file" accept="image/*" hidden @change="e => onImagemCategoria(opcoesGrupoAberto, e)">
+              <i class="fas fa-camera"></i> {{ config.categorias_img?.[opcoesGrupoAberto.categoria] ? 'Trocar imagem' : 'Escolher imagem' }}
+            </label>
+            <button v-if="config.categorias_img?.[opcoesGrupoAberto.categoria]" type="button" class="cp-remover-foto" @click="removerImagemCategoria(opcoesGrupoAberto)">
+              Remover
+            </button>
+          </div>
         </section>
 
         <div class="cp-opcoes-divisor"></div>
@@ -782,7 +828,7 @@ const emit = defineEmits(['fechar'])
 
 const R$ = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const config = reactive({ nome_cardapio: '', subtitulo: 'Chocolates Artesanais', mensagem_rodape: 'Peça já e encomende o seu! 🍫', abrir_tela_cheia_padrao: false, pagamento_ativo: true, antecedencia_dias: 2, sinal_ativo: true, sinal_texto: 'Encomendas confirmadas mediante pagamento de um sinal. Após a confirmação, o sinal não é reembolsável, pois é usado para a compra dos insumos da sua encomenda.', taxa_entrega: 0, categorias_min: {}, itens: {} })
+const config = reactive({ nome_cardapio: '', subtitulo: 'Chocolates Artesanais', mensagem_rodape: 'Peça já e encomende o seu! 🍫', abrir_tela_cheia_padrao: false, pagamento_ativo: true, antecedencia_dias: 2, sinal_ativo: true, sinal_texto: 'Encomendas confirmadas mediante pagamento de um sinal. Após a confirmação, o sinal não é reembolsável, pois é usado para a compra dos insumos da sua encomenda.', taxa_entrega: 0, categorias_min: {}, categorias_img: {}, mostrar_foto_itens: true, itens: {} })
 const cardapioAtivo = ref('festa') // 'festa' | 'diaadia' — cada um é um cardápio 100% independente (itens, capa, regras, link)
 const abaPadrao = ref('festa') // qual dos dois abre por padrão ao entrar aqui (configurável em "Mais opções")
 const cardapioAtivoIndex = computed(() => Math.max(0, CARDAPIOS.findIndex(c => c.id === cardapioAtivo.value)))
@@ -848,6 +894,11 @@ function renomearCategoria(grupo) {
   if (config.categorias_min?.[grupo.categoria]) {
     config.categorias_min[novoNome] = config.categorias_min[grupo.categoria]
     delete config.categorias_min[grupo.categoria]
+  }
+  // Idem pra imagem do banner da categoria.
+  if (config.categorias_img?.[grupo.categoria]) {
+    config.categorias_img[novoNome] = config.categorias_img[grupo.categoria]
+    delete config.categorias_img[grupo.categoria]
   }
   salvar()
   s.notify?.(`Categoria renomeada para "${novoNome}".`)
@@ -1389,6 +1440,32 @@ function definirCategoriaMinimo(nomeCategoria, campo, valorBruto) {
 function removerCategoriaMinimo(nomeCategoria) {
   if (!config.categorias_min) return
   delete config.categorias_min[nomeCategoria]
+  salvar()
+}
+
+// Imagem escolhida pra categoria, ou (na falta) a foto do primeiro sabor que tiver.
+function imagemDaCategoria(grupo) {
+  if (!grupo) return ''
+  return config.categorias_img?.[grupo.categoria]
+    || grupo.itens.map(r => itemCfg(r.uuid).foto).find(Boolean)
+    || ''
+}
+async function onImagemCategoria(grupo, evento) {
+  const arquivo = evento.target.files?.[0]
+  evento.target.value = ''
+  if (!arquivo) return
+  try {
+    const dataUrl = await redimensionarImagem(arquivo, { maxLado: 900, qualidade: 0.78 })
+    if (!config.categorias_img) config.categorias_img = {}
+    config.categorias_img[grupo.categoria] = dataUrl
+    salvar()
+  } catch (err) {
+    s.notify?.(err.message || 'Não foi possível processar a imagem.')
+  }
+}
+function removerImagemCategoria(grupo) {
+  if (!config.categorias_img) return
+  delete config.categorias_img[grupo.categoria]
   salvar()
 }
 
@@ -2121,4 +2198,14 @@ async function publicarLinkCardapioInterativo() {
 .cp-pedido-agenda-editor-acoes { display: flex; gap: 8px; margin-top: 10px; }
 .cp-pedido-agenda-editor-acoes .cp-acao { flex: 1; justify-content: center; padding: 9px 14px; font-size: 12px; }
 .cp-pedido-agenda-editor-acoes .cp-acao--principal { flex: 1.4; }
+
+/* Prévia do banner da categoria (modal de opções) */
+.cp-capa-previa { position: relative; height: 112px; border-radius: 14px; overflow: hidden; background: linear-gradient(135deg, #5a3016, #2a1504); margin-top: 8px; }
+.cp-capa-previa img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cp-capa-previa::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,10,3,.1), rgba(20,10,3,.8)); }
+.cp-capa-previa-vazio { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: rgba(255,255,255,.55); font-size: 12px; font-weight: 700; }
+.cp-capa-previa-vazio i { font-size: 22px; }
+.cp-capa-previa-titulo { position: absolute; left: 14px; bottom: 12px; z-index: 1; color: #fff; font-weight: 800; font-size: 17px; text-transform: uppercase; letter-spacing: .06em; text-shadow: 0 2px 6px rgba(0,0,0,.4); }
+.cp-capa-acoes { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.cp-capa-btn { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
 </style>

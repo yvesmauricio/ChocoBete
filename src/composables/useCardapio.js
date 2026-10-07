@@ -85,6 +85,8 @@ const CONFIG_DEFAULT = (id = 'festa') => ({
   // escolhe "Receber em casa". 0 = ainda não configurada (o cardápio avisa
   // "a combinar" em vez de inventar um número).
   taxa_entrega: 0,
+  mostrar_foto_itens: true, // false = esconde a foto/emoji de cada sabor no cardápio digital (só o banner da categoria aparece)
+  categorias_img: {}, // { [categoria]: dataURL } — imagem do banner da categoria no cardápio digital (vazio = usa a foto do 1º item)
   categorias_min: {}, // { [categoria]: { valor, unidades } } — ex: { Festa: { valor: 80, unidades: 20 } } — 0/ausente = sem exigência nesse critério
   itens: {}, // { [receitaUuid]: { ativo, ordem, categoria, descricao, emoji, foto, destaque, preco_exibido } }
 })
@@ -127,6 +129,7 @@ export async function carregarConfigCardapio(id = 'festa') {
     ...salvo,
     itens: { ...(salvo.itens || {}) },
     categorias_min: normalizarCategoriasMin(salvo.categorias_min),
+    categorias_img: { ...(salvo.categorias_img || {}) },
   }
 }
 
@@ -571,33 +574,63 @@ const CSS_PEDIDO = `
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { background: var(--creme); color: var(--marrom); font-family: 'Plus Jakarta Sans', sans-serif; }
   body { padding-bottom: 130px; }
-  .ip-capa { display: flex; align-items: center; justify-content: center; gap: 12px; padding: max(12px, env(safe-area-inset-top)) 16px 12px; background: #fff; border-bottom: 1.5px dashed var(--terracota-claro); }
-  .ip-capa .selo { width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%; border: 1.5px solid var(--terracota-claro); display: flex; align-items: center; justify-content: center; font-size: 20px; background: var(--creme-fundo); }
-  .ip-capa-texto { min-width: 0; text-align: left; }
-  .ip-capa .marca { font-family: 'Caveat', cursive; font-weight: 700; font-size: 26px; line-height: 1; color: var(--marrom-suave); }
-  .ip-capa .subtitulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 11px; color: var(--terracota-escuro); margin-top: 3px; line-height: 1.3; }
-
-  .categoria-bloco { padding: 0 16px; }
-  .categoria-titulo {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 20pt; color: var(--marrom-suave);
-    text-transform: none; letter-spacing: normal; text-align: left; margin: 20px 4px 8px;
-    width: 100%; background: none; border: none; padding: 0; cursor: pointer;
+  /* ── Capa: faixa de chocolate com a marca centralizada, filete dourado embaixo ── */
+  .ip-capa {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center;
+    padding: max(22px, env(safe-area-inset-top)) 20px 24px;
+    background: radial-gradient(120% 140% at 50% 0%, #5a3016 0%, #3d1f07 55%, #2a1504 100%);
+    border-bottom: 3px solid #c8890a;
   }
-  .categoria-titulo-texto { flex-shrink: 0; }
+  .ip-capa .selo { width: 64px; height: 64px; flex-shrink: 0; border-radius: 50%; border: 2px solid #c8890a; display: flex; align-items: center; justify-content: center; font-size: 30px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .ip-capa-texto { min-width: 0; text-align: center; }
+  .ip-capa .marca { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 25px; line-height: 1.1; color: #fff; text-transform: uppercase; letter-spacing: .09em; }
+  .ip-capa .subtitulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 11px; color: #f0c25e; text-transform: uppercase; letter-spacing: .22em; margin-top: 7px; line-height: 1.4; }
+
+  /* ── Seção da categoria: banner com a imagem + título por cima, e os itens
+     logo abaixo no mesmo cartão (estrutura de cardápio digital). O banner é o
+     botão que abre/fecha a lista. ── */
+  .categoria-bloco {
+    margin: 0 16px 20px; background: #fff; border-radius: 20px; overflow: hidden;
+    border: 1px solid var(--borda); box-shadow: 0 4px 14px rgba(61,31,7,.08);
+  }
+  .ip-cat-nav + .categoria-bloco, .ip-capa + .categoria-bloco { margin-top: 18px; }
+  .categoria-titulo {
+    position: relative; display: block; width: 100%; min-height: 148px; padding: 0; border: none; cursor: pointer;
+    text-align: left; background: #3d1f07; overflow: hidden; color: #fff;
+  }
+  .categoria-capa-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .categoria-capa-fundo {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 22px;
+    background: linear-gradient(135deg, #5a3016 0%, #3d1f07 60%, #2a1504 100%);
+    font-size: 76px; opacity: .95;
+  }
+  .categoria-capa-fundo span { opacity: .28; filter: grayscale(.2); }
+  .categoria-capa-veu { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,10,3,.10) 0%, rgba(20,10,3,.45) 55%, rgba(20,10,3,.86) 100%); }
+  .categoria-capa-info {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 54px 14px 18px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  }
+  .categoria-titulo-texto {
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 24px; line-height: 1.05;
+    text-transform: uppercase; letter-spacing: .06em; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.45);
+  }
+  .categoria-titulo-texto::after { content: ''; display: block; width: 38px; height: 3px; border-radius: 2px; background: #f0c25e; margin-top: 8px; }
+  .categoria-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
   .categoria-contagem {
-    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 11px;
-    color: var(--terracota-desc); flex-shrink: 0;
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 11px; color: #fff;
+    background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 2px 10px; flex-shrink: 0;
   }
   .categoria-selecionados {
-    display: none; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 10pt; color: #fff;
-    background: var(--marrom-suave); border-radius: 999px; padding: 2px 10px; flex-shrink: 0;
+    display: none; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 11px; color: #3d1f07;
+    background: #f0c25e; border-radius: 999px; padding: 2px 10px; flex-shrink: 0;
   }
   .categoria-chevron {
-    margin-left: auto; font-size: 14px; color: var(--terracota-desc); transition: transform .2s ease; flex-shrink: 0;
+    position: absolute; right: 14px; bottom: 16px; width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff;
+    background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.4); transition: transform .2s ease; flex-shrink: 0;
   }
   .categoria-bloco.aberta .categoria-chevron { transform: rotate(180deg); }
-  .categoria-itens { display: none; }
+  .categoria-itens { display: none; padding: 4px 0 6px; }
   .categoria-bloco.aberta .categoria-itens { display: block; }
 
   .ip-cat-nav {
@@ -633,6 +666,8 @@ const CSS_PEDIDO = `
     box-shadow: 0 1px 3px rgba(168,104,0,.35);
   }
   .item-selo-encomenda { background: #fdf0d5; color: #8a5a00; border: 1px solid #e8c179; }
+  .categoria-titulo .categoria-selo-minimo { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); color: #fff; font-size: 11px; padding: 2px 10px; }
+  .categoria-titulo .categoria-preco-unico { background: #f0c25e; border: none; color: #3d1f07; font-size: 11px; font-weight: 800; padding: 2px 10px; }
 
   /* ── Item: card branco sobre o fundo creme. Avatar fica no topo, alinhado
      com a primeira linha do corpo. Dentro do corpo: nome sozinho (livre pra
@@ -640,7 +675,8 @@ const CSS_PEDIDO = `
      descrição opcional embaixo, e por último preço + contador juntos na
      mesma linha — ficam próximos um do outro, sem vão vazio, mas sem
      espremer o nome. ── */
-  .ip-item { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .ip-item { background: transparent; border-radius: 0; padding: 14px 16px; margin: 0; border-bottom: 1px dashed var(--borda); }
+  .ip-item:last-child { border-bottom: none; }
   .ip-item-topo { display: flex; align-items: flex-start; gap: 12px; }
   .ip-item-avatar { width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; background: var(--creme-fundo); display: flex; align-items: center; justify-content: center; font-size: 22px; }
   .ip-item-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
@@ -698,7 +734,7 @@ const CSS_PEDIDO = `
     background: var(--creme-fundo); border: 1px solid var(--terracota-claro); border-radius: 999px;
     padding: 2px 10px; flex-shrink: 0;
   }
-  .ip-item--compacto { padding: 8px 12px; margin-bottom: 6px; }
+  .ip-item--compacto { padding: 10px 16px; margin: 0; }
   .ip-item--compacto .ip-item-topo { align-items: center; gap: 10px; }
   .ip-item--compacto .ip-item-avatar { width: 40px; height: 40px; font-size: 18px; }
   .ip-item--compacto .ip-item-corpo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -875,6 +911,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
   const nome = config.nome_cardapio || empresa?.nome || 'Cardápio'
   const numero = numeroWhatsAppFormatado(empresa?.whatsapp_pedidos)
   const itensGlobais = grupos.flatMap(g => g.itens)
+  const mostrarFotoItens = config?.mostrar_foto_itens !== false
 
   // Pix: a chave é sempre o mesmo número do WhatsApp de pedidos (tipo
   // telefone) — sem cadastro extra nenhum. Se o número não estiver
@@ -941,14 +978,24 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     // no título e cada sabor vira uma linha compacta (só nome + botão).
     const compacto = g.itens.length >= 3 && g.itens.every(it => Number(it.preco) === Number(g.itens[0].preco))
     const precoUnico = compacto ? `<span class="categoria-preco-unico">${R$(g.itens[0].preco)} cada</span>` : ''
+    // Imagem do banner: a escolhida pra categoria; senão a foto do primeiro item que tiver foto.
+    const capaImg = config?.categorias_img?.[g.categoria] || g.itens.find(it => it.foto)?.foto || ''
     return `
     <div class="categoria-bloco${catIdx === 0 ? ' aberta' : ''}" id="ip-cat-${catIdx}">
       <button type="button" class="categoria-titulo" onclick="toggleCategoria(${catIdx})">
-        <span class="categoria-titulo-texto">${escHtml(g.categoria)}</span>
-        <span class="categoria-contagem">${g.itens.length} ${g.itens.length === 1 ? 'item' : 'itens'}</span>
-        <span class="categoria-selecionados" id="ip-cat-selecionados-${catIdx}"></span>
-        ${precoUnico}
-        ${selo}
+        ${capaImg
+          ? `<img class="categoria-capa-img" src="${capaImg}" alt="">`
+          : `<span class="categoria-capa-fundo"><span>${escHtml(g.itens[0]?.emoji || '🍫')}</span></span>`}
+        <span class="categoria-capa-veu"></span>
+        <span class="categoria-capa-info">
+          <span class="categoria-titulo-texto">${escHtml(g.categoria)}</span>
+          <span class="categoria-meta">
+            <span class="categoria-contagem">${g.itens.length} ${g.itens.length === 1 ? 'item' : 'itens'}</span>
+            <span class="categoria-selecionados" id="ip-cat-selecionados-${catIdx}"></span>
+            ${precoUnico}
+            ${selo}
+          </span>
+        </span>
         <span class="categoria-chevron">▾</span>
       </button>
       <div class="categoria-itens" id="ip-cat-itens-${catIdx}">
@@ -969,7 +1016,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
           return `
         <div class="ip-item ip-item--compacto${item.descricao ? ' tem-desc' : ''}">
           <div class="ip-item-topo">
-            ${item.foto ? `<div class="ip-item-avatar ip-item-avatar--foto" onclick="abrirFotoItem(this)" data-nome="${escHtml(item.nome)}" data-preco="${escHtml(R$(item.preco))}">${iconeOuFoto(item)}</div>` : ''}
+            ${mostrarFotoItens && item.foto ? `<div class="ip-item-avatar ip-item-avatar--foto" onclick="abrirFotoItem(this)" data-nome="${escHtml(item.nome)}" data-preco="${escHtml(R$(item.preco))}">${iconeOuFoto(item)}</div>` : ''}
             <div class="ip-item-corpo">
               <div class="ip-item-info"${item.descricao ? ' onclick="this.closest(\'.ip-item\').classList.toggle(\'desc-aberta\')"' : ''}>
                 <div class="ip-item-linha1">
@@ -985,7 +1032,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
         return `
         <div class="ip-item">
           <div class="ip-item-topo">
-            <div class="ip-item-avatar${item.foto ? ' ip-item-avatar--foto' : ''}"${item.foto ? ` onclick="abrirFotoItem(this)" data-nome="${escHtml(item.nome)}" data-preco="${escHtml(R$(item.preco))}"` : ''}>${iconeOuFoto(item)}</div>
+            ${mostrarFotoItens ? `<div class="ip-item-avatar${item.foto ? ' ip-item-avatar--foto' : ''}"${item.foto ? ` onclick="abrirFotoItem(this)" data-nome="${escHtml(item.nome)}" data-preco="${escHtml(R$(item.preco))}"` : ''}>${iconeOuFoto(item)}</div>` : ''}
             <div class="ip-item-corpo">
               <div class="ip-item-linha1">
                 <span class="ip-item-nome">${escHtml(item.nome)}${item.destaque ? '<span class="item-selo-destaque">★ Mais pedido</span>' : ''}${item.sobEncomenda ? '<span class="item-selo-encomenda">🕒 Sob encomenda</span>' : ''}</span>

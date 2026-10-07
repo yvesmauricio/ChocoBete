@@ -4,6 +4,17 @@
       <slot />
     </div>
     <template #actions>
+      <!-- Saldo devedor da cliente — só aparece quando a prop `saldo` é informada -->
+      <div v-if="mostrarSaldo" class="swipe-saldo" :class="{ 'swipe-saldo--ok': !saldo }">
+        <template v-if="saldo > 0">
+          <span class="swipe-saldo-label">Deve</span>
+          <span class="swipe-saldo-valor">R$ {{ saldoFmt }}</span>
+        </template>
+        <template v-else>
+          <i class="fas fa-circle-check"></i>
+          <span class="swipe-saldo-label">Em dia</span>
+        </template>
+      </div>
       <!-- Enviar comprovante por WhatsApp — só aparece quando actions inclui 'receipt' -->
       <button v-if="actions.includes('receipt')" class="swipe-action-btn receipt" @click.stop="$emit('receipt')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -51,7 +62,9 @@ const props = defineProps({
   // Lista de ações visíveis: 'receipt' | 'receive' | 'edit' | 'delete'
   actions: { type: Array, default: () => ['edit', 'delete'] },
   // Texto do botão de remover (ex.: "Remover" quando a ação pode ser arquivar)
-  deleteLabel: { type: String, default: 'Excluir' }
+  deleteLabel: { type: String, default: 'Excluir' },
+  // Saldo devedor (R$) mostrado junto das ações. null = não mostra o painel.
+  saldo: { type: Number, default: null }
 })
 defineEmits(['click', 'edit', 'delete', 'receive', 'receipt'])
 
@@ -59,8 +72,14 @@ defineEmits(['click', 'edit', 'delete', 'receive', 'receipt'])
 // uma linha fique aberta por vez em todo o app, não só dentro desta lista.
 const rowId = computed(() => `${props.scope}-${props.id}`)
 
-// Largura da área de ações proporcional ao número de botões
-const actionsWidth = computed(() => props.actions.length * 72)
+const mostrarSaldo = computed(() => props.saldo !== null && props.saldo !== undefined)
+const saldoFmt = computed(() =>
+  Number(props.saldo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+)
+const LARGURA_SALDO = 104
+
+// Largura da área de ações proporcional ao número de botões (+ painel de saldo, quando houver)
+const actionsWidth = computed(() => props.actions.length * 72 + (mostrarSaldo.value ? LARGURA_SALDO : 0))
 
 const { openSwipeId } = useSwipe()
 
@@ -69,3 +88,15 @@ defineExpose({
   id: props.id
 })
 </script>
+<style scoped>
+.swipe-saldo {
+  flex: 0 0 104px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; padding: 0 6px; text-align: center;
+  background: var(--red-bg, #fef2f2); color: var(--red, #dc2626);
+  border-left: 1px solid var(--border, #e5e7eb);
+}
+.swipe-saldo--ok { background: var(--green-bg, #f0fdf4); color: var(--green, #16a34a); }
+.swipe-saldo i { font-size: 16px; }
+.swipe-saldo-label { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.swipe-saldo-valor { font-size: 14px; font-weight: 800; line-height: 1.1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+</style>

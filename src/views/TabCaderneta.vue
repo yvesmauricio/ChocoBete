@@ -108,8 +108,8 @@
             <div v-for="a in alertasDia" :key="a.fiadoId" class="cad-alerta-item" @click="irParaResumo()">
               <div class="cad-alerta-avatar">{{ iniciais(a.clienteNome) }}</div>
               <div class="cad-alerta-info">
-                <div class="cad-alerta-nome">{{ a.clienteNome }}</div>
-                <div class="cad-alerta-loja">{{ a.lojaNome }}</div>
+                <div class="cad-alerta-nome">{{ a.clienteNome }}<span v-if="a.clienteFuncao" class="cad-funcao-tag">{{ a.clienteFuncao }}</span></div>
+                <div class="cad-alerta-loja">{{ a.lojaNome }}<template v-if="lojaLocal(a.lojaId)"> · {{ lojaLocal(a.lojaId) }}</template></div>
               </div>
               <div class="cad-alerta-val">R$ {{ fmt(a.saldo) }}</div>
             </div>
@@ -194,7 +194,7 @@
           <div class="cad-list-icon"><i class="fas fa-store"></i></div>
           <div class="cad-list-info">
             <div class="cad-list-nome">{{ l.nome }}</div>
-            <div v-if="l.referencia" class="cad-list-sub">{{ l.referencia }}</div>
+            <div v-if="localBairro(l)" class="cad-list-sub">{{ localBairro(l) }}</div>
           </div>
         </CadernetaSwipeItem>
 
@@ -231,7 +231,7 @@
             </button>
             <div>
               <h2 class="cad-hdr-titulo"><i class="fas fa-user-friends"></i> {{ lojaAtual?.nome }}</h2>
-              <p class="cad-hdr-date">{{ lojaAtual?.referencia || 'Lista de clientes da Loja selecionada' }}</p>
+              <p class="cad-hdr-date">{{ localBairro(lojaAtual) || 'Lista de clientes da Loja selecionada' }}</p>
             </div>
           </div>
           <div class="cad-hdr-icons">
@@ -253,6 +253,7 @@
         </div>
         <CadernetaSwipeItem
           v-for="c in clientesFiltrados" :key="c.id" :id="c.id" scope="clientes"
+          :saldo="saldoPorCliente[c.id] || 0"
           @click="escolherCliente(c)"
           @edit="abrirModalCliente(c)"
           @delete="confirmarExcluirCliente(c)"
@@ -260,7 +261,7 @@
         >
           <div class="cad-list-icon pessoa"><i class="fas fa-user"></i></div>
           <div class="cad-list-info">
-            <div class="cad-list-nome">{{ c.nome }}</div>
+            <div class="cad-list-nome">{{ c.nome }}<span v-if="c.funcao" class="cad-funcao-tag">{{ c.funcao }}</span></div>
             <div class="cad-list-sub">{{ c.telefone || 'Sem telefone' }}</div>
           </div>
         </CadernetaSwipeItem>
@@ -268,7 +269,7 @@
         <div v-if="mostrarArquivadas" class="cad-arq-lista">
           <div v-for="c in clientesArquivados" :key="'arq' + c.id" class="cad-arq-item">
             <div class="cad-list-info">
-              <div class="cad-list-nome">{{ c.nome }}</div>
+              <div class="cad-list-nome">{{ c.nome }}<span v-if="c.funcao" class="cad-funcao-tag">{{ c.funcao }}</span></div>
               <div class="cad-list-sub">Arquivada · {{ c.telefone || 'Sem telefone' }}</div>
             </div>
             <button class="cad-arq-btn" @click="reativarCliente(c)"><i class="fas fa-rotate-left"></i> Reativar</button>
@@ -298,7 +299,7 @@
             </button>
             <div>
               <h2 class="cad-hdr-titulo"><i class="fas fa-cart-plus"></i> Nova Venda</h2>
-              <p class="cad-hdr-date">{{ clienteAtual?.nome }} · {{ lojaAtual?.nome || '—' }}</p>
+              <p class="cad-hdr-date">{{ clienteAtual?.nome }}<template v-if="clienteAtual?.funcao"> ({{ clienteAtual.funcao }})</template> · {{ lojaAtual?.nome || '—' }}</p>
             </div>
           </div>
         </div>
@@ -355,6 +356,8 @@
               </div>
             </div>
           </div>
+
+          <DescontoCampo v-model:valor="descontoRaw" v-model:motivo="descontoMotivo" />
         </div>
 
         <!-- 3 · Data combinada -->
@@ -382,10 +385,10 @@
 
       <div class="cad-footer-lancar">
         <div class="cad-footer-total">
-          <div class="cad-footer-label">Total</div>
+          <div class="cad-footer-label">Total<template v-if="descontoLancar > 0"> · desconto − R$ {{ fmt(descontoLancar) }}</template></div>
           <div class="cad-footer-val">R$ {{ fmt(totalLancar) }}</div>
         </div>
-        <button class="cad-btn-salvar" :disabled="totalLancar === 0 || !dataVenc || salvandoFiado" @click="salvarFiado">
+        <button class="cad-btn-salvar" :disabled="brutoLancar === 0 || !dataVenc || salvandoFiado" @click="salvarFiado">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           Confirmar
         </button>
@@ -401,7 +404,7 @@
       <div class="cad-nv-ok-topo">
         <div class="cad-nv-ok-check"><i class="fas fa-check"></i></div>
         <h2 class="cad-nv-ok-titulo">Venda registrada!</h2>
-        <p class="cad-nv-ok-sub">{{ fiadoSalvo.clienteNome }} · {{ fiadoSalvo.lojaNome }}</p>
+        <p class="cad-nv-ok-sub">{{ fiadoSalvo.clienteNome }}<template v-if="clienteAtual?.funcao"> ({{ clienteAtual.funcao }})</template> · {{ fiadoSalvo.lojaNome }}<template v-if="lojaLocal(fiadoSalvo.lojaId)"> ({{ lojaLocal(fiadoSalvo.lojaId) }})</template></p>
       </div>
 
       <div class="cad-lancar-body cad-nv-body">
@@ -413,6 +416,15 @@
               <div class="cad-nv-recibo-unit">R$ {{ fmt(i.preco) }} cada</div>
             </div>
             <div class="cad-nv-recibo-val">R$ {{ fmt(i.subtotal) }}</div>
+          </div>
+
+          <div v-if="descontoDe(fiadoSalvo) > 0" class="cad-nv-recibo-linha">
+            <div class="cad-nv-recibo-emoji">🏷️</div>
+            <div class="cad-nv-recibo-desc">
+              <div class="cad-nv-recibo-nome">Desconto</div>
+              <div v-if="fiadoSalvo.descontoMotivo" class="cad-nv-recibo-unit">{{ fiadoSalvo.descontoMotivo }}</div>
+            </div>
+            <div class="cad-nv-recibo-val">− R$ {{ fmt(descontoDe(fiadoSalvo)) }}</div>
           </div>
 
           <div class="cad-nv-recibo-total">
@@ -513,8 +525,8 @@
             <div v-for="f in fiadosSemData" :key="f.id" class="cad-agend-row cad-agend-row--gray">
               <div class="cad-agend-avatar cad-agend-avatar--gray">{{ iniciais(f.clienteNome) }}</div>
               <div class="cad-agend-info">
-                <div class="cad-agend-nome">{{ f.clienteNome }}</div>
-                <div class="cad-agend-loja">{{ f.lojaNome }}</div>
+                <div class="cad-agend-nome">{{ f.clienteNome }}<span v-if="f.clienteFuncao" class="cad-funcao-tag">{{ f.clienteFuncao }}</span></div>
+                <div class="cad-agend-loja">{{ f.lojaNome }}<template v-if="lojaLocal(f.lojaId)"> · {{ lojaLocal(f.lojaId) }}</template></div>
                 <div class="cad-agend-itens" :title="descFiado(f)">{{ qtdItens(f) }}</div>
               </div>
               <div class="cad-agend-dir">
@@ -538,7 +550,7 @@
         <div v-for="g in gruposResumo" :key="g.lojaId" class="cad-grupo-loja">
           <div v-if="mostrarAgrupamentoLoja" class="cad-loja-header" :class="{ colapsado: lojaColapsada(g) }" @click="alternarLoja(g)">
             <svg class="cad-loja-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-            <span class="cad-loja-nome">{{ g.lojaNome }}</span>
+            <span class="cad-loja-nome">{{ g.lojaNome }}<small v-if="lojaLocal(g.lojaId)" class="cad-loja-local">{{ lojaLocal(g.lojaId) }}</small></span>
             <span class="cad-loja-total">R$ {{ fmt(modoResumo === 'historico' ? g.totalCompras : g.total) }}</span>
             <svg class="cad-loja-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
           </div>
@@ -550,6 +562,7 @@
                 <div class="cad-cli-info">
                   <div class="cad-cli-nome">
                     {{ c.clienteNome }}
+                    <span v-if="c.clienteFuncao" class="cad-funcao-tag">{{ c.clienteFuncao }}</span>
                     <span v-if="c.atrasado" class="cad-tag-vencido">Vencido</span>
                   </div>
                   <div v-if="c.telefone" class="cad-cli-tel">{{ c.telefone }}</div>
@@ -716,13 +729,28 @@
           <div class="cad-modal-header"><div class="cad-modal-titulo">{{ editandoLoja ? 'Editar Loja' : 'Nova Loja' }}</div><button class="cad-btn-fechar" @click="modalLoja=null"><i class="fas fa-xmark"></i></button></div>
           <div class="cad-form-group">
             <label class="cad-form-label">Nome da loja *</label>
-            <input class="cad-form-input" v-model="formLoja.nome" placeholder="Ex: Escritório Santos" autofocus>
+            <input class="cad-form-input" :class="{ 'cad-form-input--erro': avisoLoja.dup }" v-model="formLoja.nome" placeholder="Ex: Escritório Santos" autofocus>
+            <div v-if="avisoLoja.dup" class="cad-form-aviso cad-form-aviso--erro">
+              <i class="fas fa-circle-exclamation"></i>
+              <span>Já existe uma loja chamada <strong>{{ avisoLoja.dup.nome }}</strong><template v-if="avisoLoja.dup.arquivado"> (arquivada)</template>. Use outro nome<template v-if="avisoLoja.dup.arquivado"> ou reative a arquivada</template>.</span>
+            </div>
+            <div v-else-if="avisoLoja.afeta" class="cad-form-aviso">
+              <i class="fas fa-shield-halved"></i>
+              <span>
+                O novo nome será atualizado em <strong>{{ avisoLoja.vendas }} venda(s)</strong><template v-if="avisoLoja.abertas"> — {{ avisoLoja.abertas }} em aberto (R$ {{ fmt(avisoLoja.saldo) }})</template> nas Cobranças.
+                Nenhuma venda, valor, vencimento ou pagamento é apagado ou alterado.
+              </span>
+            </div>
           </div>
           <div class="cad-form-group">
-            <label class="cad-form-label">Referência (opcional)</label>
-            <input class="cad-form-input" v-model="formLoja.referencia" placeholder="Ex: Sala 301">
+            <label class="cad-form-label">Local (opcional)</label>
+            <input class="cad-form-input" v-model="formLoja.referencia" placeholder="Ex: Shopping Leblon, Galeria 2000">
           </div>
-          <button class="cad-btn-primary" @click="salvarLoja_" :disabled="!formLoja.nome.trim()">
+          <div class="cad-form-group">
+            <label class="cad-form-label">Bairro (opcional)</label>
+            <input class="cad-form-input" v-model="formLoja.bairro" placeholder="Ex: Leblon">
+          </div>
+          <button class="cad-btn-primary" @click="salvarLoja_" :disabled="!formLoja.nome.trim() || !!avisoLoja.dup || salvandoCadastro">
             {{ editandoLoja ? 'Salvar Alterações' : 'Cadastrar Loja' }}
           </button>
         </div>
@@ -811,6 +839,21 @@
               <button v-if="canImportContact" class="cad-btn-agenda" @click="importarDaAgenda" title="Importar da agenda">
                 <i class="fas fa-address-book"></i>
               </button>
+            </div>
+          </div>
+          <div class="cad-form-group">
+            <label class="cad-form-label">Função <span class="cad-form-label-aux">(opcional — ajuda a diferenciar nomes iguais; não vai na mensagem)</span></label>
+            <div class="cad-funcao-chips">
+              <button v-for="fn in funcoesOpcoes" :key="fn" type="button" class="cad-funcao-chip"
+                      :class="{ ativo: mesmaFuncao(fn, formCliente.funcao) }" @click="alternarFuncao(fn)">{{ fn }}</button>
+              <button v-if="!novaFuncaoAberta" type="button" class="cad-funcao-chip cad-funcao-chip--nova" @click="abrirNovaFuncao">
+                <i class="fas fa-plus"></i> Outra
+              </button>
+            </div>
+            <div v-if="novaFuncaoAberta" class="cad-input-with-btn">
+              <input ref="novaFuncaoInput" class="cad-form-input" v-model="novaFuncaoTexto" maxlength="30"
+                     placeholder="Ex: Caixa, Recepcionista" style="flex: 1" @keyup.enter="confirmarNovaFuncao">
+              <button type="button" class="cad-btn-agenda" @click="confirmarNovaFuncao" title="Usar esta função"><i class="fas fa-check"></i></button>
             </div>
           </div>
           <div v-if="editandoCliente && lojas.length > 1" class="cad-form-group">
@@ -1063,9 +1106,10 @@
             <div>
               <div class="cad-edit-nome">
                 {{ fiadoDetalhe.clienteNome }}
+                <span v-if="fiadoDetalhe.clienteFuncao" class="cad-funcao-tag">{{ fiadoDetalhe.clienteFuncao }}</span>
                 <span v-if="fiadoDetalhe.atrasada" class="cad-tag-vencido">Vencido</span>
               </div>
-              <div class="cad-edit-loja">{{ fiadoDetalhe.lojaNome }} · {{ fmtDataHora(fiadoDetalhe) }}</div>
+              <div class="cad-edit-loja">{{ fiadoDetalhe.lojaNome }}<template v-if="lojaLocal(fiadoDetalhe.lojaId)"> ({{ lojaLocal(fiadoDetalhe.lojaId) }})</template> · {{ fmtDataHora(fiadoDetalhe) }}</div>
             </div>
           </div>
 
@@ -1079,6 +1123,13 @@
               </div>
             </div>
             <p v-else-if="fiadoDetalhe.descricaoLivre" class="cad-det-livre">{{ fiadoDetalhe.descricaoLivre }}</p>
+            <div v-if="descontoDe(fiadoDetalhe) > 0" class="cad-det-lista">
+              <div class="cad-det-item">
+                <span class="cad-det-item-emoji">🏷️</span>
+                <span class="cad-det-item-nome">Desconto<template v-if="fiadoDetalhe.descontoMotivo"> · {{ fiadoDetalhe.descontoMotivo }}</template></span>
+                <span class="cad-det-item-sub">− R$ {{ fmt(descontoDe(fiadoDetalhe)) }}</span>
+              </div>
+            </div>
           </div>
 
           <div class="cad-edit-total">
@@ -1129,8 +1180,8 @@
           <div class="cad-edit-cliente-tag">
             <div class="cad-edit-avatar">{{ iniciais(fiadoEditar.clienteNome) }}</div>
             <div>
-              <div class="cad-edit-nome">{{ fiadoEditar.clienteNome }}</div>
-              <div class="cad-edit-loja">{{ fiadoEditar.lojaNome }}</div>
+              <div class="cad-edit-nome">{{ fiadoEditar.clienteNome }}<span v-if="fiadoEditar.clienteFuncao" class="cad-funcao-tag">{{ fiadoEditar.clienteFuncao }}</span></div>
+              <div class="cad-edit-loja">{{ fiadoEditar.lojaNome }}<template v-if="lojaLocal(fiadoEditar.lojaId)"> ({{ lojaLocal(fiadoEditar.lojaId) }})</template></div>
             </div>
           </div>
 
@@ -1187,6 +1238,8 @@
                 </div>
               </div>
             </template>
+
+            <DescontoCampo v-if="modoDetalhadoEditar" v-model:valor="descontoEditarRaw" v-model:motivo="descontoEditarMotivo" />
           </div>
 
           <!-- Data/hora da venda -->
@@ -1213,7 +1266,7 @@
             <span class="cad-edit-total-val">R$ {{ fmt(totalEditarGeral) }}</span>
           </div>
 
-          <button class="cad-btn-primary" :disabled="totalEditarGeral <= 0" @click="salvarEdicaoFiado"><i class="fas fa-check"></i> Salvar alterações</button>
+          <button class="cad-btn-primary" :disabled="brutoEditarGeral <= 0" @click="salvarEdicaoFiado"><i class="fas fa-check"></i> Salvar alterações</button>
         </div>
       </div>
 
@@ -1222,14 +1275,17 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import CadernetaSwipeItem from '../components/CadernetaSwipeItem.vue'
+import DescontoCampo from '../components/DescontoCampo.vue'
 import TabCardapio from './TabCardapio.vue'
 import {
   getLojas, salvarLojaValidada, excluirLoja as dbExcluirLoja, resumoLoja, arquivarLoja,
+  previaRenomearLoja, reconciliarNomesLojas, getNomesLojas,
   getClientes, getTodosClientes, salvarClienteValidado, excluirCliente as dbExcluirCliente,
   resumoCliente, arquivarCliente, listarDuplicados, juntarClientes, juntarLojas,
   validarTelefone, centavos,
+  getFuncoes, FUNCOES_PADRAO, limparFuncao, mesmaFuncao, observarSaldosClientes,
   getFiados, getFiadosAbertos, getFiadosVencendoHoje,
   salvarFiado as dbSalvarFiado, atualizarFiado, excluirFiado as dbExcluirFiado,
   getStats,
@@ -1330,17 +1386,22 @@ async function carregarDashboard() {
   Object.assign(stats, s2)
 
   // Alertas do dia: consulta por índice dataVenc — sem full scan
-  const [vencendoHoje, clientes, pedidosBalcao] = await Promise.all([
+  carregarLojasLocal()
+  const [vencendoHoje, clientes, pedidosBalcao, nomesLojas] = await Promise.all([
     getFiadosVencendoHoje(),
     getTodosClientes(),
-    listarPedidosCardapio()
+    listarPedidosCardapio(),
+    getNomesLojas()
   ])
   const telMap = Object.fromEntries(clientes.map(c => [c.id, c.telefone]))
   const nomeMap = Object.fromEntries(clientes.map(c => [c.id, c.nome]))
+  const funcaoMap = Object.fromEntries(clientes.map(c => [c.id, c.funcao || '']))
   alertasDia.value = vencendoHoje
     .map(f => ({
       ...f,
       clienteNome: nomeMap[f.clienteId] || f.clienteNome,
+      clienteFuncao: funcaoMap[f.clienteId] || '',
+      lojaNome: nomesLojas[f.lojaId] || f.lojaNome,
       clienteTel: telMap[f.clienteId] || ''
     }))
     .slice(0, 5)
@@ -1479,8 +1540,11 @@ function salvarEnvioComoCliente() {
   const { nome, telefone } = formEnvio.value
   modalEnvio.value = false
   editandoCliente.value = null
-  formCliente.value = { nome: nome.trim(), telefone, lojaId: lojaAtual.value?.id }
+  formCliente.value = { nome: nome.trim(), telefone, funcao: '', lojaId: lojaAtual.value?.id }
   lojaOriginalCliente.value = null
+  novaFuncaoAberta.value = false
+  funcoesOpcoes.value = [...FUNCOES_PADRAO]
+  getFuncoes().then(lista => { lista.forEach(garantirOpcaoFuncao) }).catch(() => {})
   modalCliente.value = true
 }
 
@@ -1519,7 +1583,18 @@ async function copiarCodigoPixCobranca() {
 const lojas      = ref([])
 const buscaLojas = ref('')
 const modalLoja  = ref(null)
-const formLoja   = ref({ nome: '', referencia: '' })
+const formLoja   = ref({ nome: '', referencia: '', bairro: '' })
+// "Local" (campo `referencia`, já existente) + bairro, numa linha só: "Shopping Leblon · Leblon".
+// Local + bairro de cada loja pelo id — usado nas Cobranças pra não confundir de qual loja é a venda.
+const lojasLocal = ref({})
+const lojaLocal = (id) => lojasLocal.value[id] || ''
+async function carregarLojasLocal() {
+  try {
+    const todas = await getLojas({ incluirArquivadas: true })
+    lojasLocal.value = Object.fromEntries(todas.map(l => [l.id, localBairro(l)]))
+  } catch { /* só exibição */ }
+}
+const localBairro = (l) => [l?.referencia, l?.bairro].map(v => String(v || '').trim()).filter(Boolean).join(' · ')
 const editandoLoja   = ref(null)
 const paraExcluirLoja = ref(null)
 const lojasArquivadas = ref([])
@@ -1603,7 +1678,11 @@ function sincronizarLojaAtual() {
     return
   }
 
-  if (lojaAtual.value && lojas.value.some(l => l.id === lojaAtual.value.id)) {
+  const atualizada = lojaAtual.value && lojas.value.find(l => l.id === lojaAtual.value.id)
+  if (atualizada) {
+    // Mantém a loja selecionada, mas com os dados vigentes (ex.: nome recém-renomeado) —
+    // senão uma venda nova gravaria o nome antigo.
+    lojaAtual.value = { ...atualizada }
     return
   }
 
@@ -1617,14 +1696,59 @@ function sincronizarLojaAtual() {
 
 function abrirModalLoja(l = null) {
   editandoLoja.value = l ? l.id : null
-  formLoja.value = { nome: l?.nome || '', referencia: l?.referencia || '' }
+  formLoja.value = { nome: l?.nome || '', referencia: l?.referencia || '', bairro: l?.bairro || '' }
   modalLoja.value = true
 }
 
+// Avisos ao vivo no modal da loja: nome repetido e quanto será afetado por uma renomeação.
+const avisoLoja = ref({ dup: null, afeta: false, vendas: 0, abertas: 0, saldo: 0 })
+let avisoLojaSeq = 0
+watch(() => [formLoja.value.nome, modalLoja.value, editandoLoja.value], async () => {
+  const seq = ++avisoLojaSeq
+  const nome = formLoja.value.nome.trim()
+  if (!modalLoja.value || !nome) { avisoLoja.value = { dup: null, afeta: false, vendas: 0, abertas: 0, saldo: 0 }; return }
+  try {
+    const p = await previaRenomearLoja(editandoLoja.value, nome)
+    if (seq !== avisoLojaSeq) return   // resposta velha: o usuário já digitou mais
+    avisoLoja.value = {
+      dup: p.dup,
+      afeta: !p.dup && p.mudou && p.vendas > 0,
+      vendas: p.vendas, abertas: p.abertas, saldo: p.saldo,
+    }
+  } catch { /* o aviso é só informativo; a trava real está em salvarLojaValidada */ }
+})
+
 async function salvarLoja_() {
   if (salvandoCadastro.value || !formLoja.value.nome.trim()) return
-  const obj = { nome: formLoja.value.nome.trim().replace(/\s+/g, ' '), referencia: formLoja.value.referencia.trim() }
+  const obj = { nome: formLoja.value.nome.trim().replace(/\s+/g, ' '), referencia: formLoja.value.referencia.trim(), bairro: formLoja.value.bairro.trim() }
   if (editandoLoja.value) obj.id = editandoLoja.value
+
+  // Renomear loja que já tem vendas: mostra o que vai ser atualizado e pede confirmação.
+  if (editandoLoja.value) {
+    try {
+      const p = await previaRenomearLoja(editandoLoja.value, obj.nome)
+      if (p.dup) { s.notify(`Já existe uma loja chamada "${p.dup.nome}".`, 'warning'); return }
+      if (p.mudou && p.vendas > 0) {
+        dialogAcao.value = {
+          titulo: 'Renomear loja?',
+          sub: `"${p.atual.nome}" → "${obj.nome}". ${p.vendas} venda(s) serão atualizadas nas Cobranças` +
+               `${p.abertas ? ` (${p.abertas} em aberto, R$ ${fmt(p.saldo)})` : ''}. ` +
+               'Valores, vencimentos e pagamentos não mudam e nada é apagado.',
+          botoes: [{ rotulo: 'Renomear', fn: () => gravarLoja(obj) }],
+        }
+        return
+      }
+    } catch (err) {
+      console.error(err)
+      s.notify('Não deu pra conferir a loja. Nada foi alterado.', 'error')
+      return
+    }
+  }
+  await gravarLoja(obj)
+}
+
+async function gravarLoja(obj) {
+  const jaTravado = salvandoCadastro.value   // quando vem do dialog, executarDialogAcao já travou
   salvandoCadastro.value = true
   try {
     const r = await salvarLojaValidada(obj)
@@ -1643,14 +1767,28 @@ async function salvarLoja_() {
     }
     const editou = !!editandoLoja.value
     modalLoja.value = null
-    s.notify(editou ? 'Loja atualizada!' : 'Loja cadastrada!')
+    s.notify(
+      !editou ? 'Loja cadastrada!'
+        : r.renomeou && r.vendasAtualizadas ? `Loja renomeada — ${r.vendasAtualizadas} venda(s) atualizada(s) nas Cobranças`
+        : 'Loja atualizada!'
+    )
     s.syncImediato()   // sync imediato no Drive
     await carregarLojas()
+    // Cobranças e alertas já carregados passam a mostrar o nome novo sem precisar reabrir.
+    if (r.renomeou) {
+      await carregarResumo()
+      carregarDashboard()
+    }
   } catch (err) {
     console.error(err)
-    s.notify('Não deu pra salvar a loja. Tenta de novo?', 'error')
+    s.notify(
+      err?.message === 'RENOMEACAO_INCONSISTENTE'
+        ? 'A conferência dos dados falhou. Nada foi alterado — suas cobranças estão intactas.'
+        : 'Não deu pra salvar a loja. Nada foi perdido; tenta de novo?',
+      'error'
+    )
   } finally {
-    salvandoCadastro.value = false
+    salvandoCadastro.value = jaTravado
   }
 }
 
@@ -1707,7 +1845,36 @@ const clientes       = ref([])
 const lojaAtual      = ref(null)
 const buscaClientes  = ref('')
 const modalCliente   = ref(null)
-const formCliente    = ref({ nome: '', telefone: '', lojaId: null })
+const formCliente    = ref({ nome: '', telefone: '', funcao: '', lojaId: null })
+
+// ── Função da cliente (Vendedor(a), Gerente, Estoquista… ou uma nova) ──
+const funcoesOpcoes     = ref([...FUNCOES_PADRAO])
+const novaFuncaoAberta  = ref(false)
+const novaFuncaoTexto   = ref('')
+const novaFuncaoInput   = ref(null)
+
+function garantirOpcaoFuncao(fn) {
+  const f = limparFuncao(fn)
+  if (f && !funcoesOpcoes.value.some(x => mesmaFuncao(x, f))) funcoesOpcoes.value = [...funcoesOpcoes.value, f]
+}
+// Toca na função escolhida de novo para desmarcar (a função é opcional).
+function alternarFuncao(fn) {
+  formCliente.value.funcao = mesmaFuncao(fn, formCliente.value.funcao) ? '' : fn
+}
+function abrirNovaFuncao() {
+  novaFuncaoTexto.value = ''
+  novaFuncaoAberta.value = true
+  nextTick(() => novaFuncaoInput.value?.focus())
+}
+function confirmarNovaFuncao() {
+  const f = limparFuncao(novaFuncaoTexto.value)
+  novaFuncaoAberta.value = false
+  if (!f) return
+  // Se já existe uma igual (ignorando acento/maiúscula), reaproveita a grafia existente.
+  const existente = funcoesOpcoes.value.find(x => mesmaFuncao(x, f))
+  garantirOpcaoFuncao(f)
+  formCliente.value.funcao = existente || f
+}
 const editandoCliente = ref(null)
 const lojaOriginalCliente = ref(null)
 const paraExcluirCliente = ref(null)
@@ -1760,8 +1927,12 @@ function abrirModalCliente(c = null) {
     lojaAtual.value = { ...lojas.value[0] }
   }
   editandoCliente.value = c ? c.id : null
-  formCliente.value = { nome: c?.nome || '', telefone: c?.telefone || '', lojaId: c?.lojaId ?? lojaAtual.value?.id }
+  formCliente.value = { nome: c?.nome || '', telefone: c?.telefone || '', funcao: c?.funcao || '', lojaId: c?.lojaId ?? lojaAtual.value?.id }
   lojaOriginalCliente.value = c?.lojaId ?? null
+  novaFuncaoAberta.value = false
+  funcoesOpcoes.value = [...FUNCOES_PADRAO]
+  garantirOpcaoFuncao(c?.funcao)
+  getFuncoes().then(lista => { lista.forEach(garantirOpcaoFuncao) }).catch(() => {})
   modalCliente.value = true
 }
 
@@ -1784,6 +1955,7 @@ async function salvarCliente_() {
   const obj = {
     nome: formCliente.value.nome.trim().replace(/\s+/g, ' '),
     telefone: formCliente.value.telefone.trim(),
+    funcao: limparFuncao(formCliente.value.funcao),
     lojaId: lojaDestinoId,
   }
   if (editando) obj.id = editandoCliente.value
@@ -1836,7 +2008,7 @@ async function gravarCliente(obj, moverAbertos, msgOk) {
     s.notify(
       r.dup.motivo === 'telefone'
         ? `Este telefone já está cadastrado: ${dup.nome}${nomeLojaDup ? ` (${nomeLojaDup})` : ''}.`
-        : `Já existe "${dup.nome}" nesta loja. Informe o telefone para diferenciar.`,
+        : `Já existe "${dup.nome}${dup.funcao ? ` (${dup.funcao})` : ''}" nesta loja. Informe o telefone ou a função para diferenciar.`,
       'warning', 4500
     )
   } catch (err) {
@@ -1964,9 +2136,21 @@ function rotuloDia(iso) {
   return DIAS_SEMANA[d.getDay()]
 }
 
-const totalLancar = computed(() =>
+// Desconto opcional da venda (ex.: trufa amassada, arredondamento, cortesia).
+// `total` da venda continua sendo o valor FINAL — saldo, pagamentos e relatórios
+// seguem funcionando sem mudança. O desconto fica registrado à parte.
+const descontoRaw    = ref('')
+const descontoMotivo = ref('')
+const moedaParaNumero = (txt) => parseFloat(String(txt || '').replace(/[^\d,]/g, '').replace(',', '.')) || 0
+const fmtMoedaCampo   = (n) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(n)
+// Desconto gravado numa venda (0 nas vendas antigas, que não têm o campo).
+const descontoDe = (f) => centavos(Number(f?.desconto) || 0)
+
+const brutoLancar = computed(() =>
   centavos(categoriasVenda.value.reduce((soma, c) => soma + (qtds[c.id] || 0) * c.preco, 0))
 )
+const descontoLancar = computed(() => Math.min(centavos(moedaParaNumero(descontoRaw.value)), brutoLancar.value))
+const totalLancar = computed(() => centavos(brutoLancar.value - descontoLancar.value))
 
 // Sugestão de preço pra quem ainda não definiu: o preço mais comum entre os
 // itens do Cardápio "Dia a dia" cuja categoria ou nome combine com a categoria.
@@ -2015,6 +2199,8 @@ async function iniciarLancar() {
   chipAtivo.value = null
   fiadoSalvo.value = null
   salvandoFiado.value = false
+  descontoRaw.value = ''
+  descontoMotivo.value = ''
   setChip('fim') // pré-seleciona fim do mês
   await carregarCategoriasVenda()
 }
@@ -2087,7 +2273,7 @@ watch(dataVenda, () => {
 // Confirmar = salva e mostra o resumo da venda.
 async function salvarFiado() {
   if (salvandoFiado.value) return
-  if (totalLancar.value === 0 || !clienteAtual.value || !lojaAtual.value) return
+  if (brutoLancar.value === 0 || !clienteAtual.value || !lojaAtual.value) return
   if (!dataVenc.value) {
     s.notify('Escolha a data combinada para o pagamento', 'warning')
     return
@@ -2097,16 +2283,21 @@ async function salvarFiado() {
     const itens = categoriasVenda.value
       .filter(c => qtds[c.id] > 0)
       .map(c => ({ id: c.id, nome: c.nome, emoji: c.emoji, qty: qtds[c.id], preco: c.preco, subtotal: qtds[c.id] * c.preco }))
+    // Nome da loja lido do cadastro na hora de gravar (nunca de uma cópia que pode estar velha).
+    const nomeLojaVigente = (await getNomesLojas())[lojaAtual.value.id] || lojaAtual.value.nome
     const fiado = {
       clienteId:   clienteAtual.value.id,
       clienteNome: clienteAtual.value.nome,
       lojaId:      lojaAtual.value.id,
-      lojaNome:    lojaAtual.value.nome,
+      lojaNome:    nomeLojaVigente,
       itens,
       descricaoLivre: null,
       total:       totalLancar.value,
       saldo:       totalLancar.value,
-      status:      'aberto',
+      status:      totalLancar.value <= 0.01 ? 'pago' : 'aberto',
+      ...(descontoLancar.value > 0
+        ? { desconto: descontoLancar.value, descontoMotivo: descontoMotivo.value.trim() || null }
+        : {}),
       dataVenda:   dataVenda.value,
       horaVenda:   horaVenda.value || null,
       dataVenc:    dataVenc.value,
@@ -2181,15 +2372,24 @@ function fiadoDetalheItens(f) {
 async function carregarResumo() {
   // Modo abertos: usa índice — não carrega histórico completo
   // Modo histórico: carrega tudo (necessário para mostrar fiados pagos)
-  const [fiados, clientes, s2] = await Promise.all([
+  carregarLojasLocal()
+  const [fiados, clientes, s2, nomesLojas] = await Promise.all([
     modoResumo.value === 'historico' ? getFiados() : getFiadosAbertos(),
     getTodosClientes(),
-    getStats()
+    getStats(),
+    getNomesLojas()
   ])
   // O nome fica copiado em cada fiado; usa sempre o do cadastro atual do cliente
   // (cobre renomeações antigas que não chegaram a atualizar os fiados).
   const nomePorId = Object.fromEntries(clientes.map(c => [c.id, c.nome]))
-  fiadosTodos.value   = fiados.map(f => nomePorId[f.clienteId] ? { ...f, clienteNome: nomePorId[f.clienteId] } : f)
+  const funcaoPorId = Object.fromEntries(clientes.map(c => [c.id, c.funcao || '']))   // só exibição (listas); não vai nas mensagens
+  // Idem para a loja: o cadastro de lojas é a fonte da verdade (só na exibição — nada é regravado aqui).
+  fiadosTodos.value   = fiados.map(f => ({
+    ...f,
+    clienteNome: nomePorId[f.clienteId] || f.clienteNome,
+    clienteFuncao: funcaoPorId[f.clienteId] || '',
+    lojaNome:    nomesLojas[f.lojaId]   || f.lojaNome,
+  }))
   clientesTodos.value = clientes
   Object.assign(stats, s2)
 }
@@ -2253,7 +2453,7 @@ function montarGrupos() {
   const filtrados = fonte.filter(f => {
     if (!termo) return true
     const telefone = telMap.value[f.clienteId] || f.clienteTel || ''
-    return normalizar([f.clienteNome, f.lojaNome, telefone, descFiado(f)].join(' ')).includes(termo)
+    return normalizar([f.clienteNome, f.clienteFuncao, f.lojaNome, lojaLocal(f.lojaId), telefone, descFiado(f)].join(' ')).includes(termo)
   })
   const porLoja = new Map()
   filtrados.forEach(f => {
@@ -2261,7 +2461,7 @@ function montarGrupos() {
     const g = porLoja.get(f.lojaId)
     if (!g.clientes.has(f.clienteId)) {
       g.clientes.set(f.clienteId, {
-        clienteId: f.clienteId, clienteNome: f.clienteNome,
+        clienteId: f.clienteId, clienteNome: f.clienteNome, clienteFuncao: f.clienteFuncao || '',
         telefone: telMap.value[f.clienteId] || '',
         fiados: [], saldo: 0, atrasado: false
       })
@@ -2313,67 +2513,49 @@ function alternarCliente(g, c) {
 
 function iniciarVendaResumo(g, c) {
   lojaAtual.value    = { id: g.lojaId, nome: g.lojaNome, referencia: '' }
-  clienteAtual.value = { id: c.clienteId, nome: c.clienteNome, telefone: c.telefone, lojaId: g.lojaId }
+  clienteAtual.value = { id: c.clienteId, nome: c.clienteNome, funcao: c.clienteFuncao || '', telefone: c.telefone, lojaId: g.lojaId }
   origemLancar.value = 'resumo'
   iniciarLancar()
   irPara('lancar')
 }
 
-// Horário só entra na mensagem se a configuração da empresa permitir E o
-// lançamento tiver hora salva — quem lança fiado fora do horário real (ex:
-// fechando o caixa à noite) desliga isso em Ajustes > Comprovantes e Cobrança.
-function dataComHoraOpcional(f) {
-  const data = fmtBR(f.dataVenda)
+// Horário só entra na mensagem se a configuração da empresa permitir (Ajustes > Comprovantes
+// e Cobrança) E o lançamento tiver hora salva — ver dataCurtaMsg.
+
+// ── Mensagens de WhatsApp para o cliente: tom de conversa, curtas ──────────
+// "03/09" — o ano só aparece quando a compra não é do ano atual.
+function dataCurtaMsg(f) {
+  const d = fmtBR(f.dataVenda)
+  const curta = d.endsWith('/' + new Date().getFullYear()) ? d.slice(0, 5) : d
   const hora = fmtHora(f.horaVenda)
-  return (s.company.mostrar_hora_venda && hora) ? `${data}, às ${hora}` : data
+  return (s.company.mostrar_hora_venda && hora) ? `${curta}, ${hora}` : curta
 }
 
-// Lista os itens de uma venda no formato "nota", com valor unitário e
-// subtotal por linha — sem emojis. Cai para a descrição livre quando a
-// venda foi lançada no modo simples (sem itens detalhados).
-function formatarItensNota(f) {
-  if (f.itens?.length) {
-    return f.itens.map(i => {
-      const qtd = i.qty ?? i.qtd ?? 0
-      const unit = Number(i.preco || 0)
-      const subtotal = Number(i.subtotal ?? (qtd * unit))
-      return `${qtd}x ${i.nome} - R$ ${fmt(unit)} cada = R$ ${fmt(subtotal)}`
-    }).join('\n')
-  }
-  return f.descricaoLivre || ''
+// Itens ("Trufa 3 x 7,00") ou, no modo simples, a descrição livre da venda.
+function linhasItensMsg(f) {
+  if (f.itens?.length) return f.itens.map(linhaItemDetalhe)
+  return f.descricaoLivre ? [f.descricaoLivre] : []
 }
 
-// Monta o comprovante/nota de UMA venda: data (+hora opcional), itens com
-// valor unitário e total, e a situação (pago ou em aberto com vencimento).
+// Comprovante de UMA venda: saudação, data, itens, desconto (se houver), total e situação.
 function montarMensagemVenda(f, nomeCliente) {
-  const linhas = []
-  linhas.push(`Olá ${nomeCliente}, aqui está o registro da sua compra${f.lojaNome ? ' em ' + f.lojaNome : ''}:`)
-  linhas.push('')
-  linhas.push(`Data: ${dataComHoraOpcional(f)}`)
-
-  const itens = formatarItensNota(f)
-  if (itens) {
-    linhas.push('')
-    linhas.push('Itens:')
-    linhas.push(itens)
-  }
+  const linhas = [`Oi, ${nomeCliente}! 😊`, 'Segue sua compra:', '']
+  linhas.push(dataCurtaMsg(f))
+  linhas.push(...linhasItensMsg(f))
+  if (descontoDe(f) > 0) linhas.push(`Desconto −${fmt(descontoDe(f))}`)
 
   linhas.push('')
   linhas.push(`Total: R$ ${fmt(f.total ?? f.saldo)}`)
 
   if (f.saldo > 0.01) {
-    linhas.push('')
-    linhas.push(`Valor em aberto: R$ ${fmt(f.saldo)}`)
-    linhas.push(f.dataVenc ? `Vencimento: ${fmtBR(f.dataVenc)}` : 'Vencimento: a combinar')
+    if (f.saldo < Number(f.total ?? f.saldo) - 0.01) linhas.push(`Em aberto: R$ ${fmt(f.saldo)}`)
+    if (f.dataVenc) linhas.push(`Combinado para ${fmtBR(f.dataVenc).slice(0, 5)}`)
   } else {
-    linhas.push('')
-    linhas.push('Situação: pago')
+    linhas.push('Já está pago, obrigada!')
   }
 
   linhas.push('')
-  linhas.push('Qualquer dúvida, é só chamar.')
-  if (s.company.nome) linhas.push(s.company.nome)
-
+  linhas.push('Qualquer coisa é só chamar! 🍫')
   return linhas.join('\n')
 }
 
@@ -2428,43 +2610,39 @@ function linhaItemDetalhe(i) {
 }
 
 // Mensagem do botão "Detalhar": data de cada compra, itens (qtd x valor),
-// total, data combinada para pagamento (vencimento), chave Pix (de Ajustes)
-// e agradecimento.
+// total, chave Pix (de Ajustes) e agradecimento. (A data combinada de pagamento
+// NÃO vai na mensagem — continua só no cadastro da venda.)
+// Atenção: a mensagem usa SÓ o nome (c.clienteNome). A função da cliente (Gerente etc.) é
+// apenas para identificação nas listas e nunca deve entrar no texto enviado.
 function montarMensagemCobranca(c, abertos, pix = '') {
   const total = abertos.reduce((soma, f) => soma + Number(f.saldo || 0), 0)
   const plural = abertos.length > 1
   const linhas = []
 
-  linhas.push(`Olá, ${c.clienteNome}! Aqui é a Bete, segue${plural ? 'm' : ''} o${plural ? 's' : ''} registro${plural ? 's' : ''} da${plural ? 's' : ''} sua${plural ? 's' : ''} compra${plural ? 's' : ''}:`)
+  // Tom de conversa de WhatsApp: curto, sem formalidade. Só o essencial:
+  // saudação, datas, produtos e valores, total e Pix.
+  linhas.push(`Oi, ${c.clienteNome}! 😊`)
+  linhas.push(`Segue${plural ? 'm' : ''} sua${plural ? 's' : ''} compra${plural ? 's' : ''}:`)
 
   const ordenados = [...abertos].sort((x, y) => String(x.dataVenda || '').localeCompare(String(y.dataVenda || '')))
-  // Mesmo vencimento em todas as compras → aparece uma vez só, depois do Total.
-  // Vencimentos diferentes → cada compra mostra o seu.
-  const vencs = new Set(ordenados.map(f => f.dataVenc || ''))
-  const vencUnico = vencs.size === 1 ? [...vencs][0] : null
 
   ordenados.forEach(f => {
     linhas.push('')
-    linhas.push(dataComHoraOpcional(f))
-    if (f.itens?.length) linhas.push(...f.itens.map(linhaItemDetalhe))
-    else if (f.descricaoLivre) linhas.push(f.descricaoLivre)
+    linhas.push(dataCurtaMsg(f))
+    linhas.push(...linhasItensMsg(f))
+    if (descontoDe(f) > 0) linhas.push(`Desconto −${fmt(descontoDe(f))}`)
     const totalCompra = Number(f.total ?? f.saldo)
     const saldo = Number(f.saldo || 0)
     if (saldo < totalCompra - 0.01) linhas.push(`Já pago ${fmt(totalCompra - saldo)} | Em aberto ${fmt(saldo)}`)
-    if (vencUnico === null) linhas.push(`Data combinada para pagamento: ${f.dataVenc ? fmtBR(f.dataVenc) : 'a combinar'}`)
   })
 
   linhas.push('')
-  linhas.push(`Total ${fmt(total)}`)
-  if (vencUnico) linhas.push(`Data combinada para pagamento: ${fmtBR(vencUnico)}`)
+  linhas.push(`Total: R$ ${fmt(total)}`)
 
-  if (pix) {
-    linhas.push('')
-    linhas.push(`Meu Pix ${chavePixLegivel(chavePixVendedor.value)}`)
-  }
+  if (pix) linhas.push(`Meu Pix: ${chavePixLegivel(chavePixVendedor.value)}`)
 
   linhas.push('')
-  linhas.push('Agradeço a confiança e a preferência. Qualquer dúvida estou à disposição.')
+  linhas.push('Qualquer coisa é só chamar! Obrigada 🍫')
 
   return linhas.join('\n')
 }
@@ -2474,13 +2652,13 @@ function abrirWhatsapp(c) {
   const tel = (c.telefone || '').replace(/\D/g, '')
 
   if (modoResumo.value === 'historico') {
-    window.open(urlWhatsapp(tel, `Olá ${c.clienteNome}, tudo bem?`), '_blank')
+    window.open(urlWhatsapp(tel, `Oi, ${c.clienteNome}! Tudo bem? 😊`), '_blank')
     return
   }
 
   const abertos = c.fiados.filter(f => f.saldo > 0.01)
   if (!abertos.length) {
-    window.open(urlWhatsapp(tel, `Olá ${c.clienteNome}, tudo bem?`), '_blank')
+    window.open(urlWhatsapp(tel, `Oi, ${c.clienteNome}! Tudo bem? 😊`), '_blank')
     return
   }
   const total = abertos.reduce((soma, f) => soma + Number(f.saldo || 0), 0)
@@ -2646,6 +2824,8 @@ async function abrirEditarFiado(f) {
   fiadoEditarHora.value = f.horaVenda || ''
   dataVencEditar.value  = f.dataVenc  || ''
   chipEditarAtivo.value = null
+  descontoEditarRaw.value    = descontoDe(f) > 0 ? fmtMoedaCampo(descontoDe(f)) : ''
+  descontoEditarMotivo.value = f.descontoMotivo || ''
   // Edita pelas mesmas categorias da Nova Venda. Itens de vendas antigas
   // (lançadas por sabor, antes da simplificação) continuam aparecendo como
   // linhas extras, pra não se perder nada ao editar.
@@ -2682,9 +2862,18 @@ const gruposProdutosEditar = computed(() => agruparPorCategoria(produtosEditar.v
 const totalEditar = computed(() =>
   (produtosEditar.value || []).reduce((s, p) => s + (qtdsEditar[p.id] || 0) * p.preco, 0)
 )
-const totalEditarGeral = computed(() =>
-  modoDetalhadoEditar.value ? totalEditar.value : parseValorLivreEditar()
+const descontoEditarRaw    = ref('')
+const descontoEditarMotivo = ref('')
+const brutoEditarGeral = computed(() =>
+  centavos(modoDetalhadoEditar.value ? totalEditar.value : parseValorLivreEditar())
 )
+// Desconto só existe no modo por itens; no modo "valor livre" o valor digitado já é o final.
+const descontoEditarVal = computed(() =>
+  modoDetalhadoEditar.value
+    ? Math.min(centavos(moedaParaNumero(descontoEditarRaw.value)), brutoEditarGeral.value)
+    : 0
+)
+const totalEditarGeral = computed(() => centavos(brutoEditarGeral.value - descontoEditarVal.value))
 function compraSwipeActions(f) {
   const temTelefone = !!(telMap.value[f.clienteId] || f.clienteTel)
   const receipt = temTelefone ? ['receipt'] : []
@@ -2694,7 +2883,7 @@ function compraSwipeActions(f) {
 }
 async function salvarEdicaoFiado() {
   const f = fiadoEditar.value
-  if (!f || totalEditarGeral.value <= 0) return
+  if (!f || brutoEditarGeral.value <= 0) return
   try {
     const itens = modoDetalhadoEditar.value
       ? produtosEditar.value
@@ -2710,6 +2899,8 @@ async function salvarEdicaoFiado() {
       total:      novoTotal,
       saldo:      novoSaldo,
       status:     novoSaldo <= 0.01 ? 'pago' : 'aberto',
+      desconto:       descontoEditarVal.value,
+      descontoMotivo: descontoEditarVal.value > 0 ? (descontoEditarMotivo.value.trim() || null) : null,
       dataVenda:  fiadoEditarData.value,
       horaVenda:  fiadoEditarHora.value || null,
       dataVenc:   dataVencEditar.value  || null,
@@ -2781,7 +2972,19 @@ function handleCalcInput(e) {
 }
 
 // ── Init ─────────────────────────────────────────────────
+// Saldo devedor de cada cliente (mostrado ao deslizar a linha em + Fiado › Clientes).
+// Observa o banco: qualquer alteração de saldo reflete na hora, em qualquer fluxo.
+const saldoPorCliente = ref({})
+let pararSaldos = null
+onMounted(() => { pararSaldos = observarSaldosClientes(m => { saldoPorCliente.value = m }) })
+onBeforeUnmount(() => { pararSaldos?.() })
+
 onMounted(async () => {
+  // Acerta (sem apagar nada) vendas antigas cujo nome de loja ficou desatualizado.
+  try {
+    const n = await reconciliarNomesLojas()
+    if (n) s.syncImediato()
+  } catch (err) { console.error('reconciliarNomesLojas', err) }
   await carregarDashboard()
   carregarLojas() // Pré-carrega as lojas em background para navegação instantânea
 })
@@ -3460,6 +3663,7 @@ onMounted(async () => {
 .cad-loja-header:active { opacity: .8; }
 .cad-loja-ico     { color: var(--brown); flex-shrink: 0; }
 .cad-loja-nome    { font-size: 13px; font-weight: 800; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cad-loja-local   { display: block; font-size: 11px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .cad-loja-total   { font-size: 13px; font-weight: 800; color: var(--brown); font-family: var(--mono); white-space: nowrap; }
 .cad-loja-chevron { color: var(--brown-light); flex-shrink: 0; transition: transform .22s cubic-bezier(.4,0,.2,1); margin-left: 4px; }
 .cad-loja-header.colapsado .cad-loja-chevron { transform: rotate(-90deg); }
@@ -3691,6 +3895,15 @@ onMounted(async () => {
 .cad-form-label { font-size: 12px; font-weight: 700; color: var(--muted); }
 .cad-form-input { padding: 12px 14px; border: 1.5px solid var(--border); border-radius: var(--r-sm); font-size: 16px; color: var(--text); background: var(--surface); outline: none; font-family: var(--font); }
 .cad-form-input:focus { border-color: var(--brown-light); }
+.cad-form-input--erro, .cad-form-input--erro:focus { border-color: #c0392b; }
+.cad-form-aviso {
+  display: flex; gap: 8px; align-items: flex-start; margin-top: 6px;
+  padding: 9px 11px; border-radius: var(--r-sm); font-size: 12px; line-height: 1.45;
+  background: rgba(60, 120, 200, .10); color: var(--text);
+}
+.cad-form-aviso i { margin-top: 2px; color: #2b6cb0; }
+.cad-form-aviso--erro { background: rgba(192, 57, 43, .10); }
+.cad-form-aviso--erro i { color: #c0392b; }
 .cad-btn-primary { width: 100%; padding: 14px; border: none; border-radius: var(--r-md); background: var(--brown); color: #fff; font-family: var(--font); font-size: 15px; font-weight: 800; cursor: pointer; margin-top: 4px; }
 .cad-btn-primary:disabled { opacity: .5; cursor: default; }
 .cad-dialog-title { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
@@ -3915,6 +4128,22 @@ onMounted(async () => {
 .tab-subtitle { font-size: .72rem; color: var(--muted); margin: 0; font-weight: 600; }
 
 .cad-input-with-btn { display: flex; gap: 8px; align-items: stretch; }
+
+/* Função da cliente: etiqueta ao lado do nome (listas) e seletor no cadastro */
+.cad-funcao-tag {
+  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: var(--r-full);
+  background: var(--cream); color: var(--brown-dark); border: 1px solid var(--border);
+  font-size: 10.5px; font-weight: 800; letter-spacing: .02em; vertical-align: middle; white-space: nowrap;
+}
+.cad-form-label-aux { font-weight: 600; color: var(--muted); }
+.cad-funcao-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cad-funcao-chip {
+  padding: 8px 14px; border-radius: var(--r-full); border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text); font-family: var(--font); font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.cad-funcao-chip.ativo { background: var(--brown); border-color: var(--brown); color: #fff; }
+.cad-funcao-chip--nova { border-style: dashed; color: var(--brown); }
+.cad-funcao-chip:active { transform: scale(0.96); }
 .cad-btn-agenda {
   width: 48px; border: 1.5px solid var(--border); border-radius: var(--r-sm);
   background: var(--surface); color: var(--brown); font-size: 1.1rem;
