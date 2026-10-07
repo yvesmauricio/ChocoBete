@@ -830,6 +830,8 @@ const CSS_PEDIDO = `
   }
   .ip-modal-btn--pix { width: 100%; margin-top: 8px; background: #fff; border: 1.5px solid var(--terracota); color: var(--terracota); }
   .ip-modal-btn--pix.copiado { background: var(--terracota); color: #fff; border-color: var(--terracota); }
+  .ip-modal-pix-conta { font-size: 13px; color: var(--marrom); margin-top: 6px; }
+  .ip-modal-pix-conta b { color: var(--terracota-escuro); }
   .ip-modal-pix-dica { font-size: 11px; color: var(--terracota-desc); margin-top: 8px; text-align: center; }
   .ip-modal-pix-qr {
     display: flex; justify-content: center; align-items: center; margin-top: 10px;
@@ -926,6 +928,12 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
   // condição do aviso de WhatsApp não configurado, logo abaixo).
   const chavePix = chavePixDoWhatsapp(empresa?.whatsapp_pedidos)
   const nomeRecebedorPix = limparTextoPix(nome, 25, 'LOJA')
+  // Nome do titular da conta Pix (Ajustes > Identidade > Razão Social). Aparece pro
+  // cliente no bloco de Pix pra ele reconhecer o nome na hora de pagar.
+  const razaoSocialPix = String(empresa?.razao_social || '').trim()
+  const htmlContaPix = razaoSocialPix
+    ? `<div class="ip-modal-pix-conta">Conta em nome de: <b>${escHtml(razaoSocialPix)}</b></div>`
+    : ''
   const cidadeRecebedorPix = limparTextoPix(empresa?.municipio, 15, 'BRASIL')
   const sinalAtivo = !!config.sinal_ativo
   const sinalFracao = Math.min(1, Math.max(0, Number(config.sinal_percentual || 0) / 100))
@@ -1196,6 +1204,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
               <strong id="ip-modal-pix-valor">R$ 0,00</strong>
             </div>
             <div id="ip-modal-pix-restante" class="ip-modal-pix-restante" style="display:none;"></div>
+            ${htmlContaPix}
             <textarea id="ip-modal-pix-codigo" class="ip-modal-pix-codigo" readonly style="display:none;"></textarea>
             <button type="button" id="ip-modal-btn-pix" class="ip-modal-btn ip-modal-btn--pix" onclick="copiarCodigoPix()">📋 Copiar código Pix</button>
             <div class="ip-modal-pix-dica">Cole em "Pix Copia e Cola" no app do seu banco. A chave é o WhatsApp da loja.</div>
@@ -1251,6 +1260,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
             <strong id="ip-modal-pix-valor">R$ 0,00</strong>
           </div>
           <div id="ip-modal-pix-restante" class="ip-modal-pix-restante" style="display:none;"></div>
+          ${htmlContaPix}
           ${modoBalcao ? `
           <div id="ip-modal-pix-qr" class="ip-modal-pix-qr" style="display:none;"></div>
           <div class="ip-modal-pix-qr-legenda">Peça pro cliente apontar a câmera do banco pro QR acima</div>` : ''}
