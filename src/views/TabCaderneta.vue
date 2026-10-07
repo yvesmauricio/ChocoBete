@@ -105,16 +105,16 @@
         <div v-if="alertasDia.length">
           <div class="cad-sec-title"><i class="fas fa-bell"></i> Cobranças de hoje</div>
           <div class="cad-alerta-dia">
-            <div v-for="a in alertasDia" :key="a.fiadoId" class="cad-alerta-item" @click="irParaResumo()">
+            <div v-for="a in alertasDiaVisiveis" :key="a.clienteId" class="cad-alerta-item" @click="irParaResumo()">
               <div class="cad-alerta-avatar">{{ iniciais(a.clienteNome) }}</div>
               <div class="cad-alerta-info">
                 <div class="cad-alerta-nome">{{ a.clienteNome }}<span v-if="a.clienteFuncao" class="cad-funcao-tag">{{ a.clienteFuncao }}</span></div>
-                <div class="cad-alerta-loja">{{ a.lojaNome }}<template v-if="lojaLocal(a.lojaId)"> · {{ lojaLocal(a.lojaId) }}</template></div>
+                <div class="cad-alerta-loja">{{ a.lojaNome }}<template v-if="lojaLocal(a.lojaId)"> · {{ lojaLocal(a.lojaId) }}</template><template v-if="a.compras > 1"> · {{ a.compras }} compras</template></div>
               </div>
               <div class="cad-alerta-val">R$ {{ fmt(a.saldo) }}</div>
             </div>
-            <div v-if="alertasDia.length > 3" class="cad-alerta-mais" @click="irParaResumo()">
-              + {{ alertasDia.length - 3 }} mais cobranças <i class="fas fa-chevron-right"></i>
+            <div v-if="alertasDia.length > alertasDiaVisiveis.length" class="cad-alerta-mais" @click="irParaResumo()">
+              + {{ alertasDia.length - alertasDiaVisiveis.length }} mais cobranças <i class="fas fa-chevron-right"></i>
             </div>
           </div>
         </div>
@@ -1118,7 +1118,7 @@
               <div v-for="i in fiadoDetalheItens(fiadoDetalhe)" :key="i.id" class="cad-det-item">
                 <span class="cad-det-item-emoji">{{ i.emoji || '📦' }}</span>
                 <span class="cad-det-item-nome">{{ i.nome }}</span>
-                <span class="cad-det-item-qtd">{{ i.qty }}x</span>
+                <span class="cad-det-item-tag">{{ i.qty }}x {{ fmt(i.preco || 0) }}</span>
                 <span class="cad-det-item-sub">R$ {{ fmt(i.subtotal ?? (i.qty * (i.preco||0))) }}</span>
               </div>
             </div>
@@ -1364,7 +1364,8 @@ const saudacao = ref('')
 const saudacaoIcone = ref('fa-sun')
 const dataBR   = ref('')
 const stats    = reactive({ totalAberto: 0, totalVencido: 0, qtdAbertos: 0 })
-const alertasDia = ref([])
+const alertasDia = ref([])   // uma linha por cliente (soma das vendas que vencem hoje)
+const alertasDiaVisiveis = computed(() => alertasDia.value.slice(0, 5))
 // Contagem de pedidos do balcão ainda em aberto (nem entregues ainda) —
 // mostrada como badge no atalho "Pedidos". Ao marcar um pedido como
 // entregue na tela de Cardápio, esse número cai sozinho na próxima vez
@@ -1396,15 +1397,23 @@ async function carregarDashboard() {
   const telMap = Object.fromEntries(clientes.map(c => [c.id, c.telefone]))
   const nomeMap = Object.fromEntries(clientes.map(c => [c.id, c.nome]))
   const funcaoMap = Object.fromEntries(clientes.map(c => [c.id, c.funcao || '']))
-  alertasDia.value = vencendoHoje
-    .map(f => ({
-      ...f,
+  // Um item por cliente, com o valor total do que vence hoje (não venda a venda).
+  const porCliente = new Map()
+  for (const f of vencendoHoje) {
+    const a = porCliente.get(f.clienteId) || {
+      clienteId: f.clienteId,
       clienteNome: nomeMap[f.clienteId] || f.clienteNome,
       clienteFuncao: funcaoMap[f.clienteId] || '',
+      lojaId: f.lojaId,
       lojaNome: nomesLojas[f.lojaId] || f.lojaNome,
-      clienteTel: telMap[f.clienteId] || ''
-    }))
-    .slice(0, 5)
+      clienteTel: telMap[f.clienteId] || '',
+      saldo: 0, compras: 0
+    }
+    a.saldo = centavos(a.saldo + Number(f.saldo || 0))
+    a.compras++
+    porCliente.set(f.clienteId, a)
+  }
+  alertasDia.value = [...porCliente.values()].sort((x, y) => y.saldo - x.saldo)
   pedidosBalcaoPendentes.value = pedidosBalcao.filter(p => p.status !== 'entregue').length
   pedidosBalcaoUrgentes.value = pedidosBalcao.filter(p => p.status === 'pendente').length
 }
@@ -2539,7 +2548,7 @@ function linhasItensMsg(f) {
 
 // Comprovante de UMA venda: saudação, data, itens, desconto (se houver), total e situação.
 function montarMensagemVenda(f, nomeCliente) {
-  const linhas = [`Oi, ${nomeCliente}! 😊`, 'Segue sua compra:', '']
+  const linhas = [`Oi, ${nomeCliente}! Aqui é a Bete 😊`, 'Segue sua compra:', '']
   linhas.push(dataCurtaMsg(f))
   linhas.push(...linhasItensMsg(f))
   if (descontoDe(f) > 0) linhas.push(`Desconto −${fmt(descontoDe(f))}`)
@@ -2549,6 +2558,7 @@ function montarMensagemVenda(f, nomeCliente) {
 
   if (f.saldo > 0.01) {
     if (f.saldo < Number(f.total ?? f.saldo) - 0.01) linhas.push(`Em aberto: R$ ${fmt(f.saldo)}`)
+    if (f.dataVenc) linhas.push(`Combinado para ${fmtBR(f.dataVenc).slice(0, 5)}`)
   } else {
     linhas.push('Já está pago, obrigada!')
   }
@@ -2620,7 +2630,7 @@ function montarMensagemCobranca(c, abertos, pix = '') {
 
   // Tom de conversa de WhatsApp: curto, sem formalidade. Só o essencial:
   // saudação, datas, produtos e valores, total e Pix.
-  linhas.push(`Oi, ${c.clienteNome}! 😊`)
+  linhas.push(`Oi, ${c.clienteNome}! Aqui é a Bete 😊`)
   linhas.push(`Segue${plural ? 'm' : ''} sua${plural ? 's' : ''} compra${plural ? 's' : ''}:`)
 
   const ordenados = [...abertos].sort((x, y) => String(x.dataVenda || '').localeCompare(String(y.dataVenda || '')))
@@ -4076,6 +4086,7 @@ onMounted(async () => {
 .cad-det-item-emoji { font-size: 15px; flex-shrink: 0; }
 .cad-det-item-nome  { flex: 1; min-width: 0; font-weight: 700; color: var(--text); overflow-wrap: break-word; }
 .cad-det-item-qtd   { color: var(--muted); font-weight: 700; flex-shrink: 0; }
+.cad-det-item-tag   { flex-shrink: 0; white-space: nowrap; padding: 2px 8px; border-radius: var(--r-full); background: var(--cream); border: 1px solid var(--border); color: var(--brown-mid); font-family: var(--mono); font-size: 11.5px; font-weight: 800; }
 .cad-det-item-sub   { font-family: var(--mono); font-weight: 800; color: var(--brown); flex-shrink: 0; white-space: nowrap; }
 .cad-det-livre {
   font-size: 13px; color: var(--text); line-height: 1.5; white-space: pre-line;

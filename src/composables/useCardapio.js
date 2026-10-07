@@ -734,15 +734,23 @@ const CSS_PEDIDO = `
     background: var(--creme-fundo); border: 1px solid var(--terracota-claro); border-radius: 999px;
     padding: 2px 10px; flex-shrink: 0;
   }
-  .ip-item--compacto { padding: 10px 16px; margin: 0; }
+  .ip-item--compacto { padding: 9px 16px; margin: 0; }
   .ip-item--compacto .ip-item-topo { align-items: center; gap: 10px; }
   .ip-item--compacto .ip-item-avatar { width: 40px; height: 40px; font-size: 18px; }
   .ip-item--compacto .ip-item-corpo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .ip-item--compacto .ip-item-info { flex: 1; min-width: 0; }
   .ip-item--compacto .ip-item-nome { font-size: 12pt; }
   .ip-item--compacto.tem-desc .ip-item-info { cursor: pointer; }
-  .ip-item--compacto.tem-desc .ip-item-nome::before { content: '▸ '; font-size: 11px; color: var(--terracota-desc); }
+  .ip-item--compacto.tem-desc .ip-item-nome::before { content: '▸ '; font-size: 10px; color: var(--terracota-claro); }
   .ip-item--compacto.tem-desc.desc-aberta .ip-item-nome::before { content: '▾ '; }
+  .ip-item--compacto .ip-item-nome { font-size: 11.5pt; font-weight: 700; }
+  .ip-item--compacto .ip-item-meta { margin-top: 2px; font-size: 9.5pt; color: var(--terracota-desc); line-height: 1.3; }
+  .ip-item--compacto .ip-item-preco { font-weight: 700; color: var(--terracota-escuro); font-size: 10.5pt; }
+  .ip-item--compacto .ip-item-encomenda { font-weight: 500; }
+  .ip-item--compacto .item-selo-destaque {
+    background: none; box-shadow: none; border: none; padding: 0; margin-left: 5px;
+    color: #c8890a; font-size: 12pt; line-height: 1;
+  }
   .ip-item--compacto .ip-item-desc { display: none; }
   .ip-item--compacto.desc-aberta .ip-item-desc { display: block; -webkit-line-clamp: unset; overflow: visible; }
 
@@ -911,7 +919,6 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
   const nome = config.nome_cardapio || empresa?.nome || 'Cardápio'
   const numero = numeroWhatsAppFormatado(empresa?.whatsapp_pedidos)
   const itensGlobais = grupos.flatMap(g => g.itens)
-  const mostrarFotoItens = config?.mostrar_foto_itens !== false
 
   // Pix: a chave é sempre o mesmo número do WhatsApp de pedidos (tipo
   // telefone) — sem cadastro extra nenhum. Se o número não estiver
@@ -976,8 +983,14 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     const selo = minimo ? `<span class="categoria-selo-minimo">💰 Pedido mínimo: ${labelMinimoCategoria(minimo)}</span>` : ''
     // Preço único na categoria (3+ itens, todos com o mesmo valor): o preço vai
     // no título e cada sabor vira uma linha compacta (só nome + botão).
-    const compacto = g.itens.length >= 3 && g.itens.every(it => Number(it.preco) === Number(g.itens[0].preco))
-    const precoUnico = compacto ? `<span class="categoria-preco-unico">${R$(g.itens[0].preco)} cada</span>` : ''
+    // Preço-base da categoria = o preço mais comum, quando é maioria (3+ itens). Vai no título
+    // ("R$ 7,00 cada") e só os itens com preço diferente mostram o próprio preço.
+    const contagemPrecos = new Map()
+    g.itens.forEach(it => contagemPrecos.set(Number(it.preco), (contagemPrecos.get(Number(it.preco)) || 0) + 1))
+    let precoBase = null, maiorQtd = 0
+    contagemPrecos.forEach((qtd, preco) => { if (qtd > maiorQtd) { precoBase = preco; maiorQtd = qtd } })
+    if (g.itens.length < 3 || maiorQtd * 2 <= g.itens.length) precoBase = null
+    const precoUnico = precoBase !== null ? `<span class="categoria-preco-unico">${R$(precoBase)} cada</span>` : ''
     // Imagem do banner: a escolhida pra categoria; senão a foto do primeiro item que tiver foto.
     const capaImg = config?.categorias_img?.[g.categoria] || g.itens.find(it => it.foto)?.foto || ''
     return `
@@ -1010,38 +1023,26 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
                   <button type="button" class="ip-qtd-btn" onclick="alterarQtd(${idx}, 1)">+<span class="ip-qtd-add-txt">Adicionar</span></button>
                 </div>
         `
-        if (compacto) {
-          // Linha compacta: só nome + selos + botão. Descrição some até tocar no nome
-          // nada se perde); avatar só aparece quando existe foto (sem emoji repetido).
-          return `
+        // Todos os itens seguem o mesmo layout enxuto: sem imagem por unidade (a categoria
+        // já tem a capa), descrição recolhida (toca no nome pra abrir) e no máximo UMA linha
+        // de detalhes sob o nome: preço (só quando foge do preço-base) · aviso de encomenda.
+        const mostrarPreco = precoBase === null || Number(item.preco) !== precoBase
+        const detalhes = [
+          mostrarPreco ? `<span class="ip-item-preco">${R$(item.preco)}</span>` : '',
+          item.sobEncomenda ? '<span class="ip-item-encomenda">🕒 sob encomenda</span>' : ''
+        ].filter(Boolean)
+        return `
         <div class="ip-item ip-item--compacto${item.descricao ? ' tem-desc' : ''}">
           <div class="ip-item-topo">
-            ${mostrarFotoItens && item.foto ? `<div class="ip-item-avatar ip-item-avatar--foto" onclick="abrirFotoItem(this)" data-nome="${escHtml(item.nome)}" data-preco="${escHtml(R$(item.preco))}">${iconeOuFoto(item)}</div>` : ''}
             <div class="ip-item-corpo">
               <div class="ip-item-info"${item.descricao ? ' onclick="this.closest(\'.ip-item\').classList.toggle(\'desc-aberta\')"' : ''}>
                 <div class="ip-item-linha1">
-                <span class="ip-item-nome">${escHtml(item.nome)}${item.destaque ? '<span class="item-selo-destaque">★ Mais pedido</span>' : ''}${item.sobEncomenda ? '<span class="item-selo-encomenda">🕒 Sob encomenda</span>' : ''}</span>
+                <span class="ip-item-nome">${escHtml(item.nome)}${item.destaque ? '<span class="item-selo-destaque" title="Mais pedido" aria-label="Mais pedido">★</span>' : ''}</span>
                 </div>
+                ${detalhes.length ? `<div class="ip-item-meta">${detalhes.join('<span class="ip-item-meta-sep"> · </span>')}</div>` : ''}
                 ${item.descricao ? `<div class="ip-item-desc">${escHtml(item.descricao)}</div>` : ''}
               </div>
               ${qtdHtml}
-            </div>
-          </div>
-        </div>`
-        }
-        return `
-        <div class="ip-item">
-          <div class="ip-item-topo">
-            ${mostrarFotoItens ? `<div class="ip-item-avatar${item.foto ? ' ip-item-avatar--foto' : ''}"${item.foto ? ` onclick="abrirFotoItem(this)" data-nome="${escHtml(item.nome)}" data-preco="${escHtml(R$(item.preco))}"` : ''}>${iconeOuFoto(item)}</div>` : ''}
-            <div class="ip-item-corpo">
-              <div class="ip-item-linha1">
-                <span class="ip-item-nome">${escHtml(item.nome)}${item.destaque ? '<span class="item-selo-destaque">★ Mais pedido</span>' : ''}${item.sobEncomenda ? '<span class="item-selo-encomenda">🕒 Sob encomenda</span>' : ''}</span>
-              </div>
-              ${item.descricao ? `<div class="ip-item-desc">${escHtml(item.descricao)}</div><div class="ip-item-ler-mais">ler mais</div>` : ''}
-              <div class="ip-item-preco-linha">
-                <span class="ip-item-preco">${R$(item.preco)}</span>
-                ${qtdHtml}
-              </div>
             </div>
           </div>
         </div>`
@@ -1486,20 +1487,31 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
         }
       }
     }
-    function toggleCategoria(idx) {
-      var bloco = document.getElementById('ip-cat-' + idx);
-      if (bloco) bloco.classList.toggle('aberta');
+    // Acordeão: abre só a categoria escolhida e recolhe as outras.
+    function abrirSomenteCategoria(idx) {
+      var blocos = document.querySelectorAll('.categoria-bloco');
+      for (var i = 0; i < blocos.length; i++) blocos[i].classList.toggle('aberta', i === idx);
+      var chips = document.querySelectorAll('.ip-cat-chip');
+      chips.forEach(function (chip, i) { chip.classList.toggle('ativo', i === idx); });
     }
-    function irParaCategoria(idx) {
+    function rolarAteCategoria(idx) {
       var bloco = document.getElementById('ip-cat-' + idx);
       if (!bloco) return;
-      if (!bloco.classList.contains('aberta')) bloco.classList.add('aberta');
       var navEl = document.getElementById('ip-cat-nav');
       var offset = navEl ? navEl.offsetHeight + 8 : 8;
       var y = bloco.getBoundingClientRect().top + window.pageYOffset - offset;
       window.scrollTo({ top: y, behavior: 'smooth' });
-      var chips = document.querySelectorAll('.ip-cat-chip');
-      chips.forEach(function (chip, i) { chip.classList.toggle('ativo', i === idx); });
+    }
+    function toggleCategoria(idx) {
+      var bloco = document.getElementById('ip-cat-' + idx);
+      if (!bloco) return;
+      if (bloco.classList.contains('aberta')) { bloco.classList.remove('aberta'); return; }
+      abrirSomenteCategoria(idx);
+      rolarAteCategoria(idx);   // as outras encolheram: leva a escolhida pro topo
+    }
+    function irParaCategoria(idx) {
+      abrirSomenteCategoria(idx);
+      rolarAteCategoria(idx);
     }
     function alterarQtd(idx, delta) {
       qtds[idx] = Math.max(0, qtds[idx] + delta);
