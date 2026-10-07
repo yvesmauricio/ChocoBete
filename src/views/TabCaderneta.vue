@@ -2549,7 +2549,6 @@ function montarMensagemVenda(f, nomeCliente) {
 
   if (f.saldo > 0.01) {
     if (f.saldo < Number(f.total ?? f.saldo) - 0.01) linhas.push(`Em aberto: R$ ${fmt(f.saldo)}`)
-    if (f.dataVenc) linhas.push(`Combinado para ${fmtBR(f.dataVenc).slice(0, 5)}`)
   } else {
     linhas.push('Já está pago, obrigada!')
   }
