@@ -448,6 +448,168 @@ export function aplicarPagamento(fiado, pago) {
   }
 }
 
+/** Recebe um valor PARCIAL de um cliente que tem várias compras em aberto e reagenda o
+ *  restante para outra data.
+ *
+ *  Garantias de integridade:
+ *   • Tudo numa ÚNICA transação: ou grava tudo, ou não grava nada (sem "meio pago").
+ *   • Relê os saldos do banco dentro da transação (não confia no que está na tela).
+ *   • Reaproveita `aplicarPagamento` — cada compra ganha o mesmo registro de pagamento do
+ *     recebimento individual (valor, saldoAntes, saldoDepois, data/hora).
+ *   • Abate da compra mais ANTIGA para a mais nova; nenhum valor é criado nem perdido.
+ *   • Antes de concluir, confere que (soma dos saldos antes − depois) == valor recebido.
+ *     Se não bater, lança erro e a transação inteira é desfeita.
+ *   • `total`, itens e demais campos das compras não são tocados — só saldo, status,
+ *     pagamentos, pagoEm e (nas compras que continuam abertas) dataVenc.
+ *   • Não muda o esquema do banco: nenhuma migração necessária.
+ *
+ *  `novaDataVenc` (AAAA-MM-DD): vencimento do que sobrar. Obrigatório quando sobra saldo. */
+export async function receberParcialCliente(ids, valor, novaDataVenc = null) {
+  const pedido = centavos(valor)
+  if (!(pedido > 0)) throw new Error('Informe um valor maior que zero.')
+  const idsLimpos = [...new Set((ids || []).filter(i => i !== null && i !== undefined))]
+  if (!idsLimpos.length) throw new Error('Nenhuma compra selecionada.')
+
+  return db.transaction('rw', db.cad_fiados, async () => {
+    const abertas = (await db.cad_fiados.bulkGet(idsLimpos))
+      .filter(f => f && f.status === 'aberto' && Number(f.saldo) > 0.01)
+    if (!abertas.length) throw new Error('Essas compras já estão quitadas.')
+
+    // mais antiga primeiro (data + hora; id como desempate estável)
+    abertas.sort((a, b) =>
+      String(a.dataVenda || '').localeCompare(String(b.dataVenda || '')) ||
+      String(a.horaVenda || '').localeCompare(String(b.horaVenda || '')) ||
+      (a.id - b.id))
+
+    const saldoAntes = somaSaldos(abertas)
+    if (pedido > saldoAntes + 0.005) {
+      throw new Error(`O valor (R$ ${fmt(pedido)}) é maior que o saldo em aberto (R$ ${fmt(saldoAntes)}).`)
+    }
+    // Valor praticamente igual ao saldo = quitação total (mesma tolerância do resto do app).
+    const alvo = pedido >= saldoAntes - 0.01 ? saldoAntes : pedido
+    const sobra = centavos(saldoAntes - alvo)
+    if (sobra > 0.01 && !/^\d{4}-\d{2}-\d{2}$/.test(String(novaDataVenc || ''))) {
+      throw new Error('Escolha a data para receber o restante.')
+    }
+
+    let faltaAbater = alvo
+    const gravadas = []
+    for (const f of abertas) {
+      const parte = centavos(Math.min(faltaAbater, Number(f.saldo)))
+      let mud = {}
+      if (parte > 0) {
+        mud = aplicarPagamento(f, parte)
+        faltaAbater = centavos(faltaAbater - parte)
+      }
+      const continuaAberta = (mud.saldo ?? Number(f.saldo)) > 0.01
+      if (continuaAberta && sobra > 0.01) mud.dataVenc = novaDataVenc
+      const nova = { ...f, ...mud }
+      await db.cad_fiados.put(nova)
+      gravadas.push(nova)
+    }
+
+    // Conferência final — qualquer divergência desfaz tudo.
+    const saldoDepois = somaSaldos(gravadas)
+    if (faltaAbater > 0.005 || Math.abs(centavos(saldoAntes - saldoDepois) - alvo) > 0.005) {
+      throw new Error('A conferência dos valores falhou. Nada foi alterado.')
+    }
+
+    return {
+      recebido: alvo,
+      restante: saldoDepois,
+      quitouTudo: saldoDepois <= 0.01,
+      compras: abertas.length,
+      comprasQuitadas: gravadas.filter(f => f.status === 'pago').length,
+      comprasEmAberto: gravadas.filter(f => f.status === 'aberto').length,
+    }
+  })
+}
+
+/** Estorna (desfaz) UM pagamento registrado por engano numa compra.
+ *
+ *  Garantias de integridade:
+ *   • Tudo numa ÚNICA transação: ou grava tudo, ou não grava nada.
+ *   • Relê a compra do banco dentro da transação (não confia no que está na tela).
+ *   • Só remove o pagamento que bate com o que o usuário viu (valor + data/hora, e
+ *     `criadoEm` quando existe). Se já não existir, não mexe em nada.
+ *   • O valor estornado volta ao saldo (nunca passando do total da compra); se a compra
+ *     estava quitada, ela é reaberta (status 'aberto', pagoEm limpo).
+ *   • Os demais pagamentos, itens, total, vencimento etc. não são tocados.
+ *   • Guarda um registro em `estornos` (trilha de auditoria) — campo novo e opcional;
+ *     não muda o esquema do banco: nenhuma migração necessária.
+ *   • Confere o resultado antes de concluir; se algo não bater, lança erro e a
+ *     transação inteira é desfeita.
+ *
+ *  `alvo`: { idx, valor, data, hora, criadoEm } do pagamento mostrado na tela. */
+export async function estornarPagamento(fiadoId, alvo) {
+  if (fiadoId === null || fiadoId === undefined) throw new Error('Compra não informada.')
+  if (!alvo) throw new Error('Pagamento não informado.')
+
+  return db.transaction('rw', db.cad_fiados, async () => {
+    const atual = await db.cad_fiados.get(fiadoId)
+    if (!atual) throw new Error('Essa compra não existe mais. Nada foi alterado.')
+
+    const lista = Array.isArray(atual.pagamentos) ? atual.pagamentos : []
+    const bate = (p) =>
+      !!p &&
+      Math.abs(centavos(p.valor) - centavos(alvo.valor)) < 0.005 &&
+      String(p.data || '') === String(alvo.data || '') &&
+      String(p.hora || '') === String(alvo.hora || '')
+
+    // 1º: pelo carimbo `criadoEm` (único); 2º: pela posição, só se os dados ainda baterem.
+    let idx = -1
+    if (alvo.criadoEm) {
+      idx = lista.findIndex(p => p && p.criadoEm === alvo.criadoEm && bate(p))
+    } else if (Number.isInteger(alvo.idx) && bate(lista[alvo.idx])) {
+      idx = alvo.idx
+    }
+    if (idx < 0) throw new Error('Esse pagamento já não existe (a tela estava desatualizada). Nada foi alterado.')
+
+    const removido = lista[idx]
+    const valor = centavos(removido.valor)
+    if (!(valor >= 0)) throw new Error('Pagamento com valor inválido. Nada foi alterado.')
+
+    const saldoAntes = centavos(atual.saldo)
+    const totalCompra = Number(atual.total)
+    let novoSaldo = centavos(saldoAntes + valor)
+    if (totalCompra > 0) novoSaldo = Math.min(novoSaldo, centavos(totalCompra))
+
+    const continuaAberta = novoSaldo > 0.01
+    const novosPagamentos = lista.filter((_, i) => i !== idx)
+    const estorno = {
+      valor,
+      pagamentoData: removido.data || null,
+      pagamentoHora: removido.hora || null,
+      pagamentoCriadoEm: removido.criadoEm || null,
+      data: hoje(),
+      hora: horaAtual(),
+      criadoEm: new Date().toISOString(),
+    }
+
+    const nova = {
+      ...atual,
+      saldo: novoSaldo,
+      status: continuaAberta ? 'aberto' : 'pago',
+      pagamentos: novosPagamentos,
+      pagoEm: continuaAberta ? null : (atual.pagoEm || null),
+      estornos: [...(Array.isArray(atual.estornos) ? atual.estornos : []), estorno],
+    }
+    await db.cad_fiados.put(nova)
+
+    // Conferência final — qualquer divergência desfaz tudo.
+    const gravada = await db.cad_fiados.get(fiadoId)
+    if (
+      !gravada ||
+      (gravada.pagamentos || []).length !== lista.length - 1 ||
+      Math.abs(centavos(gravada.saldo) - novoSaldo) > 0.005
+    ) {
+      throw new Error('A conferência dos valores falhou. Nada foi alterado.')
+    }
+
+    return { valor, saldo: novoSaldo, reabriu: atual.status === 'pago' && continuaAberta, fiado: gravada }
+  })
+}
+
 // ── TAXAS (config caderneta) ───────────────────────────────────
 const CHAVE_TAXAS = 'cad_taxas'
 

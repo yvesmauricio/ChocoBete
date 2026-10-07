@@ -1046,18 +1046,65 @@
         </div>
       </div>
 
-      <!-- Dialog quitar tudo -->
-      <div v-if="clienteQuitar" class="cad-overlay" @click.self="clienteQuitar=null">
+      <!-- Dialog quitar / receber parte (por cliente) -->
+      <div v-if="clienteQuitar" class="cad-overlay" @click.self="fecharQuitar">
         <div class="cad-dialog">
-          <div class="cad-dialog-title">Quitar todas as dívidas?</div>
+          <div class="cad-dialog-title">{{ quitarModo === 'parcial' ? 'Receber uma parte' : 'Quitar todas as dívidas?' }}</div>
           <div class="cad-dialog-sub">
             <strong>{{ clienteQuitar.clienteNome }}</strong><br>
             {{ clienteQuitar.fiados.length }} compra{{ clienteQuitar.fiados.length > 1 ? 's' : '' }} ·
             <span style="color:var(--brown);font-weight:800">R$ {{ fmt(clienteQuitar.saldo) }}</span>
           </div>
-          <div class="cad-dialog-btns">
-            <button class="cad-btn-cancel" @click="clienteQuitar=null">Cancelar</button>
-            <button class="cad-btn-confirm" @click="quitarTudo"><i class="fas fa-sack-dollar"></i> Quitar tudo</button>
+
+          <div class="cad-quitar-modos" role="tablist">
+            <button type="button" class="cad-quitar-modo" :class="{ ativo: quitarModo === 'total' }" @click="quitarModo = 'total'">
+              <i class="fas fa-sack-dollar"></i> Quitar tudo
+            </button>
+            <button type="button" class="cad-quitar-modo" :class="{ ativo: quitarModo === 'parcial' }" @click="quitarModo = 'parcial'">
+              <i class="fas fa-hand-holding-dollar"></i> Receber parte
+            </button>
+          </div>
+
+          <template v-if="quitarModo === 'parcial'">
+            <div class="cad-form-group">
+              <label class="cad-form-label">Valor recebido agora</label>
+              <div class="cad-valor-input-wrap cad-valor-input-wrap--sm">
+                <span class="cad-valor-prefixo">R$</span>
+                <input
+                  class="cad-valor-input cad-valor-input--sm"
+                  type="text" inputmode="numeric" placeholder="0,00"
+                  v-model="rawValorQuitarParcial"
+                  @input="onInputValorQuitarParcial"
+                >
+              </div>
+            </div>
+
+            <div v-if="quitarParcialValido" class="cad-quitar-resumo">
+              <span>Ainda falta</span>
+              <strong>R$ {{ fmt(quitarParcialRestante) }}</strong>
+            </div>
+            <div v-else-if="valorQuitarParcialNum >= clienteQuitar.saldo - 0.01 && valorQuitarParcialNum > 0" class="cad-quitar-aviso">
+              Esse valor cobre a dívida toda — use <strong>Quitar tudo</strong>.
+            </div>
+
+            <div v-if="quitarParcialValido">
+              <div class="cad-form-label" style="margin-top:12px">Receber o restante em</div>
+              <div class="cad-chip-row" style="margin-top:6px">
+                <button v-for="c in chipsVenc" :key="c.id" type="button" class="chip" :class="{ ativo: chipRestanteAtivo === c.id }" @click="setChipRestante(c.id)">{{ c.label }}</button>
+              </div>
+              <input class="cad-form-input" type="date" :min="hoje()" v-model="dataVencRestante" @change="chipRestanteAtivo = null">
+              <div v-if="dataVencRestante && dataVencRestante < hoje()" class="cad-quitar-aviso">Escolha uma data de hoje em diante.</div>
+              <div v-else-if="dataVencRestante" class="cad-quitar-nota">
+                R$ {{ fmt(quitarParcialRestante) }} ficam com vencimento em <strong>{{ fmtBR(dataVencRestante) }}</strong>.
+                O valor recebido é abatido da compra mais antiga para a mais nova.
+              </div>
+            </div>
+          </template>
+
+          <div class="cad-dialog-btns" style="margin-top:16px">
+            <button class="cad-btn-cancel" :disabled="salvandoQuitar" @click="fecharQuitar">Cancelar</button>
+            <button v-if="quitarModo === 'total'" class="cad-btn-confirm" :disabled="salvandoQuitar" @click="quitarTudo"><i class="fas fa-sack-dollar"></i> Quitar tudo</button>
+            <button v-else class="cad-btn-confirm" :disabled="salvandoQuitar || !quitarParcialPronto" @click="confirmarReceberParcial"><i class="fas fa-check"></i> Confirmar</button>
           </div>
         </div>
       </div>
@@ -1141,7 +1188,11 @@
             <div class="cad-det-pagtos-titulo"><i class="fas fa-hand-holding-dollar"></i> Pagamentos recebidos</div>
             <div v-for="(p, idx) in fiadoDetalhe.pagamentos" :key="idx" class="cad-det-pagto-row">
               <span>{{ fmtBR(p.data) }}{{ p.hora ? ' · ' + fmtHora(p.hora) : '' }}</span>
-              <span class="cad-det-pagto-val">R$ {{ fmt(p.valor) }}</span>
+              <span class="cad-det-pagto-dir">
+                <span class="cad-det-pagto-val">R$ {{ fmt(p.valor) }}</span>
+                <button type="button" class="cad-det-pagto-estornar" title="Foi engano? Estornar este pagamento"
+                  @click="pedirEstorno(fiadoDetalhe, p, idx)"><i class="fas fa-rotate-left"></i> Estornar</button>
+              </span>
             </div>
           </div>
 
@@ -1168,6 +1219,26 @@
               @click="enviarComprovanteFiado(fiadoDetalhe); fiadoDetalhe=null"
             ><i class="fab fa-whatsapp"></i> Comprovante</button>
             <button class="cad-btn-cancel" @click="abrirEditarFiado(fiadoDetalhe); fiadoDetalhe=null"><i class="fas fa-pen"></i> Editar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dialog estornar pagamento (fica depois do detalhe para aparecer por cima dele) -->
+      <div v-if="estornoPendente" class="cad-overlay" @click.self="cancelarEstorno">
+        <div class="cad-dialog">
+          <div class="cad-dialog-title">Estornar este pagamento?</div>
+          <div class="cad-dialog-sub">
+            Pagamento de <strong>R$ {{ fmt(estornoPendente.p.valor) }}</strong> em
+            {{ fmtBR(estornoPendente.p.data) }}{{ estornoPendente.p.hora ? ' às ' + fmtHora(estornoPendente.p.hora) : '' }}.<br>
+            O valor volta para o saldo em aberto desta compra, que passa de
+            R$ {{ fmt(estornoPendente.fiado.saldo) }} para <strong>R$ {{ fmt(saldoAposEstorno) }}</strong>.
+            <template v-if="estornoPendente.fiado.saldo <= 0.01"> A compra, que estava quitada, será reaberta.</template>
+          </div>
+          <div class="cad-dialog-btns">
+            <button class="cad-btn-cancel" :disabled="salvandoEstorno" @click="cancelarEstorno">Cancelar</button>
+            <button class="cad-btn-confirm danger" :disabled="salvandoEstorno" @click="confirmarEstorno">
+              {{ salvandoEstorno ? 'Estornando…' : 'Estornar' }}
+            </button>
           </div>
         </div>
       </div>
@@ -1291,7 +1362,7 @@ import {
   getStats,
   getTaxas, salvarTaxas,
   getPrecosCategorias, salvarPrecosCategorias,
-  aplicarPagamento,
+  aplicarPagamento, receberParcialCliente, estornarPagamento,
   fmt, fmtBR, fmtHora, iniciais, normalizar, resumoItens,
   hoje, horaAtual
 } from '../composables/useCaderneta.js'
@@ -2762,21 +2833,127 @@ async function confirmarReceber() {
   }
 }
 
-function abrirQuitarTudo(c) { clienteQuitar.value = c }
+// ── Quitar / receber parte (por cliente) ─────────────────────
+const quitarModo             = ref('total')   // 'total' | 'parcial' — abre sempre em 'total' (comportamento de sempre)
+const rawValorQuitarParcial  = ref('')
+const dataVencRestante       = ref('')
+const chipRestanteAtivo      = ref(null)
+const salvandoQuitar         = ref(false)
+
+const valorQuitarParcialNum = computed(() => parseMoney(rawValorQuitarParcial.value))
+// Parcial de verdade = maior que zero e menor que o saldo (se cobrir tudo, o caminho é "Quitar tudo").
+const quitarParcialValido = computed(() => {
+  const c = clienteQuitar.value
+  return !!c && valorQuitarParcialNum.value > 0 && valorQuitarParcialNum.value < c.saldo - 0.01
+})
+const quitarParcialRestante = computed(() =>
+  quitarParcialValido.value ? centavos(clienteQuitar.value.saldo - valorQuitarParcialNum.value) : 0)
+const quitarParcialPronto = computed(() =>
+  quitarParcialValido.value && /^\d{4}-\d{2}-\d{2}$/.test(dataVencRestante.value) && dataVencRestante.value >= hoje())
+
+function onInputValorQuitarParcial(e) {
+  const v = e.target.value.replace(/\D/g, '')
+  rawValorQuitarParcial.value = v ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(Number(v) / 100) : ''
+}
+function setChipRestante(id) {
+  chipRestanteAtivo.value = id
+  dataVencRestante.value = calcChipDate(id, new Date())
+}
+function abrirQuitarTudo(c) {
+  quitarModo.value = 'total'
+  rawValorQuitarParcial.value = ''
+  dataVencRestante.value = ''
+  chipRestanteAtivo.value = null
+  salvandoQuitar.value = false
+  clienteQuitar.value = c
+}
+function fecharQuitar() {
+  if (salvandoQuitar.value) return
+  clienteQuitar.value = null
+}
+async function atualizarAposQuitar() {
+  s.syncImediato()   // sync imediato no Drive
+  await carregarResumo()
+  const s2 = await getStats()
+  Object.assign(stats, s2)
+}
 async function quitarTudo() {
   const c = clienteQuitar.value
-  if (!c) return
+  if (!c || salvandoQuitar.value) return
+  salvandoQuitar.value = true
   try {
     await Promise.all(c.fiados.map(f => atualizarFiado(f.id, aplicarPagamento(f, f.saldo))))
     clienteQuitar.value = null
     s.notify(`${c.clienteNome} quitado!`)
+    await atualizarAposQuitar()
+  } catch (err) {
+    console.error(err)
+    s.notify('Não deu pra quitar. Tenta de novo?', 'error')
+  } finally {
+    salvandoQuitar.value = false
+  }
+}
+async function confirmarReceberParcial() {
+  const c = clienteQuitar.value
+  if (!c || salvandoQuitar.value || !quitarParcialPronto.value) return
+  salvandoQuitar.value = true
+  try {
+    const r = await receberParcialCliente(c.fiados.map(f => f.id), valorQuitarParcialNum.value, dataVencRestante.value)
+    clienteQuitar.value = null
+    s.notify(r.quitouTudo
+      ? `${c.clienteNome} quitado!`
+      : `R$ ${fmt(r.recebido)} recebido de ${c.clienteNome} — restam R$ ${fmt(r.restante)} p/ ${fmtBR(dataVencRestante.value)}`)
+    await atualizarAposQuitar()
+  } catch (err) {
+    console.error(err)
+    s.notify(err?.message || 'Não deu pra registrar o recebimento. Nada foi alterado.', 'error')
+  } finally {
+    salvandoQuitar.value = false
+  }
+}
+
+// ── Estornar pagamento registrado por engano ──────────────────
+// Só pede confirmação aqui; a gravação (transacional e conferida) é `estornarPagamento`.
+const estornoPendente  = ref(null)    // { fiado, p, idx }
+const salvandoEstorno  = ref(false)
+const saldoAposEstorno = computed(() => {
+  const e = estornoPendente.value
+  if (!e) return 0
+  let novo = centavos(Number(e.fiado.saldo || 0) + Number(e.p.valor || 0))
+  if (Number(e.fiado.total) > 0) novo = Math.min(novo, centavos(e.fiado.total))
+  return novo
+})
+function pedirEstorno(fiado, p, idx) { estornoPendente.value = { fiado, p, idx } }
+function cancelarEstorno() { if (!salvandoEstorno.value) estornoPendente.value = null }
+async function confirmarEstorno() {
+  const e = estornoPendente.value
+  if (!e || salvandoEstorno.value) return
+  salvandoEstorno.value = true
+  try {
+    const r = await estornarPagamento(e.fiado.id, {
+      idx: e.idx, valor: e.p.valor, data: e.p.data, hora: e.p.hora, criadoEm: e.p.criadoEm,
+    })
+    estornoPendente.value = null
+    // Atualiza o detalhe aberto com os dados gravados (mantém nome/loja/telefone já exibidos).
+    const g = r.fiado
+    if (fiadoDetalhe.value && fiadoDetalhe.value.id === g.id) {
+      fiadoDetalhe.value = {
+        ...fiadoDetalhe.value,
+        saldo: g.saldo, status: g.status, pagamentos: g.pagamentos, pagoEm: g.pagoEm, estornos: g.estornos,
+        atrasada: !!(g.dataVenc && g.dataVenc < hoje() && g.saldo > 0.01),
+      }
+    }
+    s.notify(r.reabriu ? 'Pagamento estornado — compra reaberta' : 'Pagamento estornado')
     s.syncImediato()   // sync imediato no Drive
     await carregarResumo()
     const s2 = await getStats()
     Object.assign(stats, s2)
   } catch (err) {
     console.error(err)
-    s.notify('Não deu pra quitar. Tenta de novo?', 'error')
+    s.notify(err?.message || 'Não deu pra estornar. Nada foi alterado.', 'error')
+    estornoPendente.value = null
+  } finally {
+    salvandoEstorno.value = false
   }
 }
 
@@ -3921,6 +4098,15 @@ onMounted(async () => {
 .cad-dialog-title { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
 .cad-dialog-sub   { font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
 .cad-dialog-btns  { display: flex; gap: 10px; }
+/* Quitar / receber parte */
+.cad-quitar-modos { display: flex; gap: 6px; background: var(--bg, #f4efe9); padding: 4px; border-radius: 12px; margin-bottom: 14px; }
+.cad-quitar-modo { flex: 1; border: 0; background: transparent; padding: 9px 6px; border-radius: 9px; font-size: 12.5px; font-weight: 800; color: var(--muted); cursor: pointer; }
+.cad-quitar-modo.ativo { background: var(--brown); color: #fff; }
+.cad-quitar-resumo { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); padding: 8px 2px 0; }
+.cad-quitar-resumo strong { color: var(--brown); font-size: 15px; }
+.cad-quitar-aviso { font-size: 12px; color: #b3261e; margin-top: 8px; line-height: 1.4; }
+.cad-quitar-nota { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.45; }
+
 .cad-btn-cancel   { flex: 1; padding: 12px; border: 1.5px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text); font-family: var(--font); font-size: 14px; font-weight: 700; cursor: pointer; }
 .cad-btn-confirm  { flex: 1; padding: 12px; border: none; border-radius: var(--r-md); background: var(--brown); color: #fff; font-family: var(--font); font-size: 14px; font-weight: 700; cursor: pointer; }
 .cad-btn-confirm.danger { background: var(--red, #dc2626); }
@@ -4106,6 +4292,13 @@ onMounted(async () => {
 }
 .cad-det-pagto-row:last-child { border-bottom: none; }
 .cad-det-pagto-val { font-family: var(--mono); font-weight: 800; color: var(--green); }
+.cad-det-pagto-dir { display: flex; align-items: center; gap: 10px; }
+.cad-det-pagto-estornar {
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  font-family: var(--font); font-size: 11px; font-weight: 700; padding: 4px 8px;
+  border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+}
+.cad-det-pagto-estornar:active { opacity: .7; }
 .cad-det-saldo {
   display: flex; justify-content: space-between; align-items: center;
   padding: 10px 14px; border-radius: var(--r-sm); margin-bottom: 10px;
