@@ -2763,9 +2763,9 @@ function iniciarVendaResumo(g, c) {
 // Saudação pelo horário do aparelho (as mensagens não usam o nome da pessoa).
 function saudacaoMsg(data = new Date()) {
   const h = data.getHours()
-  if (h >= 5 && h < 12) return 'Oi, Bom dia'
-  if (h >= 12 && h < 18) return 'Oi, Boa tarde'
-  return 'Oi, Boa noite'
+  if (h >= 5 && h < 12) return 'Oi, bom dia'
+  if (h >= 12 && h < 18) return 'Oi, boa tarde'
+  return 'Oi, boa noite'
 }
 
 // ── Mensagens de WhatsApp para o cliente: tom de conversa, curtas ──────────
