@@ -2977,8 +2977,10 @@ function montarMensagemCobranca(c, abertos, pix = '') {
 
   linhas.push('')
   linhas.push(`Total: R$ ${fmt(total)}`)
+  linhas.push('')
 
   if (pix) linhas.push(`Meu Pix: ${chavePixLegivel(chavePixVendedor.value)}`)
+  linhas.push('')
   // Nome que aparece no Pix (Razão Social de Ajustes > Identidade), pra cliente não estranhar.
   const nomePix = String(s.company.razao_social || '').trim()
   if (pix && nomePix) linhas.push(`Nome no Pix: ${nomePix}`)
