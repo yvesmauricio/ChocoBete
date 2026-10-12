@@ -548,11 +548,11 @@
         </div>
 
         <div v-for="g in gruposResumo" :key="g.lojaId" class="cad-grupo-loja">
-          <div v-if="mostrarAgrupamentoLoja" class="cad-loja-header" :class="{ colapsado: lojaColapsada(g) }" @click="alternarLoja(g)">
+          <div v-if="mostrarAgrupamentoLoja" class="cad-loja-header" :class="{ colapsado: lojaColapsada(g) }" @click="!lojaUnica && alternarLoja(g)" :style="lojaUnica ? 'cursor: default' : null">
             <svg class="cad-loja-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
             <span class="cad-loja-nome">{{ g.lojaNome }}<small v-if="lojaLocal(g.lojaId)" class="cad-loja-local">{{ lojaLocal(g.lojaId) }}</small></span>
             <span class="cad-loja-total">R$ {{ fmt(modoResumo === 'historico' ? g.totalCompras : g.total) }}</span>
-            <svg class="cad-loja-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            <svg v-if="!lojaUnica" class="cad-loja-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
           </div>
 
           <div class="cad-grupo-clientes" :class="{ colapsado: mostrarAgrupamentoLoja && lojaColapsada(g), 'cad-grupo-clientes--indent': mostrarAgrupamentoLoja }">
@@ -2509,9 +2509,11 @@ const tituloListaResumo = computed(() => {
 const gruposResumo = computed(() => montarGrupos())
 // Agrupar por loja só ajuda quem tem mais de uma — com uma loja só, é um
 // nível de clique/scroll a mais sem ganho nenhum de organização.
-const mostrarAgrupamentoLoja = computed(() => gruposResumo.value.length > 1)
+const mostrarAgrupamentoLoja = computed(() => gruposResumo.value.length > 0)
 // A busca só compensa quando dá trabalho achar alguém rolando a lista —
 // com poucos clientes ela é só um campo vazio ocupando espaço no topo.
+const lojaUnica = computed(() => gruposResumo.value.length === 1)
+
 const totalClientesResumo = computed(() => {
   const hj = hoje()
   const fonte = modoResumo.value === 'historico'
@@ -2577,7 +2579,7 @@ function pctPago(f) {
   return Math.min(100, Math.max(0, (totalPagoF(f) / total) * 100))
 }
 
-function lojaColapsada(g) { return !buscaResumo.value.trim() && !lojasExpandidas.value.has(g.lojaId) }
+function lojaColapsada(g) { return !lojaUnica.value && !buscaResumo.value.trim() && !lojasExpandidas.value.has(g.lojaId) }
 function clienteColapsado(g, c) { return !buscaResumo.value.trim() && !clientesExpandidos.value.has(`${g.lojaId}:${c.clienteId}`) }
 function alternarLoja(g) {
   const s = new Set(lojasExpandidas.value)
