@@ -2209,4 +2209,3 @@ async function publicarLinkCardapioInterativo() {
 .cp-capa-acoes { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .cp-capa-btn { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
 </style>
-
