@@ -421,6 +421,7 @@ export async function getStats() {
       .filter(f => f.dataVenc && f.dataVenc < hj)
       .reduce((s, f) => s + f.saldo, 0)),
     qtdAbertos: abertos.length,
+    qtdCompras: await db.cad_fiados.count(),
   }
 }
 

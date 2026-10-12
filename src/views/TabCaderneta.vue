@@ -493,8 +493,9 @@
             <span class="cad-resumo-seg-label">Vencidos</span>
             <span class="cad-resumo-seg-val" :class="{ 'cad-resumo-seg-val--red': stats.totalVencido > 0.009 }">R$ {{ fmt(stats.totalVencido) }}</span>
           </button>
-          <button class="cad-resumo-seg-btn" :class="{ active: modoResumo === 'historico' }" @click="modoResumo = 'historico'">
+          <button class="cad-resumo-seg-btn" :class="{ active: modoResumo === 'historico' }" :title="rotuloCompras(stats.qtdCompras)" @click="modoResumo = 'historico'">
             <span class="cad-resumo-seg-label">Histórico</span>
+            <span class="cad-resumo-seg-val">{{ rotuloComprasCurto(stats.qtdCompras) }}</span>
           </button>
         </div>
 
@@ -505,6 +506,18 @@
       </div>
 
       <div class="cad-resumo-lista">
+
+        <!-- Histórico: explica a finalidade da aba e permite filtrar -->
+        <template v-if="modoResumo === 'historico'">
+          <div class="cad-hist-info">
+            <i class="fas fa-clock-rotate-left"></i>
+            <span>Consulta do passado e correção de erros. Toque numa compra para ver os detalhes ou estornar um pagamento.</span>
+          </div>
+          <div class="cad-hist-chips">
+            <button v-for="o in filtrosHist" :key="o.id" type="button" class="cad-hist-chip"
+              :class="{ active: filtroHist === o.id }" @click="filtroHist = o.id">{{ o.label }}</button>
+          </div>
+        </template>
 
         <!-- Sem resultados -->
         <div v-if="!gruposResumo.length" class="cad-empty">
@@ -556,89 +569,122 @@
           </div>
 
           <div class="cad-grupo-clientes" :class="{ colapsado: mostrarAgrupamentoLoja && lojaColapsada(g), 'cad-grupo-clientes--indent': mostrarAgrupamentoLoja }">
-            <div v-for="c in g.clientes" :key="c.clienteId" class="cad-cli-card" :class="{ atrasado: c.atrasado }">
+            <div v-for="c in g.clientes" :key="c.clienteId" class="cad-cli-card" :class="{ atrasado: c.atrasado && modoResumo !== 'historico' }">
+              <div v-if="modoResumo !== 'historico' && c.atrasado" class="cad-cli-faixa">
+                <i class="fas fa-triangle-exclamation"></i>
+                Venceu {{ rotuloAtraso(c.maxDiasAtraso) }} · R$ {{ fmt(c.valorVencido) }}
+              </div>
               <div class="cad-cli-header" :class="{ colapsado: clienteColapsado(g, c) }" @click="alternarCliente(g, c)">
-                <div class="cad-cli-avatar" :class="{ atrasado: c.atrasado }">{{ iniciais(c.clienteNome) }}</div>
+                <div class="cad-cli-avatar" :class="{ atrasado: c.atrasado && modoResumo !== 'historico' }">{{ iniciais(c.clienteNome) }}</div>
                 <div class="cad-cli-info">
                   <div class="cad-cli-nome">
                     {{ c.clienteNome }}
                     <span v-if="c.clienteFuncao" class="cad-funcao-tag">{{ c.clienteFuncao }}</span>
-                    <span v-if="c.atrasado" class="cad-tag-vencido">Vencido</span>
                   </div>
-                  <div v-if="c.telefone" class="cad-cli-tel">{{ c.telefone }}</div>
+                  <div class="cad-cli-sub">
+                    <template v-if="modoResumo === 'historico'">{{ rotuloCompras(c.kpi.n) }}<template v-if="c.kpi.ultima"> · última em {{ fmtBR(c.kpi.ultima).slice(0, 5) }}</template></template>
+                    <template v-else>{{ c.fiados.length }} {{ c.fiados.length === 1 ? 'compra aberta' : 'compras abertas' }}<template v-if="c.telefone"> · {{ c.telefone }}</template></template>
+                  </div>
                 </div>
-                <div class="cad-cli-total" :class="{ 'cad-cli-total--red': c.atrasado, 'cad-cli-total--ok': modoResumo === 'historico' && c.saldo <= 0.01 }">
-                  R$ {{ fmt(modoResumo === 'historico' ? c.totalCompras : c.saldo) }}
+                <template v-if="modoResumo === 'historico'">
+                  <span v-if="c.kpi.saldo <= 0.01" class="cad-chip cad-chip--ok"><i class="fas fa-check"></i> Em dia</span>
+                  <span v-else class="cad-chip cad-chip--warn"><i class="fas fa-clock"></i> R$ {{ fmt(c.kpi.saldo) }}<span class="cad-chip-extra">&nbsp;em aberto</span></span>
+                </template>
+                <div v-else class="cad-cli-valor" :class="{ 'cad-cli-valor--red': c.atrasado }">
+                  <b>R$ {{ fmt(c.saldo) }}</b>
+                  <small>em aberto</small>
                 </div>
                 <svg class="cad-cli-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </div>
 
-              <div v-if="modoResumo !== 'historico' || c.telefone" class="cad-cli-btns" :class="{ colapsado: clienteColapsado(g, c) }" @click.stop>
-                <button v-if="modoResumo !== 'historico'" class="cad-btn-venda" @click="iniciarVendaResumo(g, c)">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Venda
-                </button>
-                <button v-if="modoResumo !== 'historico' && c.saldo > 0.01" class="cad-btn-quitar" @click="abrirQuitarTudo(c)">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  Quitar
-                </button>
+              <div v-if="modoResumo === 'historico'" class="cad-cli-kpis" :class="{ colapsado: clienteColapsado(g, c) }">
+                <div><small>Comprado</small><b :title="'R$ ' + fmt(c.kpi.comprado)">R$ {{ fmt(c.kpi.comprado) }}</b></div>
+                <div><small>Pago</small><b :title="'R$ ' + fmt(c.kpi.pago)">R$ {{ fmt(c.kpi.pago) }}</b></div>
+                <div><small>Estornos</small><b>{{ c.kpi.estornos }}</b></div>
+              </div>
+
+              <div v-if="modoResumo !== 'historico' || (c.telefone && c.saldo > 0.01)" class="cad-cli-btns" :class="{ colapsado: clienteColapsado(g, c) }" @click.stop>
                 <button
                   v-if="c.telefone && !(modoResumo === 'historico' && c.saldo <= 0.01)"
                   class="cad-btn-zap"
                   @click="abrirWhatsapp(c)"
                   title="Enviar WhatsApp"
                 >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
                   Cobrar
+                </button>
+                <button v-if="modoResumo !== 'historico' && c.saldo > 0.01" class="cad-btn-quitar" @click="abrirQuitarTudo(c)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Quitar
+                </button>
+                <button v-if="modoResumo !== 'historico'" class="cad-btn-venda cad-btn-icone" aria-label="Nova venda" title="Nova venda" @click="iniciarVendaResumo(g, c)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
                 <button
                   v-if="modoResumo !== 'historico' && c.telefone && c.saldo > 0.01"
-                  class="cad-btn-pix"
-                  @click="abrirPixCopiaECola(c)"
+                  class="cad-btn-pix cad-btn-icone"
+                  aria-label="Enviar Pix copia e cola"
                   title="Enviar Pix copia e cola"
+                  @click="abrirPixCopiaECola(c)"
                 >
-                  <i class="fas fa-qrcode"></i> Pix
+                  <i class="fas fa-qrcode"></i>
                 </button>
               </div>
 
               <div class="cad-compras-lista" :class="{ colapsado: clienteColapsado(g, c) }">
-                <CadernetaSwipeItem
-                  v-for="f in c.fiados" :key="f.id" :id="f.id" scope="compras"
-                  class="cad-compra-swipe"
-                  :class="{ 'compra-atrasada': f.atrasada }"
-                  :actions="compraSwipeActions(f)"
-                  @click="abrirDetalheFiado(f)"
-                  @edit="abrirEditarFiado(f)"
-                  @receive="abrirReceber(f)"
-                  @receipt="enviarComprovanteFiado(f)"
-                  @delete="confirmarExcluirFiado(f)"
-                >
-                  <div class="cad-compra-esq">
-                    <span class="cad-compra-data">{{ fmtDataHora(f) }}</span>
-                    <span class="cad-compra-itens">{{ qtdItens(f) }}</span>
-                    <div v-if="f.pagamentos?.length" class="cad-compra-pgto">
-                      <div class="cad-compra-pgto-linha">
-                        <span class="cad-compra-pgto-recebido"><i class="fas fa-check-circle"></i> R$ {{ fmt(totalPagoF(f)) }}</span>
-                        <span class="cad-compra-pgto-falta">falta R$ {{ fmt(f.saldo) }}</span>
+                <template v-for="(f, i) in c.fiadosVisiveis" :key="f.id">
+                  <div v-if="modoResumo === 'historico' && novoMes(c.fiadosVisiveis, i)" class="cad-mes">{{ rotuloMes(f.dataVenda) }}</div>
+                  <div v-else-if="modoResumo !== 'historico' && i === 0" class="cad-mes">Compras em aberto</div>
+                  <CadernetaSwipeItem
+                    :id="f.id" scope="compras"
+                    class="cad-compra-swipe"
+                    :class="{ 'compra-atrasada': f.atrasada }"
+                    :actions="compraSwipeActions(f)"
+                    @click="abrirDetalheFiado(f)"
+                    @edit="abrirEditarFiado(f)"
+                    @receive="abrirReceber(f)"
+                    @receipt="enviarComprovanteFiado(f)"
+                    @delete="confirmarExcluirFiado(f)"
+                  >
+                    <div v-if="modoResumo === 'historico'" class="cad-hist-row">
+                      <span class="cad-hist-ico" :class="'cad-hist-ico--' + iconeHist(f).cls"><i class="fas" :class="iconeHist(f).ico"></i></span>
+                      <div class="cad-hist-meio">
+                        <span class="cad-compra-data">{{ fmtDataHora(f) }}</span>
+                        <span class="cad-compra-itens">{{ qtdItens(f) }}</span>
+                        <span v-if="f.estornos?.length" class="cad-hist-estorno">Pagamento estornado em {{ fmtBR(ultimoEstorno(f).data) }}</span>
                       </div>
-                      <div class="cad-compra-pgto-bar"><div class="cad-compra-pgto-bar-fill" :style="{ width: pctPago(f) + '%' }"></div></div>
+                      <div class="cad-hist-dir">
+                        <span class="cad-compra-valor">R$ {{ fmt(f.total) }}</span>
+                        <span class="cad-chip" :class="'cad-chip--' + chipHist(f).cls">{{ chipHist(f).txt }}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div class="cad-compra-dir">
-                    <span class="cad-compra-valor" :class="{ 'cad-compra-valor--red': f.atrasada }">
-                      R$ {{ fmt(modoResumo === 'historico' ? f.total : f.saldo) }}
-                    </span>
-                    <div class="cad-compra-meta">
-                      <span v-if="modoResumo === 'historico'" class="cad-compra-status" :class="{ pago: f.saldo <= 0.01 }">
-                        {{ f.saldo <= 0.01 ? 'Pago' : 'Aberto' }}
-                      </span>
-                      <span v-else class="cad-compra-vence" :class="{ 'cad-compra-vence--red': f.atrasada, 'cad-compra-vence--gray': !f.dataVenc }">
-                        <template v-if="f.dataVenc"><i class="fas" :class="f.atrasada ? 'fa-triangle-exclamation' : 'fa-calendar-days'"></i> {{ fmtBR(f.dataVenc) }}</template>
-                        <span v-else class="cad-compra-vence--gray">Sem vencimento</span>
-                      </span>
-                    </div>
-                  </div>
-                </CadernetaSwipeItem>
+                    <template v-else>
+                      <div class="cad-compra-esq">
+                        <span class="cad-compra-data">{{ fmtDataHora(f) }}</span>
+                        <span class="cad-compra-itens">{{ qtdItens(f) }}</span>
+                        <div v-if="f.pagamentos?.length" class="cad-compra-pgto">
+                          <div class="cad-compra-pgto-linha">
+                            <span class="cad-compra-pgto-recebido"><i class="fas fa-check-circle"></i> R$ {{ fmt(totalPagoF(f)) }}</span>
+                            <span class="cad-compra-pgto-falta">falta R$ {{ fmt(f.saldo) }}</span>
+                          </div>
+                          <div class="cad-compra-pgto-bar"><div class="cad-compra-pgto-bar-fill" :style="{ width: pctPago(f) + '%' }"></div></div>
+                        </div>
+                      </div>
+                      <div class="cad-compra-dir">
+                        <span class="cad-compra-valor" :class="{ 'cad-compra-valor--red': f.atrasada }">R$ {{ fmt(f.saldo) }}</span>
+                        <div class="cad-compra-meta">
+                          <span class="cad-chip" :class="f.atrasada ? 'cad-chip--red' : 'cad-chip--neutral'">
+                            <template v-if="f.dataVenc"><i class="fas" :class="f.atrasada ? 'fa-calendar-xmark' : 'fa-calendar-days'"></i> {{ f.atrasada ? 'Venceu' : 'Vence' }} {{ fmtBR(f.dataVenc).slice(0, 5) }}</template>
+                            <template v-else>Sem vencimento</template>
+                          </span>
+                        </div>
+                      </div>
+                    </template>
+                  </CadernetaSwipeItem>
+                </template>
+                <button v-if="modoResumo === 'historico' && c.fiados.length > c.fiadosVisiveis.length" type="button" class="cad-hist-mais" @click="verTodasCompras(g, c)">
+                  Ver compras mais antigas ({{ c.fiados.length - c.fiadosVisiveis.length }})
+                </button>
               </div>
             </div>
           </div>
@@ -1155,6 +1201,7 @@
                 {{ fiadoDetalhe.clienteNome }}
                 <span v-if="fiadoDetalhe.clienteFuncao" class="cad-funcao-tag">{{ fiadoDetalhe.clienteFuncao }}</span>
                 <span v-if="fiadoDetalhe.atrasada" class="cad-tag-vencido">Vencido</span>
+                <span v-if="fiadoDetalhe.estornos?.length && fiadoDetalhe.saldo > 0.01" class="cad-chip cad-chip--warn" style="margin-left:6px">Reaberta</span>
               </div>
               <div class="cad-edit-loja">{{ fiadoDetalhe.lojaNome }}<template v-if="lojaLocal(fiadoDetalhe.lojaId)"> ({{ lojaLocal(fiadoDetalhe.lojaId) }})</template> · {{ fmtDataHora(fiadoDetalhe) }}</div>
             </div>
@@ -1193,6 +1240,21 @@
                 <button type="button" class="cad-det-pagto-estornar" title="Foi engano? Estornar este pagamento"
                   @click="pedirEstorno(fiadoDetalhe, p, idx)"><i class="fas fa-rotate-left"></i> Estornar</button>
               </span>
+            </div>
+          </div>
+
+          <p v-else-if="fiadoDetalhe.saldo <= 0.01" class="cad-det-sem-pagto">
+            Quitada sem pagamento registrado — não há pagamento para estornar.
+          </p>
+
+          <div v-if="fiadoDetalhe.estornos?.length" class="cad-det-pagtos cad-det-estornos">
+            <div class="cad-det-pagtos-titulo"><i class="fas fa-rotate-left"></i> Estornos</div>
+            <div v-for="(e, i) in fiadoDetalhe.estornos" :key="e.criadoEm || i" class="cad-det-pagto-row">
+              <span>
+                {{ fmtBR(e.data) }}{{ e.hora ? ' · ' + fmtHora(e.hora) : '' }}
+                <small class="cad-det-est-sub">Pagamento de {{ fmtBR(e.pagamentoData) }} desfeito</small>
+              </span>
+              <span class="cad-det-pagto-val cad-det-pagto-val--est">R$ {{ fmt(e.valor) }}</span>
             </div>
           </div>
 
@@ -1434,7 +1496,7 @@ function irParaResumo(modo) {
 const saudacao = ref('')
 const saudacaoIcone = ref('fa-sun')
 const dataBR   = ref('')
-const stats    = reactive({ totalAberto: 0, totalVencido: 0, qtdAbertos: 0 })
+const stats    = reactive({ totalAberto: 0, totalVencido: 0, qtdAbertos: 0, qtdCompras: 0 })
 const alertasDia = ref([])   // uma linha por cliente (soma das vendas que vencem hoje)
 const alertasDiaVisiveis = computed(() => alertasDia.value.slice(0, 5))
 // Contagem de pedidos do balcão ainda em aberto (nem entregues ainda) —
@@ -2427,6 +2489,18 @@ const modoResumo     = ref('abertos')
 
 // Recarrega fiados ao trocar modo: abertos usa índice, histórico carrega tudo
 watch(modoResumo, () => { if (tela.value === 'resumo') carregarResumo() })
+
+// Sempre que sair das Cobranças e voltar, começa na aba "Aberto" (sem filtro/busca).
+// Única exceção: ir lançar uma venda a partir daqui — o fluxo volta para onde estava.
+function resetarResumo() {
+  modoResumo.value = 'abertos'
+  filtroHist.value = 'all'
+  buscaResumo.value = ''
+  comprasTodas.value = new Set()
+}
+watch(tela, (nova, antiga) => {
+  if (antiga === 'resumo' && nova !== 'resumo' && nova !== 'lancar') resetarResumo()
+})
 const lojasExpandidas    = ref(new Set())
 const clientesExpandidos = ref(new Set())
 const fiadoReceber   = ref(null)
@@ -2497,6 +2571,7 @@ const fiadosAbertos = computed(() => fiadosTodos.value.filter(f => f.saldo > 0.0
 const textoVazioResumo = computed(() => {
   if (buscaResumo.value.trim()) return 'Nenhum cliente encontrado.'
   if (modoResumo.value === 'vencidos') return 'Nenhum fiado vencido.'
+  if (modoResumo.value === 'historico' && filtroHist.value !== 'all') return 'Nenhuma compra neste filtro.'
   return modoResumo.value === 'historico' ? 'Nenhum histórico registrado.' : 'Nenhum fiado em aberto.'
 })
 
@@ -2532,7 +2607,29 @@ function montarGrupos() {
     : modoResumo.value === 'vencidos'
       ? fiadosAbertos.value.filter(f => f.dataVenc && f.dataVenc < hj)
       : fiadosAbertos.value
+  // Filtro do histórico (chips) — só vale nessa aba
+  const filtroH = modoResumo.value === 'historico' ? filtroHist.value : 'all'
+  const passaFiltro = f =>
+    filtroH === 'all' ||
+    (filtroH === 'pago' && f.saldo <= 0.01) ||
+    (filtroH === 'aberto' && f.saldo > 0.01) ||
+    (filtroH === 'estorno' && (f.estornos?.length || 0) > 0)
+  // Resumo do cliente no histórico: calculado sobre TUDO dele (não muda com filtro/busca)
+  const kpiPorCliente = new Map()
+  if (modoResumo.value === 'historico') {
+    fonte.forEach(f => {
+      const k = kpiPorCliente.get(f.clienteId) || { n: 0, comprado: 0, pago: 0, estornos: 0, saldo: 0, ultima: '' }
+      k.n++
+      k.comprado += Number(f.total || 0)
+      k.pago += totalPagoF(f)
+      k.estornos += f.estornos?.length || 0
+      k.saldo += Number(f.saldo || 0)
+      if ((f.dataVenda || '') > k.ultima) k.ultima = f.dataVenda || ''
+      kpiPorCliente.set(f.clienteId, k)
+    })
+  }
   const filtrados = fonte.filter(f => {
+    if (!passaFiltro(f)) return false
     if (!termo) return true
     const telefone = telMap.value[f.clienteId] || f.clienteTel || ''
     return normalizar([f.clienteNome, f.clienteFuncao, f.lojaNome, lojaLocal(f.lojaId), telefone, descFiado(f)].join(' ')).includes(termo)
@@ -2545,14 +2642,19 @@ function montarGrupos() {
       g.clientes.set(f.clienteId, {
         clienteId: f.clienteId, clienteNome: f.clienteNome, clienteFuncao: f.clienteFuncao || '',
         telefone: telMap.value[f.clienteId] || '',
-        fiados: [], saldo: 0, atrasado: false
+        fiados: [], saldo: 0, atrasado: false, valorVencido: 0, maxDiasAtraso: 0,
+        kpi: kpiPorCliente.get(f.clienteId) || { n: 0, comprado: 0, pago: 0, estornos: 0, saldo: 0, ultima: '' }
       })
     }
     const c = g.clientes.get(f.clienteId)
     const atrasada = f.saldo > 0.01 && f.dataVenc && f.dataVenc < hj
     c.fiados.push({ ...f, atrasada })
     c.saldo += f.saldo || 0
-    if (atrasada) c.atrasado = true
+    if (atrasada) {
+      c.atrasado = true
+      c.valorVencido += f.saldo || 0
+      c.maxDiasAtraso = Math.max(c.maxDiasAtraso, diasEntre(f.dataVenc, hj))
+    }
   })
   return [...porLoja.values()].map(g => {
     const clientes = [...g.clientes.values()].map(c => ({
@@ -2562,10 +2664,63 @@ function montarGrupos() {
         const db = `${b.dataVenda||''} ${b.horaVenda||'00:00'}`
         return String(db).localeCompare(String(da))
       }),
-      totalCompras: c.fiados.reduce((s, f) => s + Number(f.total || 0), 0)
+      totalCompras: c.fiados.reduce((s, f) => s + Number(f.total || 0), 0),
+      // No histórico mostra só as 6 compras mais recentes até a pessoa pedir o resto
+      fiadosVisiveis: modoResumo.value === 'historico' && !comprasTodas.value.has(`${g.lojaId}:${c.clienteId}`) && !termo
+        ? c.fiados.slice(0, 6)
+        : c.fiados
     })).sort((a, b) => a.clienteNome.localeCompare(b.clienteNome))
     return { ...g, clientes, total: clientes.reduce((s,c) => s+c.saldo, 0), totalCompras: clientes.reduce((s,c) => s+c.totalCompras, 0) }
   }).sort((a, b) => a.lojaNome.localeCompare(b.lojaNome))
+}
+
+// ── Redesign das cobranças: helpers de exibição ─────────────
+const filtroHist   = ref('all')
+const comprasTodas = ref(new Set())
+const filtrosHist  = [
+  { id: 'all', label: 'Todas' }, { id: 'pago', label: 'Pagas' },
+  { id: 'aberto', label: 'Em aberto' }, { id: 'estorno', label: 'Estornadas' },
+]
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+function rotuloCompras(n) { n = Number(n) || 0; return `${n.toLocaleString('pt-BR')} ${n === 1 ? 'compra' : 'compras'}` }
+// Versão curta para o botão do segmentado (3 colunas em tela pequena): 38 compras · 1,2 mil · 12 mil
+function rotuloComprasCurto(n) {
+  n = Number(n) || 0
+  if (n < 1000) return rotuloCompras(n)
+  return `${(n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`
+}
+function diasEntre(a, b) {
+  const t = d => { const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return Date.UTC(y, m - 1, dd) }
+  return Math.max(0, Math.round((t(b) - t(a)) / 86400000))
+}
+function rotuloAtraso(d) { return d <= 1 ? 'há 1 dia' : `há ${d} dias` }
+function mesDe(d) { return String(d || '').slice(0, 7) }
+function novoMes(lista, i) { return i === 0 || mesDe(lista[i].dataVenda) !== mesDe(lista[i - 1].dataVenda) }
+function rotuloMes(d) {
+  const [y, m] = String(d || '').split('-')
+  return MESES[Number(m) - 1] ? `${MESES[Number(m) - 1]} ${y}` : 'Sem data'
+}
+function ultimoEstorno(f) { const e = f.estornos || []; return e[e.length - 1] || {} }
+function dataPagoF(f) {
+  const p = f.pagamentos || []
+  if (p.length && p[p.length - 1].data) return p[p.length - 1].data
+  return f.pagoEm ? String(f.pagoEm).slice(0, 10) : ''
+}
+function iconeHist(f) {
+  if (f.saldo <= 0.01) return { cls: 'ok', ico: 'fa-check' }
+  if (f.estornos?.length) return { cls: 'warn', ico: 'fa-rotate-left' }
+  return { cls: 'warn', ico: 'fa-clock' }
+}
+function chipHist(f) {
+  if (f.saldo <= 0.01) {
+    const d = dataPagoF(f)
+    return { cls: 'ok', txt: d ? `Pago em ${fmtBR(d).slice(0, 5)}` : 'Pago' }
+  }
+  if (f.estornos?.length) return { cls: 'warn', txt: 'Reaberta' }
+  return { cls: 'warn', txt: totalPagoF(f) > 0 ? `Falta R$ ${fmt(f.saldo)}` : 'Em aberto' }
+}
+function verTodasCompras(g, c) {
+  const s2 = new Set(comprasTodas.value); s2.add(`${g.lojaId}:${c.clienteId}`); comprasTodas.value = s2
 }
 
 function fmtDataHora(f) {
@@ -3068,8 +3223,8 @@ const totalEditarGeral = computed(() => centavos(brutoEditarGeral.value - descon
 function compraSwipeActions(f) {
   const temTelefone = !!(telMap.value[f.clienteId] || f.clienteTel)
   const receipt = temTelefone ? ['receipt'] : []
-  // No modo histórico não mostra receber/editar
-  if (modoResumo.value === 'historico') return [...receipt, 'edit', 'delete']
+  // No histórico (consulta) não mostra receber nem excluir
+  if (modoResumo.value === 'historico') return [...receipt, 'edit']
   return f.saldo > 0.01 ? [...receipt, 'receive', 'edit', 'delete'] : [...receipt, 'edit', 'delete']
 }
 async function salvarEdicaoFiado() {
@@ -4562,4 +4717,108 @@ onMounted(async () => {
   background: #8a4b00; color: #fff; font-family: var(--font); font-size: 12px; font-weight: 800; cursor: pointer;
 }
 .cad-alerta-backup button:disabled { opacity: .6; }
+
+/* ══ Cobranças · redesign dos cards (Aberto / Vencidos / Histórico) ══ */
+.cad-resumo-seg-btn { min-width: 0; }
+.cad-cli-card.atrasado { border-color: #fecaca; background: var(--surface); }
+.cad-cli-faixa {
+  display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+  background: var(--red-bg); color: var(--red); font-size: 12px; font-weight: 800;
+  border-bottom: 1px solid #fecaca;
+}
+.cad-cli-sub { font-size: 12px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cad-cli-valor { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.cad-cli-valor b { font-size: 16px; font-weight: 800; font-family: var(--mono); }
+.cad-cli-valor small { font-size: 11px; color: var(--muted); font-weight: 600; }
+.cad-cli-valor--red b { color: var(--red); }
+
+.cad-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--r-full);
+  font-size: 11px; font-weight: 800; white-space: nowrap; flex-shrink: 0;
+}
+.cad-chip i { font-size: 10px; }
+.cad-chip--ok      { background: var(--green-bg);  color: var(--green); }
+.cad-chip--warn    { background: var(--orange-bg); color: var(--orange); }
+.cad-chip--red     { background: var(--red-bg);    color: var(--red); }
+.cad-chip--neutral { background: var(--cream);     color: var(--muted); border: 1px solid var(--border); }
+
+.cad-cli-kpis {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 0 12px 10px;
+  overflow: hidden; transition: max-height .28s cubic-bezier(.4,0,.2,1), opacity .22s ease, padding .22s ease;
+  max-height: 80px; opacity: 1;
+}
+.cad-cli-kpis.colapsado { max-height: 0 !important; opacity: 0; padding-top: 0; padding-bottom: 0; }
+.cad-cli-kpis > div { background: var(--cream); border-radius: 8px; padding: 6px 8px; min-width: 0; }
+.cad-cli-kpis small { display: block; font-size: 11px; color: var(--muted); font-weight: 600; }
+.cad-cli-kpis b { font-size: 13px; font-weight: 800; font-family: var(--mono); color: var(--brown); white-space: nowrap; }
+
+.cad-cli-btns { flex-wrap: nowrap; gap: 6px; }
+.cad-btn-quitar { min-height: 44px; }
+.cad-btn-zap { min-height: 44px; background: var(--surface); color: var(--green); border: 1.5px solid var(--green-dim); }
+.cad-btn-venda.cad-btn-icone, .cad-btn-pix.cad-btn-icone {
+  flex: 0 0 44px; width: 44px; min-width: 44px; min-height: 44px; padding: 0;
+  background: var(--surface); border: 1.5px solid var(--border2); color: var(--brown); font-size: 15px;
+}
+.cad-btn-pix.cad-btn-icone { color: var(--teal); }
+
+.cad-mes {
+  font-size: 11px; font-weight: 700; color: var(--muted); padding: 6px 12px; margin-top: 4px;
+  background: var(--cream); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.cad-compra-vence, .cad-compra-pgto-bar { margin-top: 0; }
+
+.cad-hist-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 2px 0; }
+.cad-hist-ico {
+  width: 30px; height: 30px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
+}
+.cad-hist-ico--ok   { background: var(--green-bg);  color: var(--green); }
+.cad-hist-ico--warn { background: var(--orange-bg); color: var(--orange); }
+.cad-hist-meio { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cad-hist-estorno { font-size: 11px; font-weight: 700; color: var(--orange); }
+.cad-hist-dir { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.cad-hist-dir .cad-compra-valor { color: var(--text); }
+.cad-hist-mais {
+  display: block; width: 100%; background: none; border: none; cursor: pointer;
+  padding: 10px 12px 12px; font-family: var(--font); font-size: 12px; font-weight: 700; color: var(--muted);
+}
+.cad-hist-mais:active { background: var(--cream); }
+
+.cad-hist-info {
+  display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 8px;
+  border: 1px dashed var(--border2); background: var(--surface); font-size: 12px; color: var(--muted); line-height: 1.4;
+}
+.cad-hist-info i { margin-top: 2px; }
+.cad-hist-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: -4px; }
+.cad-hist-chip {
+  min-height: 34px; padding: 0 14px; border-radius: var(--r-full); border: 1px solid var(--border);
+  background: var(--surface); color: var(--muted); font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.cad-hist-chip.active { background: var(--brown-dark); border-color: var(--brown-dark); color: var(--cream); }
+
+.cad-det-estornos .cad-det-pagtos-titulo { color: var(--orange); }
+.cad-det-est-sub { display: block; font-size: 11px; color: var(--muted); font-weight: 600; }
+.cad-det-pagto-val--est { color: var(--orange); }
+.cad-det-sem-pagto { font-size: 12px; color: var(--muted); margin: 8px 2px 0; }
+
+/* ── Telas pequenas / números grandes (ex.: 1.000+ compras, R$ 12.345,67) ── */
+.cad-resumo-seg-btn { overflow: hidden; }
+.cad-resumo-seg-val {
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: clamp(11px, 3.7vw, 14px);
+}
+.cad-cli-kpis { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.5fr) minmax(0, 1fr); }
+.cad-cli-kpis b { display: block; overflow: hidden; text-overflow: ellipsis; font-size: clamp(11px, 3.4vw, 13px); }
+.cad-cli-nome { min-width: 0; }
+.cad-hist-meio, .cad-hist-row { min-width: 0; }
+.cad-hist-meio { overflow-wrap: anywhere; }
+.cad-hist-dir { max-width: 48%; }
+.cad-hist-dir .cad-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.cad-hist-dir .cad-compra-valor { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 360px) {
+  .cad-chip-extra { display: none; }
+  .cad-cli-header { gap: 8px; padding: 10px; }
+  .cad-cli-avatar { width: 36px; height: 36px; }
+  .cad-cli-valor b { font-size: 15px; }
+}
 </style>
