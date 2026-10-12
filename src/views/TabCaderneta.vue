@@ -607,7 +607,7 @@
                 <button
                   v-if="c.telefone && !(modoResumo === 'historico' && c.saldo <= 0.01)"
                   class="cad-btn-zap"
-                  @click="escolherEnvioCobranca(c)"
+                  @click="abrirWhatsapp(c)"
                   title="Enviar cobrança pelo WhatsApp"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
@@ -1434,7 +1434,7 @@ import {
   carregarConfigCardapio, montarItensCardapio, agruparPorCategoria,
   extrairTelefoneDeTexto, numeroWhatsAppFormatado, compartilharArquivo
 } from '../composables/useCardapio.js'
-import { gerarCupomVenda, gerarCupomCobranca, nomeArquivoCupom } from '../services/cupomService.js'
+import { gerarCupomVenda, nomeArquivoCupom } from '../services/cupomService.js'
 import { maskTelefone, maskMoney, parseMoney } from '../utils.js'
 import { listarPedidosCardapio } from '../db.js'
 import { chavePixDoWhatsapp, montarPayloadPix } from '../services/pixService.js'
@@ -2763,9 +2763,9 @@ function iniciarVendaResumo(g, c) {
 // Saudação pelo horário do aparelho (as mensagens não usam o nome da pessoa).
 function saudacaoMsg(data = new Date()) {
   const h = data.getHours()
-  if (h >= 5 && h < 12) return 'Oi, bom dia'
-  if (h >= 12 && h < 18) return 'Oi, boa tarde'
-  return 'Oi, boa noite'
+  if (h >= 5 && h < 12) return 'Oi, Bom dia'
+  if (h >= 12 && h < 18) return 'Oi, Boa tarde'
+  return 'Oi, Boa noite'
 }
 
 // ── Mensagens de WhatsApp para o cliente: tom de conversa, curtas ──────────
@@ -2851,38 +2851,7 @@ async function enviarCupomVenda(f) {
   }
 }
 
-async function enviarCupomCobranca(c) {
-  if (gerandoCupom.value) return
-  const abertos = c.fiados.filter(f => f.saldo > 0.01)
-  if (!abertos.length) return
-  gerandoCupom.value = true
-  try {
-    const total = abertos.reduce((soma, f) => soma + Number(f.saldo || 0), 0)
-    const pix = payloadPixParaValor(total)
-    const blob = await gerarCupomCobranca(c, abertos, {
-      empresa: dadosEmpresaCupom(),
-      mostrarHora: !!s.company.mostrar_hora_venda,
-      desconto: descontoDe,
-      pix: pix ? { chave: chavePixLegivel(chavePixVendedor.value), nome: String(s.company.razao_social || '').trim() } : null,
-    })
-    const r = await compartilharArquivo(blob, {
-      nomeArquivo: nomeArquivoCupom('resumo', c.clienteNome),
-      tipo: 'image/png',
-      titulo: 'Resumo das compras',
-    })
-    if (r === 'baixado') s.notify('Cupom salvo no aparelho — anexe na conversa do WhatsApp.', 'success')
-    // Segunda mensagem: só o código Pix (já copiado), pronta para a cliente copiar com facilidade.
-    if (r !== 'cancelado' && pix) abrirPixCopiaECola(c)
-    else if (!pix) s.notify('Cupom sem Pix: cadastre seu WhatsApp em Ajustes → Dados da loja', 'warning')
-  } catch (err) {
-    console.error(err)
-    s.notify('Não deu pra gerar o cupom. Tente o envio por texto.', 'error')
-  } finally {
-    gerandoCupom.value = false
-  }
-}
-
-// Entradas dos botões: perguntam o formato (cupom em imagem ou texto, como era antes).
+// Comprovante de venda: único lugar onde a imagem (cupom) é oferecida. "Cobrar" envia sempre texto.
 function enviarComprovanteFiado(f) {
   const tel = (telMap.value[f.clienteId] || f.clienteTel || '').replace(/\D/g, '')
   const botoes = [{ rotulo: 'Cupom (imagem)', fn: () => enviarCupomVenda(f) }]
@@ -2891,19 +2860,6 @@ function enviarComprovanteFiado(f) {
     titulo: 'Como enviar o comprovante?',
     sub: 'O cupom é uma imagem no estilo recibo, sem valor fiscal. No celular, escolha o WhatsApp e o contato na lista que abrir.',
     botoes,
-  }
-}
-
-function escolherEnvioCobranca(c) {
-  const abertos = c.fiados.filter(f => f.saldo > 0.01)
-  if (modoResumo.value === 'historico' || !abertos.length) { abrirWhatsapp(c); return }
-  dialogAcao.value = {
-    titulo: 'Como enviar a cobrança?',
-    sub: 'No cupom (imagem estilo recibo) o Pix vai à parte: uma mensagem só com o código, para copiar fácil.',
-    botoes: [
-      { rotulo: 'Cupom (imagem) + Pix', fn: () => enviarCupomCobranca(c) },
-      { rotulo: 'Texto', fn: () => abrirWhatsapp(c) },
-    ],
   }
 }
 
@@ -2977,10 +2933,8 @@ function montarMensagemCobranca(c, abertos, pix = '') {
 
   linhas.push('')
   linhas.push(`Total: R$ ${fmt(total)}`)
-  linhas.push('')
 
   if (pix) linhas.push(`Meu Pix: ${chavePixLegivel(chavePixVendedor.value)}`)
-  linhas.push('')
   // Nome que aparece no Pix (Razão Social de Ajustes > Identidade), pra cliente não estranhar.
   const nomePix = String(s.company.razao_social || '').trim()
   if (pix && nomePix) linhas.push(`Nome no Pix: ${nomePix}`)
