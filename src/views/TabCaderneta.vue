@@ -607,8 +607,8 @@
                 <button
                   v-if="c.telefone && !(modoResumo === 'historico' && c.saldo <= 0.01)"
                   class="cad-btn-zap"
-                  @click="abrirWhatsapp(c)"
-                  title="Enviar WhatsApp"
+                  @click="escolherEnvioCobranca(c)"
+                  title="Enviar cobrança pelo WhatsApp"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
                   Cobrar
@@ -1432,8 +1432,9 @@ import { useStore } from '../store.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import {
   carregarConfigCardapio, montarItensCardapio, agruparPorCategoria,
-  extrairTelefoneDeTexto, numeroWhatsAppFormatado
+  extrairTelefoneDeTexto, numeroWhatsAppFormatado, compartilharArquivo
 } from '../composables/useCardapio.js'
+import { gerarCupomVenda, gerarCupomCobranca, nomeArquivoCupom } from '../services/cupomService.js'
 import { maskTelefone, maskMoney, parseMoney } from '../utils.js'
 import { listarPedidosCardapio } from '../db.js'
 import { chavePixDoWhatsapp, montarPayloadPix } from '../services/pixService.js'
@@ -2759,6 +2760,14 @@ function iniciarVendaResumo(g, c) {
 // Horário só entra na mensagem se a configuração da empresa permitir (Ajustes > Comprovantes
 // e Cobrança) E o lançamento tiver hora salva — ver dataCurtaMsg.
 
+// Saudação pelo horário do aparelho (as mensagens não usam o nome da pessoa).
+function saudacaoMsg(data = new Date()) {
+  const h = data.getHours()
+  if (h >= 5 && h < 12) return 'Oi, Bom dia'
+  if (h >= 12 && h < 18) return 'Oi, Boa tarde'
+  return 'Oi, Boa noite'
+}
+
 // ── Mensagens de WhatsApp para o cliente: tom de conversa, curtas ──────────
 // "03/09" — o ano só aparece quando a compra não é do ano atual.
 function dataCurtaMsg(f) {
@@ -2776,7 +2785,7 @@ function linhasItensMsg(f) {
 
 // Comprovante de UMA venda: saudação, data, itens, desconto (se houver), total e situação.
 function montarMensagemVenda(f, nomeCliente) {
-  const linhas = [`Oi, ${nomeCliente}! 😊`, 'Segue sua compra:', '']
+  const linhas = [`${saudacaoMsg()}! 😊`, 'Segue sua compra:', '']
   linhas.push(dataCurtaMsg(f))
   linhas.push(...linhasItensMsg(f))
   if (descontoDe(f) > 0) linhas.push(`Desconto −${fmt(descontoDe(f))}`)
@@ -2798,11 +2807,104 @@ function montarMensagemVenda(f, nomeCliente) {
 
 // Envia o comprovante de UMA venda específica (funciona tanto para vendas em
 // aberto quanto já pagas — é uma notificação de compra, não só cobrança).
-function enviarComprovanteFiado(f) {
+function enviarComprovanteTexto(f) {
   const tel = (telMap.value[f.clienteId] || f.clienteTel || '').replace(/\D/g, '')
   if (!tel) { s.notify('Este cliente não tem telefone cadastrado.', 'warning'); return }
   const msg = encodeURIComponent(montarMensagemVenda(f, f.clienteNome))
   window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank')
+}
+
+// ── Cupom em imagem (visual de recibo, sem valor fiscal) ──────────
+// Vai pelo compartilhamento do celular (a pessoa escolhe WhatsApp e o contato);
+// onde não há compartilhamento de arquivo, a imagem é baixada para anexar.
+const gerandoCupom = ref(false)
+
+function dadosEmpresaCupom() {
+  return {
+    nome: s.company.nome || 'Minha loja',
+    telefone: numeroWhatsappEfetivo.value ? telefoneBonito(numeroWhatsappEfetivo.value) : '',
+    instagram: instagramUser.value || '',
+  }
+}
+
+async function enviarCupomVenda(f) {
+  if (gerandoCupom.value) return
+  gerandoCupom.value = true
+  try {
+    const blob = await gerarCupomVenda(f, {
+      empresa: dadosEmpresaCupom(),
+      mostrarHora: !!s.company.mostrar_hora_venda,
+      nomeCliente: f.clienteNome,
+      desconto: descontoDe(f),
+    })
+    const r = await compartilharArquivo(blob, {
+      nomeArquivo: nomeArquivoCupom('comprovante', f.clienteNome),
+      tipo: 'image/png',
+      titulo: 'Comprovante de venda',
+    })
+    if (r === 'baixado') s.notify('Cupom salvo no aparelho — anexe na conversa do WhatsApp.', 'success')
+  } catch (err) {
+    console.error(err)
+    s.notify('Não deu pra gerar o cupom. Tente o envio por texto.', 'error')
+  } finally {
+    gerandoCupom.value = false
+  }
+}
+
+async function enviarCupomCobranca(c) {
+  if (gerandoCupom.value) return
+  const abertos = c.fiados.filter(f => f.saldo > 0.01)
+  if (!abertos.length) return
+  gerandoCupom.value = true
+  try {
+    const total = abertos.reduce((soma, f) => soma + Number(f.saldo || 0), 0)
+    const pix = payloadPixParaValor(total)
+    const blob = await gerarCupomCobranca(c, abertos, {
+      empresa: dadosEmpresaCupom(),
+      mostrarHora: !!s.company.mostrar_hora_venda,
+      desconto: descontoDe,
+      pix: pix ? { chave: chavePixLegivel(chavePixVendedor.value), nome: String(s.company.razao_social || '').trim() } : null,
+    })
+    const r = await compartilharArquivo(blob, {
+      nomeArquivo: nomeArquivoCupom('resumo', c.clienteNome),
+      tipo: 'image/png',
+      titulo: 'Resumo das compras',
+    })
+    if (r === 'baixado') s.notify('Cupom salvo no aparelho — anexe na conversa do WhatsApp.', 'success')
+    // Segunda mensagem: só o código Pix (já copiado), pronta para a cliente copiar com facilidade.
+    if (r !== 'cancelado' && pix) abrirPixCopiaECola(c)
+    else if (!pix) s.notify('Cupom sem Pix: cadastre seu WhatsApp em Ajustes → Dados da loja', 'warning')
+  } catch (err) {
+    console.error(err)
+    s.notify('Não deu pra gerar o cupom. Tente o envio por texto.', 'error')
+  } finally {
+    gerandoCupom.value = false
+  }
+}
+
+// Entradas dos botões: perguntam o formato (cupom em imagem ou texto, como era antes).
+function enviarComprovanteFiado(f) {
+  const tel = (telMap.value[f.clienteId] || f.clienteTel || '').replace(/\D/g, '')
+  const botoes = [{ rotulo: 'Cupom (imagem)', fn: () => enviarCupomVenda(f) }]
+  if (tel) botoes.push({ rotulo: 'Texto', fn: () => enviarComprovanteTexto(f) })
+  dialogAcao.value = {
+    titulo: 'Como enviar o comprovante?',
+    sub: 'O cupom é uma imagem no estilo recibo, sem valor fiscal. No celular, escolha o WhatsApp e o contato na lista que abrir.',
+    botoes,
+  }
+}
+
+function escolherEnvioCobranca(c) {
+  const abertos = c.fiados.filter(f => f.saldo > 0.01)
+  if (modoResumo.value === 'historico' || !abertos.length) { abrirWhatsapp(c); return }
+  dialogAcao.value = {
+    titulo: 'Como enviar a cobrança?',
+    sub: 'No cupom (imagem estilo recibo) o Pix vai à parte: uma mensagem só com o código, para copiar fácil.',
+    botoes: [
+      { rotulo: 'Cupom (imagem) + Pix', fn: () => enviarCupomCobranca(c) },
+      { rotulo: 'Texto', fn: () => abrirWhatsapp(c) },
+    ],
+  }
 }
 
 // ── Mensagem de cobrança (botão "Cobrar") ─────────────────────
@@ -2858,7 +2960,7 @@ function montarMensagemCobranca(c, abertos, pix = '') {
 
   // Tom de conversa de WhatsApp: curto, sem formalidade. Só o essencial:
   // saudação, datas, produtos e valores, total e Pix.
-  linhas.push(`Oi, ${c.clienteNome}! 😊`)
+  linhas.push(`${saudacaoMsg()}! 😊`)
   linhas.push(`Segue${plural ? 'm' : ''} sua${plural ? 's' : ''} compra${plural ? 's' : ''}:`)
 
   const ordenados = [...abertos].sort((x, y) => String(x.dataVenda || '').localeCompare(String(y.dataVenda || '')))
@@ -2892,13 +2994,13 @@ function abrirWhatsapp(c) {
   const tel = (c.telefone || '').replace(/\D/g, '')
 
   if (modoResumo.value === 'historico') {
-    window.open(urlWhatsapp(tel, `Oi, ${c.clienteNome}! Tudo bem? 😊`), '_blank')
+    window.open(urlWhatsapp(tel, `${saudacaoMsg()}! Tudo bem? 😊`), '_blank')
     return
   }
 
   const abertos = c.fiados.filter(f => f.saldo > 0.01)
   if (!abertos.length) {
-    window.open(urlWhatsapp(tel, `Oi, ${c.clienteNome}! Tudo bem? 😊`), '_blank')
+    window.open(urlWhatsapp(tel, `${saudacaoMsg()}! Tudo bem? 😊`), '_blank')
     return
   }
   const total = abertos.reduce((soma, f) => soma + Number(f.saldo || 0), 0)
