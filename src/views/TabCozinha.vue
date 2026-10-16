@@ -149,7 +149,7 @@
       <div v-else class="app-empty">
         <i class="fas fa-mortar-pestle"></i>
         <h3>Lote vazio</h3>
-        <p>Toque nas receitas acima para adicionar ao lote e calcular o preparo total.</p>
+        <p>Toque nas receitas para adicionar ao lote e calcular o preparo total.</p>
       </div>
     </div>
 

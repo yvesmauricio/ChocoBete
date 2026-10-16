@@ -30,6 +30,11 @@
       <div v-if="s.loading" class="loading-box"><div class="spinner spinner-sm"></div></div>
 
       <template v-else-if="listaFiltrada.length">
+        <!-- Cabeçalho de colunas (só aparece no layout de desktop) -->
+        <div class="tbl-head tbl-head--insumos" aria-hidden="true">
+          <span class="th-main">Ingrediente</span>
+          <span class="th-cols"><span>Custo</span><span>Estoque</span><span>Mínimo</span><span>Status</span></span>
+        </div>
         <AppListRow
           v-for="p in listaFiltrada"
           :key="p.uuid"
@@ -56,6 +61,18 @@
             <span :class="{'c-red fw700': (p.estoque_atual || 0) <= (p.estoque_minimo || 0)}">
               Estoque: {{ fmtQ(p.estoque_atual, p.unidade_base) }}
             </span>
+          </template>
+          <!-- Colunas da tabela (desktop). No celular ficam escondidas: lá vale o resumo em #sub. -->
+          <template #right>
+            <div class="row-cols row-cols--insumos">
+              <span class="rc rc-num">{{ R$(p.custo_por_unidade || 0) }}<small>/{{ p.unidade_base }}</small></span>
+              <span class="rc rc-num">{{ fmtQ(p.estoque_atual, p.unidade_base) }}</span>
+              <span class="rc rc-num rc-muted">{{ fmtQ(p.estoque_minimo || 0, p.unidade_base) }}</span>
+              <span class="rc">
+                <span v-if="(p.estoque_atual || 0) <= (p.estoque_minimo || 0)" class="badge badge-red"><i class="fas fa-triangle-exclamation"></i> Repor</span>
+                <span v-else class="badge badge-green"><i class="fas fa-check"></i> Ok</span>
+              </span>
+            </div>
           </template>
           <template #actions>
             <button class="swipe-btn edit" @click="abrir(p)">

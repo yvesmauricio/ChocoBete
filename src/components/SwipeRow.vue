@@ -1,6 +1,7 @@
 <template>
   <div
     class="swipe-wrap"
+    :style="{ '--sw': width + 'px' }"
     @touchstart.passive="onStart"
     @touchmove.passive="onMove"
     @touchend="onEnd"
@@ -195,4 +196,5 @@ function onClickCapture(e) {
 :deep(.list-row) {
   border-bottom: none;
 }
+
 </style>

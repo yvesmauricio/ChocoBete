@@ -250,6 +250,10 @@
 
       <!-- Lista simplificada -->
       <div v-else class="lancamentos-list">
+        <!-- Cabeçalho de colunas (só aparece no layout de desktop) -->
+        <div class="tbl-head tbl-head--fin" :class="{ 'tbl-head--sel': modoSelecao }" aria-hidden="true">
+          <span>Descrição</span><span>Categoria</span><span>Data</span><span>Conta</span><span class="th-right">Valor</span>
+        </div>
         <FinanceListRow v-for="item in lancamentosFiltrados" :key="item.id"
           :variant="item.natureza"
           :selected="selecionados.has(item.id)"
@@ -276,9 +280,9 @@
           <div class="row-left">
             <div class="row-title">{{ capitalizarDescricao(item.descricao) }}</div>
             <div class="row-subtitle">
-              {{ formatarData(item.data) }}
+              <span class="fl-data">{{ formatarData(item.data) }}</span>
               <span class="badge">{{ item.categoria }}</span>
-              · {{ item.banco === 'itau' ? 'IT' : item.banco === 'bb' ? 'BB' : 'PB' }}
+              <span class="fl-banco"><span class="fl-dot">·</span> {{ item.banco === 'itau' ? 'IT' : item.banco === 'bb' ? 'BB' : 'PB' }}</span>
             </div>
           </div>
           <div class="row-right" :class="item.valor >= 0 ? 'green' : 'red'">

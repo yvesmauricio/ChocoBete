@@ -70,7 +70,7 @@
           </div>
 
           <!-- ════════════════ PASSO 2 — POSIÇÃO NA FOLHA ════════════════ -->
-          <div v-if="passoAtual === 2 && !folhaCheiaSelecionada" class="etq-passo">
+          <div v-if="passoAtual === 2 && !folhaCheiaSelecionada" class="etq-passo etq-passo--folha">
             <p class="hint mb-12">Diga ao sistema onde, na folha física, as próximas etiquetas devem ser impressas.</p>
 
             <!-- Seletor de modo: cartões grandes, fácil de tocar -->
@@ -97,6 +97,16 @@
             </div>
 
             <p v-if="modoManual" class="hint mb-8 mt-16">Marque exatamente {{ totalEtiquetasSelecionadas }} posição{{ totalEtiquetasSelecionadas > 1 ? 'ões' : '' }} na folha. As etiquetas da sua lista são distribuídas na ordem em que você for marcando.</p>
+
+            <!-- Resumo dos sabores escolhidos (só no layout de desktop, ao lado da folha) -->
+            <div class="etq-sabores-resumo">
+              <div class="etq-sabores-resumo-tit"><i class="fas fa-tags"></i> Etiquetas escolhidas</div>
+              <div v-for="r in receitasParaEtiqueta.filter(x => etqQtds[x._textoSabor] > 0)" :key="r._textoSabor" class="etq-sabores-resumo-item">
+                <span class="etq-sabores-resumo-nome">{{ r._textoSabor }}</span>
+                <span class="etq-sabores-resumo-qtd">{{ etqQtds[r._textoSabor] }}</span>
+              </div>
+              <div class="etq-sabores-resumo-total"><span>Total</span><strong>{{ totalEtiquetasSelecionadas }}</strong></div>
+            </div>
 
             <!-- Preview da folha -->
             <div class="etq-preview-wrap">

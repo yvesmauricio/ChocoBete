@@ -258,6 +258,8 @@
               @touchstart.passive="lpStart($event, item)"
               @touchend="lpCancel"
               @touchmove.passive="lpCancel"
+              @contextmenu="abrirPrecoComMouse($event, item)"
+              title="Botão direito do mouse (ou segurar o dedo) para ajustar o preço"
             >
               <i :class="item.checked ? 'fas fa-circle-check lc-ico-on' : 'far fa-circle lc-ico-off'"></i>
 
@@ -819,16 +821,31 @@ const {
 // ── Long press para abrir compra ─────────────────────────────
 let _lpTimer = null
 
+function abrirPrecoDoItem(item) {
+  // Corrige na hora se o modo "compra por valor" do insumo mudou desde
+  // que esse item entrou na lista (senão o modal abriria no modo errado).
+  item.compraPorValor = itemCompraPorValor(item)
+  persistirLista()
+  abrirModalPreco(item)
+}
+
+let _ultimoToque = 0
 function lpStart(e, item) {
   lpCancel()
+  _ultimoToque = Date.now()
   _lpTimer = setTimeout(() => {
     _lpTimer = null
-    // Corrige na hora se o modo "compra por valor" do insumo mudou desde
-    // que esse item entrou na lista (senão o modal abriria no modo errado).
-    item.compraPorValor = itemCompraPorValor(item)
-    persistirLista()
-    abrirModalPreco(item)
+    abrirPrecoDoItem(item)
   }, 500)
+}
+
+// Desktop: botão direito faz o mesmo que o toque longo no celular. No
+// Android, segurar o dedo também dispara "contextmenu" — por isso ignora se
+// houve toque recente (o timer do toque longo já cuida desse caso).
+function abrirPrecoComMouse(e, item) {
+  if (Date.now() - _ultimoToque < 1500) return
+  e.preventDefault()
+  abrirPrecoDoItem(item)
 }
 
 function lpCancel() {

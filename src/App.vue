@@ -1,5 +1,5 @@
 <template>
-  <div class="shell">
+  <div class="shell" :class="{ 'shell--bete': perfilInfo?.tipo === 'caderneta', 'shell--selecao': perfil === null }">
 
     <!-- ══ TELA DE SELEÇÃO DE PERFIL ══════════════════════════ -->
     <Transition name="fade">
@@ -36,7 +36,7 @@
       <Transition name="fab-pop">
         <button
           v-if="fabConfig"
-          class="fab"
+          class="fab" :class="`fab--${s.tab}`"
           :title="fabConfig.label"
           @click="fabConfig.action()"
         >
@@ -53,6 +53,7 @@
           @touchstart="onDragStart"
           @touchmove="onDragMove"
           @touchend="onDragEnd"
+          @mousedown="onMouseDragStart"
         >
           <div class="floating-timer-content">
             <i class="fas fa-stopwatch" :class="{ 'fa-beat-fade': s.timer.isRunning }"></i>
@@ -210,6 +211,30 @@ const onDragMove = (e) => {
   timerPos.x = lastPos.x + dx; timerPos.y = lastPos.y + dy
 }
 const onDragEnd  = () => { isDragging = false }
+
+// Mesmo arrastar do cronômetro, com o mouse (desktop). Os listeners de
+// move/up ficam na janela só enquanto o botão está pressionado, pra o timer
+// seguir o cursor mesmo se ele sair de cima do elemento.
+const onMouseDragStart = (e) => {
+  if (e.button !== 0) return
+  isDragging = true; dragMoved = false
+  dragStart.x = e.clientX; dragStart.y = e.clientY
+  lastPos.x = timerPos.x; lastPos.y = timerPos.y
+  window.addEventListener('mousemove', onMouseDragMove)
+  window.addEventListener('mouseup', onMouseDragEnd)
+}
+const onMouseDragMove = (e) => {
+  if (!isDragging) return
+  const dx = e.clientX - dragStart.x
+  const dy = e.clientY - dragStart.y
+  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragMoved = true
+  timerPos.x = lastPos.x + dx; timerPos.y = lastPos.y + dy
+}
+const onMouseDragEnd = () => {
+  isDragging = false
+  window.removeEventListener('mousemove', onMouseDragMove)
+  window.removeEventListener('mouseup', onMouseDragEnd)
+}
 const onTimerClick = () => { if (!dragMoved) s.setTab('producao') }
 
 // Impede que o botão/gesto "Voltar" do Android feche o app de primeira —
@@ -228,6 +253,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('mousemove', onMouseDragMove)
+  window.removeEventListener('mouseup', onMouseDragEnd)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>

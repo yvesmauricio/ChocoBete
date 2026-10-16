@@ -525,6 +525,22 @@
         <div class="sheet-body">
           <div class="section-label mb-16"><i class="fas fa-gears"></i> Sistema</div>
 
+          <div class="section-label"><i class="fas fa-desktop"></i> Layout da tela</div>
+          <p class="hint mb-12">Escolha como o app se organiza neste aparelho. A escolha vale só aqui. Agora: <strong>{{ isDesktop ? 'desktop' : 'celular' }}</strong>.</p>
+          <div class="modo-compras-opcoes mb-16">
+            <button
+              v-for="m in MODOS_LAYOUT" :key="m.id"
+              class="modo-compras-op" :class="{ active: preferenciaLayout === m.id }"
+              @click="definirModoLayout(m.id)"
+            >
+              <i :class="m.icon"></i>
+              <div class="modo-compras-op-txt">
+                <strong>{{ m.label }}</strong>
+                <span>{{ m.desc }}</span>
+              </div>
+            </button>
+          </div>
+
           <div class="section-label"><i class="fas fa-cart-shopping"></i> Tela de Compras (no Painel)</div>
           <p class="hint mb-12">Como a aba "Compras" do Painel decide o que sugerir.</p>
           <div class="modo-compras-opcoes">
@@ -669,6 +685,7 @@ import {
 } from '../composables/useCaderneta.js'
 import { carregarConfigPublicacao, salvarConfigPublicacao } from '../services/githubPublish.js'
 import BaseModal from '../components/BaseModal.vue'
+import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
 
 const s = useStore()
 const confirmar = useAppConfirm()
@@ -723,6 +740,7 @@ watch(() => s.company, (novoValor) => {
   }
 }, { deep: true, immediate: true })
 
+const { preferencia: preferenciaLayout, isDesktop, definirModo: definirModoLayout } = useLayoutMode()
 const abaAtiva = ref('perfil')
 const mostrarHistorico = ref(false) // abre/fecha a lista de versões anteriores do Drive
 

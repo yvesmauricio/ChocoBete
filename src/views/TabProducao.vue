@@ -38,6 +38,12 @@
 
     <template v-else-if="gruposProducao.length">
       <div class="production-groups">
+        <!-- Cabeçalho de colunas (só aparece no layout de desktop) -->
+        <div class="tbl-head tbl-head--lotes" aria-hidden="true">
+          <span class="th-main">Lote</span>
+          <span class="th-cols"><span>Quantidade</span><span>Custo</span><span>Venda</span><span>Lucro</span></span>
+          <span class="th-acts"></span>
+        </div>
         <div v-for="grupo in gruposProducao" :key="grupo.id" class="production-card"
           :class="{ 'card-agendado': grupo.agendado, 'card-locked': s.loteOriginalEmEdicao === grupo.id }">
 
@@ -72,6 +78,13 @@
                     <span class="lbadge-sep" v-if="grupo.itens.length">·</span>
                     <span class="lbadge-info">{{ grupo.itens.length }} {{ grupo.itens.length === 1 ? 'item' : 'itens' }}</span>
                   </div>
+                </div>
+                <!-- Colunas da tabela (desktop) -->
+                <div class="row-cols row-cols--lotes">
+                  <span class="rc rc-num">{{ grupo.quantidadeTotalNum }} {{ grupo.unidadeResumo }}</span>
+                  <span class="rc rc-num">{{ R$(grupo.custoTotal) }}</span>
+                  <span class="rc rc-num">{{ R$(grupo.vendaTotal) }}</span>
+                  <span class="rc rc-num" :class="{ 'c-red': grupo.vendaTotal - grupo.custoTotal < 0 }">{{ R$(grupo.vendaTotal - grupo.custoTotal) }}</span>
                 </div>
               </div>
 

@@ -1,14 +1,16 @@
 <template>
   <nav class="nav">
-    <button v-for="n in navPrincipalVisiveis" :key="n.id"
-      class="nav-btn" :class="{ active: s.tab === n.id }"
+    <button v-for="n in itensBarra" :key="n.id"
+      class="nav-btn" :class="{ active: s.tab === n.id, 'nav-btn--extra-first': n.extra === 'primeiro' }"
+      :title="n.label"
       @click="s.setTab(n.id); menuAberto = false">
       <i :class="n.icon"></i>
       <span>{{ n.label }}</span>
     </button>
 
-    <!-- Botão "Mais" -->
-    <button class="nav-btn" :class="{ active: menuAberto || navExtraVisiveis.some(n => s.tab === n.id) }"
+    <!-- Botão "Mais" — só no celular. No desktop o menu lateral já lista
+         todos os módulos, então não precisa de overflow. -->
+    <button v-if="!isDesktop" class="nav-btn" :class="{ active: menuAberto || navExtraVisiveis.some(n => s.tab === n.id) }"
       @click="menuAberto = !menuAberto">
       <i class="fas fa-ellipsis"></i>
       <span>Mais</span>
@@ -16,7 +18,7 @@
 
     <!-- Menu de overflow -->
     <Transition name="menu-pop">
-      <div v-if="menuAberto" class="nav-overflow-menu" @click.stop>
+      <div v-if="menuAberto && !isDesktop" class="nav-overflow-menu" @click.stop>
         <button v-for="n in navExtraVisiveis" :key="n.id"
           class="nav-overflow-item" :class="{ active: s.tab === n.id }"
           @click="s.setTab(n.id); menuAberto = false">
@@ -27,14 +29,16 @@
     </Transition>
 
     <!-- Backdrop para fechar o menu -->
-    <div v-if="menuAberto" class="nav-overflow-backdrop" @click="menuAberto = false" />
+    <div v-if="menuAberto && !isDesktop" class="nav-overflow-backdrop" @click="menuAberto = false" />
   </nav>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 import { useStore } from '../store.js'
+import { useLayoutMode } from '../composables/useLayoutMode.js'
 const s = useStore()
+const { isDesktop } = useLayoutMode()
 // 'modulos' é a lista de ids de tela que este perfil pode ver — funciona
 // tanto para o Admin/Vendas (padrão) quanto para qualquer perfil extra
 // criado em Ajustes → Perfis.
@@ -59,6 +63,15 @@ const navExtra = [
 
 const navPrincipalVisiveis = computed(() => navPrincipal.filter(n => props.modulos.includes(n.id)))
 const navExtraVisiveis = computed(() => navExtra.filter(n => props.modulos.includes(n.id)))
+
+// Celular: só os 5 principais na barra (o resto fica em "Mais").
+// Desktop: menu lateral com todos os módulos do perfil, os extras separados
+// por uma linha (a marca `extra` é usada pelo CSS pra desenhar o divisor).
+const itensBarra = computed(() => {
+  if (!isDesktop.value) return navPrincipalVisiveis.value
+  const extras = navExtraVisiveis.value.map((n, i) => ({ ...n, extra: i === 0 ? 'primeiro' : true }))
+  return [...navPrincipalVisiveis.value, ...extras]
+})
 </script>
 
 <style scoped>

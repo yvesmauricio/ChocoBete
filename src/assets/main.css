@@ -853,3 +853,475 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .qtd-e-btn:active { background: var(--gold-bg); }
 .qtd-e-input { width: 48px; text-align: center; padding: 6px 4px; border: 1.5px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: .9rem; font-weight: 600; }
 .qtd-e-unid { font-size: .78rem; color: var(--muted); font-weight: 500; }
+/* ================================================================
+   DESKTOP — layout de computador
+   Ativado pela classe `is-desktop` no <html> (ver
+   composables/useLayoutMode.js): automática em telas ≥ 1024px, ou
+   forçada em Ajustes → Aparência. Tudo aqui está sob `html.is-desktop`,
+   então o layout de celular fica intacto quando a classe não existe.
+   (html.is-desktop .x = especificidade 0,2,1 → vence os estilos
+   scoped dos componentes, que têm 0,2,0.)
+================================================================ */
+html.is-desktop { --side-w: 232px; --content-max: none; --lote-w: 400px; --tab-hdr-h: 120px; }
+
+/* ── Casca: cabeçalho em cima, menu lateral à esquerda, conteúdo à direita ── */
+html.is-desktop .shell{
+  max-width:none;margin:0;border:0;box-shadow:none;
+  display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);
+}
+html.is-desktop .shell > .hdr{grid-column:1 / -1;grid-row:1;padding-left:24px;padding-right:24px}
+html.is-desktop .shell > .nav{grid-column:1;grid-row:2}
+html.is-desktop .shell > .main{grid-column:2;grid-row:2}
+
+/* Perfil da Bete (Caderneta): é um app de celular por natureza — no desktop
+   fica numa coluna centralizada, um pouco mais larga, em vez de esticar. */
+html.is-desktop .shell.shell--bete{
+  display:flex;flex-direction:column;max-width:560px;margin:0 auto;
+  border-left:1px solid var(--border);border-right:1px solid var(--border);box-shadow:0 0 40px rgba(61,31,7,.08);
+}
+html.is-desktop .shell--bete .cad-footer-lancar{max-width:560px}
+html.is-desktop .cad-modal-sheet,html.is-desktop .cad-dialog{max-width:560px}
+html.is-desktop .cad-modal-overlay,html.is-desktop .cad-overlay{align-items:center}
+html.is-desktop .cad-modal-sheet{border-radius:20px;max-height:86vh}
+
+/* ── Menu lateral ── */
+html.is-desktop .nav{
+  flex-direction:column;gap:2px;padding:14px 10px;overflow-y:auto;
+  border-top:0;border-right:1px solid var(--border);box-shadow:none;
+}
+html.is-desktop .nav-btn{
+  flex:none;flex-direction:row;justify-content:flex-start;gap:12px;
+  min-height:44px;padding:10px 14px;font-size:.88rem;letter-spacing:0;text-align:left;
+  border-radius:var(--r-sm);
+}
+html.is-desktop .nav-btn i{font-size:1.05rem;width:22px;text-align:center}
+html.is-desktop .nav-btn.active{background:var(--gold-bg)}
+html.is-desktop .nav-btn.active i{transform:none}
+html.is-desktop .nav-btn.active::before{top:9px;bottom:9px;left:0;right:auto;width:3px;height:auto;border-radius:0 3px 3px 0}
+html.is-desktop .nav-btn--extra-first{margin-top:14px}
+html.is-desktop .nav-btn--extra-first::after{content:'';position:absolute;top:-8px;left:14px;right:14px;height:1px;background:var(--border)}
+
+/* ── Área de conteúdo: coluna centralizada com largura máxima ── */
+html.is-desktop .main{padding-bottom:40px}
+html.is-desktop .main > *{max-width:var(--content-max);margin-left:auto;margin-right:auto}
+html.is-desktop .tab-hdr{padding-left:24px;padding-right:24px}
+html.is-desktop .aba-nav{margin:0 -24px}
+html.is-desktop .cat-filter-wrap{margin-left:-24px;margin-right:-24px}
+
+/* ── Modais: caixa centralizada em vez de tela cheia ── */
+html.is-desktop .modal-bg{align-items:center;padding:32px;background:rgba(30,18,8,.5)}
+html.is-desktop .modal-box{
+  max-width:720px;height:auto;min-height:min(480px,calc(100vh - 64px));max-height:calc(100vh - 64px);
+  border-radius:var(--r-xl);overflow:hidden;box-shadow:0 24px 64px rgba(30,18,8,.38);
+  animation:modalPopDesk .18s ease;
+}
+@keyframes modalPopDesk{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+html.is-desktop .confirm-overlay{align-items:center}
+html.is-desktop .confirm-box{max-width:440px;border-radius:20px}
+html.is-desktop .painel-pesar-overlay{align-items:center;justify-content:center;padding:32px}
+html.is-desktop .painel-pesar{max-width:720px;max-height:calc(100vh - 64px);border-radius:20px}
+/* Telas "cheias" internas (ex.: adicionar ao lote) viram um cartão centralizado */
+html.is-desktop .add-lote-screen{
+  inset:32px auto 32px 50%;transform:translateX(-50%);width:min(720px,calc(100vw - 64px));
+  border-radius:var(--r-xl);overflow:hidden;box-shadow:0 0 0 100vmax rgba(30,18,8,.5);
+}
+
+/* ── Barras e botões fixos: sem barra inferior, e deslocados pelo menu lateral ── */
+html.is-desktop .cozinha-actions-fixa,
+html.is-desktop .etq-passo-nav{
+  left:var(--side-w);right:0;bottom:0;max-width:none;margin:0;
+  padding-left:max(16px,calc((100% - 1000px) / 2));padding-right:max(16px,calc((100% - 1000px) / 2));
+}
+html.is-desktop .barra-lote{
+  bottom:24px;left:calc(var(--side-w) + (100vw - var(--side-w)) / 2);max-width:640px;
+}
+html.is-desktop .fab{bottom:28px;right:32px;cursor:pointer}
+html.is-desktop .fab:hover{transform:scale(1.06);box-shadow:0 6px 18px rgba(61,31,7,.35)}
+html.is-desktop .floating-timer{bottom:28px;left:calc(var(--side-w) + 24px);cursor:grab}
+html.is-desktop .floating-timer:active{cursor:grabbing}
+html.is-desktop .toast{left:calc(50% + var(--side-w) / 2)}
+html.is-desktop .shell--bete .toast,html.is-desktop .shell--selecao .toast{left:50%}
+html.is-desktop .toast.toast--sutil{bottom:24px}
+
+/* ── Detalhes de mouse e teclado ── */
+html.is-desktop *{scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+html.is-desktop :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+html.is-desktop .input:focus-visible,html.is-desktop .search-input:focus-visible{outline:none}
+@media (hover:hover){
+  html.is-desktop .nav-btn:not(.active):hover{background:var(--cream);color:var(--brown)}
+  html.is-desktop .btn:hover:not(:disabled){opacity:.92;box-shadow:0 3px 10px rgba(61,31,7,.18)}
+  html.is-desktop .btn-secondary:hover:not(:disabled){background:var(--cream-deep)}
+  html.is-desktop .btn-icon:hover{background:var(--cream);color:var(--brown)}
+  html.is-desktop .hdr-btn:hover{background:rgba(255,255,255,.2)}
+  html.is-desktop .chip:not(.active):hover{border-color:var(--brown-light);color:var(--brown)}
+  html.is-desktop .seg-btn:not(.active):hover{background:var(--cream)}
+  html.is-desktop .list-row:hover,html.is-desktop .swipe-wrap:hover{background:var(--gold-bg)}
+  html.is-desktop .list-row{cursor:pointer}
+  html.is-desktop .modal-back:hover{background:rgba(255,255,255,.14)}
+}
+
+/* Tela de seleção de perfil: ocupa a janela toda (sem grade de menu/conteúdo) */
+html.is-desktop .shell.shell--selecao{display:block}
+
+
+/* ================================================================
+   DESKTOP — padrão único de LISTAS/TABELAS e cartões
+   Uma lista = UM cartão delimitado (borda + cantos arredondados), com
+   cabeçalho de colunas, linhas separadas por filete, hover dourado e
+   valores alinhados à direita. As colunas (.row-cols / .tbl-head) só
+   existem no desktop; no celular continua valendo o resumo em 2 linhas.
+================================================================ */
+.badge-green{background:var(--green-bg);color:var(--green)}
+/* corrige: o "+" do botão de estado vazio herdava a cor/opacidade do ícone grande */
+.app-empty .btn i,.empty .btn i{color:inherit;opacity:1;font-size:inherit;margin:0}
+
+.tbl-head,.row-cols{display:none}
+
+/* ── Cartão da lista ── */
+html.is-desktop .tab-content:has(> .swipe-wrap),
+html.is-desktop .lancamentos-list{
+  margin:16px 16px 24px;padding:0;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  box-shadow:var(--shadow);overflow:hidden;
+}
+html.is-desktop .tab-content > .swipe-wrap{
+  margin:0;border:0;border-bottom:1px solid var(--border);border-radius:0;box-shadow:none;
+}
+html.is-desktop .tab-content > .swipe-wrap:last-child{border-bottom:0}
+html.is-desktop .tab-content > .swipe-wrap .swipe-btns{border-radius:0}
+html.is-desktop .tab-content > .swipe-wrap .list-row{min-height:60px;padding:11px 16px}
+html.is-desktop .selecao-dica{display:none}
+
+/* ── Cabeçalho de colunas ── */
+html.is-desktop .tbl-head{
+  display:flex;align-items:center;padding:10px 16px;
+  background:var(--cream);border-bottom:1px solid var(--border);
+  font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);
+}
+html.is-desktop .tbl-head .th-main{flex:1;padding-left:52px}
+html.is-desktop .tbl-head .th-cols{display:grid;margin-left:10px;text-align:right}
+html.is-desktop .tbl-head--insumos .th-cols,
+html.is-desktop .row-cols--insumos{grid-template-columns:120px 130px 110px 100px}
+html.is-desktop .tbl-head--receitas .th-cols,
+html.is-desktop .row-cols--receitas{grid-template-columns:120px 120px 100px}
+
+/* ── Colunas da linha ── */
+html.is-desktop .row-cols{display:grid;align-items:center;flex-shrink:0;text-align:right;column-gap:0}
+html.is-desktop .row-cols .rc{font-size:.86rem;color:var(--text);white-space:nowrap}
+html.is-desktop .row-cols .rc-num{font-family:var(--mono);font-weight:500}
+html.is-desktop .row-cols .rc-muted{color:var(--muted)}
+html.is-desktop .row-cols small{color:var(--muted);font-size:.68rem;margin-left:2px}
+html.is-desktop .list-row:has(.row-cols) .row-sub{display:none}
+html.is-desktop .list-row:has(.row-cols) .row-name{font-size:.92rem}
+
+/* ── Ações da linha: botões compactos que aparecem ao passar o mouse
+      (em vez de deslizar a linha, que bagunçaria as colunas) ── */
+@media (hover:hover){
+  html.is-desktop .swipe-hint{display:none}
+  html.is-desktop .swipe-btns{
+    z-index:2;left:auto;right:12px;top:50%;bottom:auto;transform:translateY(-50%);
+    width:auto !important;height:auto;padding:0 0 0 28px;gap:6px;align-items:center;
+    background:linear-gradient(90deg,transparent,var(--gold-bg) 28px);
+    opacity:0;pointer-events:none;transition:opacity .15s ease;
+  }
+  html.is-desktop .swipe-wrap:hover .swipe-btns,
+  html.is-desktop .swipe-wrap:focus-within .swipe-btns{opacity:1;pointer-events:auto}
+  html.is-desktop .swipe-btns .swipe-btn{
+    width:auto;height:32px;flex-direction:row;gap:6px;padding:0 11px;border-radius:8px;
+    font-size:.72rem;letter-spacing:0;white-space:nowrap;
+  }
+  html.is-desktop .swipe-btns .swipe-btn i{font-size:.8rem}
+  html.is-desktop .swipe-btns .swipe-btn:hover{filter:brightness(1.08)}
+  /* Caderneta (Vendas): CadernetaSwipeItem usa .swipe-action-btn / .swipe-saldo
+     em vez de .swipe-btn — sem isto os botões ficavam cortados no desktop */
+  html.is-desktop .swipe-btns .swipe-action-btn{
+    flex:none;width:auto;height:32px;flex-direction:row;gap:6px;padding:0 11px;border-radius:8px;
+    font-size:.72rem;letter-spacing:0;white-space:nowrap;
+  }
+  html.is-desktop .swipe-btns .swipe-action-btn:hover{filter:brightness(1.08)}
+  html.is-desktop .swipe-btns .swipe-saldo{
+    flex:none;width:auto;height:32px;flex-direction:row;gap:6px;padding:0 10px;
+    border-left:0;border-radius:8px;
+  }
+  html.is-desktop .swipe-btns .swipe-saldo i{font-size:.8rem}
+}
+
+/* ── Financeiro: lançamentos em colunas ── */
+html.is-desktop .lancamentos-list .finance-list-row{
+  border-top:0;border-right:0;border-bottom:1px solid var(--border);border-left-width:4px;
+  border-radius:0;box-shadow:none;padding:13px 16px 13px 14px;gap:0;
+}
+html.is-desktop .lancamentos-list .finance-list-row:last-child{border-bottom:0}
+html.is-desktop .lancamentos-list .finance-list-row.interactive:hover{background:var(--gold-bg)}
+html.is-desktop .lancamentos-list .row-left{
+  flex:1;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) 170px 110px 60px;align-items:center;column-gap:12px;
+}
+html.is-desktop .lancamentos-list .row-subtitle{display:contents}
+html.is-desktop .lancamentos-list .row-title{order:1;font-weight:600}
+html.is-desktop .lancamentos-list .row-subtitle .badge{order:2;justify-self:start}
+html.is-desktop .lancamentos-list .row-subtitle .fl-data{order:3;font-size:.82rem;color:var(--muted)}
+html.is-desktop .lancamentos-list .row-subtitle .fl-banco{order:4;font-size:.78rem;font-weight:700;color:var(--muted)}
+html.is-desktop .lancamentos-list .fl-dot{display:none}
+html.is-desktop .lancamentos-list .row-right{
+  width:130px;text-align:right;font-family:var(--mono);font-weight:700;font-size:.95rem;
+}
+html.is-desktop .lancamentos-list .row-right.green{color:var(--green)}
+html.is-desktop .lancamentos-list .row-right.red{color:var(--red)}
+html.is-desktop .tbl-head--fin{padding-left:18px;display:grid;grid-template-columns:minmax(0,1fr) 170px 110px 60px 130px;column-gap:12px}
+html.is-desktop .tbl-head--fin.tbl-head--sel{padding-left:52px}
+html.is-desktop .tbl-head--fin .th-right{text-align:right}
+
+/* ── Painel: KPIs em uma linha ── */
+html.is-desktop .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+
+/* ── Cartões e títulos de seção: mesmo respiro lateral das listas ── */
+html.is-desktop .sheet-card{box-shadow:var(--shadow)}
+html.is-desktop .section-label{margin-top:4px}
+
+/* Financeiro (desktop): linhas encostam nas bordas do cartão; cabeçalho alinhado às colunas */
+html.is-desktop .lancamentos-list .lancamento-row{margin:0}
+html.is-desktop .tbl-head--fin{padding-left:18px;padding-right:16px}
+html.is-desktop .tbl-head--fin.tbl-head--sel{padding-left:52px}
+html.is-desktop .lancamentos-list .row-left{margin-right:12px}
+
+/* Botões de ação da linha (desktop): neutros, só "Excluir" em vermelho */
+@media (hover:hover){
+  html.is-desktop .swipe-btns .swipe-btn{
+    background:var(--surface);color:var(--brown);border:1px solid var(--border2);box-shadow:var(--shadow-sm);
+  }
+  html.is-desktop .swipe-btns .swipe-btn:hover{background:var(--cream);filter:none;border-color:var(--brown-light)}
+  html.is-desktop .swipe-btns .swipe-btn.del,
+  html.is-desktop .swipe-btns .swipe-btn.estornar{color:var(--red);border-color:var(--red-dim)}
+  html.is-desktop .swipe-btns .swipe-btn.del:hover,
+  html.is-desktop .swipe-btns .swipe-btn.estornar:hover{background:var(--red-bg)}
+}
+
+/* ================================================================
+   DESKTOP — Cozinha: receitas à esquerda, lote em painel à direita
+================================================================ */
+html.is-desktop .cozinha-body{
+  display:grid;grid-template-columns:minmax(0,1fr) var(--lote-w);gap:20px;align-items:start;padding:16px;
+}
+html.is-desktop .cozinha-body--acao-fixa{padding-bottom:16px}
+html.is-desktop .cozinha-body .quick-add-grid{
+  grid-column:1;grid-row:1;padding:0;border-bottom:0;gap:12px;
+  grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+}
+html.is-desktop .qa-btn{
+  min-height:96px;padding:16px 12px;border-radius:var(--r-lg);justify-content:center;
+  transition:border-color .15s,box-shadow .15s,transform .15s,background .15s;
+}
+html.is-desktop .qa-name{font-size:.95rem;white-space:normal;text-wrap:balance}
+@media (hover:hover){
+  html.is-desktop .qa-btn:hover{border-color:var(--gold-dark);box-shadow:0 6px 16px rgba(61,31,7,.12);transform:translateY(-2px)}
+}
+/* Painel do lote (sticky): fica visível enquanto você escolhe as receitas */
+html.is-desktop .cozinha-body .batch-content,
+html.is-desktop .cozinha-body > .app-empty{
+  grid-column:2;grid-row:1;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow);
+}
+html.is-desktop .cozinha-body .batch-content{
+  position:sticky;top:calc(var(--tab-hdr-h) + 16px);overflow-y:auto;padding:16px;
+}
+html.is-desktop .cozinha-body > .app-empty{padding:32px 20px;border-style:solid}
+html.is-desktop .batch-content .section-label{margin-top:0}
+html.is-desktop .batch-content .sheet-card{box-shadow:none}
+/* Ações do lote: cartão flutuante embaixo da coluna do lote */
+html.is-desktop .cozinha-actions-fixa{
+  left:auto;right:16px;
+  bottom:16px;width:var(--lote-w);box-sizing:border-box;padding:12px;border:1px solid var(--border);border-radius:var(--r-lg);
+  background:var(--surface);box-shadow:0 12px 32px rgba(61,31,7,.2);
+}
+html.is-desktop .fab--cozinha{display:none}
+html.is-desktop .cozinha-body > .app-empty{margin:0;align-self:start}
+html.is-desktop .cozinha-body .batch-content{max-height:calc(100vh - 64px - var(--tab-hdr-h) - 16px - 160px)}
+/* checklist: caixinha vazia não deve parecer marcada */
+.check-item:not(.done) .check-box{color:var(--border2)}
+
+/* ================================================================
+   DESKTOP — Histórico de produção: lotes numa tabela única
+================================================================ */
+html.is-desktop .production-groups{
+  gap:0;margin:16px 16px 24px;padding:0;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;
+}
+html.is-desktop .production-groups > .production-card{
+  margin:0;border:0;border-bottom:1px solid var(--border);border-radius:0;box-shadow:none;
+}
+html.is-desktop .production-groups > .production-card:last-child{border-bottom:0}
+html.is-desktop .production-groups > .production-card:hover{background:var(--gold-bg)}
+html.is-desktop .lote-hdr{flex:1;min-width:0}
+html.is-desktop .lote-acts{min-width:118px;justify-content:flex-end}
+html.is-desktop .tbl-head--lotes .th-main{padding-left:26px}
+html.is-desktop .tbl-head--lotes .th-cols,
+html.is-desktop .row-cols--lotes{grid-template-columns:110px 110px 110px 110px}
+html.is-desktop .tbl-head--lotes .th-acts{width:132px;flex-shrink:0}
+html.is-desktop .row-cols--lotes{margin-left:auto}
+html.is-desktop .lote-swipe .swipe-btns{right:140px}
+html.is-desktop .lote-acts{min-width:132px}
+html.is-desktop .tbl-head--lotes{padding-right:0}
+html.is-desktop .tbl-head--lotes .th-cols,
+html.is-desktop .row-cols--lotes{margin-right:10px}
+
+/* ================================================================
+   DESKTOP — Inteligência, Etiquetas, Cardápio
+================================================================ */
+/* Inteligência: alertas lado a lado */
+html.is-desktop .alertas-lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+html.is-desktop .alertas-lista > *{margin:0}
+
+/* Etiquetas: passos centralizados e conteúdo com largura de leitura */
+
+/* Cardápio: ações em linha (não esticadas) e categorias em 2 colunas */
+html.is-desktop .cp-acoes-bloco{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+html.is-desktop .cp-acoes-bloco .cp-acao-tela-cheia{width:auto;min-width:260px;flex:0 0 auto;padding:0 24px}
+html.is-desktop .cp-acoes-bloco .cp-acoes{flex:1;min-width:260px}
+html.is-desktop .cp-grupos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 24px;align-items:start}
+html.is-desktop .cp-grupos > .cp-grupo{margin:0}
+html.is-desktop .cp-acoes-bloco{flex-direction:row;align-items:stretch}
+html.is-desktop .cp-acoes-bloco .cp-acao-tela-cheia{height:auto;min-height:48px;align-self:stretch}
+html.is-desktop .cp-acoes-bloco .cp-acoes{flex-wrap:nowrap;align-items:stretch}
+/* Inteligência: "Em alta agora" — nome e detalhe numa linha só, selo à direita */
+html.is-desktop .ef-row{align-items:center;justify-content:space-between;gap:16px}
+html.is-desktop .ef-row .ef-recipe-info{flex:1;min-width:0;width:auto;display:flex;align-items:baseline;gap:12px}
+html.is-desktop .ef-row .ef-recipe-info .rank-nome-int{white-space:nowrap;max-width:none;overflow:visible}
+html.is-desktop .ef-row .ef-sub{white-space:nowrap}
+
+/* ================================================================
+   DESKTOP — Ajustes: formulários com largura de leitura
+================================================================ */
+
+/* ================================================================
+   DESKTOP — cabeçalhos fixos empilhados, sem espaços vazios,
+   formulários de Ajustes e adaptação a 1024px
+   --tab-hdr-h = altura real do cabeçalho da aba (medida em JS)
+================================================================ */
+/* Conteúdo sempre ocupa toda a largura disponível */
+html.is-desktop .main > *{max-width:none;margin-left:0;margin-right:0}
+
+/* Financeiro: resumo + filtros grudam ABAIXO do cabeçalho (antes cobriam ele) */
+html.is-desktop .lancamentos-sticky{top:var(--tab-hdr-h)}
+/* Etiquetas: os 3 passos ficam sempre visíveis, abaixo do cabeçalho */
+html.is-desktop .etq-steps{
+  position:sticky;top:var(--tab-hdr-h);z-index:calc(var(--z-sticky) - 1);
+  justify-content:center;padding:8px 16px;background:var(--surface);
+  border-bottom:1px solid var(--border);box-shadow:0 2px 8px rgba(61,31,7,.05);
+}
+html.is-desktop .etq-step{flex:0 1 200px}
+/* sabores de etiqueta em grade (aproveita a largura) */
+html.is-desktop .etq-sabores-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px}
+html.is-desktop .etq-sabores-list > .etq-sabor-row{margin:0}
+
+/* Ajustes: formulários em colunas, sem espaçamento duplicado */
+html.is-desktop .tab-ajustes .sheet-body{padding:20px 24px}
+html.is-desktop .tab-ajustes .form-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px 24px;align-items:start;
+}
+html.is-desktop .tab-ajustes .form-grid > .fg{margin:0}
+html.is-desktop .tab-ajustes .form-grid .fg .fg{margin:0}
+html.is-desktop .tab-ajustes .fg{margin-bottom:0}
+html.is-desktop .tab-ajustes .section-label{margin:0 0 6px}
+html.is-desktop .tab-ajustes .hint.mb-12{margin-bottom:16px}
+html.is-desktop .tab-ajustes .logo-upload-linha{align-items:center;gap:18px;margin-bottom:8px}
+
+/* ── Adaptação a janelas menores (ex.: 1024×768) ── */
+@media (max-width:1279px){
+  html.is-desktop{--side-w:208px;--lote-w:340px}
+  html.is-desktop .nav-btn{padding:10px 12px;gap:10px;font-size:.84rem}
+  html.is-desktop .tab-hdr{padding-left:16px;padding-right:16px}
+  html.is-desktop .tab-hdr-top .tab-title{font-size:1rem}
+  html.is-desktop .tbl-head--insumos .th-cols,
+  html.is-desktop .row-cols--insumos{grid-template-columns:100px 110px 96px 92px}
+  html.is-desktop .tbl-head--receitas .th-cols,
+  html.is-desktop .row-cols--receitas{grid-template-columns:100px 100px 90px}
+  html.is-desktop .tbl-head--lotes .th-cols,
+  html.is-desktop .row-cols--lotes{grid-template-columns:84px 80px 84px 84px}
+  html.is-desktop .tbl-head--lotes .th-acts,
+  html.is-desktop .lote-acts{min-width:120px;width:120px}
+  html.is-desktop .lancamentos-list .row-left{grid-template-columns:minmax(0,1fr) 140px 96px 44px}
+  html.is-desktop .tbl-head--fin{grid-template-columns:minmax(0,1fr) 140px 96px 44px 120px}
+  html.is-desktop .lancamentos-list .row-right{width:120px}
+  html.is-desktop .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  html.is-desktop .cp-grupos{grid-template-columns:minmax(0,1fr)}
+  html.is-desktop .alertas-lista{grid-template-columns:minmax(0,1fr)}
+  html.is-desktop .cozinha-body .quick-add-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+}
+/* Telas grandes: mais respiro lateral e painel do lote maior */
+@media (min-width:1600px){
+  html.is-desktop{--side-w:248px;--lote-w:460px}
+  html.is-desktop .tab-hdr{padding-left:32px;padding-right:32px}
+}
+
+/* retoques */
+@media (max-width:1279px){
+  html.is-desktop .aba-nav{margin-left:-16px;margin-right:-16px}
+  html.is-desktop .cat-filter-wrap{margin-left:-16px;margin-right:-16px}
+}
+html.is-desktop .tab-ajustes .sheet-body > .section-label:not(:first-child),
+html.is-desktop .tab-ajustes .sheet-body > .form-grid ~ .section-label{margin-top:24px}
+
+/* ================================================================
+   DESKTOP — Etiquetas, passo 2: folha INTEIRA visível, sem rolar
+   Controles à esquerda, folha A5 (7×11) à direita, com altura
+   calculada pela janela (a largura segue a proporção da folha).
+   --etq-reserva = tudo que não é a folha: cabeçalho, passos, barra
+   inferior, título/resumo da folha e respiros.
+================================================================ */
+.etq-sabores-resumo{display:none}
+html.is-desktop .etq-passo--folha{
+  --etq-reserva:calc(64px + var(--tab-hdr-h) + 62px + 70px + 40px + 44px + 44px + 48px);
+  display:grid;grid-template-columns:minmax(300px,420px) max-content;column-gap:40px;
+  justify-content:center;align-items:start;
+}
+html.is-desktop .etq-passo--folha > *{grid-column:1}
+html.is-desktop .etq-passo--folha > .etq-preview-wrap{grid-column:2;grid-row:1 / span 12;margin-top:0;width:max-content}
+html.is-desktop .etq-passo--folha .etq-folha{
+  height:max(300px,calc(100vh - var(--etq-reserva)));width:auto;aspect-ratio:148.5 / 210;
+  gap:2px;padding:6px;
+}
+html.is-desktop .etq-passo--folha .etq-cel-txt{font-size:clamp(6px,calc(var(--etq-cel-w,40px) * .2),12px);line-height:1.1}
+html.is-desktop .etq-passo--folha .etq-celula{container-type:inline-size}
+html.is-desktop .etq-passo--folha .etq-cel-txt{font-size:clamp(6px,18cqw,12px)}
+html.is-desktop .etq-cel-clicavel{cursor:pointer}
+@media (hover:hover){
+  html.is-desktop .etq-cel-clicavel.etq-cel-vazio:hover{background:var(--gold-bg);border-color:var(--gold-dark)}
+  html.is-desktop .etq-cel-clicavel.etq-cel-selecionada:hover{opacity:.85}
+}
+html.is-desktop .etq-passo--folha .etq-modo-cards{margin-bottom:0}
+html.is-desktop .etq-sabores-resumo{
+  display:block;margin-top:16px;border:1px solid var(--border);border-radius:var(--r-lg);
+  background:var(--surface);overflow:hidden;
+}
+html.is-desktop .etq-sabores-resumo-tit{
+  display:flex;align-items:center;gap:6px;padding:9px 14px;background:var(--cream);border-bottom:1px solid var(--border);
+  font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);
+}
+html.is-desktop .etq-sabores-resumo-item,
+html.is-desktop .etq-sabores-resumo-total{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 14px;
+  border-bottom:1px solid var(--border);font-size:.86rem;
+}
+html.is-desktop .etq-sabores-resumo-nome{font-weight:600;color:var(--text)}
+html.is-desktop .etq-sabores-resumo-qtd{font-family:var(--mono);font-weight:700;color:var(--brown)}
+html.is-desktop .etq-sabores-resumo-total{background:var(--gold-bg);border-bottom:0;font-weight:700}
+html.is-desktop .etq-sabores-resumo-item:last-of-type{border-bottom:1px solid var(--border)}
+
+/* Etiquetas passo 2 — ajuste fino: folha maior, centralizada, sem sobras laterais */
+html.is-desktop .etq-passo--folha{
+  --etq-reserva:calc(64px + var(--tab-hdr-h) + 62px + 70px + 40px + 44px + 44px + 20px);
+  grid-template-columns:minmax(300px,1fr) max-content;justify-content:stretch;column-gap:32px;
+}
+html.is-desktop .etq-passo--folha > .etq-preview-wrap{
+  display:flex;flex-direction:column;align-items:center;justify-self:end;
+}
+html.is-desktop .etq-passo--folha > .etq-preview-wrap > .etq-preview-hdr,
+html.is-desktop .etq-passo--folha > .etq-preview-wrap > .etq-preview-legenda,
+html.is-desktop .etq-passo--folha > .etq-preview-wrap > .etq-resumo{align-self:stretch}
+html.is-desktop .etq-passo--folha > .etq-preview-wrap > .etq-folha{flex:none}
+/* Telas largas: controles | resumo | folha, em 3 colunas */
+@media (min-width:1280px){
+  html.is-desktop .etq-passo--folha{grid-template-columns:minmax(300px,1fr) minmax(260px,1fr) max-content}
+  html.is-desktop .etq-passo--folha > .etq-sabores-resumo{grid-column:2;grid-row:1 / span 12;margin-top:0;align-self:start}
+  html.is-desktop .etq-passo--folha > .etq-preview-wrap{grid-column:3}
+}

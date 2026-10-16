@@ -42,6 +42,9 @@ export default defineConfig({
         theme_color: '#3d2008',
         background_color: '#fdf5e8',
         display: 'standalone',
+        // Ao instalar no computador (Chrome/Edge), abre como janela própria de app
+        display_override: ['standalone', 'minimal-ui'],
+        categories: ['business', 'productivity'],
 
         start_url: BASE,
         scope: BASE,

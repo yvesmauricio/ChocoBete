@@ -51,6 +51,11 @@
       <div v-if="s.loading" class="loading-box"><div class="spinner spinner-sm"></div></div>
 
       <template v-else-if="listaFiltrada.length">
+        <!-- Cabeçalho de colunas (só aparece no layout de desktop) -->
+        <div class="tbl-head tbl-head--receitas" aria-hidden="true">
+          <span class="th-main">Receita</span>
+          <span class="th-cols"><span>Venda</span><span>Lucro</span><span>Margem</span></span>
+        </div>
         <AppListRow
           v-for="r in listaFiltrada"
           :key="r.uuid"
@@ -77,6 +82,17 @@
               'profit-high': s.getLucroInfo(r).percentual > 65 }">
               Lucro: {{ R$(s.getLucroInfo(r).valor) }} ({{ s.getLucroInfo(r).percentual.toFixed(0) }}%)
             </span>
+          </template>
+
+          <!-- Colunas da tabela (desktop) -->
+          <template #right>
+            <div class="row-cols row-cols--receitas">
+              <span class="rc rc-num">{{ R$(r.preco_sugerido || 0) }}</span>
+              <span class="rc rc-num" :class="{ 'c-red': s.getLucroInfo(r).valor < 0 }">{{ R$(s.getLucroInfo(r).valor) }}</span>
+              <span class="rc">
+                <span class="badge" :class="s.getLucroInfo(r).valor < 0 ? 'badge-red' : s.getLucroInfo(r).percentual < 40 ? 'badge-orange' : 'badge-green'">{{ s.getLucroInfo(r).percentual.toFixed(0) }}%</span>
+              </span>
+            </div>
           </template>
 
           <!-- Ações de swipe -->
@@ -351,6 +367,7 @@
               <!-- Nome -->
               <button
                 class="ing-btn-name"
+                :title="getNomeIng(ing)"
                 @click="handleNomeClick(ing, i)"
                 @touchstart.passive="iniciarTooltip(ing, $event)"
                 @touchend="cancelarTooltip"

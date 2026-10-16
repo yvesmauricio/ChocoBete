@@ -55,6 +55,11 @@ function handlePopState() {
   }
 }
 
+// Há algum modal/overlay registrado e aberto? (usado pelo atalho Esc no desktop)
+export function temOverlayAberto() {
+  return overlayStack.length > 0
+}
+
 export function pushOverlayHistory(onBack) {
   ensureListener()
   const token = Symbol('overlay-history')
