@@ -358,6 +358,13 @@ export async function getFiados() {
   return db.cad_fiados.toArray()
 }
 
+// Todos os lançamentos de um cliente (índice clienteId) — usado na tela Nova Venda
+// para conferir "já lancei?" e avisar de venda repetida.
+export async function getFiadosDoCliente(clienteId) {
+  if (clienteId == null) return []
+  return db.cad_fiados.where('clienteId').equals(clienteId).toArray()
+}
+
 // Carrega apenas fiados abertos usando índice — rápido independente do volume total
 export async function getFiadosAbertos() {
   return db.cad_fiados.where('status').equals('aberto').toArray()

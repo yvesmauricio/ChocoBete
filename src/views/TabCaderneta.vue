@@ -307,6 +307,16 @@
 
       <div class="cad-lancar-body cad-nv-body">
 
+        <!-- Já lançado: só aparece se o cliente tem compras em aberto -->
+        <button v-if="ultimasAbertas.length" type="button" class="cad-nv-jalancado" @click="modalJaLancadas = true">
+          <i class="fas fa-clock-rotate-left"></i>
+          <span class="cad-nv-jalancado-txt">
+            <b>Já lançado:</b>
+            {{ comprasAbertasCliente.length }} em aberto · última {{ fmtBR(ultimasAbertas[0].dataVenda) }} · R$ {{ fmt(ultimasAbertas[0].total) }}
+          </span>
+          <i class="fas fa-chevron-right"></i>
+        </button>
+
         <!-- 1 · Data da compra -->
         <div class="cad-nv-bloco">
           <div class="cad-nv-label"><span class="cad-nv-num">1</span> Data da compra</div>
@@ -388,10 +398,52 @@
           <div class="cad-footer-label">Total<template v-if="descontoLancar > 0"> · desconto − R$ {{ fmt(descontoLancar) }}</template></div>
           <div class="cad-footer-val">R$ {{ fmt(totalLancar) }}</div>
         </div>
-        <button class="cad-btn-salvar" :disabled="brutoLancar === 0 || !dataVenc || salvandoFiado" @click="salvarFiado">
+        <button class="cad-btn-salvar" :disabled="brutoLancar === 0 || !dataVenc || salvandoFiado" @click="salvarFiado()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           Confirmar
         </button>
+      </div>
+
+      <!-- Já lançado: últimas 5 compras em aberto (somente leitura) -->
+      <div v-if="modalJaLancadas" class="cad-modal-overlay" @click.self="modalJaLancadas = false">
+        <div class="cad-modal-sheet">
+          <div class="cad-modal-header">
+            <div class="cad-modal-titulo"><i class="fas fa-clock-rotate-left"></i> Já lançado · {{ clienteAtual?.nome }}</div>
+            <button class="cad-btn-fechar" @click="modalJaLancadas = false"><i class="fas fa-xmark"></i></button>
+          </div>
+          <div class="cad-jl-lista">
+            <div v-for="f in ultimasAbertas" :key="f.id" class="cad-jl-item">
+              <div class="cad-jl-info">
+                <div class="cad-jl-data">{{ fmtDataHora(f) }}</div>
+                <div class="cad-jl-desc">{{ descFiado(f) || qtdItens(f) }}</div>
+              </div>
+              <div class="cad-jl-valor">
+                R$ {{ fmt(f.saldo) }}
+                <small v-if="f.saldo < f.total - 0.01">de R$ {{ fmt(f.total) }}</small>
+              </div>
+            </div>
+          </div>
+          <p v-if="comprasAbertasCliente.length > ultimasAbertas.length" class="cad-jl-mais">
+            + {{ comprasAbertasCliente.length - ultimasAbertas.length }} mais antiga(s) na lista do cliente
+          </p>
+          <button class="cad-btn-primary" @click="modalJaLancadas = false">Fechar</button>
+        </div>
+      </div>
+
+      <!-- Aviso de venda parecida (não bloqueia: o cliente pode mesmo ter comprado igual) -->
+      <div v-if="avisoDuplicado" class="cad-overlay" @click.self="avisoDuplicado = null">
+        <div class="cad-dialog">
+          <div class="cad-dialog-title">Venda igual já lançada</div>
+          <div class="cad-dialog-sub">
+            {{ clienteAtual?.nome }} já tem uma venda de <b>R$ {{ fmt(avisoDuplicado.total) }}</b>
+            lançada em {{ fmtDataHora(avisoDuplicado) }}<template v-if="descFiado(avisoDuplicado)"> ({{ descFiado(avisoDuplicado) }})</template>.
+            Se é uma compra nova, pode lançar.
+          </div>
+          <div class="cad-dialog-btns">
+            <button class="cad-btn-cancel" @click="avisoDuplicado = null">Voltar</button>
+            <button class="cad-btn-confirm" @click="salvarFiado(true)">Lançar mesmo assim</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -403,7 +455,7 @@
 
       <div class="cad-nv-ok-topo">
         <div class="cad-nv-ok-check"><i class="fas fa-check"></i></div>
-        <h2 class="cad-nv-ok-titulo">Venda registrada!</h2>
+        <h2 class="cad-nv-ok-titulo">Anotado na caderneta</h2>
         <p class="cad-nv-ok-sub">{{ fiadoSalvo.clienteNome }}<template v-if="clienteAtual?.funcao"> ({{ clienteAtual.funcao }})</template> · {{ fiadoSalvo.lojaNome }}<template v-if="lojaLocal(fiadoSalvo.lojaId)"> ({{ lojaLocal(fiadoSalvo.lojaId) }})</template></p>
       </div>
 
@@ -458,7 +510,7 @@
       <div class="cad-footer-lancar">
         <button class="cad-btn-salvar" @click="concluirFiadoSalvo">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          Concluir
+          Voltar para a lista
         </button>
       </div>
     </div>
@@ -1419,7 +1471,7 @@ import {
   resumoCliente, arquivarCliente, listarDuplicados, juntarClientes, juntarLojas,
   validarTelefone, centavos,
   getFuncoes, FUNCOES_PADRAO, limparFuncao, mesmaFuncao, observarSaldosClientes,
-  getFiados, getFiadosAbertos, getFiadosVencendoHoje,
+  getFiados, getFiadosAbertos, getFiadosVencendoHoje, getFiadosDoCliente,
   salvarFiado as dbSalvarFiado, atualizarFiado, excluirFiado as dbExcluirFiado,
   getStats,
   getTaxas, salvarTaxas,
@@ -2246,6 +2298,22 @@ const origemLancar  = ref('clientes')
 const salvandoFiado = ref(false)
 const fiadoSalvo    = ref(null)
 
+// "Já lançado": compras do cliente da Nova Venda (consulta + aviso de repetida)
+const comprasCliente     = ref([])
+const modalJaLancadas    = ref(false)
+const avisoDuplicado     = ref(null)
+const chaveRecente = (f) => `${f.dataVenda || ''} ${f.horaVenda || ''} ${f.criadoEm || ''}`
+const comprasAbertasCliente = computed(() =>
+  comprasCliente.value
+    .filter(f => f.saldo > 0.01)
+    .sort((a, b) => chaveRecente(b).localeCompare(chaveRecente(a)))
+)
+const ultimasAbertas = computed(() => comprasAbertasCliente.value.slice(0, 5))
+async function carregarComprasCliente() {
+  try { comprasCliente.value = await getFiadosDoCliente(clienteAtual.value?.id) }
+  catch (e) { console.error(e); comprasCliente.value = [] }
+}
+
 function descFiado(f) {
   return resumoItens(f.itens) || f.descricaoLivre || ''
 }
@@ -2344,6 +2412,10 @@ async function iniciarLancar() {
   salvandoFiado.value = false
   descontoRaw.value = ''
   descontoMotivo.value = ''
+  modalJaLancadas.value = false
+  avisoDuplicado.value = null
+  comprasCliente.value = []
+  carregarComprasCliente()
   setChip('fim') // pré-seleciona fim do mês
   await carregarCategoriasVenda()
 }
@@ -2414,12 +2486,21 @@ watch(dataVenda, () => {
 })
 
 // Confirmar = salva e mostra o resumo da venda.
-async function salvarFiado() {
+async function salvarFiado(ignorarRepetida = false) {
   if (salvandoFiado.value) return
   if (brutoLancar.value === 0 || !clienteAtual.value || !lojaAtual.value) return
   if (!dataVenc.value) {
     s.notify('Escolha a data combinada para o pagamento', 'warning')
     return
+  }
+  avisoDuplicado.value = null
+  // Mesmo cliente + mesma data da compra + mesmo valor → pergunta uma vez
+  // (pode ser compra repetida de verdade, por isso não bloqueia).
+  if (ignorarRepetida !== true) {
+    await carregarComprasCliente()
+    const igual = comprasCliente.value.find(f =>
+      f.dataVenda === dataVenda.value && Math.abs(Number(f.total) - totalLancar.value) < 0.005)
+    if (igual) { avisoDuplicado.value = igual; return }
   }
   salvandoFiado.value = true
   try {
@@ -2473,6 +2554,7 @@ async function desfazerFiadoSalvo() {
   fiadoSalvo.value = null
   Object.assign(stats, await getStats())
   s.syncImediato()
+  await carregarComprasCliente()
   s.notify('Venda desfeita — ajuste e confirme de novo')
   tela.value = 'lancar'
 }
@@ -4593,7 +4675,27 @@ onMounted(async () => {
 }
 .cad-nv-precos-btn:active { transform: scale(.96); }
 
-/* Campo de data (o input nativo cobre o campo inteiro, invisível) */
+/* Já lançado — linha de consulta + folha com as últimas compras em aberto */
+.cad-nv-jalancado {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 14px; border-radius: var(--r-md); cursor: pointer;
+  background: var(--cream); border: 1.5px dashed var(--brown-light);
+  color: var(--brown-dark); font-family: var(--font); font-size: 13px; font-weight: 700;
+}
+.cad-nv-jalancado:active { opacity: .85; }
+.cad-nv-jalancado > i:first-child { color: var(--brown-mid); }
+.cad-nv-jalancado > i:last-child { color: var(--brown-mid); font-size: 11px; }
+.cad-nv-jalancado-txt { flex: 1; min-width: 0; }
+.cad-jl-lista { display: flex; flex-direction: column; margin-bottom: 8px; }
+.cad-jl-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.cad-jl-info { flex: 1; min-width: 0; }
+.cad-jl-data { font-size: 14px; font-weight: 800; color: var(--text); }
+.cad-jl-desc { font-size: 12.5px; color: var(--muted); margin-top: 2px; overflow-wrap: break-word; }
+.cad-jl-valor { font-family: var(--mono); font-weight: 800; color: var(--brown); white-space: nowrap; text-align: right; }
+.cad-jl-valor small { display: block; font-size: 11px; font-weight: 600; color: var(--muted); }
+.cad-jl-mais { font-size: 12px; color: var(--muted); text-align: center; margin: 4px 0 10px; }
+
+
 .cad-nv-data {
   position: relative; display: flex; align-items: center; gap: 12px;
   min-height: 56px; padding: 0 16px; cursor: pointer;
