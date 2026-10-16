@@ -1032,18 +1032,6 @@ html.is-desktop .list-row:has(.row-cols) .row-name{font-size:.92rem}
   }
   html.is-desktop .swipe-btns .swipe-btn i{font-size:.8rem}
   html.is-desktop .swipe-btns .swipe-btn:hover{filter:brightness(1.08)}
-  /* Caderneta (Vendas): CadernetaSwipeItem usa .swipe-action-btn / .swipe-saldo
-     em vez de .swipe-btn — sem isto os botões ficavam cortados no desktop */
-  html.is-desktop .swipe-btns .swipe-action-btn{
-    flex:none;width:auto;height:32px;flex-direction:row;gap:6px;padding:0 11px;border-radius:8px;
-    font-size:.72rem;letter-spacing:0;white-space:nowrap;
-  }
-  html.is-desktop .swipe-btns .swipe-action-btn:hover{filter:brightness(1.08)}
-  html.is-desktop .swipe-btns .swipe-saldo{
-    flex:none;width:auto;height:32px;flex-direction:row;gap:6px;padding:0 10px;
-    border-left:0;border-radius:8px;
-  }
-  html.is-desktop .swipe-btns .swipe-saldo i{font-size:.8rem}
 }
 
 /* ── Financeiro: lançamentos em colunas ── */
@@ -1324,4 +1312,52 @@ html.is-desktop .etq-passo--folha > .etq-preview-wrap > .etq-folha{flex:none}
   html.is-desktop .etq-passo--folha{grid-template-columns:minmax(300px,1fr) minmax(260px,1fr) max-content}
   html.is-desktop .etq-passo--folha > .etq-sabores-resumo{grid-column:2;grid-row:1 / span 12;margin-top:0;align-self:start}
   html.is-desktop .etq-passo--folha > .etq-preview-wrap{grid-column:3}
+}
+
+
+/* ================================================================
+   DESKTOP — perfil Vendas (Caderneta): ações das linhas e listas
+================================================================ */
+@media (hover:hover){
+  /* Ações (Editar, Remover, Receber, Comprovante) como pílulas completas.
+     Antes só os botões .swipe-btn eram tratados e estes saíam cortados. */
+  html.is-desktop .swipe-btns .swipe-action-btn{
+    flex:0 0 auto;width:auto;height:32px;flex-direction:row;gap:6px;padding:0 12px;
+    border-radius:8px;font-size:.72rem;letter-spacing:0;white-space:nowrap;
+    background:var(--surface);color:var(--brown);border:1px solid var(--border2);box-shadow:var(--shadow-sm);
+  }
+  html.is-desktop .swipe-btns .swipe-action-btn svg{flex:none}
+  html.is-desktop .swipe-btns .swipe-action-btn:hover{background:var(--cream);border-color:var(--brown-light)}
+  html.is-desktop .swipe-btns .swipe-action-btn.receive{color:var(--green);border-color:var(--green)}
+  html.is-desktop .swipe-btns .swipe-action-btn.receipt{color:#128c4a;border-color:#25D366}
+  html.is-desktop .swipe-btns .swipe-action-btn.del{color:var(--red);border-color:var(--red-dim)}
+  html.is-desktop .swipe-btns .swipe-action-btn.del:hover{background:var(--red-bg)}
+  /* painel de saldo ("Deve R$ …") vira um selo compacto */
+  html.is-desktop .swipe-btns .swipe-saldo{
+    flex:0 0 auto;flex-direction:row;gap:6px;padding:0 10px;height:32px;border:1px solid currentColor;border-radius:8px;
+  }
+  html.is-desktop .swipe-btns .swipe-saldo i{font-size:.8rem}
+  html.is-desktop .swipe-btns .swipe-saldo-label{font-size:.66rem}
+  html.is-desktop .swipe-btns .swipe-saldo-valor{font-size:.78rem}
+}
+@media (hover:hover){
+  /* folga p/ a borda arredondada do último botão não ser cortada */
+  html.is-desktop .swipe-btns{padding-right:4px;overflow:visible}
+}
+
+@media (hover:hover){
+  /* Linhas com muitas ações (cliente: saldo + comprovante + receber + editar + excluir):
+     só ícones, pra a faixa de ações não cobrir o nome nem bloquear o clique na linha. */
+  html.is-desktop .swipe-btns:has(.swipe-saldo) .swipe-action-btn span,
+  html.is-desktop .swipe-btns:has(.swipe-action-btn:nth-of-type(3)) .swipe-action-btn span{display:none}
+  html.is-desktop .swipe-btns:has(.swipe-saldo) .swipe-action-btn,
+  html.is-desktop .swipe-btns:has(.swipe-action-btn:nth-of-type(3)) .swipe-action-btn{width:34px;padding:0;justify-content:center}
+}
+@media (hover:hover){
+  /* o contêiner das ações é transparente a cliques; só os botões/selo capturam */
+  html.is-desktop .swipe-btns,
+  html.is-desktop .swipe-wrap:hover .swipe-btns,
+  html.is-desktop .swipe-wrap:focus-within .swipe-btns{pointer-events:none}
+  html.is-desktop .swipe-wrap:hover .swipe-btns > *,
+  html.is-desktop .swipe-wrap:focus-within .swipe-btns > *{pointer-events:auto}
 }

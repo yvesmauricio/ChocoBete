@@ -561,10 +561,6 @@
 
         <!-- Histórico: explica a finalidade da aba e permite filtrar -->
         <template v-if="modoResumo === 'historico'">
-          <div class="cad-hist-info">
-            <i class="fas fa-clock-rotate-left"></i>
-            <span>Consulta do passado e correção de erros. Toque numa compra para ver os detalhes ou estornar um pagamento.</span>
-          </div>
           <div class="cad-hist-chips">
             <button v-for="o in filtrosHist" :key="o.id" type="button" class="cad-hist-chip"
               :class="{ active: filtroHist === o.id }" @click="filtroHist = o.id">{{ o.label }}</button>
@@ -622,10 +618,7 @@
 
           <div class="cad-grupo-clientes" :class="{ colapsado: mostrarAgrupamentoLoja && lojaColapsada(g), 'cad-grupo-clientes--indent': mostrarAgrupamentoLoja }">
             <div v-for="c in g.clientes" :key="c.clienteId" class="cad-cli-card" :class="{ atrasado: c.atrasado && modoResumo !== 'historico' }">
-              <div v-if="modoResumo !== 'historico' && c.atrasado" class="cad-cli-faixa">
-                <i class="fas fa-triangle-exclamation"></i>
-                Venceu {{ rotuloAtraso(c.maxDiasAtraso) }} · R$ {{ fmt(c.valorVencido) }}
-              </div>
+
               <div class="cad-cli-header" :class="{ colapsado: clienteColapsado(g, c) }" @click="alternarCliente(g, c)">
                 <div class="cad-cli-avatar" :class="{ atrasado: c.atrasado && modoResumo !== 'historico' }">{{ iniciais(c.clienteNome) }}</div>
                 <div class="cad-cli-info">
@@ -635,7 +628,6 @@
                   </div>
                   <div class="cad-cli-sub">
                     <template v-if="modoResumo === 'historico'">{{ rotuloCompras(c.kpi.n) }}<template v-if="c.kpi.ultima"> · última em {{ fmtBR(c.kpi.ultima).slice(0, 5) }}</template></template>
-                    <template v-else>{{ c.fiados.length }} {{ c.fiados.length === 1 ? 'compra aberta' : 'compras abertas' }}<template v-if="c.telefone"> · {{ c.telefone }}</template></template>
                   </div>
                 </div>
                 <template v-if="modoResumo === 'historico'">
@@ -644,7 +636,6 @@
                 </template>
                 <div v-else class="cad-cli-valor" :class="{ 'cad-cli-valor--red': c.atrasado }">
                   <b>R$ {{ fmt(c.saldo) }}</b>
-                  <small>em aberto</small>
                 </div>
                 <svg class="cad-cli-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </div>
@@ -686,7 +677,6 @@
               <div class="cad-compras-lista" :class="{ colapsado: clienteColapsado(g, c) }">
                 <template v-for="(f, i) in c.fiadosVisiveis" :key="f.id">
                   <div v-if="modoResumo === 'historico' && novoMes(c.fiadosVisiveis, i)" class="cad-mes">{{ rotuloMes(f.dataVenda) }}</div>
-                  <div v-else-if="modoResumo !== 'historico' && i === 0" class="cad-mes">Compras em aberto</div>
                   <CadernetaSwipeItem
                     :id="f.id" scope="compras"
                     class="cad-compra-swipe"
@@ -1116,94 +1106,162 @@
         </div>
       </div>
 
-      <!-- Dialog receber pagamento -->
-      <div v-if="fiadoReceber" class="cad-overlay" @click.self="fiadoReceber=null">
-        <div class="cad-dialog">
-          <div class="cad-dialog-title">Receber pagamento</div>
-          <div class="cad-dialog-sub">{{ fiadoReceber.clienteNome }} · deve R$ {{ fmt(fiadoReceber.saldo) }}</div>
-          <div class="cad-form-group" style="margin-top:16px">
-            <label class="cad-form-label">Valor recebido</label>
-            <div class="cad-valor-input-wrap cad-valor-input-wrap--sm">
+      <!-- Receber pagamento (folha no topo: não fica embaixo do teclado) -->
+      <div v-if="fiadoReceber" class="cad-modal-overlay cad-modal-overlay--top" @click.self="fecharReceber">
+        <div class="cad-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="receber-titulo">
+          <div class="cad-modal-header">
+            <div id="receber-titulo" class="cad-modal-titulo"><i class="fas fa-hand-holding-dollar"></i> Receber pagamento</div>
+            <button type="button" class="cad-btn-fechar" aria-label="Fechar" :disabled="salvandoReceber" @click="fecharReceber"><i class="fas fa-xmark"></i></button>
+          </div>
+
+          <div class="cad-edit-cliente-tag">
+            <div class="cad-edit-avatar">{{ iniciais(fiadoReceber.clienteNome) }}</div>
+            <div>
+              <div class="cad-edit-nome">
+                {{ fiadoReceber.clienteNome }}
+                <span v-if="fiadoReceber.clienteFuncao" class="cad-funcao-tag">{{ fiadoReceber.clienteFuncao }}</span>
+              </div>
+              <div class="cad-edit-loja">{{ fiadoReceber.lojaNome }}</div>
+            </div>
+          </div>
+
+          <div class="cad-det-saldo">
+            <span>Saldo em aberto</span>
+            <span class="cad-det-saldo-val">R$ {{ fmt(fiadoReceber.saldo) }}</span>
+          </div>
+
+          <div class="cad-form-group cad-receber-campo">
+            <label class="cad-form-label" for="receber-valor">Valor pago</label>
+            <div class="cad-valor-input-wrap">
               <span class="cad-valor-prefixo">R$</span>
               <input
-                class="cad-valor-input cad-valor-input--sm"
-                type="text" inputmode="numeric" placeholder="0,00"
+                id="receber-valor"
+                ref="receberInput"
+                class="cad-valor-input"
+                type="text" inputmode="numeric" placeholder="0,00" autocomplete="off"
                 v-model="rawValorReceber"
                 @input="handleValorReceberInput"
-                autofocus
+                @keyup.enter="confirmarReceber"
               >
             </div>
-            <button type="button" class="cad-link-receber-tudo" @click="preencherValorReceberTudo">
-              Receber o valor total (R$ {{ fmt(fiadoReceber.saldo) }})
-            </button>
+            <div class="cad-receber-atalhos">
+              <button
+                type="button" class="chip" :class="{ ativo: receberEhTotal }"
+                @click="preencherValorReceberTudo"
+              >Valor total</button>
+            </div>
           </div>
-          <div class="cad-dialog-btns">
-            <button class="cad-btn-cancel" @click="fiadoReceber=null">Cancelar</button>
-            <button class="cad-btn-confirm" @click="confirmarReceber"><i class="fas fa-check"></i> Confirmar</button>
+
+          <div class="cad-receber-feedback" aria-live="polite">
+            <div v-if="receberExcede" class="cad-quitar-aviso">
+              <i class="fas fa-circle-info"></i> Passa do saldo. Serão registrados só <strong>R$ {{ fmt(fiadoReceber.saldo) }}</strong>.
+            </div>
+            <div v-else-if="receberEhTotal" class="cad-receber-ok">
+              <i class="fas fa-circle-check"></i> Quita esta compra
+            </div>
+            <div v-else-if="valorReceberNum > 0" class="cad-quitar-resumo">
+              <span>Ainda fica faltando</span>
+              <strong>R$ {{ fmt(receberRestante) }}</strong>
+            </div>
           </div>
+
+          <button
+            type="button" class="cad-btn-primary"
+            :disabled="!valorReceberNum || salvandoReceber"
+            @click="confirmarReceber"
+          ><i class="fas fa-check"></i> Registrar pagamento</button>
         </div>
       </div>
 
-      <!-- Dialog quitar / receber parte (por cliente) -->
-      <div v-if="clienteQuitar" class="cad-overlay" @click.self="fecharQuitar">
-        <div class="cad-dialog">
-          <div class="cad-dialog-title">{{ quitarModo === 'parcial' ? 'Receber uma parte' : 'Quitar todas as dívidas?' }}</div>
-          <div class="cad-dialog-sub">
-            <strong>{{ clienteQuitar.clienteNome }}</strong><br>
-            {{ clienteQuitar.fiados.length }} compra{{ clienteQuitar.fiados.length > 1 ? 's' : '' }} ·
-            <span style="color:var(--brown);font-weight:800">R$ {{ fmt(clienteQuitar.saldo) }}</span>
+      <!-- Quitar ou receber parte (por cliente) -->
+      <div v-if="clienteQuitar" class="cad-modal-overlay cad-modal-overlay--top" @click.self="fecharQuitar">
+        <div class="cad-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="quitar-titulo">
+          <div class="cad-modal-header">
+            <div id="quitar-titulo" class="cad-modal-titulo"><i class="fas fa-hand-holding-dollar"></i> Receber pagamento</div>
+            <button type="button" class="cad-btn-fechar" aria-label="Fechar" :disabled="salvandoQuitar" @click="fecharQuitar"><i class="fas fa-xmark"></i></button>
+          </div>
+
+          <div class="cad-edit-cliente-tag">
+            <div class="cad-edit-avatar">{{ iniciais(clienteQuitar.clienteNome) }}</div>
+            <div>
+              <div class="cad-edit-nome">
+                {{ clienteQuitar.clienteNome }}
+                <span v-if="clienteQuitar.clienteFuncao" class="cad-funcao-tag">{{ clienteQuitar.clienteFuncao }}</span>
+              </div>
+              <div class="cad-edit-loja">{{ clienteQuitar.fiados.length }} compra{{ clienteQuitar.fiados.length > 1 ? 's' : '' }} em aberto</div>
+            </div>
+          </div>
+
+          <div class="cad-det-saldo">
+            <span>Saldo em aberto</span>
+            <span class="cad-det-saldo-val">R$ {{ fmt(clienteQuitar.saldo) }}</span>
           </div>
 
           <div class="cad-quitar-modos" role="tablist">
-            <button type="button" class="cad-quitar-modo" :class="{ ativo: quitarModo === 'total' }" @click="quitarModo = 'total'">
-              <i class="fas fa-sack-dollar"></i> Quitar tudo
-            </button>
-            <button type="button" class="cad-quitar-modo" :class="{ ativo: quitarModo === 'parcial' }" @click="quitarModo = 'parcial'">
-              <i class="fas fa-hand-holding-dollar"></i> Receber parte
-            </button>
+            <button type="button" role="tab" :aria-selected="quitarModo === 'total'" class="cad-quitar-modo" :class="{ ativo: quitarModo === 'total' }" @click="quitarModo = 'total'">Total</button>
+            <button type="button" role="tab" :aria-selected="quitarModo === 'parcial'" class="cad-quitar-modo" :class="{ ativo: quitarModo === 'parcial' }" @click="quitarModo = 'parcial'">Parcial</button>
           </div>
 
-          <template v-if="quitarModo === 'parcial'">
-            <div class="cad-form-group">
-              <label class="cad-form-label">Valor recebido agora</label>
-              <div class="cad-valor-input-wrap cad-valor-input-wrap--sm">
+          <div v-if="quitarModo === 'total'" class="cad-receber-ok cad-receber-ok--bloco">
+            <i class="fas fa-circle-check"></i>
+            <span>Todas as {{ clienteQuitar.fiados.length }} compras ficam quitadas.</span>
+          </div>
+
+          <template v-else>
+            <div class="cad-form-group cad-receber-campo">
+              <label class="cad-form-label" for="quitar-valor">Valor pago</label>
+              <div class="cad-valor-input-wrap">
                 <span class="cad-valor-prefixo">R$</span>
                 <input
-                  class="cad-valor-input cad-valor-input--sm"
-                  type="text" inputmode="numeric" placeholder="0,00"
+                  id="quitar-valor"
+                  ref="quitarInput"
+                  class="cad-valor-input"
+                  type="text" inputmode="numeric" placeholder="0,00" autocomplete="off"
                   v-model="rawValorQuitarParcial"
                   @input="onInputValorQuitarParcial"
                 >
               </div>
             </div>
 
-            <div v-if="quitarParcialValido" class="cad-quitar-resumo">
-              <span>Ainda falta</span>
-              <strong>R$ {{ fmt(quitarParcialRestante) }}</strong>
-            </div>
-            <div v-else-if="valorQuitarParcialNum >= clienteQuitar.saldo - 0.01 && valorQuitarParcialNum > 0" class="cad-quitar-aviso">
-              Esse valor cobre a dívida toda — use <strong>Quitar tudo</strong>.
+            <div class="cad-receber-feedback" aria-live="polite">
+              <div v-if="quitarParcialValido" class="cad-quitar-resumo">
+                <span>Ainda fica faltando</span>
+                <strong>R$ {{ fmt(quitarParcialRestante) }}</strong>
+              </div>
+              <div v-else-if="valorQuitarParcialNum >= clienteQuitar.saldo - 0.01 && valorQuitarParcialNum > 0" class="cad-quitar-aviso">
+                <i class="fas fa-circle-info"></i> Esse valor cobre toda a dívida. Use a aba <strong>Total</strong>.
+              </div>
             </div>
 
-            <div v-if="quitarParcialValido">
-              <div class="cad-form-label" style="margin-top:12px">Receber o restante em</div>
-              <div class="cad-chip-row" style="margin-top:6px">
+            <div v-if="quitarParcialValido" class="cad-form-group">
+              <div class="cad-form-label">Data combinada para o restante</div>
+              <div class="cad-chip-row cad-chip-row--inicio">
                 <button v-for="c in chipsVenc" :key="c.id" type="button" class="chip" :class="{ ativo: chipRestanteAtivo === c.id }" @click="setChipRestante(c.id)">{{ c.label }}</button>
               </div>
-              <input class="cad-form-input" type="date" :min="hoje()" v-model="dataVencRestante" @change="chipRestanteAtivo = null">
+              <label class="cad-nv-data" :class="{ 'cad-nv-data--ok': dataVencRestante }">
+                <i class="fas fa-calendar-check"></i>
+                <span class="cad-nv-data-txt">
+                  <template v-if="dataVencRestante">{{ fmtBR(dataVencRestante) }} <small>{{ rotuloDia(dataVencRestante) }}</small></template>
+                  <template v-else>Escolher outra data…</template>
+                </span>
+                <i class="fas fa-chevron-down cad-nv-data-seta"></i>
+                <input type="date" class="cad-nv-data-input" :min="hoje()" v-model="dataVencRestante" @change="chipRestanteAtivo = null">
+              </label>
               <div v-if="dataVencRestante && dataVencRestante < hoje()" class="cad-quitar-aviso">Escolha uma data de hoje em diante.</div>
-              <div v-else-if="dataVencRestante" class="cad-quitar-nota">
-                R$ {{ fmt(quitarParcialRestante) }} ficam com vencimento em <strong>{{ fmtBR(dataVencRestante) }}</strong>.
-                O valor recebido é abatido da compra mais antiga para a mais nova.
-              </div>
+              <div v-else class="cad-quitar-nota">O valor pago abate as compras da mais antiga para a mais nova.</div>
             </div>
           </template>
 
-          <div class="cad-dialog-btns" style="margin-top:16px">
-            <button class="cad-btn-cancel" :disabled="salvandoQuitar" @click="fecharQuitar">Cancelar</button>
-            <button v-if="quitarModo === 'total'" class="cad-btn-confirm" :disabled="salvandoQuitar" @click="quitarTudo"><i class="fas fa-sack-dollar"></i> Quitar tudo</button>
-            <button v-else class="cad-btn-confirm" :disabled="salvandoQuitar || !quitarParcialPronto" @click="confirmarReceberParcial"><i class="fas fa-check"></i> Confirmar</button>
-          </div>
+          <button
+            v-if="quitarModo === 'total'"
+            type="button" class="cad-btn-primary"
+            :disabled="salvandoQuitar" @click="quitarTudo"
+          ><i class="fas fa-check"></i> Quitar dívida</button>
+          <button
+            v-else
+            type="button" class="cad-btn-primary"
+            :disabled="salvandoQuitar || !quitarParcialPronto" @click="confirmarReceberParcial"
+          ><i class="fas fa-check"></i> Registrar pagamento</button>
         </div>
       </div>
 
@@ -2588,6 +2646,8 @@ const lojasExpandidas    = ref(new Set())
 const clientesExpandidos = ref(new Set())
 const fiadoReceber   = ref(null)
 const rawValorReceber = ref('')
+const receberInput    = ref(null)
+const salvandoReceber = ref(false)
 const clienteQuitar  = ref(null)
 const fiadoExcluir   = ref(null)
 const fiadoEditarVenc    = ref(null)
@@ -3103,18 +3163,35 @@ function handleValorReceberInput(e) {
     el.setSelectionRange(len, len)
   })
 }
+const valorReceberNum = computed(() => parseValorReceber())
+const receberExcede   = computed(() => !!fiadoReceber.value && valorReceberNum.value > fiadoReceber.value.saldo + 0.01)
+const receberEhTotal  = computed(() => !!fiadoReceber.value && valorReceberNum.value > 0 && Math.abs(valorReceberNum.value - fiadoReceber.value.saldo) <= 0.01)
+const receberRestante = computed(() => {
+  const f = fiadoReceber.value
+  if (!f) return 0
+  return Math.max(0, centavos(f.saldo - Math.min(valorReceberNum.value, f.saldo)))
+})
+
 function preencherValorReceberTudo() {
   if (!fiadoReceber.value) return
   rawValorReceber.value = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(fiadoReceber.value.saldo)
 }
 function abrirReceber(f) {
+  salvandoReceber.value = false
   fiadoReceber.value = f
   rawValorReceber.value = f.saldo ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(f.saldo) : ''
+  // `autofocus` não dispara em elementos criados por v-if — foca na mão
+  nextTick(() => { receberInput.value?.focus(); receberInput.value?.select() })
+}
+function fecharReceber() {
+  if (salvandoReceber.value) return
+  fiadoReceber.value = null
 }
 async function confirmarReceber() {
   const f = fiadoReceber.value
   const valor = parseValorReceber()
-  if (!f || !valor || valor <= 0) return
+  if (!f || !valor || valor <= 0 || salvandoReceber.value) return
+  salvandoReceber.value = true   // evita toque duplo registrar o pagamento duas vezes
   try {
     const pago = Math.min(valor, f.saldo)
     await atualizarFiado(f.id, aplicarPagamento(f, pago))
@@ -3127,10 +3204,13 @@ async function confirmarReceber() {
   } catch (err) {
     console.error(err)
     s.notify('Não deu pra registrar o pagamento. Tenta de novo?', 'error')
+  } finally {
+    salvandoReceber.value = false
   }
 }
 
 // ── Quitar / receber parte (por cliente) ─────────────────────
+const quitarInput            = ref(null)
 const quitarModo             = ref('total')   // 'total' | 'parcial' — abre sempre em 'total' (comportamento de sempre)
 const rawValorQuitarParcial  = ref('')
 const dataVencRestante       = ref('')
@@ -3151,7 +3231,14 @@ const quitarParcialPronto = computed(() =>
 function onInputValorQuitarParcial(e) {
   const v = e.target.value.replace(/\D/g, '')
   rawValorQuitarParcial.value = v ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(Number(v) / 100) : ''
+  setTimeout(() => {
+    const el = e.target
+    const len = el.value.length
+    el.setSelectionRange(len, len)
+  })
 }
+// Ao abrir a aba Parcial, o cursor já vai pro campo de valor
+watch(quitarModo, (m) => { if (m === 'parcial') nextTick(() => quitarInput.value?.focus()) })
 function setChipRestante(id) {
   chipRestanteAtivo.value = id
   dataVencRestante.value = calcChipDate(id, new Date())
@@ -3974,12 +4061,19 @@ onMounted(async () => {
 
 .cad-valor-input-wrap--sm { padding: 10px 14px; border-radius: var(--r-md); }
 .cad-valor-input--sm { font-size: 22px; }
-.cad-link-receber-tudo {
-  align-self: flex-start; margin-top: 6px; border: none; background: transparent;
-  color: var(--brown-mid); font-family: var(--font); font-size: 12px; font-weight: 700;
-  cursor: pointer; padding: 4px 2px; text-decoration: underline; text-underline-offset: 2px;
-}
-.cad-link-receber-tudo:active { opacity: .7; }
+/* Receber pagamento */
+.cad-receber-campo { margin-bottom: 8px; }
+.cad-receber-campo .cad-valor-input-wrap { box-shadow: none; transition: border-color var(--t); }
+.cad-receber-campo .cad-valor-input-wrap:focus-within { border-color: var(--brown-light); }
+.cad-receber-atalhos { display: flex; gap: 6px; margin-top: 4px; }
+.cad-receber-feedback { min-height: 38px; margin-bottom: 8px; font-size: 13px; }
+.cad-receber-feedback .cad-quitar-resumo,
+.cad-receber-feedback .cad-quitar-aviso { margin-top: 0; padding: 6px 2px 0; }
+.cad-receber-ok { display: flex; align-items: center; gap: 7px; padding: 6px 2px 0; font-weight: 700; color: var(--green); }
+.cad-btn-fechar:disabled { opacity: .4; }
+.cad-chip-row--inicio { justify-content: flex-start; margin-bottom: 0; }
+.cad-form-group > .cad-nv-data { margin-top: 2px; }
+.cad-receber-ok--bloco { padding: 12px 14px; margin-bottom: 14px; border-radius: var(--r-sm); background: var(--green-bg); font-size: 13px; }
 
 /* Campo de data clicável */
 .cad-date-field {
@@ -4157,9 +4251,12 @@ onMounted(async () => {
   display: flex; flex-direction: column; gap: 4px;
   overflow: hidden; transition: max-height .28s cubic-bezier(.4,0,.2,1), opacity .22s ease;
   max-height: 9999px; opacity: 1;
+  /* folga interna (compensada pela margem negativa) pra o overflow:hidden da
+     animação de recolher não cortar a sombra e a borda de baixo dos cards */
+  padding: 2px 4px 10px; margin: 0 -4px;
 }
 .cad-grupo-clientes--indent { margin-left: 10px; padding-left: 8px; }
-.cad-grupo-clientes.colapsado { max-height: 0 !important; opacity: 0; }
+.cad-grupo-clientes.colapsado { max-height: 0 !important; opacity: 0; padding-top: 0; padding-bottom: 0; }
 .cad-cli-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); overflow: hidden; box-shadow: var(--shadow); }
 .cad-cli-card.atrasado { border-color: #fecaca; background: #fff9f9; }
 .cad-cli-header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; min-height: 60px; cursor: pointer; user-select: none; }

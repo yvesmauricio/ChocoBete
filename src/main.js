@@ -23,17 +23,6 @@ const updateSW = registerSW({
 // Define cedo (antes de montar) se o layout é de desktop ou de celular
 iniciarLayoutMode()
 
-// Campos de data/hora: no desktop o navegador só abre o calendário ao clicar
-// na setinha do campo. Aqui abrimos ao clicar em qualquer ponto do campo
-// (inclusive nos campos invisíveis que cobrem o card "Data da compra").
-document.addEventListener('click', (e) => {
-  const el = e.target
-  if (!(el instanceof HTMLInputElement)) return
-  if (!['date', 'datetime-local', 'time', 'month'].includes(el.type)) return
-  if (el.disabled || el.readOnly || typeof el.showPicker !== 'function') return
-  try { el.showPicker() } catch { /* já aberto ou sem gesto do usuário */ }
-}, true)
-
 createApp(App)
   .use(createPinia())
   .mount('#app')

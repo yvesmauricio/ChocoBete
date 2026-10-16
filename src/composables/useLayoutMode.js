@@ -99,6 +99,26 @@ function observarCabecalho() {
   agendarMedicao()
 }
 
+// ── Campos de data/hora: abrir o seletor ao clicar em qualquer parte ────
+// No Chrome/Edge desktop, clicar no texto do <input type="date"> só edita
+// dia/mês/ano; o calendário abre apenas pela setinha. showPicker() abre o
+// calendário com um clique em qualquer lugar do campo. No celular o toque
+// já abre o seletor nativo, então só mexe em ponteiro "fino" (mouse).
+const TIPOS_COM_SELETOR = new Set(['date', 'datetime-local', 'month', 'week', 'time'])
+let _ultimoCampoData = null
+let _ultimoCampoDataTs = 0
+function onClickCampoData(e) {
+  const el = e.target
+  if (!(el instanceof HTMLInputElement) || !TIPOS_COM_SELETOR.has(el.type)) return
+  if (el.disabled || el.readOnly) return
+  if (!window.matchMedia?.('(pointer: fine)').matches) return
+  // <label> reenvia o clique ao campo → 2 eventos; abre só uma vez
+  const agora = Date.now()
+  if (el === _ultimoCampoData && agora - _ultimoCampoDataTs < 400) return
+  _ultimoCampoData = el; _ultimoCampoDataTs = agora
+  try { el.showPicker?.() } catch { /* já aberto, ou navegador sem suporte: segue o comportamento padrão */ }
+}
+
 // Chamar uma vez no main.js, antes de montar o app (evita "piscar" o layout).
 export function iniciarLayoutMode() {
   if (iniciado || typeof window === 'undefined') return
@@ -110,6 +130,7 @@ export function iniciarLayoutMode() {
     aplicarClasse()
   })
   window.addEventListener('keydown', onKeydown)
+  document.addEventListener('click', onClickCampoData)
   aplicarClasse()
   observarCabecalho()
 }

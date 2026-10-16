@@ -62,6 +62,9 @@ watch(isOpen, (val) => {
 // volta sozinha, sem precisar de texto explicando o gesto.
 onMounted(() => {
   if (props.width <= 0) return
+  // No layout de desktop as ações aparecem ao passar o mouse; a "espiada" que
+  // ensina o gesto de arrastar só confunde (e deixava a 1ª linha deslocada).
+  if (document.documentElement.classList.contains('is-desktop') && window.matchMedia?.('(hover: hover)').matches) return
   if (!claimSwipeHint()) return
   setTimeout(() => {
     if (isOpen.value || currentX.value !== 0) return // usuário já mexeu por conta própria
