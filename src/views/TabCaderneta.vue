@@ -583,13 +583,10 @@
               <div class="cad-cli-header" :class="{ colapsado: clienteColapsado(g, c) }" @click="alternarCliente(g, c)">
                 <div class="cad-cli-avatar" :class="{ atrasado: c.atrasado && modoResumo !== 'historico' }">{{ iniciais(c.clienteNome) }}</div>
                 <div class="cad-cli-info">
-                  <div class="cad-cli-nome">
-                    {{ c.clienteNome }}
-                    <span v-if="c.clienteFuncao" class="cad-funcao-tag">{{ c.clienteFuncao }}</span>
-                  </div>
-                  <div class="cad-cli-sub">
+                  <div class="cad-cli-nome">{{ c.clienteNome }}</div>
+                  <div v-if="c.clienteFuncao || modoResumo === 'historico'" class="cad-cli-sub">
+                    <span v-if="c.clienteFuncao" class="cad-funcao-tag cad-funcao-tag--linha">{{ c.clienteFuncao }}</span>
                     <template v-if="modoResumo === 'historico'">{{ rotuloCompras(c.kpi.n) }}<template v-if="c.kpi.ultima"> · última em {{ fmtBR(c.kpi.ultima).slice(0, 5) }}</template></template>
-                    <span v-else class="cad-cli-status" :class="statusCliente(c).cls">{{ statusCliente(c).txt }}</span>
                   </div>
                 </div>
                 <template v-if="modoResumo === 'historico'">
@@ -598,6 +595,7 @@
                 </template>
                 <div v-else class="cad-cli-valor" :class="{ 'cad-cli-valor--red': c.atrasado }">
                   <b>R$ {{ fmt(c.saldo) }}</b>
+                  <span class="cad-cli-status" :class="statusCliente(c).cls">{{ statusCliente(c, true).txt }}</span>
                 </div>
                 <svg class="cad-cli-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </div>
@@ -2718,8 +2716,9 @@ const textoVazioResumo = computed(() => {
 
 // ── A receber: Todos / Vencidos ──────────────────────────
 const filtroSit = ref('todos')
-function statusCliente(c) {
-  if (c.atrasado) return { txt: `Atrasado ${rotuloAtraso(c.maxDiasAtraso)}`, cls: 'cad-cli-status--red' }
+function statusCliente(c, curto = false) {
+  // curto: versão enxuta para a coluna do valor (não alarga a coluna e preserva o espaço do nome)
+  if (c.atrasado) return { txt: curto ? `${Math.max(1, c.maxDiasAtraso)}d em atraso` : `Atrasado ${rotuloAtraso(c.maxDiasAtraso)}`, cls: 'cad-cli-status--red' }
   const datas = c.fiados.filter(f => f.saldo > 0.01 && f.dataVenc).map(f => f.dataVenc).sort()
   if (!datas.length) return { txt: 'Sem vencimento', cls: '' }
   return datas[0] === hoje()
@@ -5019,7 +5018,11 @@ onMounted(async () => {
   border-bottom: 1px solid #fecaca;
 }
 .cad-cli-sub { font-size: 12px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cad-cli-valor { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.cad-cli-valor { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; line-height: 1.15; }
+.cad-cli-valor .cad-cli-status { font-size: 11.5px; white-space: nowrap; color: var(--muted); }
+.cad-cli-valor .cad-cli-status--red { color: var(--red); }
+.cad-cli-valor .cad-cli-status--warn { color: var(--orange); }
+.cad-funcao-tag--linha { margin-left: 0; margin-right: 6px; }
 .cad-cli-valor b { font-size: 16px; font-weight: 800; font-family: var(--mono); }
 .cad-cli-valor small { font-size: 11px; color: var(--muted); font-weight: 600; }
 .cad-cli-valor--red b { color: var(--red); }
