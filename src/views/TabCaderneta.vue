@@ -599,11 +599,6 @@
                 <div v-else class="cad-cli-valor" :class="{ 'cad-cli-valor--red': c.atrasado }">
                   <b>R$ {{ fmt(c.saldo) }}</b>
                 </div>
-                <button
-                  v-if="modoResumo !== 'historico' && c.telefone"
-                  type="button" class="cad-cli-zap" aria-label="Cobrar pelo WhatsApp" title="Cobrar pelo WhatsApp"
-                  @click.stop="abrirWhatsapp(c)"
-                ><i class="fab fa-whatsapp" aria-hidden="true"></i></button>
                 <svg class="cad-cli-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </div>
 
@@ -627,6 +622,11 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                   Quitar
                 </button>
+                <button
+                  v-if="modoResumo !== 'historico' && c.telefone"
+                  type="button" class="cad-btn-zap-icone cad-btn-icone" aria-label="Cobrar pelo WhatsApp" title="Cobrar pelo WhatsApp"
+                  @click="abrirWhatsapp(c)"
+                ><i class="fab fa-whatsapp" aria-hidden="true"></i></button>
                 <button v-if="modoResumo !== 'historico'" class="cad-btn-venda cad-btn-icone" aria-label="Nova venda" title="Nova venda" @click="iniciarVendaResumo(g, c)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
@@ -5047,11 +5047,13 @@ onMounted(async () => {
 .cad-cli-btns { flex-wrap: nowrap; gap: 6px; }
 .cad-btn-quitar { min-height: 44px; }
 .cad-btn-zap { min-height: 44px; background: var(--surface); color: var(--green); border: 1.5px solid var(--green-dim); }
-.cad-btn-venda.cad-btn-icone, .cad-btn-pix.cad-btn-icone {
+.cad-btn-venda.cad-btn-icone, .cad-btn-pix.cad-btn-icone, .cad-btn-zap-icone.cad-btn-icone {
   flex: 0 0 44px; width: 44px; min-width: 44px; min-height: 44px; padding: 0;
   background: var(--surface); border: 1.5px solid var(--border2); color: var(--brown); font-size: 15px;
 }
 .cad-btn-pix.cad-btn-icone { color: var(--teal); }
+.cad-btn-zap-icone.cad-btn-icone { color: var(--green); border-color: var(--green-dim); font-size: 19px; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: var(--r-full); }
+.cad-btn-zap-icone.cad-btn-icone:active { background: var(--green-bg); }
 
 .cad-mes {
   font-size: 11px; font-weight: 700; color: var(--muted); padding: 6px 12px; margin-top: 4px;
