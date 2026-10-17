@@ -96,12 +96,7 @@
                   <span class="plan-ing-nome"><i v-if="ing.tipo === 'receita'" class="fas fa-mortar-pestle insumo-tipo-ico"></i> {{ ing.nome }}</span>
                   <span class="plan-ing-qtd">{{ fmtQ(ing.total, ing.unidade) }}</span>
                 </div>
-                <div v-if="ing.subIngredientes?.length" class="plan-sub-list">
-                  <div v-for="sub in ing.subIngredientes" :key="sub.id" class="plan-sub-item">
-                    <span><span class="c-brown">└</span> {{ sub.nome }}</span>
-                    <span>{{ fmtQ(sub.total, sub.unidade) }}</span>
-                  </div>
-                </div>
+                <SubComposicao :subs="ing.subIngredientes" />
               </div>
             </div>
           </div>
@@ -118,18 +113,10 @@
                     <div class="check-name">{{ ing.nome }}</div>
                     <div class="check-val">{{ fmtQ(ing.total, ing.unidade) }}</div>
                   </div>
-                  <div v-if="ing.subIngredientes?.length" class="plan-sub-list" style="margin-left:0; margin-top:6px;">
-                    <div v-for="sub in ing.subIngredientes" :key="sub.id" class="plan-sub-item">
-                      <span><span class="c-brown">└</span> {{ sub.nome }}</span>
-                      <span>{{ fmtQ(sub.total, sub.unidade) }}</span>
-                    </div>
-                  </div>
+                  <SubComposicao :subs="ing.subIngredientes" style="margin-left:0; margin-top:6px;" />
                 </div>
               </div>
             </div>
-            <button v-if="ingredientesAgrupados.length" class="btn btn-secondary btn-sm btn-full mt-12" @click="compartilharComprasLote">
-               <i class="fas fa-share-nodes"></i> Compartilhar lista detalhada
-            </button>
           </div>
         </div>
 
@@ -145,6 +132,12 @@
           <div class="teb-valor">{{ fmtTime(tempoEstimadoLote) }}</div>
         </div>
 
+        <!-- Ação rara: fora da barra fixa para não competir com Produzir/Agendar -->
+        <button v-if="!s.loteOriginalEmEdicao" class="btn btn-secondary btn-full mt-16 cozinha-presente-btn" @click="finalizarLote(false, true)">
+          <i class="fas fa-gift"></i> Registrar como presente
+          <small>não gera venda • baixa o estoque</small>
+        </button>
+
       </div>
       <div v-else class="app-empty">
         <i class="fas fa-mortar-pestle"></i>
@@ -157,9 +150,6 @@
     <div v-if="s.cozinhaLote.length" :class="s.loteOriginalEmEdicao ? 'cozinha-actions-fixa' : 'cozinha-actions-fixa cozinha-actions-fixa--grid'">
       <button v-if="!s.loteOriginalEmEdicao" class="btn btn-secondary btn-lg" @click="finalizarLote(true)">
         <i class="fas fa-calendar-plus"></i> Agendar
-      </button>
-      <button v-if="!s.loteOriginalEmEdicao" class="btn btn-secondary btn-lg" @click="finalizarLote(false, true)">
-        <i class="fas fa-gift"></i> Presentear
       </button>
       <button class="btn btn-primary btn-lg" :class="{ 'btn-full': s.loteOriginalEmEdicao }" @click="finalizarLote(false)">
         <i class="fas fa-check-double"></i> {{ s.loteOriginalEmEdicao ? 'Salvar Produção' : 'Produzir' }}
@@ -228,12 +218,7 @@
               <span class="painel-pesar-nome"><i v-if="ing.tipo === 'receita'" class="fas fa-mortar-pestle insumo-tipo-ico"></i> {{ ing.nome }}</span>
               <span class="painel-pesar-qtd">{{ fmtQ(ing.total, ing.unidade) }}</span>
             </div>
-            <div v-if="ing.subIngredientes?.length" class="plan-sub-list painel-pesar-composicao">
-              <div v-for="sub in ing.subIngredientes" :key="sub.id" class="plan-sub-item">
-                <span><span class="c-brown">└</span> {{ sub.nome }}</span>
-                <span>{{ fmtQ(sub.total, sub.unidade) }}</span>
-              </div>
-            </div>
+            <SubComposicao :subs="ing.subIngredientes" class="painel-pesar-composicao" />
           </div>
           <div v-if="!ingredientesParaPesar.length" class="painel-pesar-vazio">
             Nenhum ingrediente no lote ainda.
@@ -256,6 +241,7 @@
 import '../assets/checklist.css'
 import { ref, computed, reactive, watch, nextTick, onUnmounted, onMounted, inject } from 'vue'
 import { useStore } from '../store.js'
+import SubComposicao from '../components/SubComposicao.vue'
 import { fmtQtd as fmtQ, getNowLocal, normalizar, dataHoraBR } from '../utils.js' // Corrected import
 import { useConfirm } from '../composables/useConfirm.js'
 
@@ -658,6 +644,23 @@ function atualizarQtdManual(idx, valor) {
   s.salvarCozinhaLocal()
 }
 
+// Quantos níveis de sub-receita abrir na lista de pesagem (receita dentro de receita dentro de...)
+const PROFUNDIDADE_SUBRECEITAS = 6
+
+/** Reordena a lista plana em profundidade (pai → filhos) usando paiChave. */
+function ordenarEmArvore(lista) {
+  const filhosPor = new Map()
+  lista.forEach(x => {
+    const k = x.paiChave || ''
+    if (!filhosPor.has(k)) filhosPor.set(k, [])
+    filhosPor.get(k).push(x)
+  })
+  const saida = []
+  const visitar = (k) => (filhosPor.get(k) || []).forEach(x => { saida.push(x); visitar(x.chave) })
+  visitar('')
+  return saida
+}
+
 function calcularIngredientesItem(item) {
   const fator = item.qtd_produzir / (item.rendimento_base || 1);
   // Recria o objeto de receita mínimo para a função do store
@@ -666,7 +669,7 @@ function calcularIngredientesItem(item) {
     ingredientes: item.ingredientes 
   };
   
-  const mapa = s.getProductionIngredients(pseudoRecipe, fator);
+  const mapa = s.getProductionIngredients(pseudoRecipe, fator, PROFUNDIDADE_SUBRECEITAS);
   return Object.values(mapa)
     .filter(ing => !ing.oculto)
     .map(ing => ({
@@ -692,7 +695,7 @@ const ingredientesAgrupados = computed(() => {
       eh_intermediaria: item.eh_intermediaria, 
       ingredientes: item.ingredientes 
     };
-    const prodIngredients = s.getProductionIngredients(pseudoRecipe, fator);
+    const prodIngredients = s.getProductionIngredients(pseudoRecipe, fator, PROFUNDIDADE_SUBRECEITAS);
     for (const key in prodIngredients) {
       const ing = prodIngredients[key];
 
@@ -711,7 +714,7 @@ const ingredientesAgrupados = computed(() => {
       // Agrupa sub-ingredientes para o consolidado da cozinha
       if (ing.subIngredientes?.length) {
         ing.subIngredientes.forEach(sub => {
-          const existingSub = acumulador[key].subIngredientes.find(s => s.id === sub.id);
+          const existingSub = acumulador[key].subIngredientes.find(s => s.chave === sub.chave);
           if (existingSub) {
             existingSub.total += sub.total;
           } else {
@@ -726,6 +729,7 @@ const ingredientesAgrupados = computed(() => {
     if (ing.unidade === 'un') {
       ing.total = Math.ceil(ing.total - 0.001);
     }
+    ing.subIngredientes = ordenarEmArvore(ing.subIngredientes);
     return ing;
   }).sort((a, b) => a.nome.localeCompare(b.nome));
 });
@@ -764,28 +768,6 @@ const produtosNecessariosLote = computed(() => {
   })
   return Object.values(mapa)
 })
-
-function compartilharComprasLote() {
-  if (!ingredientesAgrupados.value.length) return
-
-  const itensMsg = ingredientesAgrupados.value.map(i => {
-    const prod = s.produtos.find(p => p.uuid === i.id)
-    const estoque = prod?.estoque_atual || 0
-    const falta = Math.max(0, i.total - estoque)
-    const status = falta > 0 ? `⚠️ COMPRAR ${fmtQ(falta, i.unidade)}` : `✅ Ok no estoque`
-    const prefixo = i.tipo === 'receita' ? '🥣 ' : ''
-    return `• *${prefixo}${i.nome}*\n  Necessário: ${fmtQ(i.total, i.unidade)} | ${status}`
-  }).join('\n\n')
-  
-  const msg = `🛒 *LISTA DE INSUMOS PARA PRODUÇÃO*\n\n${itensMsg}\n\n_Gerado por chocobete_`
-  
-  if (navigator.share) {
-    navigator.share({ title: 'Lista de Insumos', text: msg }).catch(() => {})
-  } else {
-    navigator.clipboard.writeText(msg)
-    s.notify('Lista de insumos copiada!')
-  }
-}
 
 async function finalizarLote(apenasAgendar = false, isPresente = false) {
   // MELHORIA 5: Resumo detalhado antes de confirmar
@@ -906,8 +888,9 @@ watch(catAtiva, () => {
   box-shadow: 0 -6px 18px rgba(61,31,7,.08);
   z-index: calc(var(--z-header) + 1);
 }
-.cozinha-actions-fixa--grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.cozinha-actions-fixa--grid .btn-primary { grid-column: 1 / -1; }
+.cozinha-actions-fixa--grid { display: grid; grid-template-columns: 1fr 1.7fr; gap: 10px; }
+.cozinha-presente-btn { flex-direction: column; gap: 2px; padding: 10px 12px; }
+.cozinha-presente-btn small { font-size: .68rem; font-weight: 600; color: var(--muted); }
 
 /* ── Filtro de receitas no modal ── */
 

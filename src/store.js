@@ -2623,13 +2623,60 @@ async function registrarProducaoFantasma(dados) {
   }
 
   /**
+   * Expande a composição de uma sub-receita em lista plana, em profundidade
+   * (pai logo seguido dos seus filhos), anotando o nível de cada linha.
+   */
+  function coletarSubIngredientes(receita, qtdPai, nivel, maxNivel, visitados, saida, chavePai) {
+    if (!receita?.ingredientes || nivel > maxNivel) return
+    if (receita.uuid && visitados.has(receita.uuid)) return // evita ciclo A -> B -> A
+    const caminho = new Set(visitados)
+    if (receita.uuid) caminho.add(receita.uuid)
+
+    const subFator = qtdPai / (receita.rendimento || 1)
+    for (const sub of receita.ingredientes) {
+      const subAlvo = sub.tipo === 'receita'
+        ? receitas.value.find(x => x.uuid === sub.id)
+        : produtos.value.find(p => p.uuid === sub.id)
+      if (!subAlvo) continue
+      const subOculto = sub.gera_peso === false
+        ? true
+        : (sub.tipo !== 'receita' && isProdutoEmbalagem(subAlvo))
+      if (subOculto) continue
+
+      const qtd = (sub.quantidade || 0) * subFator
+      const chave = `${chavePai}>${sub.tipo}-${sub.id}`
+      const existente = saida.find(x => x.chave === chave)
+      if (existente) {
+        existente.total += qtd
+      } else {
+        saida.push({
+          id: sub.id,
+          tipo: sub.tipo,
+          nome: subAlvo.nome,
+          total: qtd,
+          unidade: sub.tipo === 'receita' ? subAlvo.unidade_rendimento : subAlvo.unidade_base,
+          nivel,
+          chave,
+          paiChave: chavePai
+        })
+      }
+      if (sub.tipo === 'receita') {
+        coletarSubIngredientes(subAlvo, qtd, nivel + 1, maxNivel, caminho, saida, chave)
+      }
+    }
+  }
+
+  /**
    * Retorna os ingredientes para produção, com explosão inteligente:
    * Se o item principal for FINAL e usar uma BASE, expande a base em 1 nível.
    * @param {Object} recipe - A receita sendo produzida
    * @param {number} factor - Fator de escala para as quantidades
+   * @param {number} [profundidade=1] - Quantos níveis de sub-receita expandir em
+   *   `subIngredientes` (1 = só a composição direta; 2+ abre sub-receitas dentro
+   *   de sub-receitas). Cada sub-ingrediente traz `nivel`, `chave` e `paiChave`.
    * @returns {Object} Um mapa de ingredientes diretos agrupados.
    */
-  function getProductionIngredients(recipe, factor) {
+  function getProductionIngredients(recipe, factor, profundidade = 1) {
     const mapa = {}
     if (!recipe || !recipe.ingredientes) return mapa
 
@@ -2657,31 +2704,9 @@ async function registrarProducaoFantasma(dados) {
       }
       mapa[key].total += qtdEscalada
 
-      // Se for uma sub-receita, carregamos seus ingredientes diretos para o "sub menu"
+      // Se for uma sub-receita, carregamos sua composição (recursiva, respeitando o nível)
       if (ing.tipo === 'receita' && alvo.ingredientes) {
-        const subFator = qtdEscalada / (alvo.rendimento || 1)
-        alvo.ingredientes.forEach(sub => {
-          const subAlvo = sub.tipo === 'receita' 
-            ? receitas.value.find(x => x.uuid === sub.id) 
-            : produtos.value.find(p => p.uuid === sub.id)
-          if (!subAlvo) return
-          const subOculto = sub.gera_peso === false
-            ? true
-            : (sub.tipo !== 'receita' && isProdutoEmbalagem(subAlvo))
-          if (subOculto) return
-
-          const existingSub = mapa[key].subIngredientes.find(s => s.id === sub.id)
-          if (existingSub) {
-            existingSub.total += (sub.quantidade || 0) * subFator
-          } else {
-            mapa[key].subIngredientes.push({
-              id: sub.id,
-              nome: subAlvo.nome,
-              total: (sub.quantidade || 0) * subFator,
-              unidade: sub.tipo === 'receita' ? subAlvo.unidade_rendimento : subAlvo.unidade_base
-            })
-          }
-        })
+        coletarSubIngredientes(alvo, qtdEscalada, 1, profundidade, new Set(), mapa[key].subIngredientes, '')
       }
     }
     return mapa
