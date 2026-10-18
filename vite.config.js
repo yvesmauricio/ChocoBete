@@ -8,6 +8,10 @@ const isGitHubPages = process.env.GITHUB_ACTIONS === 'true'
 // Base usada por todo o projeto
 const BASE = isGitHubPages ? '/ChocoBete/' : '/'
 
+// Muda a cada build → força o Service Worker a baixar de novo o index.html
+// (com revision: null ele nunca era atualizado nos aparelhos).
+const BUILD_ID = Date.now().toString()
+
 // Caminhos das páginas públicas do cardápio (o link que vai pro cliente).
 // O Cloudflare Pages serve essas páginas TANTO com ".html" no final quanto
 // sem (URL "limpa" — ex: /pedido-diaadia funciona igual a
@@ -68,7 +72,7 @@ export default defineConfig({
         additionalManifestEntries: [
           {
             url: `${BASE}offline.html`,
-            revision: null
+            revision: BUILD_ID
           },
           // index.html (a "casca" do app) fica garantido no cache desde a
           // instalação do Service Worker — sem isso, ele só entrava no
@@ -79,7 +83,7 @@ export default defineConfig({
           // não tinha uma cópia de reserva pra abrir offline.
           {
             url: `${BASE}index.html`,
-            revision: null
+            revision: BUILD_ID
           }
         ],
 

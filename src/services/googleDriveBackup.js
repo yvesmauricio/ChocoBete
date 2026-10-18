@@ -10,9 +10,19 @@ const DRIVE_HISTORY_PREFIX = 'ChocoBete-backup-hist-'
 // Política de retenção do histórico:
 //  • as DRIVE_HISTORY_MAX versões mais recentes (cobrem o erro de "agora há pouco");
 //  • a última versão de cada dia nos últimos DRIVE_HISTORY_DIAS dias (cobre o erro
-//    descoberto só no dia seguinte ou na semana seguinte).
-const DRIVE_HISTORY_MAX = 5
+//    descoberto só no dia seguinte ou na semana seguinte);
+//  • a última versão de cada semana nas últimas DRIVE_HISTORY_SEMANAS semanas;
+//  • versões "fixadas" (appProperties.pin) — guardadas ao resolver um conflito —
+//    nunca são podadas automaticamente.
+// Para o histórico não virar uma fila de versões quase idênticas (o perfil da
+// Bete salva a cada ação), só se arquiva a versão anterior se a última cópia do
+// histórico tiver mais de DRIVE_HISTORY_INTERVALO_MIN minutos e o conteúdo for
+// diferente dela. Assim cada "rajada" de edições deixa UMA versão: o estado de
+// antes dela começar.
+const DRIVE_HISTORY_MAX = 8
 const DRIVE_HISTORY_DIAS = 14
+const DRIVE_HISTORY_SEMANAS = 8
+const DRIVE_HISTORY_INTERVALO_MIN = 20
 const DRIVE_APP_PROPERTY_KEY = 'app'
 const DRIVE_APP_PROPERTY_VALUE = 'ChocoBete'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || ''
@@ -328,7 +338,7 @@ async function findHistoricoFiles() {
   const url = new URL('https://www.googleapis.com/drive/v3/files')
   url.searchParams.set('spaces', 'appDataFolder')
   url.searchParams.set('q', query)
-  url.searchParams.set('fields', 'files(id,name,modifiedTime,size)')
+  url.searchParams.set('fields', 'files(id,name,modifiedTime,size,appProperties)')
   url.searchParams.set('pageSize', '100')
   url.searchParams.set('orderBy', 'modifiedTime desc')
 
@@ -337,46 +347,99 @@ async function findHistoricoFiles() {
   return data.files || []
 }
 
+/** Hash rápido (FNV-1a + tamanho) do texto — só para detectar "igual ao anterior". */
+export function hashTexto(texto) {
+  let h = 0x811c9dc5
+  for (let i = 0; i < texto.length; i++) {
+    h ^= texto.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return `${texto.length}:${h.toString(16)}`
+}
+
+function chaveSemana(d) {
+  // Segunda-feira da semana, em data local (yyyy-mm-dd)
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const dow = (x.getDay() + 6) % 7
+  x.setDate(x.getDate() - dow)
+  return x.toLocaleDateString('sv')
+}
+
 /** Decide quais arquivos de histórico ficam (ids). Pura — não acessa o Drive.
- *  Fica: as `recentes` mais novas + a mais nova de cada dia dos últimos `dias` dias.
- *  Arquivo sem data nunca é apagado (na dúvida, guarda). */
-export function escolherHistoricoParaManter(arquivos, { recentes = DRIVE_HISTORY_MAX, dias = DRIVE_HISTORY_DIAS, agora = new Date() } = {}) {
+ *  Fica: as `recentes` mais novas + a mais nova de cada dia dos últimos `dias`
+ *  dias + a mais nova de cada semana das últimas `semanas` semanas + as
+ *  fixadas. Arquivo sem data nunca é apagado (na dúvida, guarda). */
+export function escolherHistoricoParaManter(arquivos, {
+  recentes = DRIVE_HISTORY_MAX,
+  dias = DRIVE_HISTORY_DIAS,
+  semanas = DRIVE_HISTORY_SEMANAS,
+  agora = new Date(),
+} = {}) {
   const manter = new Set()
   const comData = []
   for (const f of arquivos || []) {
+    if (f.appProperties?.pin) manter.add(f.id)
     if (f.modifiedTime && !isNaN(new Date(f.modifiedTime))) comData.push(f)
     else manter.add(f.id)
   }
   comData.sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime))
   comData.slice(0, recentes).forEach(f => manter.add(f.id))
-  const limite = agora.getTime() - dias * 86_400_000
+  const limiteDia = agora.getTime() - dias * 86_400_000
+  const limiteSemana = agora.getTime() - semanas * 7 * 86_400_000
   const diasVistos = new Set()
+  const semanasVistas = new Set()
   for (const f of comData) {
     const d = new Date(f.modifiedTime)
-    if (d.getTime() < limite) continue
-    const dia = d.toLocaleDateString('sv')
-    if (diasVistos.has(dia)) continue
-    diasVistos.add(dia)
-    manter.add(f.id)
+    if (d.getTime() >= limiteDia) {
+      const dia = d.toLocaleDateString('sv')
+      if (!diasVistos.has(dia)) { diasVistos.add(dia); manter.add(f.id) }
+    }
+    if (d.getTime() >= limiteSemana) {
+      const sem = chaveSemana(d)
+      if (!semanasVistas.has(sem)) { semanasVistas.add(sem); manter.add(f.id) }
+    }
   }
   return manter
 }
 
+/** Pura: dado o histórico atual (mais novo primeiro), diz se vale arquivar a
+ *  versão que está prestes a ser sobrescrita. */
+export function deveArquivarAgora(historico, { agora = new Date(), forcar = false } = {}) {
+  if (forcar) return true
+  const lista = (historico || [])
+    .filter(f => f.modifiedTime && !isNaN(new Date(f.modifiedTime)))
+    .sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime))
+  if (!lista.length) return true
+  const idadeMin = (agora.getTime() - new Date(lista[0].modifiedTime).getTime()) / 60_000
+  return idadeMin >= DRIVE_HISTORY_INTERVALO_MIN
+}
+
 /** Antes de sobrescrever o arquivo principal, guarda uma cópia do que
- *  estava lá como um novo arquivo de histórico datado. Depois poda conforme
- *  a política de retenção (ver escolherHistoricoParaManter). */
-async function arquivarVersaoAtual(currentFileId) {
+ *  estava lá como um novo arquivo de histórico datado (respeitando o
+ *  intervalo mínimo e ignorando conteúdo idêntico ao último arquivado).
+ *  Depois poda conforme a política de retenção. `fixar` marca a cópia como
+ *  protegida contra poda (usado ao resolver conflitos). */
+async function arquivarVersaoAtual(currentFileId, { forcar = false, fixar = false } = {}) {
+  let historico = await findHistoricoFiles()
+  if (!deveArquivarAgora(historico, { forcar })) return
+
   const contentResp = await driveFetch(
     `https://www.googleapis.com/drive/v3/files/${currentFileId}?alt=media`
   )
   const rawText = await contentResp.text()
+  const hash = hashTexto(rawText)
+
+  const maisNovo = [...historico].sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime))[0]
+  if (!forcar && maisNovo?.appProperties?.h === hash) return // conteúdo igual ao último arquivado
 
   const nomeHistorico = `${DRIVE_HISTORY_PREFIX}${new Date().toISOString().replace(/[:.]/g, '-')}.json`
   const boundary = `hist-${Math.random().toString(16).slice(2)}`
+  const appProperties = { [DRIVE_APP_PROPERTY_KEY]: DRIVE_APP_PROPERTY_VALUE, h: hash }
+  if (fixar) appProperties.pin = '1'
   const metaJson = JSON.stringify({
     name: nomeHistorico,
     parents: ['appDataFolder'],
-    appProperties: { [DRIVE_APP_PROPERTY_KEY]: DRIVE_APP_PROPERTY_VALUE }
+    appProperties
   })
   const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metaJson}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${rawText}\r\n--${boundary}--`
 
@@ -389,12 +452,12 @@ async function arquivarVersaoAtual(currentFileId) {
     }
   )
 
-  // Poda: apaga o que não é "recente" nem "última do dia". Falha silenciosa
-  // item a item — se uma exclusão falhar, não interrompe o save (a versão
-  // nova já foi salva, que é o que importa).
-  const todos = await findHistoricoFiles()
-  const manter = escolherHistoricoParaManter(todos)
-  const excedentes = todos.filter(f => !manter.has(f.id))
+  // Poda: apaga o que não deve ser mantido. Falha silenciosa item a item —
+  // se uma exclusão falhar, não interrompe o save (a versão nova ainda
+  // vai ser salva, que é o que importa).
+  historico = await findHistoricoFiles()
+  const manter = escolherHistoricoParaManter(historico)
+  const excedentes = historico.filter(f => !manter.has(f.id))
   for (const arquivo of excedentes) {
     await driveFetch(`https://www.googleapis.com/drive/v3/files/${arquivo.id}`, { method: 'DELETE' }).catch(() => {})
   }
@@ -456,13 +519,60 @@ export async function getBackupTimestamp() {
   }
 }
 
-export async function salvarBackupNoDrive(backup) {
+/** Estado atual do arquivo principal no Drive: { id, modifiedTime } ou null se
+ *  ainda não existe. DIFERENTE de getBackupTimestamp: aqui erro de rede/token
+ *  é lançado (quem chama precisa distinguir "não existe" de "não consegui ver"). */
+export async function lerEstadoRemoto() {
+  ensureConfigured()
+  const file = await findBackupFile()
+  return file ? { id: file.id, modifiedTime: file.modifiedTime || null } : null
+}
+
+async function modifiedTimeAtual(fileId) {
+  const resp = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`)
+  const data = await resp.json()
+  return data?.modifiedTime || null
+}
+
+function erroConflito(remoto) {
+  const e = new Error('CONFLICT')
+  e.remoteModifiedTime = remoto || null
+  return e
+}
+
+/**
+ * Salva o backup no Drive.
+ *  • `verificarContra` (string): modifiedTime do arquivo no Drive que este
+ *    aparelho viu na última sincronização. Se o arquivo no Drive foi alterado
+ *    por outro aparelho desde então, NÃO sobrescreve: lança Error('CONFLICT').
+ *    A checagem roda antes de arquivar e de novo imediatamente antes de gravar.
+ *  • `arquivarSempre`: arquiva a versão atual do Drive mesmo que o último
+ *    arquivamento seja recente (usado ao restaurar versões antigas).
+ *  • `forcar`: grava mesmo com conflito (a versão do Drive é arquivada e
+ *    fixada no histórico antes, pra poder voltar).
+ * Retorna { modifiedTime } do arquivo recém-gravado.
+ */
+export async function salvarBackupNoDrive(backup, { verificarContra, forcar = false, arquivarSempre = false } = {}) {
   try {
     ensureConfigured()
     const existingFile = await findBackupFile()
+    const verificar = typeof verificarContra === 'string' && !forcar
+
+    if (existingFile && verificar && existingFile.modifiedTime !== verificarContra) {
+      throw erroConflito(existingFile.modifiedTime)
+    }
 
     if (existingFile) {
-      await arquivarVersaoAtual(existingFile.id)
+      await arquivarVersaoAtual(existingFile.id, {
+        forcar: forcar || arquivarSempre,
+        fixar: forcar && typeof verificarContra === 'string' && existingFile.modifiedTime !== verificarContra
+      })
+      // Reconfere logo antes de gravar: o arquivamento leva alguns segundos e
+      // outro aparelho pode ter salvo nesse intervalo.
+      if (verificar) {
+        const agora = await modifiedTimeAtual(existingFile.id)
+        if (agora && agora !== verificarContra) throw erroConflito(agora)
+      }
     }
 
     const metadata = {
@@ -479,18 +589,21 @@ export async function salvarBackupNoDrive(backup) {
     })
 
     const { boundary, body } = createMultipartBody(metadata, content)
+    const campos = 'fields=id,modifiedTime'
     const endpoint = existingFile
-      ? `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart`
-      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart'
+      ? `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart&${campos}`
+      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&${campos}`
     const method = existingFile ? 'PATCH' : 'POST'
 
-    await driveFetch(endpoint, {
+    const resp = await driveFetch(endpoint, {
       method,
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
       body
     })
+    const salvo = await resp.json().catch(() => ({}))
+    return { modifiedTime: salvo?.modifiedTime || null }
   } catch (error) {
-    console.error('Erro ao salvar backup no Google Drive:', error)
+    if (error?.message !== 'CONFLICT') console.error('Erro ao salvar backup no Google Drive:', error)
     throw error
   }
 }
@@ -507,6 +620,20 @@ export async function restaurarBackupDoDrive() {
   return data?.backup || data
 }
 
+/** Como restaurarBackupDoDrive, mas também devolve o modifiedTime do arquivo
+ *  lido (lido ANTES do download — se o arquivo mudar no meio, o próximo
+ *  sync apenas baixa de novo, nunca perde alteração). */
+export async function restaurarBackupDoDriveComInfo() {
+  ensureConfigured()
+  const file = await findBackupFile()
+  if (!file) throw new Error('Nenhum backup encontrado no Google Drive')
+  const response = await driveFetch(
+    `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`
+  )
+  const data = await response.json()
+  return { backup: data?.backup || data, modifiedTime: file.modifiedTime || null }
+}
+
 export async function listarHistoricoDrive() {
   try {
     ensureConfigured()
@@ -515,6 +642,7 @@ export async function listarHistoricoDrive() {
       id: f.id,
       modifiedTime: f.modifiedTime ? new Date(f.modifiedTime) : null,
       size: Number(f.size || 0),
+      fixada: Boolean(f.appProperties?.pin),
     }))
   } catch {
     return []

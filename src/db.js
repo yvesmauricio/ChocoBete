@@ -1,4 +1,7 @@
 import Dexie from 'dexie'
+import { TABELAS_COM_UID, uidLegado } from './uids.js'
+
+export { TABELAS_COM_UID, uidLegado }
 
 const DB_NAME = 'chocobeteDB_v2'
 const LEGACY_DB_NAME = 'chocobeteDB'
@@ -137,6 +140,45 @@ db.version(12).stores({
   historico_precos_venda: '++id, receita_uuid, data',
   config:     'chave'
 })
+
+// v13: Fase 2 do backup — cada registro das tabelas de ID numérico automático
+// (financeiro, caderneta, históricos de preço) ganha um `uid` estável, igual em
+// todos os aparelhos. É o que permite juntar (merge) o trabalho de dois
+// aparelhos sem que o "id 57" de um seja confundido com o "id 57" do outro.
+// Os IDs numéricos continuam existindo e sendo usados pelo app como antes.
+// Registros que já existiam ganham um uid DETERMINÍSTICO (derivado da tabela e
+// do id): dois aparelhos que partiram do mesmo backup chegam ao mesmo uid.
+db.version(13).stores({
+  produtos:   'uuid, nome',
+  receitas:   'uuid, nome',
+  producoes:  'uuid, data_producao, origem, gerar_financeiro',
+  financeiro: '++id, data, valor, tipo, categoria, natureza, escopo, tipo_contabil, descricao, mes_ref, &hash_duplicidade',
+  historico_precos: '++id, produto_uuid, data',
+  cad_lojas:    '++id, nome',
+  cad_clientes: '++id, lojaId, nome',
+  cad_fiados:   '++id, clienteId, lojaId, status, dataVenc',
+  cardapio_pedidos: 'uuid, cardapioId, status, criadoEm',
+  historico_precos_venda: '++id, receita_uuid, data',
+  config:     'chave'
+}).upgrade(async tx => {
+  for (const nome of TABELAS_COM_UID) {
+    await tx.table(nome).toCollection().modify(row => {
+      if (!row.uid) row.uid = uidLegado(nome, row)
+    })
+  }
+})
+
+// Garante `uid` em todo registro novo e não o perde quando o app regrava o
+// registro sem esse campo (muito código monta um objeto novo e faz put()).
+for (const nome of TABELAS_COM_UID) {
+  const tabela = db[nome]
+  tabela.hook('creating', function (primKey, obj) {
+    if (!obj.uid) obj.uid = (nome === 'financeiro' && obj.hash_duplicidade) ? `h:${obj.hash_duplicidade}` : randomId()
+  })
+  tabela.hook('updating', function (mods, primKey, obj) {
+    if (obj.uid && (!('uid' in mods) || mods.uid === undefined)) return { uid: obj.uid }
+  })
+}
 
 function randomId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
@@ -331,22 +373,75 @@ export async function excluirPedidoCardapio(uuid) {
 }
 
 // ─── Rotina de Backup Forte ─────────────────────────────────────
+// Chaves da tabela `config` que descrevem O ESTADO DESTE APARELHO (progresso
+// de sincronização, cronômetro rodando) e não dados do negócio. Não entram
+// no backup e, ao importar um backup, as do aparelho atual são preservadas.
+// Antes, elas viajavam no backup: o `sync_ts` de uma versão antiga fazia o app
+// achar que o Drive estava "mais novo" e desfazer uma restauração, e o
+// cronômetro de um aparelho passava a ser o do outro.
+export const CONFIG_CHAVES_DO_APARELHO = [
+  'sync_ts',          // quando este aparelho sincronizou (relógio local)
+  'sync_remote_ts',   // modifiedTime do arquivo no Drive na última sincronização
+  'sync_pending',     // há alterações aqui ainda não enviadas
+  'active_timer',     // cronômetro de produção rodando neste aparelho
+  'sync_last_change', // quando este aparelho fez a última alteração (desempate no merge)
+]
+
+const ehChaveDoAparelho = (chave) => CONFIG_CHAVES_DO_APARELHO.includes(chave)
+
 export async function exportarDados() {
   const backup = {}
   await db.open()
   for (const table of db.tables) {
     backup[table.name] = await table.toArray()
   }
+  if (Array.isArray(backup.config)) {
+    backup.config = backup.config.filter(row => !ehChaveDoAparelho(row?.chave))
+  }
   return backup
 }
 
-export async function importarDados(backup) {
+/** Lê todas as tabelas (no mesmo formato de exportarDados) dentro da
+ *  transação em curso. */
+async function lerTudoAgora() {
+  const dados = {}
+  for (const table of db.tables) dados[table.name] = await table.toArray()
+  if (Array.isArray(dados.config)) {
+    dados.config = dados.config.filter(row => !ehChaveDoAparelho(row?.chave))
+  }
+  return dados
+}
+
+function linhasComUid(tabela, rows) {
+  if (!TABELAS_COM_UID.includes(tabela)) return rows
+  return rows.map(r => (r && !r.uid) ? { ...r, uid: uidLegado(tabela, r) } : r)
+}
+
+/**
+ * Substitui TODOS os dados pelo conteúdo de `backup`.
+ *  • Chaves do aparelho (sync_*, timer) são preservadas.
+ *  • Registros de backups antigos sem `uid` ganham o uid determinístico.
+ *  • `guarda` (opcional): função que recebe o estado ATUAL (lido dentro da
+ *    própria transação) e devolve false pra abortar — usada pelo merge pra
+ *    garantir que nada foi gravado no banco entre ler e aplicar.
+ *    Aborta lançando Error('LOCAL_MUDOU') sem alterar nada.
+ */
+export async function importarDados(backup, { guarda } = {}) {
   return db.transaction('rw', db.tables, async () => {
+    if (guarda) {
+      const atual = await lerTudoAgora()
+      if (!guarda(atual)) throw new Error('LOCAL_MUDOU')
+    }
+    // Guarda o estado deste aparelho antes de limpar a tabela config.
+    const doAparelho = (await db.config.toArray()).filter(row => ehChaveDoAparelho(row?.chave))
     for (const tabela of db.tables.map(table => table.name)) {
       await db[tabela].clear()
-      const rows = Array.isArray(backup?.[tabela]) ? backup[tabela] : []
+      let rows = Array.isArray(backup?.[tabela]) ? backup[tabela] : []
+      if (tabela === 'config') rows = rows.filter(row => !ehChaveDoAparelho(row?.chave))
+      rows = linhasComUid(tabela, rows)
       if (rows.length) await db[tabela].bulkPut(rows)
     }
+    if (doAparelho.length) await db.config.bulkPut(doAparelho)
     await db.config.put({ chave: MIGRATION_FLAG, valor: true })
   })
 }

@@ -85,6 +85,9 @@
     <!-- ─── Confirmação Global (compartilhada) ────────────────── -->
     <ConfirmDialog />
 
+    <!-- Aviso de nova versão do app (PWA) -->
+    <AtualizacaoBanner />
+
     <!-- Toast global -->
     <Transition name="fade" mode="out-in">
       <div
@@ -115,6 +118,7 @@ import { tentarReconectarSilenciosamente } from './services/googleDriveBackup.js
 import AppHeader      from './components/AppHeader.vue'
 import AppNav         from './components/AppNav.vue'
 import ConfirmDialog  from './components/ConfirmDialog.vue'
+import AtualizacaoBanner from './components/AtualizacaoBanner.vue'
 import TabReceitas    from './views/TabReceitas.vue'
 import TabProducao    from './views/TabProducao.vue'
 import TabPainel      from './views/TabPainel.vue'
@@ -159,15 +163,22 @@ const perfilInfo = computed(() => {
   return null
 })
 
-function onSelecionarPerfil(p) {
-  perfil.value = p
+async function onSelecionarPerfil(p) {
   // Não persiste: a cada abertura do app volta pra seleção de perfil
   // Isso é proposital — segurança de separação dos dados
 
-  // Para a Bete: sincroniza imediatamente ao entrar para confirmar conexão com Drive
+  // Para a Bete: antes de abrir, traz o que outro aparelho tiver salvo no
+  // Drive (se não há alterações pendentes aqui). Antes ela só ENVIAVA ao
+  // entrar — um app que ficou aberto por horas mandava a foto velha por
+  // cima do que o outro aparelho tinha feito. O limite de 4 s evita travar
+  // a entrada com internet ruim.
   if (p === 'bete' && s.googleDriveConfigured) {
-    s.syncImediato()
+    await Promise.race([s.iniciarSync(), new Promise(resolve => setTimeout(resolve, 4000))])
+    perfil.value = p
+    if (s.hasLocalChanges) s.syncImediato()
+    return
   }
+  perfil.value = p
 }
 
 function trocarPerfil() {
@@ -183,13 +194,27 @@ provide('trocarPerfil', trocarPerfil)
 // TabCaderneta.vue). Não sincronizamos aqui de novo ao voltar o foco —
 // isso disparava um sync extra a cada troca de tela ou volta do WhatsApp,
 // mesmo sem nada ter mudado.
+let escondidoDesde = 0
+const REVERIFICAR_APOS_MS = 5 * 60_000
 const onVisibilityChange = async () => {
+  if (document.visibilityState === 'hidden') {
+    escondidoDesde = Date.now()
+    s.salvarBackupLocalAgora() // grava já a cópia na pasta local, sem esperar o intervalo
+    return
+  }
   if (document.visibilityState === 'visible') {
     if (perfilInfo.value?.tipo === 'admin') {
+      await s.iniciarSync()
+    } else if (perfilInfo.value?.tipo === 'caderneta' && escondidoDesde && Date.now() - escondidoDesde > REVERIFICAR_APOS_MS) {
+      // Bete: só reconfere o Drive se ficou um tempo fora do app (voltar do
+      // WhatsApp em segundos não precisa) — evita enviar por cima de algo novo.
       await s.iniciarSync()
     }
   }
 }
+
+// Voltou a internet: envia o que ficou pendente enquanto estava offline.
+const onOnline = () => { if (s.hasLocalChanges) s.syncImediato() }
 
 // ── Timer drag ───────────────────────────────────────────
 const timerPos = reactive({ x: 0, y: 0 })
@@ -250,12 +275,14 @@ onMounted(async () => {
   if (s.perfis.inicial !== 'selecao') perfil.value = s.perfis.inicial
   tentarReconectarSilenciosamente()
   document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('online', onOnline)
 })
 
 onUnmounted(() => {
   window.removeEventListener('mousemove', onMouseDragMove)
   window.removeEventListener('mouseup', onMouseDragEnd)
   document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('online', onOnline)
 })
 </script>
 

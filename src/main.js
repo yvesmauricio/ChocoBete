@@ -5,20 +5,9 @@ import './assets/main.css'
 import '@fortawesome/fontawesome-free/css/all.css'
 import { iniciarLayoutMode } from './composables/useLayoutMode.js'
 
-// 👇 REGISTRO DO PWA
-import { registerSW } from 'virtual:pwa-register'
-
-// Atualiza silenciosamente — aplica na próxima vez que o usuário abrir o app
-// Sem reload forçado, sem double refresh
-const updateSW = registerSW({
-  onNeedRefresh() {
-    // Novo SW disponível: instala em background, aplica no próximo acesso
-    updateSW(false)
-  },
-  onOfflineReady() {
-    console.log('App pronto para uso offline')
-  }
-})
+// 👇 PWA: confere atualizações e avisa o usuário (ver AtualizacaoBanner.vue)
+import { iniciarAtualizacaoApp } from './services/atualizacaoApp.js'
+iniciarAtualizacaoApp()
 
 // Define cedo (antes de montar) se o layout é de desktop ou de celular
 iniciarLayoutMode()

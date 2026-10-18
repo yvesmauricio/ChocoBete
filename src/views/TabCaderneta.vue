@@ -1857,14 +1857,15 @@ const mostrarArquivadas = ref(false)
 // ── Botão de sync com o Drive (mesma lógica do cabeçalho do outro perfil) ──
 const confirmar = useConfirm()
 const syncEstado = computed(() => {
-  if (s.syncStatus === 'error') return 'error'
+  if (s.syncStatus === 'error' || s.syncStatus === 'conflict') return 'error'
   if (s.syncStatus === 'syncing' || s.hasLocalChanges) return 'syncing'
   if (s.syncStatus === 'ok') return 'ok'
   return 'idle'
 })
 const temAlteracoesPendentes = computed(() => s.hasLocalChanges && s.syncStatus !== 'syncing')
-const syncClicavel = computed(() => s.syncStatus === 'error' || temAlteracoesPendentes.value)
+const syncClicavel = computed(() => s.syncStatus === 'error' || s.syncStatus === 'conflict' || temAlteracoesPendentes.value)
 const syncTitulo = computed(() => {
+  if (s.syncStatus === 'conflict') return 'Outro aparelho também alterou os dados — toque para escolher qual versão manter'
   if (s.syncStatus === 'error') return 'Falha ao salvar no Drive — toque para tentar de novo'
   if (s.syncStatus === 'syncing') return 'Salvando no Drive…'
   if (s.hasLocalChanges) return 'Há alterações que ainda não foram enviadas ao Drive — toque para enviar agora'
@@ -1880,16 +1881,10 @@ const syncIcone = computed(() => ({
 
 async function onClickSync() {
   if (!syncClicavel.value) return
-  // Com alterações pendentes, confirma antes de enviar: se outro aparelho usar a mesma
-  // conta Google, enviar sem perceber pode sobrescrever algo mais novo no Drive.
-  if (temAlteracoesPendentes.value) {
-    const ok = await confirmar.ask(
-      'Este aparelho tem alterações salvas aqui que ainda não foram enviadas ao Google Drive. Enviar agora vai atualizar o Drive com os dados deste aparelho — se outro aparelho também tiver mudanças recentes não enviadas, elas podem ser substituídas. Enviar mesmo assim?',
-      { title: 'Enviar alterações pendentes', confirmLabel: 'Enviar agora', type: 'warning', icon: 'fas fa-cloud-arrow-up' }
-    )
-    if (!ok) return
-  }
-  s.syncImediato()
+  // O envio agora confere se outro aparelho salvou no Drive desde a última
+  // sincronização: se sim, abre a decisão (não sobrescreve nada sem escolha),
+  // então não precisa mais do aviso genérico antes de enviar.
+  await s.syncImediato({ manual: true })
 }
 
 const fazendoBackup = ref(false)
@@ -3564,6 +3559,13 @@ const saldoPorCliente = ref({})
 let pararSaldos = null
 onMounted(() => { pararSaldos = observarSaldosClientes(m => { saldoPorCliente.value = m }) })
 onBeforeUnmount(() => { pararSaldos?.() })
+
+// Quando os dados são trocados por uma importação (baixou do Drive, restaurou),
+// recarrega o que esta tela carrega uma vez só.
+watch(() => s.dadosVersao, async () => {
+  await carregarDashboard()
+  carregarLojas()
+})
 
 onMounted(async () => {
   // Acerta (sem apagar nada) vendas antigas cujo nome de loja ficou desatualizado.

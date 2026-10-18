@@ -413,7 +413,7 @@
                 </div>
                 <div class="bslot-sync-hint">
                   <i class="fas fa-mobile-screen"></i>
-                  Para sincronizar com o celular, abra o app no celular conectado à mesma conta Google e toque em <strong>Restaurar mais recente</strong>.
+                  A sincronização é automática: ao abrir o app, ao voltar a ele e a cada alteração, ele confere o Drive. Se dois aparelhos mudaram dados ao mesmo tempo, <strong>o app junta o trabalho dos dois</strong> (só um mesmo campo editado nos dois lados fica com a versão mais recente). <strong>Restaurar mais recente</strong> é o botão forte: troca tudo deste aparelho pelo que está no Drive (uma cópia de segurança fica guardada).
                 </div>
 
                 <!-- Histórico de versões anteriores — restaurar um ponto específico no tempo -->
@@ -427,40 +427,71 @@
                     <p v-if="s.carregandoHistoricoDrive" class="hint">Carregando…</p>
                     <p v-else-if="!s.historicoDrive.length" class="hint">Ainda não há versões anteriores salvas — elas vão aparecer aqui conforme você for usando o app.</p>
                     <div v-else v-for="item in s.historicoDrive" :key="item.id" class="backup-historico-item">
-                      <span><i class="fas fa-file-code"></i> {{ dataHoraBR(item.modifiedTime) }}</span>
+                      <span><i class="fas fa-file-code"></i> {{ dataHoraBR(item.modifiedTime) }}<span v-if="item.fixada" title="Fixada: não é apagada automaticamente"> 📌</span></span>
                       <button class="btn btn-secondary btn-xs" @click="s.restaurarGoogleDriveVersao(item)">Restaurar</button>
                     </div>
-                    <p v-if="!s.carregandoHistoricoDrive && s.historicoDrive.length" class="hint">Guardamos as 5 versões mais recentes e a última de cada dia nos últimos 14 dias.</p>
+                    <p v-if="!s.carregandoHistoricoDrive && s.historicoDrive.length" class="hint">Guardamos as 8 versões mais recentes, a última de cada dia nos últimos 14 dias e a última de cada semana nas últimas 8 semanas. Para não encher a lista com versões quase iguais, uma nova versão só é guardada se a anterior tiver mais de 20 minutos. Versões marcadas com 📌 foram fixadas ao resolver um conflito e não são apagadas sozinhas.</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Cópia local de segurança: salva automaticamente neste
-                 aparelho um instante antes de qualquer sincronização que
-                 traga dados do Drive e sobrescreva o que estava aqui.
-                 É a rede de proteção contra perder algo que foi registrado
-                 localmente mas ainda não tinha sido enviado ao Drive. -->
-            <div v-if="s.snapshotSegurancaTs" class="backup-card seguranca-local">
+            <!-- Cópias locais de segurança: guardadas automaticamente NESTE
+                 aparelho um instante antes de qualquer operação que
+                 sobrescreve os dados (baixar do Drive, restaurar arquivo ou
+                 versão, resolver conflito entre aparelhos). Ficam várias. -->
+            <div v-if="s.snapshotsSeguranca.length" class="backup-card seguranca-local">
               <div class="backup-hdr">
                 <div class="backup-icon warn"><i class="fas fa-shield-halved"></i></div>
                 <div class="backup-info">
-                  <div class="backup-name">Cópia local de segurança</div>
+                  <div class="backup-name">Cópias locais de segurança</div>
                   <div class="backup-status warn">
-                    <span class="dot-status dot-offline"></span> Salva neste aparelho em {{ dataHoraBR(s.snapshotSegurancaTs) }}
+                    <span class="dot-status dot-offline"></span> {{ s.snapshotsSeguranca.length }} cópia(s) neste aparelho
                   </div>
                 </div>
               </div>
               <p class="backup-desc">
-                Guardada automaticamente pouco antes da última vez que este aparelho recebeu dados do Drive — caso alguma alteração feita aqui e ainda não enviada tenha sido substituída. Restaurar troca os dados atuais deste aparelho pelos dessa cópia.
+                Guardadas automaticamente pouco antes de os dados deste aparelho serem substituídos (por uma sincronização com o Drive, uma restauração ou a escolha num conflito entre aparelhos). Restaurar troca os dados atuais pelos dessa cópia — e o estado atual também fica guardado como mais uma cópia.
               </p>
-              <div class="bslot-manual-btns">
-                <button class="btn btn-primary btn-sm" @click="confirmarRestaurarSnapshotSeguranca">
-                  <i class="fas fa-clock-rotate-left"></i> Restaurar essa cópia local
-                </button>
-                <button class="btn btn-secondary btn-sm" @click="s.limparSnapshotSeguranca">
-                  Descartar
-                </button>
+              <div class="backup-historico-lista">
+                <div v-for="snap in s.snapshotsSeguranca" :key="snap.id" class="backup-historico-item">
+                  <span><i class="fas fa-file-shield"></i> {{ dataHoraBR(snap.ts) }}<small v-if="snap.motivo"> · {{ snap.motivo }}</small></span>
+                  <span class="bslot-manual-btns">
+                    <button class="btn btn-secondary btn-xs" @click="confirmarRestaurarSnapshotSeguranca(snap)">Restaurar</button>
+                    <button class="btn btn-secondary btn-xs" title="Descartar esta cópia" @click="s.descartarSnapshotSeguranca(snap.id)"><i class="fas fa-trash"></i></button>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pasta de backup automático: grava um arquivo de verdade numa
+                 pasta do aparelho (fora do navegador), sobrevive a "limpar
+                 dados" e a reinstalar o app. Só em navegadores com acesso a
+                 pastas (Chrome/Edge no computador). -->
+            <div v-if="backupLocal.suportado" class="backup-card local">
+              <div class="backup-hdr">
+                <div class="backup-icon"><i class="fas fa-folder-open"></i></div>
+                <div class="backup-info">
+                  <div class="backup-name">Pasta de backup automático <span class="backup-tag backup-tag--neutro">Neste aparelho</span></div>
+                  <div class="backup-status" v-if="backupLocal.configurada && backupLocal.permissao === 'granted'">
+                    <span class="dot-status dot-online"></span> Gravando em “{{ backupLocal.nome }}”<template v-if="backupLocal.ultimo"> · última vez {{ dataHoraBR(backupLocal.ultimo) }}</template>
+                  </div>
+                  <div class="backup-status warn" v-else-if="backupLocal.configurada">
+                    <span class="dot-status dot-offline"></span> Pasta “{{ backupLocal.nome }}” precisa de autorização de novo
+                  </div>
+                  <div class="backup-status warn" v-else>
+                    <span class="dot-status dot-offline"></span> Nenhuma pasta escolhida
+                  </div>
+                </div>
+              </div>
+              <p class="backup-desc">Depois de alguns segundos de cada alteração, grava uma cópia completa na pasta que você escolher (e guarda versões anteriores nela). Escolha uma pasta fora do navegador, de preferência uma sincronizada com outro lugar (OneDrive, Google Drive para computador, pendrive).</p>
+              <div class="backup-footer">
+                <button v-if="!backupLocal.configurada" class="btn btn-primary btn-sm" @click="escolherPastaLocal">Escolher pasta</button>
+                <template v-else>
+                  <button v-if="backupLocal.permissao !== 'granted'" class="btn btn-primary btn-sm" @click="reautorizarPastaLocal">Autorizar de novo</button>
+                  <button v-else class="btn btn-secondary btn-sm" @click="gravarPastaLocalAgora">Gravar agora</button>
+                  <button class="btn btn-secondary btn-sm" @click="desconectarPastaLocal">Desconectar pasta</button>
+                </template>
               </div>
             </div>
 
@@ -684,6 +715,7 @@ import {
   salvarTaxas 
 } from '../composables/useCaderneta.js'
 import { carregarConfigPublicacao, salvarConfigPublicacao } from '../services/githubPublish.js'
+import { statusBackupLocal, escolherPastaBackupLocal, reautorizarPastaBackupLocal, desconectarPastaBackupLocal } from '../services/localBackup.js'
 import BaseModal from '../components/BaseModal.vue'
 import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
 
@@ -744,14 +776,49 @@ const { preferencia: preferenciaLayout, isDesktop, definirModo: definirModoLayou
 const abaAtiva = ref('perfil')
 const mostrarHistorico = ref(false) // abre/fecha a lista de versões anteriores do Drive
 
-async function confirmarRestaurarSnapshotSeguranca() {
+async function confirmarRestaurarSnapshotSeguranca(snap) {
+  const quando = snap?.ts ? dataHoraBR(snap.ts) : 'essa cópia'
   const ok = await confirmar.ask(
-    'Isso vai substituir os dados atuais deste aparelho pela cópia local salva antes da última sincronização com o Drive. Não pode ser desfeito. Deseja continuar?',
+    `Isso vai substituir os dados atuais deste aparelho pela cópia de ${quando}. O estado atual fica guardado como mais uma cópia, então dá pra desfazer. Deseja continuar?`,
     { title: 'Restaurar cópia local', confirmLabel: 'Restaurar', type: 'warning' }
   )
   if (!ok) return
-  const res = await s.restaurarSnapshotSeguranca()
+  const res = await s.restaurarSnapshotSeguranca(snap?.id)
   if (!res.ok) s.notify?.(res.erro || 'Não foi possível restaurar a cópia local.', 'error')
+}
+
+// ── Pasta de backup automático (File System Access) ──
+const backupLocal = reactive({ suportado: false, configurada: false, nome: null, permissao: null, ultimo: null })
+async function atualizarBackupLocal() {
+  Object.assign(backupLocal, await statusBackupLocal())
+}
+async function escolherPastaLocal() {
+  try {
+    await escolherPastaBackupLocal()
+    await s.salvarBackupLocalAgora({ forcar: true })
+    s.notify?.('Pasta de backup configurada!')
+  } catch (e) {
+    if (e?.name !== 'AbortError') s.notify?.(e?.message || 'Não foi possível configurar a pasta.', 'error')
+  }
+  await atualizarBackupLocal()
+}
+async function reautorizarPastaLocal() {
+  try {
+    await reautorizarPastaBackupLocal()
+    await s.salvarBackupLocalAgora({ forcar: true })
+  } catch (e) {
+    s.notify?.(e?.message || 'Não foi possível autorizar a pasta.', 'error')
+  }
+  await atualizarBackupLocal()
+}
+async function gravarPastaLocalAgora() {
+  await s.salvarBackupLocalAgora({ forcar: true })
+  await atualizarBackupLocal()
+  s.notify?.('Backup gravado na pasta.')
+}
+async function desconectarPastaLocal() {
+  await desconectarPastaBackupLocal()
+  await atualizarBackupLocal()
 }
 const { stripEl: abaStripEl, setTabRef: setAbaRef } = useTabScroll(abaAtiva)
 const menus = [
@@ -816,6 +883,8 @@ function salvarPerfis() {
 watch(abaAtiva, (aba) => {
   if (aba !== 'backup') return
   s.medirTamanhoDados()
+  s.carregarSnapshotsSeguranca()
+  atualizarBackupLocal()
   if (s.googleDriveConfigured) s.carregarHistoricoDrive()
 }, { immediate: true })
 
