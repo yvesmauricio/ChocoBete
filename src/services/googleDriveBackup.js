@@ -27,6 +27,7 @@ const DRIVE_APP_PROPERTY_KEY = 'app'
 const DRIVE_APP_PROPERTY_VALUE = 'ChocoBete'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || ''
 const DRIVE_CONNECTED_KEY = 'ChocoBete-google-drive-connected'
+const DRIVE_CONTA_KEY = 'ChocoBete-google-drive-conta'
 
 // Chave no localStorage para guardar token + expiração
 const TOKEN_CACHE_KEY = 'ChocoBete-gtoken'
@@ -483,8 +484,37 @@ export async function conectarGoogleDriveBackup() {
   await getTokenWithPrompt()
 }
 
+/** Conta Google guardada da última vez que foi consultada (nome + e-mail).
+ *  Serve pra mostrar algo na hora, mesmo offline. */
+export function lerContaGoogleEmCache() {
+  if (!isBrowser()) return null
+  try {
+    const c = JSON.parse(localStorage.getItem(DRIVE_CONTA_KEY) || 'null')
+    return c && (c.nome || c.email) ? c : null
+  } catch { return null }
+}
+
+/** Pergunta ao Drive quem é a conta conectada. O endpoint `about` aceita o
+ *  escopo drive.appdata que já usamos — não precisa pedir permissão nova.
+ *  Se falhar (offline etc.), devolve o que estava guardado. */
+export async function getContaGoogle() {
+  try {
+    ensureConfigured()
+    const res = await driveFetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress)')
+    if (!res.ok) return lerContaGoogleEmCache()
+    const { user } = await res.json()
+    if (!user) return lerContaGoogleEmCache()
+    const conta = { nome: user.displayName || '', email: user.emailAddress || '' }
+    if (isBrowser()) localStorage.setItem(DRIVE_CONTA_KEY, JSON.stringify(conta))
+    return conta
+  } catch {
+    return lerContaGoogleEmCache()
+  }
+}
+
 export async function desconectarGoogleDriveBackup() {
   ensureBrowserSupport()
+  if (isBrowser()) localStorage.removeItem(DRIVE_CONTA_KEY)
   const token = accessToken
   accessToken = null
   tokenExpiresAt = 0

@@ -11,6 +11,8 @@ import {
   restaurarBackupDoDriveComInfo,
   listarHistoricoDrive,
   getInfoBackupDrive,
+  getContaGoogle,
+  lerContaGoogleEmCache,
   restaurarVersaoHistoricoDrive
 } from './services/googleDriveBackup.js'
 import { isProdutoEmbalagem, normalizar, getMesRef, dataHoraBR } from './utils.js'
@@ -250,6 +252,7 @@ export const useStore = defineStore('choco', () => {
   const MANUAL_TS_KEY = 'ChocoBete-backup-manual-ts'
   const ultimoSyncTs = ref(null)
   const backupManualTs = ref((() => { try { return localStorage.getItem(MANUAL_TS_KEY) } catch { return null } })())
+  const contaGoogle = ref(lerContaGoogleEmCache())   // { nome, email } da conta conectada
   const infoBackupDrive = ref(null)        // { modifiedTime, tamanhoPrincipal, versoes, tamanhoTotal }
   const tamanhoDadosBytes = ref(null)      // tamanho do backup gerado agora, em bytes
 
@@ -1846,6 +1849,11 @@ export const useStore = defineStore('choco', () => {
   }
 
   // ── PRODUÇÕES ─────────────────────────────
+  async function carregarContaGoogle() {
+    if (!googleDriveConfigured.value) { contaGoogle.value = null; return }
+    contaGoogle.value = await getContaGoogle()
+  }
+
   async function conectarGoogleDrive() {
     if (!googleDriveAvailable.value) {
       notify('Drive não configurado', 'error')
@@ -1857,6 +1865,7 @@ export const useStore = defineStore('choco', () => {
       notify('Google Drive conectado!')
       await iniciarSync()
       carregarHistoricoDrive() // em segundo plano — não trava a conexão se demorar
+      carregarContaGoogle()
     } catch (error) {
       console.error(error)
       notify('Não foi possível conectar o Google Drive', 'error')
@@ -1875,6 +1884,7 @@ export const useStore = defineStore('choco', () => {
       console.error(error)
     } finally {
       googleDriveConnected.value = false
+      contaGoogle.value = null
       syncStatus.value = 'idle'
       historicoDrive.value = []
       notify('Google Drive desconectado')
@@ -3498,7 +3508,7 @@ async function registrarProducaoFantasma(dados) {
     resolverConflitoSync, dadosVersao, salvarBackupLocalAgora,
     bancoVazio, recuperandoDados, suportaPastaBackupLocal,
     recuperarDeGoogleDrive, recuperarDaPastaLocal, recuperarDeArquivoLocal,
-    conectarGoogleDrive, desconectarGoogleDrive,
+    conectarGoogleDrive, desconectarGoogleDrive, contaGoogle, carregarContaGoogle,
     syncStatus, iniciarSync, syncImediato, agendarSync,
 
     // Analytics e Resumos

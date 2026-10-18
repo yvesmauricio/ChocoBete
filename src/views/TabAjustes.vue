@@ -345,209 +345,161 @@
         </div>
       </section>
 
-      <!-- ── SEÇÃO: BACKUP E SEGURANÇA ── -->
+      <!-- ── SEÇÃO: BACKUP ── -->
       <section v-if="abaAtiva === 'backup'" class="sheet-card fade-in">
         <div class="sheet-body">
           <div class="section-label"><i class="fas fa-cloud-arrow-up"></i> Backup</div>
-          <p class="hint mb-16">Seus dados ficam salvos no aparelho e funcionam sem internet. As opções abaixo são pra levar esses dados pra outro dispositivo ou ter uma cópia de segurança.</p>
 
-          <!-- Saúde do backup: tamanho dos dados e situação da cópia no Drive -->
-          <div class="backup-saude">
-            <div class="backup-saude-linha">
-              <i class="fas fa-database"></i>
-              <span>Tamanho dos seus dados: <strong>{{ s.tamanhoDadosBytes != null ? formatarBytes(s.tamanhoDadosBytes) : 'calculando…' }}</strong></span>
+          <!-- 1. Resumo: uma olhada e já sabe se está tudo certo -->
+          <div class="bk-resumo" :class="`bk-resumo--${statusBackup}`">
+            <div class="bk-resumo-icone">
+              <i :class="statusBackup === 'ok' ? 'fas fa-circle-check' : statusBackup === 'warn' ? 'fas fa-triangle-exclamation' : 'fas fa-cloud-slash'"></i>
             </div>
-            <template v-if="s.googleDriveConfigured">
-              <div class="backup-saude-linha">
-                <i class="fas fa-cloud"></i>
-                <span v-if="s.infoBackupDrive">Último backup no Drive: <strong>{{ dataHoraBR(s.infoBackupDrive.modifiedTime) }}</strong> · {{ formatarBytes(s.infoBackupDrive.tamanhoPrincipal) }}</span>
-                <span v-else>Último backup no Drive: <strong>—</strong></span>
-              </div>
-              <div v-if="s.infoBackupDrive" class="backup-saude-linha">
-                <i class="fas fa-clock-rotate-left"></i>
-                <span>{{ s.infoBackupDrive.versoes }} versão(ões) anterior(es) · {{ formatarBytes(s.infoBackupDrive.tamanhoTotal) }} no Drive no total</span>
-              </div>
-            </template>
-            <div v-if="s.alertaBackup" class="backup-saude-alerta">
-              <i class="fas fa-triangle-exclamation"></i> {{ s.alertaBackup.msg }}
+            <div class="bk-resumo-txt">
+              <strong v-if="statusBackup === 'ok'">Seus dados estão protegidos</strong>
+              <strong v-else-if="statusBackup === 'warn'">Atenção ao backup</strong>
+              <strong v-else>Backup no Drive desligado</strong>
+              <span v-if="statusBackup === 'warn'">{{ s.alertaBackup.msg }}</span>
+              <span v-else-if="s.googleDriveConfigured && s.infoBackupDrive">Último backup: {{ dataHoraBR(s.infoBackupDrive.modifiedTime) }}</span>
+              <span v-else-if="!s.googleDriveConfigured">Conecte o Google Drive para não perder seus dados.</span>
+              <span v-else>Ainda sem backup no Drive.</span>
             </div>
           </div>
 
-          <div class="backup-stack">
-            <!-- Google Drive: sincronização contínua entre dispositivos -->
-            <div class="backup-card" :class="{ 'is-connected': s.googleDriveConfigured }">
-              <div class="backup-hdr">
-                <div class="backup-icon">
-                  <i class="fab fa-google-drive"></i>
-                </div>
-                <div class="backup-info">
-                  <div class="backup-name">Google Drive <span class="backup-tag">Sincronização</span></div>
-                  <div class="backup-status" v-if="s.googleDriveConfigured">
-                    <span class="dot-status dot-online"></span> Conectado
-                  </div>
-                  <div class="backup-status warn" v-else>
+          <!-- 2. Google Drive: o principal -->
+          <div class="bk-bloco">
+            <div class="bk-linha">
+              <div class="bk-icone" :class="{ 'is-on': s.googleDriveConfigured }"><i class="fab fa-google-drive"></i></div>
+              <div class="bk-info">
+                <div class="bk-titulo">Google Drive</div>
+                <div class="bk-sub">
+                  <template v-if="s.googleDriveConfigured">
+                    <span class="dot-status dot-online"></span> Conectado · sincroniza sozinho
+                  </template>
+                  <template v-else>
                     <span class="dot-status dot-offline"></span> Desconectado
-                  </div>
+                  </template>
                 </div>
-                <div class="backup-action-main">
-                  <button v-if="!s.googleDriveConfigured" class="btn btn-primary btn-sm" @click="s.conectarGoogleDrive">
-                    Conectar
-                  </button>
-                  <button v-else class="btn-icon-sm danger" title="Desconectar" @click="s.desconectarGoogleDrive">
-                    <i class="fas fa-sign-out-alt"></i>
-                  </button>
+                <div v-if="s.googleDriveConfigured && s.contaGoogle" class="bk-conta" :title="s.contaGoogle.email">
+                  <i class="fas fa-user"></i>
+                  <span class="bk-conta-nome">{{ s.contaGoogle.nome || s.contaGoogle.email }}</span>
+                  <span v-if="s.contaGoogle.nome && s.contaGoogle.email" class="bk-conta-email">{{ s.contaGoogle.email }}</span>
                 </div>
               </div>
-              <p class="backup-desc">Mantém uma cópia sempre atualizada na sua conta Google — é o que permite abrir o app em outro celular/computador com os mesmos dados.</p>
-
-              <div class="backup-divider" v-if="s.googleDriveConfigured"></div>
-
-              <div v-if="s.googleDriveConfigured" class="backup-slots">
-                <div class="bslot-manual-btns">
-                  <button class="btn btn-primary btn-sm" @click="s.backupGoogleDrive">
-                    <i class="fas fa-cloud-arrow-up"></i> Salvar agora
-                  </button>
-                  <button class="btn btn-secondary btn-sm" @click="s.restaurarGoogleDrive">
-                    <i class="fas fa-cloud-arrow-down"></i> Restaurar mais recente
-                  </button>
-                </div>
-                <div class="bslot-sync-hint">
-                  <i class="fas fa-mobile-screen"></i>
-                  A sincronização é automática: ao abrir o app, ao voltar a ele e a cada alteração, ele confere o Drive. Se dois aparelhos mudaram dados ao mesmo tempo, <strong>o app junta o trabalho dos dois</strong> (só um mesmo campo editado nos dois lados fica com a versão mais recente). <strong>Restaurar mais recente</strong> é o botão forte: troca tudo deste aparelho pelo que está no Drive (uma cópia de segurança fica guardada).
-                </div>
-
-                <!-- Histórico de versões anteriores — restaurar um ponto específico no tempo -->
-                <div class="backup-historico">
-                  <button class="backup-historico-toggle" @click="mostrarHistorico = !mostrarHistorico">
-                    <i class="fas fa-clock-rotate-left"></i>
-                    Versões anteriores
-                    <i class="fas fa-chevron-down backup-historico-seta" :class="{ 'is-aberta': mostrarHistorico }"></i>
-                  </button>
-                  <div v-if="mostrarHistorico" class="backup-historico-lista">
-                    <p v-if="s.carregandoHistoricoDrive" class="hint">Carregando…</p>
-                    <p v-else-if="!s.historicoDrive.length" class="hint">Ainda não há versões anteriores salvas — elas vão aparecer aqui conforme você for usando o app.</p>
-                    <div v-else v-for="item in s.historicoDrive" :key="item.id" class="backup-historico-item">
-                      <span><i class="fas fa-file-code"></i> {{ dataHoraBR(item.modifiedTime) }}<span v-if="item.fixada" title="Fixada: não é apagada automaticamente"> 📌</span></span>
-                      <button class="btn btn-secondary btn-xs" @click="s.restaurarGoogleDriveVersao(item)">Restaurar</button>
-                    </div>
-                    <p v-if="!s.carregandoHistoricoDrive && s.historicoDrive.length" class="hint">Guardamos as 8 versões mais recentes, a última de cada dia nos últimos 14 dias e a última de cada semana nas últimas 8 semanas. Para não encher a lista com versões quase iguais, uma nova versão só é guardada se a anterior tiver mais de 20 minutos. Versões marcadas com 📌 foram fixadas ao resolver um conflito e não são apagadas sozinhas.</p>
-                  </div>
-                </div>
-              </div>
+              <button v-if="!s.googleDriveConfigured" class="btn btn-primary btn-sm" @click="s.conectarGoogleDrive">Conectar</button>
+              <button v-else class="btn-icon-sm danger" title="Desconectar" @click="s.desconectarGoogleDrive">
+                <i class="fas fa-sign-out-alt"></i>
+              </button>
             </div>
 
-            <!-- Cópias locais de segurança: guardadas automaticamente NESTE
-                 aparelho um instante antes de qualquer operação que
-                 sobrescreve os dados (baixar do Drive, restaurar arquivo ou
-                 versão, resolver conflito entre aparelhos). Ficam várias. -->
-            <div v-if="s.snapshotsSeguranca.length" class="backup-card seguranca-local">
-              <div class="backup-hdr">
-                <div class="backup-icon warn"><i class="fas fa-shield-halved"></i></div>
-                <div class="backup-info">
-                  <div class="backup-name">Cópias locais de segurança</div>
-                  <div class="backup-status warn">
-                    <span class="dot-status dot-offline"></span> {{ s.snapshotsSeguranca.length }} cópia(s) neste aparelho
-                  </div>
-                </div>
-              </div>
-              <p class="backup-desc">
-                Guardadas automaticamente pouco antes de os dados deste aparelho serem substituídos (por uma sincronização com o Drive, uma restauração ou a escolha num conflito entre aparelhos). Restaurar troca os dados atuais pelos dessa cópia — e o estado atual também fica guardado como mais uma cópia.
-              </p>
-              <div class="backup-historico-lista">
-                <div v-for="snap in s.snapshotsSeguranca" :key="snap.id" class="backup-historico-item">
-                  <span><i class="fas fa-file-shield"></i> {{ dataHoraBR(snap.ts) }}<small v-if="snap.motivo"> · {{ snap.motivo }}</small></span>
-                  <span class="bslot-manual-btns">
-                    <button class="btn btn-secondary btn-xs" @click="confirmarRestaurarSnapshotSeguranca(snap)">Restaurar</button>
-                    <button class="btn btn-secondary btn-xs" title="Descartar esta cópia" @click="s.descartarSnapshotSeguranca(snap.id)"><i class="fas fa-trash"></i></button>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Pasta de backup automático: grava um arquivo de verdade numa
-                 pasta do aparelho (fora do navegador), sobrevive a "limpar
-                 dados" e a reinstalar o app. Só em navegadores com acesso a
-                 pastas (Chrome/Edge no computador). -->
-            <div v-if="backupLocal.suportado" class="backup-card local">
-              <div class="backup-hdr">
-                <div class="backup-icon"><i class="fas fa-folder-open"></i></div>
-                <div class="backup-info">
-                  <div class="backup-name">Pasta de backup automático <span class="backup-tag backup-tag--neutro">Neste aparelho</span></div>
-                  <div class="backup-status" v-if="backupLocal.configurada && backupLocal.permissao === 'granted'">
-                    <span class="dot-status dot-online"></span> Gravando em “{{ backupLocal.nome }}”<template v-if="backupLocal.ultimo"> · última vez {{ dataHoraBR(backupLocal.ultimo) }}</template>
-                  </div>
-                  <div class="backup-status warn" v-else-if="backupLocal.configurada">
-                    <span class="dot-status dot-offline"></span> Pasta “{{ backupLocal.nome }}” precisa de autorização de novo
-                  </div>
-                  <div class="backup-status warn" v-else>
-                    <span class="dot-status dot-offline"></span> Nenhuma pasta escolhida
-                  </div>
-                </div>
-              </div>
-              <p class="backup-desc">Depois de alguns segundos de cada alteração, grava uma cópia completa na pasta que você escolher (e guarda versões anteriores nela). Escolha uma pasta fora do navegador, de preferência uma sincronizada com outro lugar (OneDrive, Google Drive para computador, pendrive).</p>
-              <div class="backup-footer">
-                <button v-if="!backupLocal.configurada" class="btn btn-primary btn-sm" @click="escolherPastaLocal">Escolher pasta</button>
-                <template v-else>
-                  <button v-if="backupLocal.permissao !== 'granted'" class="btn btn-primary btn-sm" @click="reautorizarPastaLocal">Autorizar de novo</button>
-                  <button v-else class="btn btn-secondary btn-sm" @click="gravarPastaLocalAgora">Gravar agora</button>
-                  <button class="btn btn-secondary btn-sm" @click="desconectarPastaLocal">Desconectar pasta</button>
-                </template>
-              </div>
-            </div>
-
-            <!-- Backup local JSON: retrato pontual, independente da conta Google -->
-            <div class="backup-card local">
-              <div class="backup-btns">
-                <div class="backup-icon"><i class="fas fa-file-code"></i></div>
-                <div class="backup-info">
-                  <div class="backup-name">Arquivo Local <span class="backup-tag backup-tag--neutro">Backup manual</span></div>
-                  <div class="backup-status">Baixa um retrato de agora em .json</div>
-                </div>
-              </div>
-              <p class="backup-desc">Não depende de internet nem de conta Google — guarde esse arquivo em algum lugar seguro (e-mail pra você mesma, pendrive) como uma segunda camada de segurança, além do Drive.</p>
-              <div class="backup-footer">
-                <button class="btn btn-secondary btn-sm" @click="s.backupGeral">Exportar dados</button>
-                <label class="btn btn-secondary btn-sm">
-                  Importar arquivo
-                  <input type="file" hidden accept=".json" @change="e => { s.restaurarGeral(e.target.files[0]); e.target.value = '' }" />
-                </label>
-              </div>
-            </div>
-
-            <!-- Publicação do Cardápio Interativo (GitHub + Cloudflare) -->
-            <div class="backup-card local">
-              <div class="backup-btns">
-                <div class="backup-icon"><i class="fab fa-github"></i></div>
-                <div class="backup-info">
-                  <div class="backup-name">Link do Cardápio Interativo</div>
-                  <div class="backup-status">Publica o cardápio num link fixo, em vez de enviar o arquivo .html</div>
-                </div>
-              </div>
-              <div class="form-grid mt-12">
-                <div class="fg">
-                  <label class="label">Token do GitHub (fine-grained, só Contents: Read/Write)</label>
-                  <input v-model="pub.token" class="input" type="password" placeholder="github_pat_..." />
-                </div>
-                <!-- Repositório, branch e domínio publicado agora vêm fixos do .env
-                     (VITE_GH_OWNER / VITE_GH_REPO / VITE_GH_BRANCH / VITE_GH_DOMINIO).
-                     Não são segredo, mas mudar exige editar o .env e rebuildar o app. -->
-                <p v-if="pub.owner && pub.repo" class="hint">
-                  Publicando em <strong>{{ pub.owner }}/{{ pub.repo }}</strong> (branch <strong>{{ pub.branch }}</strong>)
-                  → <strong>{{ pub.dominio || 'domínio não definido' }}</strong>.
-                  Pra mudar, edite o <code>.env</code> e gere um novo build.
-                </p>
-                <p v-else class="hint" style="color: var(--danger, #c0392b)">
-                  Repositório/domínio não configurados no <code>.env</code> (VITE_GH_OWNER, VITE_GH_REPO,
-                  VITE_GH_BRANCH, VITE_GH_DOMINIO). Preencha e gere um novo build antes de publicar.
-                </p>
-              </div>
-              <div class="backup-footer">
-                <button class="btn btn-secondary btn-sm" @click="salvarPublicacao">
-                  <i class="fas fa-save"></i> Salvar configuração
+            <template v-if="s.googleDriveConfigured">
+              <div class="bk-acoes">
+                <button class="btn btn-primary btn-sm" @click="s.backupGoogleDrive">
+                  <i class="fas fa-cloud-arrow-up"></i> Salvar agora
+                </button>
+                <button class="btn btn-secondary btn-sm" @click="s.restaurarGoogleDrive">
+                  <i class="fas fa-cloud-arrow-down"></i> Restaurar
                 </button>
               </div>
+
+              <details class="bk-mais">
+                <summary>Como funciona</summary>
+                <p>A sincronização é automática: ao abrir o app, ao voltar a ele e a cada alteração. Se dois aparelhos mudarem dados ao mesmo tempo, o app junta o trabalho dos dois.</p>
+                <p><strong>Restaurar</strong> troca tudo deste aparelho pelo que está no Drive. Uma cópia de segurança do estado atual fica guardada.</p>
+              </details>
+
+              <details class="bk-mais" @toggle="mostrarHistorico = $event.target.open">
+                <summary>
+                  Versões anteriores
+                  <span v-if="s.infoBackupDrive" class="bk-badge">{{ s.infoBackupDrive.versoes }}</span>
+                </summary>
+                <p v-if="s.carregandoHistoricoDrive" class="hint">Carregando…</p>
+                <p v-else-if="!s.historicoDrive.length" class="hint">Ainda não há versões anteriores. Elas aparecem aqui conforme você usa o app.</p>
+                <template v-else>
+                  <div v-for="item in s.historicoDrive" :key="item.id" class="backup-historico-item">
+                    <span><i class="fas fa-file-code"></i> {{ dataHoraBR(item.modifiedTime) }}<span v-if="item.fixada" title="Fixada: não é apagada automaticamente"> 📌</span></span>
+                    <button class="btn btn-secondary btn-xs" @click="s.restaurarGoogleDriveVersao(item)">Restaurar</button>
+                  </div>
+                  <p class="hint">Guardamos as 8 mais recentes, a última de cada dia (14 dias) e a última de cada semana (8 semanas). 📌 = fixada ao resolver um conflito, nunca é apagada sozinha.</p>
+                </template>
+              </details>
+            </template>
+          </div>
+
+          <!-- 3. Cópia em arquivo (manual) -->
+          <div class="bk-bloco">
+            <div class="bk-linha">
+              <div class="bk-icone"><i class="fas fa-file-code"></i></div>
+              <div class="bk-info">
+                <div class="bk-titulo">Arquivo no aparelho</div>
+                <div class="bk-sub">Funciona sem internet e sem conta Google</div>
+              </div>
+            </div>
+            <div class="bk-acoes">
+              <button class="btn btn-secondary btn-sm" @click="s.backupGeral">
+                <i class="fas fa-download"></i> Exportar
+              </button>
+              <label class="btn btn-secondary btn-sm">
+                <i class="fas fa-upload"></i> Importar
+                <input type="file" hidden accept=".json" @change="e => { s.restaurarGeral(e.target.files[0]); e.target.value = '' }" />
+              </label>
             </div>
           </div>
+
+          <!-- 4. Pasta automática (só Chrome/Edge no computador) -->
+          <div v-if="backupLocal.suportado" class="bk-bloco">
+            <div class="bk-linha">
+              <div class="bk-icone" :class="{ 'is-on': backupLocal.configurada && backupLocal.permissao === 'granted' }"><i class="fas fa-folder-open"></i></div>
+              <div class="bk-info">
+                <div class="bk-titulo">Pasta automática</div>
+                <div class="bk-sub" v-if="backupLocal.configurada && backupLocal.permissao === 'granted'">
+                  <span class="dot-status dot-online"></span> “{{ backupLocal.nome }}”<template v-if="backupLocal.ultimo"> · {{ dataHoraBR(backupLocal.ultimo) }}</template>
+                </div>
+                <div class="bk-sub" v-else-if="backupLocal.configurada">
+                  <span class="dot-status dot-offline"></span> “{{ backupLocal.nome }}” precisa de autorização
+                </div>
+                <div class="bk-sub" v-else>
+                  <span class="dot-status dot-offline"></span> Nenhuma pasta escolhida
+                </div>
+              </div>
+            </div>
+            <div class="bk-acoes">
+              <button v-if="!backupLocal.configurada" class="btn btn-primary btn-sm" @click="escolherPastaLocal">Escolher pasta</button>
+              <template v-else>
+                <button v-if="backupLocal.permissao !== 'granted'" class="btn btn-primary btn-sm" @click="reautorizarPastaLocal">Autorizar de novo</button>
+                <button v-else class="btn btn-secondary btn-sm" @click="gravarPastaLocalAgora">Gravar agora</button>
+                <button class="btn btn-secondary btn-sm" @click="desconectarPastaLocal">Desconectar</button>
+              </template>
+            </div>
+            <details class="bk-mais">
+              <summary>Como funciona</summary>
+              <p>Alguns segundos depois de cada alteração, grava uma cópia completa na pasta escolhida. Prefira uma pasta sincronizada com outro lugar (OneDrive, Google Drive para computador, pendrive).</p>
+            </details>
+          </div>
+
+          <!-- 5. Cópias de segurança automáticas (só aparece se existirem) -->
+          <div v-if="s.snapshotsSeguranca.length" class="bk-bloco bk-bloco--aviso">
+            <details class="bk-mais bk-mais--solto">
+              <summary>
+                <i class="fas fa-shield-halved"></i> Cópias de segurança deste aparelho
+                <span class="bk-badge">{{ s.snapshotsSeguranca.length }}</span>
+              </summary>
+              <p>Guardadas automaticamente antes de os dados serem substituídos (sincronização, restauração ou conflito entre aparelhos). Restaurar troca os dados atuais pelos da cópia, e o estado atual também fica guardado.</p>
+              <div v-for="snap in s.snapshotsSeguranca" :key="snap.id" class="backup-historico-item">
+                <span><i class="fas fa-file-shield"></i> {{ dataHoraBR(snap.ts) }}<small v-if="snap.motivo"> · {{ snap.motivo }}</small></span>
+                <span class="bslot-manual-btns">
+                  <button class="btn btn-secondary btn-xs" @click="confirmarRestaurarSnapshotSeguranca(snap)">Restaurar</button>
+                  <button class="btn btn-secondary btn-xs" title="Descartar esta cópia" @click="s.descartarSnapshotSeguranca(snap.id)"><i class="fas fa-trash"></i></button>
+                </span>
+              </div>
+            </details>
+          </div>
+
+          <p class="bk-rodape">
+            <i class="fas fa-database"></i>
+            Tamanho dos dados: {{ s.tamanhoDadosBytes != null ? formatarBytes(s.tamanhoDadosBytes) : 'calculando…' }}
+            <template v-if="s.googleDriveConfigured && s.infoBackupDrive"> · {{ formatarBytes(s.infoBackupDrive.tamanhoTotal) }} no Drive</template>
+          </p>
         </div>
       </section>
 
@@ -602,6 +554,32 @@
               <i class="fas fa-save"></i> Salvar
             </button>
           </div>
+
+          <!-- Publicação do Cardápio Interativo (GitHub + Cloudflare) -->
+          <details class="bk-bloco bk-mais bk-mais--solto mt-24">
+            <summary><i class="fab fa-github"></i> Link do Cardápio Interativo</summary>
+            <p>Publica o cardápio num link fixo, em vez de enviar o arquivo .html.</p>
+            <div class="form-grid mt-12">
+              <div class="fg">
+                <label class="label">Token do GitHub (fine-grained, só Contents: Read/Write)</label>
+                <input v-model="pub.token" class="input" type="password" placeholder="github_pat_..." />
+              </div>
+              <p v-if="pub.owner && pub.repo" class="hint">
+                Publicando em <strong>{{ pub.owner }}/{{ pub.repo }}</strong> (branch <strong>{{ pub.branch }}</strong>)
+                → <strong>{{ pub.dominio || 'domínio não definido' }}</strong>.
+                Pra mudar, edite o <code>.env</code> e gere um novo build.
+              </p>
+              <p v-else class="hint" style="color: var(--danger, #c0392b)">
+                Repositório/domínio não configurados no <code>.env</code> (VITE_GH_OWNER, VITE_GH_REPO,
+                VITE_GH_BRANCH, VITE_GH_DOMINIO). Preencha e gere um novo build antes de publicar.
+              </p>
+            </div>
+            <div class="backup-footer mt-12">
+              <button class="btn btn-secondary btn-sm" @click="salvarPublicacao">
+                <i class="fas fa-save"></i> Salvar configuração
+              </button>
+            </div>
+          </details>
 
           <div class="maintenance-zone mt-24">
             <p class="section-label-sm">Manutenção de Dados</p>
@@ -775,6 +753,8 @@ watch(() => s.company, (novoValor) => {
 const { preferencia: preferenciaLayout, isDesktop, definirModo: definirModoLayout } = useLayoutMode()
 const abaAtiva = ref('perfil')
 const mostrarHistorico = ref(false) // abre/fecha a lista de versões anteriores do Drive
+// Estado geral do backup: 'ok' (Drive ligado e em dia), 'warn' (Drive ligado com alerta) ou 'off'
+const statusBackup = computed(() => !s.googleDriveConfigured ? 'off' : (s.alertaBackup ? 'warn' : 'ok'))
 
 async function confirmarRestaurarSnapshotSeguranca(snap) {
   const quando = snap?.ts ? dataHoraBR(snap.ts) : 'essa cópia'
@@ -885,7 +865,7 @@ watch(abaAtiva, (aba) => {
   s.medirTamanhoDados()
   s.carregarSnapshotsSeguranca()
   atualizarBackupLocal()
-  if (s.googleDriveConfigured) s.carregarHistoricoDrive()
+  if (s.googleDriveConfigured) { s.carregarHistoricoDrive(); s.carregarContaGoogle() }
 }, { immediate: true })
 
 // ── Gerenciamento de Contas ──
@@ -1254,4 +1234,46 @@ async function zerarDados() {
 .backup-saude-linha { display: flex; align-items: center; gap: 8px; color: var(--text); }
 .backup-saude-linha i { width: 16px; text-align: center; color: var(--muted); }
 .backup-saude-alerta { display: flex; align-items: center; gap: 8px; margin-top: 2px; padding: 8px 10px; border-radius: 8px; background: rgba(217,119,6,.12); color: #b45309; font-weight: 700; }
+
+/* ── Backup (versão simplificada) ── */
+.bk-resumo { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: var(--r-lg); margin: 4px 0 14px; border: 1.5px solid var(--border); background: var(--bg); }
+.bk-resumo--ok   { background: var(--green-bg); border-color: var(--green); }
+.bk-resumo--warn { background: var(--gold-bg);  border-color: var(--gold); }
+.bk-resumo-icone { font-size: 1.6rem; color: var(--muted); }
+.bk-resumo--ok .bk-resumo-icone   { color: var(--green); }
+.bk-resumo--warn .bk-resumo-icone { color: var(--gold-dark, #b45309); }
+.bk-resumo-txt { display: flex; flex-direction: column; gap: 2px; }
+.bk-resumo-txt strong { font-size: .95rem; color: var(--brown-dark); }
+.bk-resumo-txt span { font-size: .74rem; color: var(--muted); font-weight: 600; }
+
+.bk-bloco { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-lg); padding: 14px; margin-bottom: 10px; }
+.bk-bloco--aviso { border-color: var(--gold); background: var(--gold-bg); }
+.bk-linha { display: flex; align-items: center; gap: 12px; }
+.bk-icone { width: 40px; height: 40px; border-radius: 12px; background: var(--bg); color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+.bk-icone.is-on { background: var(--green); color: #fff; }
+.bk-info { flex: 1; min-width: 0; }
+.bk-titulo { font-weight: 800; color: var(--brown-dark); font-size: .95rem; }
+.bk-sub { font-size: .72rem; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+.bk-acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.bk-acoes .btn { flex: 1; min-width: 110px; font-size: .76rem; }
+
+.bk-mais { margin-top: 8px; border-top: 1px dashed var(--border); }
+.bk-mais > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 2px; font-size: .76rem; font-weight: 700; color: var(--brown-mid); }
+.bk-mais > summary::-webkit-details-marker { display: none; }
+.bk-mais > summary::after { content: '\f078'; font-family: 'Font Awesome 6 Free', 'Font Awesome 5 Free'; font-weight: 900; font-size: .65rem; margin-left: auto; transition: transform .2s ease; }
+.bk-mais[open] > summary::after { transform: rotate(180deg); }
+.bk-mais > p { font-size: .72rem; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
+.bk-mais .backup-historico-item { margin-bottom: 6px; }
+.bk-mais--solto { border-top: none; margin-top: 0; }
+.bk-mais--solto > summary { padding-top: 0; padding-bottom: 0; font-size: .85rem; }
+.bk-mais--solto[open] > summary { padding-bottom: 8px; }
+.bk-badge { background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; font-size: .65rem; color: var(--muted); }
+
+.bk-rodape { text-align: center; font-size: .68rem; color: var(--muted); font-weight: 600; margin-top: 12px; }
+.bk-rodape i { margin-right: 4px; }
+
+.bk-conta { display: flex; flex-direction: column; margin-top: 4px; font-size: .74rem; line-height: 1.3; min-width: 0; }
+.bk-conta i { display: none; }
+.bk-conta-nome { font-weight: 800; color: var(--brown-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk-conta-email { color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
