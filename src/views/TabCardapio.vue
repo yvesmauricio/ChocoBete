@@ -990,6 +990,7 @@ async function onMensagemJanela(event) {
   const pedido = event.data.pedido
   try {
     await salvarPedidoCardapio(pedido)
+    sincronizarDepois(true)
     s.notify?.(`Pedido de ${pedido.clienteNome || 'balcão'} salvo!`, 'success')
     if (pedidosPainelAberto.value) await carregarPedidosSalvos()
   } catch {
@@ -1047,6 +1048,7 @@ async function confirmarAgendamento(pedido) {
   pedido.agendadoPara = dataAgendamentoEdicao.value
   pedido.horaAgendada = hora
   await atualizarStatusPedidoCardapio(pedido.uuid, 'agendado', { agendadoPara: dataAgendamentoEdicao.value, horaAgendada: hora })
+  sincronizarDepois(true)
   cancelarEdicaoAgendamento()
 }
 
@@ -1055,6 +1057,7 @@ async function desmarcarAgendamento(pedido) {
   pedido.agendadoPara = null
   pedido.horaAgendada = null
   await atualizarStatusPedidoCardapio(pedido.uuid, 'pendente', { agendadoPara: null, horaAgendada: null })
+  sincronizarDepois(true)
 }
 
 // Marca como entregue/retirado — não mexe na data/hora combinada, só no
@@ -1062,6 +1065,7 @@ async function desmarcarAgendamento(pedido) {
 async function marcarEntregue(pedido) {
   pedido.status = 'entregue' // otimista
   await atualizarStatusPedidoCardapio(pedido.uuid, 'entregue')
+  sincronizarDepois(true)
 }
 
 // Reabre um pedido marcado como entregue por engano — volta pra "agendado"
@@ -1070,11 +1074,13 @@ async function reabrirPedido(pedido) {
   const novoStatus = pedido.agendadoPara ? 'agendado' : 'pendente'
   pedido.status = novoStatus // otimista
   await atualizarStatusPedidoCardapio(pedido.uuid, novoStatus)
+  sincronizarDepois(true)
 }
 
 async function removerPedido(pedido) {
   if (!confirm(`Remover o pedido de ${pedido.clienteNome || 'balcão'}?`)) return
   await excluirPedidoCardapio(pedido.uuid)
+  sincronizarDepois(true)
   pedidosSalvos.value = pedidosSalvos.value.filter(p => p.uuid !== pedido.uuid)
 }
 
@@ -1335,6 +1341,28 @@ async function abrirHistoricoPreco(r) {
   }
 }
 
+// ── Sincronização com o Drive ────────────────────────────────────────────
+// O cardápio grava direto no banco local (db.js), sem passar pela store —
+// então a store nunca ficava sabendo que havia alteração pendente e o app
+// não enviava nada ao Drive (e o próximo sync só baixava). Depois de cada
+// gravação avisamos a store (agendarSync marca "pendente") e disparamos o
+// envio: com pequena espera nas edições em sequência (digitação), e na hora
+// nas ações pontuais (pedido, sair da tela).
+let syncTimer = null
+function sincronizarDepois(imediato = false) {
+  s.agendarSync?.()
+  clearTimeout(syncTimer)
+  if (imediato) {
+    syncTimer = null
+    s.syncImediato?.()
+    return
+  }
+  syncTimer = setTimeout(() => { syncTimer = null; s.syncImediato?.() }, 3000)
+}
+onUnmounted(() => {
+  if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; s.syncImediato?.() }
+})
+
 let salvando = null
 
 function salvar() {
@@ -1342,15 +1370,20 @@ function salvar() {
   const idAlvo = cardapioAtivo.value
   const configCopia = JSON.parse(JSON.stringify(config))
   salvando = setTimeout(async () => {
+    salvando = null
     await salvarConfigCardapio(idAlvo, configCopia)
+    sincronizarDepois()
   }, 250)
 }
 
 async function flushSalvar() {
+  const haviaEdicaoPendente = salvando !== null
   clearTimeout(salvando)
+  salvando = null
   const idAlvo = cardapioAtivo.value
   const configCopia = JSON.parse(JSON.stringify(config))
   await salvarConfigCardapio(idAlvo, configCopia)
+  if (haviaEdicaoPendente || syncTimer) sincronizarDepois(true)
 }
 
 async function carregarCardapioAtivo() {
@@ -1411,6 +1444,7 @@ async function definirAbaPadrao(id) {
   if (id === abaPadrao.value) return
   abaPadrao.value = id
   await salvarAbaPadraoCardapio(id)
+  sincronizarDepois()
 }
 
 function categoriaMinimo(nomeCategoria) {

@@ -3499,7 +3499,7 @@ async function registrarProducaoFantasma(dados) {
     bancoVazio, recuperandoDados, suportaPastaBackupLocal,
     recuperarDeGoogleDrive, recuperarDaPastaLocal, recuperarDeArquivoLocal,
     conectarGoogleDrive, desconectarGoogleDrive,
-    syncStatus, iniciarSync, syncImediato,
+    syncStatus, iniciarSync, syncImediato, agendarSync,
 
     // Analytics e Resumos
     resumoFinanceiroPorMes, totalRecebidoAnoAtual, relatorioMensalMei,
