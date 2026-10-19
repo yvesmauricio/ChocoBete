@@ -3833,18 +3833,22 @@ onMounted(async () => {
    na tela (Fiado, Cobranças, Cardápio, Pedidos, Calculadora), deixando o
    topo livre pro QR de cobrança. Mesmo padrão visual do AppNav do Yves. */
 .cad-bottom-nav {
-  display: flex; flex-shrink: 0; background: var(--surface);
-  border-top: 1px solid var(--border); box-shadow: 0 -1px 0 var(--border), 0 -8px 24px rgba(61,31,7,.06);
+  display: flex; flex-shrink: 0;
+  /* Marrom escuro (igual ao theme-color do app): no Android com gestos/3 botões
+     a barra do sistema fica transparente e mostra essa cor por baixo, em vez
+     de um branco forte que destoa do resto do app. */
+  background: var(--brown-dark);
+  border-top: 1px solid rgba(255,255,255,.08); box-shadow: 0 -8px 24px rgba(61,31,7,.12);
   padding: 2px 2px max(10px, env(safe-area-inset-bottom));
 }
 .cad-bn-btn {
   position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 9px 4px 7px; min-height: 56px; border: none; background: transparent;
-  color: var(--muted); font-family: var(--font); font-size: .64rem; font-weight: 700; cursor: pointer;
+  color: rgba(255,255,255,.72); font-family: var(--font); font-size: .64rem; font-weight: 700; cursor: pointer;
 }
-.cad-bn-btn i { font-size: 1.15rem; color: var(--gold-dark); }
-.cad-bn-btn:active { color: var(--brown); }
-.cad-bn-btn:active i { color: var(--brown-dark); }
+.cad-bn-btn i { font-size: 1.15rem; color: var(--gold); }
+.cad-bn-btn:active { color: #fff; }
+.cad-bn-btn:active i { color: #fff; }
 
 /* Cartão "Meu contato" — nome, telefone e Instagram bem legíveis + edição inline */
 .cad-ct-card {
