@@ -115,7 +115,7 @@
         <!-- Barra de filtros compacta: uma única linha de chips + popover contextual -->
         <div class="filtros-bar">
           <div class="fbar-row">
-            <button class="fbar-search-btn" :class="{ active: popoverAtivo === 'busca' }" @click="togglePopover('busca')">
+            <button class="fbar-search-btn" :class="{ active: popoverAtivo === 'busca' }" aria-label="Buscar por descrição" @click="togglePopover('busca')">
               <i class="fas fa-search"></i>
             </button>
             <div class="fbar-scroll">
@@ -132,7 +132,7 @@
                 {{ filtroCategoria || 'Categoria' }} <i class="fas fa-chevron-down fbar-chip-caret"></i>
               </button>
             </div>
-            <button v-if="filtrosAtivosCount" class="fbar-limpar" @click="limparFiltros">
+            <button v-if="filtrosAtivosCount" class="fbar-limpar" aria-label="Limpar filtros" @click="limparFiltros">
               <span class="fbar-limpar-badge">{{ filtrosAtivosCount }}</span> <i class="fas fa-xmark"></i>
             </button>
           </div>
@@ -143,7 +143,7 @@
               <div class="fbusca-wrap">
                 <i class="fas fa-search fbusca-icon"></i>
                 <input v-model.trim="buscaDescricao" class="fbusca-input" type="search" placeholder="Buscar por descrição..." autofocus />
-                <button v-if="buscaDescricao" class="fbusca-clear" @click="buscaDescricao = ''"><i class="fas fa-xmark"></i></button>
+                <button v-if="buscaDescricao" class="fbusca-clear" aria-label="Limpar busca" @click="buscaDescricao = ''"><i class="fas fa-xmark"></i></button>
               </div>
             </div>
           </Transition>
@@ -211,7 +211,7 @@
 
         <!-- Contagem de resultados (só quando algum filtro ativo) -->
         <div v-if="filtrosAtivosCount" class="fm-status-bar">
-          <span class="fm-count">{{ lancamentosFiltrados.length }} lançamento(s) encontrado(s)</span>
+          <span class="fm-count">{{ lancamentosFiltrados.length }} {{ lancamentosFiltrados.length === 1 ? 'lançamento encontrado' : 'lançamentos encontrados' }}</span>
         </div>
       </div><!-- fim .lancamentos-sticky -->
 
@@ -223,11 +223,11 @@
       <!-- Barra de seleção em lote (quando ativa) -->
       <div v-if="modoSelecao" class="selecao-bar">
         <button class="sel-all-btn" @click="toggleSelecionarTodos">
-          <i class="fas" :class="todosSelecionados ? 'fa-square-check' : 'fa-square'"></i>
+          <i :class="todosSelecionados ? 'fas fa-square-check' : 'far fa-square'"></i>
           {{ todosSelecionados ? 'Desmarcar' : `Todos (${lancamentosFiltrados.length})` }}
         </button>
         <span v-if="selecionados.size" class="sel-count">{{ selecionados.size }} sel.</span>
-        <button class="sel-fechar-btn" @click="toggleSelecao"><i class="fas fa-xmark"></i></button>
+        <button class="sel-fechar-btn" aria-label="Sair da seleção" @click="toggleSelecao"><i class="fas fa-xmark"></i></button>
       </div>
 
       <!-- Transferências internas: linha discreta, não ocupa espaço grande -->
@@ -235,7 +235,7 @@
         class="trans-interna-hint"
         @click="selecionarCategoria('Transferência Interna')">
         <i class="fas fa-arrow-right-arrow-left"></i>
-        {{ transInternasCount }} transferência(s) interna(s) oculta(s) — toque para ver
+        {{ transInternasCount }} {{ transInternasCount === 1 ? 'transferência interna oculta' : 'transferências internas ocultas' }} · toque para ver
       </button>
 
       <!-- Vazio -->
@@ -274,7 +274,7 @@
 
           <!-- Checkbox modo seleção -->
           <div v-if="modoSelecao" class="row-check">
-            <i class="fas" :class="selecionados.has(item.id) ? 'fa-square-check' : 'fa-square'"></i>
+            <i :class="selecionados.has(item.id) ? 'fas fa-square-check' : 'far fa-square'"></i>
           </div>
 
           <div class="row-left">
@@ -282,7 +282,7 @@
             <div class="row-subtitle">
               <span class="fl-data">{{ formatarData(item.data) }}</span>
               <span class="badge">{{ item.categoria }}</span>
-              <span class="fl-banco"><span class="fl-dot">·</span> {{ item.banco === 'itau' ? 'IT' : item.banco === 'bb' ? 'BB' : 'PB' }}</span>
+              <span class="fl-banco" :title="item.banco === 'itau' ? 'Itaú' : item.banco === 'bb' ? 'Banco do Brasil' : 'PagBank'"><span class="fl-dot">·</span> <span class="fl-banco-nome">{{ item.banco === 'itau' ? 'Itaú' : item.banco === 'bb' ? 'BB' : 'PagBank' }}</span><span class="fl-banco-sigla">{{ item.banco === 'itau' ? 'IT' : item.banco === 'bb' ? 'BB' : 'PB' }}</span></span>
             </div>
           </div>
           <div class="row-right" :class="item.valor >= 0 ? 'green' : 'red'">
@@ -294,142 +294,156 @@
 
     <!-- ═══ ABA: MENSAL ═══ -->
     <template v-else-if="abaAtiva === 'mensal'">
-      <div class="relatorio-wrap">
-        
-        <!-- ── Seletor de Período Consolidado Unificado (Linha Única) ── -->
-        <div class="filtros-modern sheet-card filtros-mensal-ajuste" style="margin-top:0; margin-bottom:14px">
-          <div class="fm-unified-nav">
-            <!-- Parte do Ano -->
-            <div class="pnav-mini-centro ano-width">
-              <select v-model="anoFiltroMensal">
-                <option v-for="a in anosDisponiveis" :key="a" :value="a">{{ a }}</option>
+      <div class="relatorio-wrap mn-pagina">
+
+        <!-- ── Período: ano + mês, com campos visíveis e setas grandes ── -->
+        <div class="mn-periodo">
+          <div class="mn-campo mn-campo--ano">
+            <label class="mn-label" for="mn-ano">Ano</label>
+            <select id="mn-ano" v-model="anoFiltroMensal" class="mn-select">
+              <option v-for="a in anosDisponiveis" :key="a" :value="a">{{ a }}</option>
+            </select>
+          </div>
+          <div v-if="mesesParaFiltroMensal.length" class="mn-campo mn-campo--mes">
+            <label class="mn-label" for="mn-mes">Mês</label>
+            <div class="mn-mes">
+              <button class="mn-seta" :disabled="idxMesMensal === 0" aria-label="Mês mais recente" @click="irParaMesNovoMensal"><i class="fas fa-chevron-left"></i></button>
+              <select id="mn-mes" v-model="mesFiltroMensal" class="mn-select">
+                <option value="">Ano todo</option>
+                <option v-for="m in mesesParaFiltroMensal" :key="m" :value="m">{{ m }}</option>
               </select>
-              <span>{{ anoFiltroMensal }}</span>
-            </div>
-
-            <div class="nav-divider"></div>
-
-            <!-- Navegação de Mês -->
-            <div class="nav-month-group" v-if="mesesParaFiltroMensal.length">
-              <button class="pnav-mini-btn" :disabled="idxMesMensal === 0" @click="irParaMesNovoMensal"><i class="fas fa-chevron-left"></i></button>
-              <div class="pnav-mini-centro">
-                <select v-model="mesFiltroMensal">
-                  <option value="">Ano Inteiro</option>
-                  <option v-for="m in mesesParaFiltroMensal" :key="m" :value="m">{{ m }}</option>
-                </select>
-                <span>{{ mesFiltroMensal || 'Mês' }}</span>
-              </div>
-              <button class="pnav-mini-btn" :disabled="idxMesMensal === mesesParaFiltroMensal.length - 1" @click="irParaMesAntigoMensal"><i class="fas fa-chevron-right"></i></button>
+              <button class="mn-seta" :disabled="idxMesMensal === mesesParaFiltroMensal.length - 1" aria-label="Mês mais antigo" @click="irParaMesAntigoMensal"><i class="fas fa-chevron-right"></i></button>
             </div>
           </div>
         </div>
 
-        <!-- Resumo por banco -->
-        <section class="sheet-card">
-          <div class="sheet-body">
-            <div class="section-head">
-              <h4><i class="fas fa-university"></i> Resumo {{ mesFiltroMensal || 'Geral' }}</h4>
-            </div>
-            <div class="banco-resumo-grid">
-              <div class="banco-resumo-card pagbank">
-                <div class="banco-nome"><i class="fas fa-mobile-alt"></i> PagBank</div>
-                <div class="banco-linha"><span>Receitas PIX</span><strong class="c-green">{{ R$(resumoBancoPagbank.receitas) }}</strong></div>
-                <div class="banco-linha"><span>Saídas</span><strong class="c-red">{{ R$(resumoBancoPagbank.saidas) }}</strong></div>
-                <div class="banco-linha total"><span>Saldo</span><strong :class="resumoBancoPagbank.saldo >= 0 ? 'c-green' : 'c-red'">{{ R$(resumoBancoPagbank.saldo) }}</strong></div>
+        <!-- ── Resumo por banco ── -->
+        <section class="mn-bloco">
+          <header class="mn-bloco-cab">
+            <h4 class="mn-bloco-titulo">Por banco</h4>
+            <span class="mn-bloco-sub">{{ mesFiltroMensal || ('Ano ' + anoFiltroMensal) }}</span>
+          </header>
+          <div class="mn-card">
+            <div v-if="temContasPagbank || resumoBancoPagbank.receitas || resumoBancoPagbank.saidas" class="mn-banco">
+              <div class="mn-banco-topo">
+                <div class="mn-tile mn-tile--pagbank"><i class="fas fa-mobile-screen"></i></div>
+                <div class="mn-banco-nome">PagBank</div>
+                <div class="mn-banco-saldo">
+                  <span class="mn-mini-lbl">Saldo</span>
+                  <strong :class="resumoBancoPagbank.saldo >= 0 ? 'c-green' : 'c-red'">{{ R$(resumoBancoPagbank.saldo) }}</strong>
+                </div>
               </div>
-              <div class="banco-resumo-card itau">
-                <div class="banco-nome"><i class="fas fa-landmark"></i> Itaú</div>
-                <div class="banco-linha"><span>Receitas PIX</span><strong class="c-green">{{ R$(resumoBancoItau.receitas) }}</strong></div>
-                <div class="banco-linha"><span>Saídas</span><strong class="c-red">{{ R$(resumoBancoItau.saidas) }}</strong></div>
-                <div class="banco-linha total"><span>Saldo</span><strong :class="resumoBancoItau.saldo >= 0 ? 'c-green' : 'c-red'">{{ R$(resumoBancoItau.saldo) }}</strong></div>
+              <div class="mn-banco-det">
+                <div><span>Receitas PIX</span><strong class="c-green">{{ R$(resumoBancoPagbank.receitas) }}</strong></div>
+                <div><span>Saídas</span><strong class="c-red">{{ R$(resumoBancoPagbank.saidas) }}</strong></div>
               </div>
             </div>
+            <div v-if="temContasItau || resumoBancoItau.receitas || resumoBancoItau.saidas" class="mn-banco">
+              <div class="mn-banco-topo">
+                <div class="mn-tile mn-tile--itau"><i class="fas fa-landmark"></i></div>
+                <div class="mn-banco-nome">Itaú</div>
+                <div class="mn-banco-saldo">
+                  <span class="mn-mini-lbl">Saldo</span>
+                  <strong :class="resumoBancoItau.saldo >= 0 ? 'c-green' : 'c-red'">{{ R$(resumoBancoItau.saldo) }}</strong>
+                </div>
+              </div>
+              <div class="mn-banco-det">
+                <div><span>Receitas PIX</span><strong class="c-green">{{ R$(resumoBancoItau.receitas) }}</strong></div>
+                <div><span>Saídas</span><strong class="c-red">{{ R$(resumoBancoItau.saidas) }}</strong></div>
+              </div>
+            </div>
+            <p v-if="!(temContasPagbank || resumoBancoPagbank.receitas || resumoBancoPagbank.saidas) && !(temContasItau || resumoBancoItau.receitas || resumoBancoItau.saidas)" class="mn-vazio">
+              Nenhuma conta com movimento neste período.
+            </p>
           </div>
         </section>
 
-        <!-- Cards mensais -->
-        <section class="sheet-card" v-if="relatorioMensalFiltrado.length">
-          <div class="sheet-body">
-            <div class="section-head">
-              <h4><i class="fas fa-calendar-days"></i> {{ mesFiltroMensal ? 'Detalhes de ' + mesFiltroMensal : 'Mês a mês · ' + anoFiltroMensal }}</h4>
-              <span class="badge badge-muted">{{ relatorioMensalFiltrado.length }} meses</span>
+        <!-- ── Mês a mês ── -->
+        <section v-if="relatorioMensalFiltrado.length" class="mn-bloco">
+          <header class="mn-bloco-cab">
+            <h4 class="mn-bloco-titulo">{{ mesFiltroMensal ? 'Detalhes do mês' : 'Mês a mês' }}</h4>
+            <span class="mn-bloco-sub">{{ relatorioMensalFiltrado.length }} {{ relatorioMensalFiltrado.length === 1 ? 'mês' : 'meses' }}</span>
+          </header>
+
+          <article v-for="item in relatorioMensalFiltrado" :key="item.mes_ref" class="mn-card mn-mes-card">
+            <div class="mn-mes-cab">
+              <h5 class="mn-mes-nome">{{ item.mes_ref }}</h5>
+              <span class="mn-chip">{{ item.quantidade }} {{ item.quantidade === 1 ? 'lançamento' : 'lançamentos' }}</span>
             </div>
-            <div class="mei-grid">
-              <article v-for="item in relatorioMensalFiltrado" :key="item.mes_ref" class="mei-card">
-                <div class="mei-head">
-                  <h4>{{ item.mes_ref }}</h4>
-                  <span class="badge badge-muted">{{ item.quantidade }} lanç.</span>
-                </div>
 
-                <!-- Sempre visível: Receita MEI, Despesas Operacionais (já
-                     inclui insumos) e Despesas Casa — só o nome muda aqui
-                     nesse card; nas listas de lançamentos continua "Retiradas
-                     pessoais" normalmente. -->
-                <div class="mei-secundarias mei-secundarias--3col">
-                  <div class="mei-sec-item">
-                    <span class="mei-sec-lbl">Receita MEI</span>
-                    <strong class="c-green">{{ R$(item.receitas_mei) }}</strong>
-                  </div>
-                  <div class="mei-sec-item">
-                    <span class="mei-sec-lbl">Despesas Operacionais</span>
-                    <strong class="c-red">{{ R$(item.saidas_operacionais) }}</strong>
-                  </div>
-                  <div class="mei-sec-item">
-                    <span class="mei-sec-lbl">Despesas Casa</span>
-                    <strong class="c-red">{{ R$(item.saidas_pessoais) }}</strong>
-                  </div>
-                </div>
-
-                <div class="mei-principal">
-                  <span class="mei-principal-lbl">Sobrou no mês</span>
-                  <strong class="mei-principal-valor" :class="item.saldo_mes >= 0 ? 'c-green' : 'c-red'">{{ R$(item.saldo_mes) }}</strong>
-                </div>
-
-                <!-- Composição completa — escondida por padrão -->
-                <button class="mei-detalhes-toggle" @click="toggleDetalhesMensal(item.mes_ref)">
-                  <span><i class="fas fa-list-ul"></i> Ver composição do mês</span>
-                  <i class="fas" :class="detalhesMensalAbertos[item.mes_ref] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-                </button>
-                <Transition name="fade-slide">
-                  <div v-if="detalhesMensalAbertos[item.mes_ref]" class="mei-detalhe">
-                    <div class="mei-detalhe-grupo">
-                      <div class="mei-line"><span>Receita MEI (Vendas)</span><strong class="c-green">{{ R$(item.receitas_mei) }}</strong></div>
-                      <div class="mei-line renda-pessoal" v-if="item.outras_entradas_nao_mei">
-                        <span><i class="fas fa-hand-holding-heart" style="font-size:.7rem;color:var(--purple)"></i> Outras entradas (não-MEI)</span>
-                        <strong class="c-purple">{{ R$(item.outras_entradas_nao_mei) }}</strong>
-                      </div>
-                      <div class="mei-line"><span>Rendimento</span><strong>{{ R$(item.rendimento_financeiro) }}</strong></div>
-                      <div class="mei-line total"><span>Entrada Bruta (Banco)</span><strong class="c-blue">{{ R$(item.entradas) }}</strong></div>
-                    </div>
-                    <div class="mei-detalhe-grupo">
-                      <div class="mei-line"><span>Despesas operacionais</span><strong class="c-red">{{ R$(item.saidas_operacionais) }}</strong></div>
-                      <div class="mei-line"><span>Despesas Casa</span><strong class="c-red">{{ R$(item.saidas_pessoais) }}</strong></div>
-                      <div class="mei-line total"><span>Saldo do negócio</span><strong :class="item.saldo_operacional >= 0 ? 'c-green' : 'c-red'">{{ R$(item.saldo_operacional) }}</strong></div>
-                    </div>
-                  </div>
-                </Transition>
-              </article>
+            <!-- O resultado do mês vem primeiro: é o que a pessoa quer saber -->
+            <div class="mn-destaque" :class="item.saldo_mes >= 0 ? 'mn-destaque--ok' : 'mn-destaque--neg'">
+              <span class="mn-destaque-lbl">{{ item.saldo_mes >= 0 ? 'Sobrou no mês' : 'Faltou no mês' }}</span>
+              <strong class="mn-destaque-valor">{{ R$(item.saldo_mes) }}</strong>
             </div>
-          </div>
-        </section>
 
-        <!-- Categorias no ano -->
-        <section class="sheet-card">
-          <div class="sheet-body">
-            <div class="section-head">
-              <h4><i class="fas fa-tags"></i> Por categoria · {{ mesFiltroMensal || anoFiltroMensal }}</h4>
-              <span class="badge badge-gold">{{ categoriasPorAno.length }}</span>
-            </div>
-            <div v-if="!categoriasPorAno.length" class="empty-mini">Sem dados para o período.</div>
-            <div v-else class="report-list">
-              <div v-for="item in categoriasPorAno" :key="item.categoria" class="report-row">
-                <div>
-                  <div class="report-month">{{ item.categoria }}</div>
-                  <div class="report-sub">{{ item.quantidade }} lançamento(s) · {{ item.natureza }}</div>
-                </div>
-                <strong class="report-value" :class="item.natureza === 'entrada' ? 'c-green' : 'c-red'">{{ R$(item.total) }}</strong>
+            <!-- Receita MEI, Despesas Operacionais (já inclui insumos) e Despesas Casa.
+                 Nas listas de lançamentos continua "Retiradas pessoais"; só aqui muda o nome. -->
+            <div class="mn-linhas">
+              <div class="mn-linha">
+                <span class="mn-ponto mn-ponto--verde"></span>
+                <span class="mn-linha-lbl">Receita MEI</span>
+                <strong class="c-green">{{ R$(item.receitas_mei) }}</strong>
+              </div>
+              <div class="mn-linha">
+                <span class="mn-ponto mn-ponto--vermelho"></span>
+                <span class="mn-linha-lbl">Despesas operacionais</span>
+                <strong class="c-red">{{ R$(item.saidas_operacionais) }}</strong>
+              </div>
+              <div class="mn-linha">
+                <span class="mn-ponto mn-ponto--vermelho"></span>
+                <span class="mn-linha-lbl">Despesas da casa</span>
+                <strong class="c-red">{{ R$(item.saidas_pessoais) }}</strong>
               </div>
             </div>
+
+            <!-- Composição completa: escondida até a pessoa pedir -->
+            <button class="mn-toggle" :aria-expanded="!!detalhesMensalAbertos[item.mes_ref]" @click="toggleDetalhesMensal(item.mes_ref)">
+              <i class="fas fa-list-ul"></i>
+              <span>{{ detalhesMensalAbertos[item.mes_ref] ? 'Esconder composição' : 'Ver composição do mês' }}</span>
+              <i class="fas mn-toggle-seta" :class="detalhesMensalAbertos[item.mes_ref] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            </button>
+            <Transition name="fade-slide">
+              <div v-if="detalhesMensalAbertos[item.mes_ref]" class="mn-detalhe">
+                <div class="mn-grupo">
+                  <div class="mn-grupo-titulo">Entradas</div>
+                  <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Receita MEI (vendas)</span><strong class="c-green">{{ R$(item.receitas_mei) }}</strong></div>
+                  <div v-if="item.outras_entradas_nao_mei" class="mn-linha mn-linha--simples">
+                    <span class="mn-linha-lbl">Outras entradas (não-MEI)</span>
+                    <strong class="c-purple">{{ R$(item.outras_entradas_nao_mei) }}</strong>
+                  </div>
+                  <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Rendimento</span><strong>{{ R$(item.rendimento_financeiro) }}</strong></div>
+                  <div class="mn-linha mn-linha--simples mn-linha--total"><span class="mn-linha-lbl">Entrada bruta (banco)</span><strong class="c-blue">{{ R$(item.entradas) }}</strong></div>
+                </div>
+                <div class="mn-grupo">
+                  <div class="mn-grupo-titulo">Saídas e resultado</div>
+                  <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Despesas operacionais</span><strong class="c-red">{{ R$(item.saidas_operacionais) }}</strong></div>
+                  <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Despesas da casa</span><strong class="c-red">{{ R$(item.saidas_pessoais) }}</strong></div>
+                  <div class="mn-linha mn-linha--simples mn-linha--total"><span class="mn-linha-lbl">Saldo do negócio</span><strong :class="item.saldo_operacional >= 0 ? 'c-green' : 'c-red'">{{ R$(item.saldo_operacional) }}</strong></div>
+                </div>
+              </div>
+            </Transition>
+          </article>
+        </section>
+
+        <!-- ── Por categoria ── -->
+        <section class="mn-bloco">
+          <header class="mn-bloco-cab">
+            <h4 class="mn-bloco-titulo">Por categoria</h4>
+            <span class="mn-bloco-sub">{{ mesFiltroMensal || anoFiltroMensal }}<template v-if="categoriasPorAno.length"> · {{ categoriasPorAno.length }}</template></span>
+          </header>
+          <div class="mn-card">
+            <p v-if="!categoriasPorAno.length" class="mn-vazio">Sem dados para o período.</p>
+            <template v-else>
+              <div v-for="item in categoriasPorAno" :key="item.categoria" class="mn-cat">
+                <span class="mn-ponto" :class="item.natureza === 'entrada' ? 'mn-ponto--verde' : 'mn-ponto--vermelho'"></span>
+                <div class="mn-cat-txt">
+                  <div class="mn-cat-nome">{{ item.categoria }}</div>
+                  <div class="mn-cat-sub">{{ item.quantidade }} {{ item.quantidade === 1 ? 'lançamento' : 'lançamentos' }}<template v-if="item.natureza"> · <span class="mn-nat">{{ item.natureza === 'entrada' ? 'Entrada' : item.natureza === 'saida' ? 'Saída' : item.natureza }}</span></template></div>
+                </div>
+                <strong class="mn-cat-valor" :class="item.natureza === 'entrada' ? 'c-green' : 'c-red'">{{ R$(item.total) }}</strong>
+              </div>
+            </template>
           </div>
         </section>
       </div>
@@ -1662,20 +1676,7 @@ onMounted(() => s.carregarFinanceiro())
 .btn-selecionar-sutil i { font-size: .7rem; }
 
 /* ── Botão fechar seleção ─── */
-.sel-fechar-btn {
-  background: rgba(255,255,255,.12);
-  border: none;
-  color: rgba(255,255,255,.7);
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-full);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: .85rem;
-  flex-shrink: 0;
-  margin-left: auto;
-}
+.sel-fechar-btn { background: rgba(255,255,255,.14); border: none; color: rgba(255,255,255,.9); width: 44px; height: 44px; border-radius: var(--r-full); display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; margin-left: auto; }
 .sel-fechar-btn:active { background: rgba(255,255,255,.22); }
 
 /* ── Cabeçalho ─── */
@@ -1702,23 +1703,8 @@ onMounted(() => s.carregarFinanceiro())
 .extratos-admin .excluir-banco-panel { margin-top: 10px; border: 1px solid var(--red-dim); border-radius: var(--r-md); border-bottom: 1px solid var(--red-dim); }
 
 .cat-list { display: flex; flex-direction: column; }
-.cat-list-grupo {
-  font-size: .65rem; font-weight: 800; text-transform: uppercase;
-  letter-spacing: .07em; color: var(--muted);
-  padding: 8px 16px 4px;
-  background: var(--cream);
-  border-bottom: .5px solid var(--border);
-}
-.cat-list-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 11px 16px;
-  border: none; border-bottom: .5px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: .85rem; font-weight: 500;
-  text-align: left; width: 100%;
-  transition: background var(--t);
-}
+.cat-list-grupo { font-size: .8rem; font-weight: 800; color: var(--brown-mid); padding: 12px 16px 6px; background: var(--cream); border-bottom: .5px solid var(--border); }
+.cat-list-item { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 16px; border: none; border-bottom: .5px solid var(--border); background: var(--surface); color: var(--text); font-size: .95rem; font-weight: 600; text-align: left; width: 100%; transition: background var(--t); }
 .cat-list-item:last-child { border-bottom: none; }
 .cat-list-item:active { background: var(--gold-bg); }
 .cat-list-item.active {
@@ -1727,10 +1713,10 @@ onMounted(() => s.carregarFinanceiro())
   border-left: 3px solid var(--brown);
   padding-left: 13px;
 }
-.cat-list-icon { width: 16px; text-align: center; color: var(--muted); font-size: .82rem; flex-shrink: 0; }
+.cat-list-icon { width: 20px; text-align: center; color: var(--muted); font-size: .95rem; flex-shrink: 0; }
 .cat-list-item.active .cat-list-icon { color: var(--brown-mid); }
 .cat-list-item span { flex: 1; }
-.cat-list-check { color: var(--brown); font-size: .8rem; }
+.cat-list-check { color: var(--brown); font-size: .9rem; }
 .grupo { margin-bottom: 4px; }
 .grupo-titulo { font-size: .72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .grupo-natureza { padding: 2px 7px; border-radius: var(--r-full); font-size: .65rem; font-weight: 800; }
@@ -1750,19 +1736,6 @@ onMounted(() => s.carregarFinanceiro())
   background: var(--surface);
   box-shadow: 0 2px 8px rgba(61,31,7,.07);
 }
-.filtros-modern { 
-  overflow: visible;
-  background: var(--surface);
-}
-
-/* Alinhamento para que o card de filtro tenha o mesmo tamanho dos cards de baixo no relatório */
-.filtros-mensal-ajuste { margin-left: 0; margin-right: 0; }
-
-/* Estilos para a navegação unificada em linha única */
-.fm-unified-nav { display: flex; align-items: center; gap: 6px; padding: 11px 10px; background: var(--surface); height: 60px; }
-.fm-unified-nav .pnav-mini-centro.ano-width { flex: 0 0 80px; } /* Especificidade maior remove a necessidade de !important */
-.nav-divider { width: 1px; height: 24px; background: var(--border); }
-.nav-month-group { flex: 1; display: flex; align-items: center; gap: 6px; }
 
 .periodo-mini-nav { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .periodo-inline { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
@@ -1773,44 +1746,19 @@ onMounted(() => s.carregarFinanceiro())
 
 /* ── Barra de filtros compacta (Movimentações): uma linha de chips + popover ── */
 .filtros-bar { background: var(--surface); border-bottom: 1px solid var(--border); }
-.fbar-row { display: flex; align-items: center; gap: 6px; padding: 8px 10px; }
-.fbar-search-btn {
-  flex-shrink: 0; width: 36px; height: 36px;
-  border: 1px solid var(--border); border-radius: var(--r-md);
-  background: var(--bg); color: var(--muted);
-  display: flex; align-items: center; justify-content: center;
-  font-size: .82rem; transition: all var(--t);
-}
+.fbar-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+.fbar-search-btn { flex-shrink: 0; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); color: var(--brown-mid); display: flex; align-items: center; justify-content: center; font-size: .95rem; transition: all var(--t); }
 .fbar-search-btn.active { border-color: var(--brown); color: var(--brown); background: var(--gold-bg); }
-.fbar-scroll {
-  flex: 1; min-width: 0;
-  display: flex; gap: 6px; overflow-x: auto;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch;
-}
+.fbar-scroll { flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .fbar-scroll::-webkit-scrollbar { display: none; }
-.fbar-chip {
-  flex-shrink: 0; display: flex; align-items: center; gap: 5px;
-  height: 36px; padding: 0 12px;
-  border: 1px solid var(--border); border-radius: var(--r-full);
-  background: var(--bg); color: var(--muted);
-  font-size: .78rem; font-weight: 700; white-space: nowrap;
-  transition: all var(--t);
-}
-.fbar-chip-caret { font-size: .55rem; opacity: .6; }
+.fbar-chip { flex-shrink: 0; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--bg); color: var(--brown-mid); font-size: .84rem; font-weight: 700; white-space: nowrap; transition: all var(--t); }
+.fbar-chip-caret { font-size: .62rem; opacity: .7; }
 .fbar-chip.active { border-color: var(--brown); color: var(--brown-dark); background: var(--gold-bg); }
 .fbar-chip.open { border-color: var(--brown); box-shadow: 0 0 0 2px var(--gold-bg) inset; }
-.fbar-limpar {
-  flex-shrink: 0; display: flex; align-items: center; gap: 5px;
-  height: 36px; padding: 0 10px; border: none; background: transparent;
-  color: var(--red); font-weight: 800; font-size: .8rem;
-}
-.fbar-limpar-badge {
-  background: var(--red); color: #fff; font-size: 10px;
-  min-width: 16px; height: 16px; border-radius: 8px; padding: 0 3px;
-  display: flex; align-items: center; justify-content: center; font-weight: 800;
-}
+.fbar-limpar { flex-shrink: 0; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 10px; border: none; background: transparent; color: var(--red); font-weight: 800; font-size: .86rem; }
+.fbar-limpar-badge { background: var(--red); color: #fff; font-size: .72rem; min-width: 20px; height: 20px; border-radius: 10px; padding: 0 5px; display: flex; align-items: center; justify-content: center; font-weight: 800; }
 
-.filtro-popover { padding: 10px; border-top: 1px solid var(--border); background: var(--bg); touch-action: pan-y; }
+.filtro-popover { padding: 12px; border-top: 1px solid var(--border); background: var(--bg); touch-action: pan-y; }
 .filtro-popover-scroll {
   padding: 0;
   max-height: min(48vh, 360px);
@@ -1819,40 +1767,26 @@ onMounted(() => s.carregarFinanceiro())
   overscroll-behavior: contain;
 }
 .fbusca-wrap { position: relative; }
-.fbusca-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .85rem; }
-.fbusca-input { width: 100%; padding: 10px 34px 10px 34px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); font-size: .88rem; }
+.fbusca-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .95rem; }
+.fbusca-input { width: 100%; min-height: 48px; padding: 10px 40px 10px 38px; border: 1.5px solid var(--border); border-radius: var(--r-md); background: var(--surface); font-size: 1rem; }
 .fbusca-clear {
   position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
   width: 22px; height: 22px; border: none; border-radius: 50%;
   background: var(--border2); color: var(--muted); font-size: .65rem;
   display: flex; align-items: center; justify-content: center;
 }
-.fchips { display: flex; gap: 6px; flex-wrap: wrap; }
-.fchip { padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--muted); font-size: .8rem; font-weight: 700; transition: all var(--t); }
+.fchips { display: flex; gap: 8px; flex-wrap: wrap; }
+.fchip { min-height: 44px; padding: 0 18px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--brown-mid); font-size: .9rem; font-weight: 700; transition: all var(--t); }
 .fchip.active { background: var(--brown); color: #fff; border-color: var(--brown); }
 
-.resumo-modern { 
-  display: flex; 
-  align-items: center; 
-  background: var(--surface); 
-  border-bottom: 1px solid var(--border);
-  padding: 10px 16px; 
-  justify-content: space-between;
-}
-.rm-item { display: flex; flex-direction: column; flex: 1; align-items: center; gap: 2px; }
-.rm-lbl { font-size: .6rem; color: var(--muted); text-transform: uppercase; font-weight: 800; letter-spacing: .3px; }
-.rm-val { font-family: var(--mono); font-size: .88rem; font-weight: 800; }
-.rm-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+.resumo-modern { display: flex; align-items: stretch; background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 8px; justify-content: space-between; }
+.rm-item { display: flex; flex-direction: column; flex: 1; min-width: 0; align-items: center; gap: 3px; }
+.rm-lbl { font-size: .78rem; color: var(--muted); font-weight: 700; }
+.rm-val { font-family: var(--mono); font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rm-sep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 0; }
 
-.fm-status-bar { 
-  display: flex; 
-  justify-content: center; 
-  align-items: center; 
-  padding: 6px 16px; 
-  background: var(--cream); 
-  border-top: 1px solid var(--border); 
-}
-.fm-count { font-size: .72rem; color: var(--muted); font-weight: 600; }
+.fm-status-bar { display: flex; justify-content: center; align-items: center; padding: 8px 16px; background: var(--cream); border-top: 1px solid var(--border); }
+.fm-count { font-size: .84rem; color: var(--brown-mid); font-weight: 700; }
 
 /* Transições */
 .fade-slide-enter-active, .fade-slide-leave-active { 
@@ -1867,39 +1801,23 @@ onMounted(() => s.carregarFinanceiro())
 }
 
 /* ── Aviso transferência interna ─── */
-.trans-interna-hint {
-  display: flex; align-items: center; gap: 6px;
-  width: 100%; padding: 6px 16px;
-  background: none; border: none; border-top: 1px solid var(--border);
-  font-size: .72rem; font-weight: 600; color: var(--gold-dark);
-  cursor: pointer; text-align: left;
-}
-.trans-interna-hint i { font-size: .7rem; }
+.trans-interna-hint { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 16px; background: none; border: none; border-top: 1px solid var(--border); font-size: .84rem; font-weight: 700; color: var(--gold-dark); cursor: pointer; text-align: left; }
+.trans-interna-hint i { font-size: .85rem; }
 
 /* ── Barra de seleção em lote ─── */
-.selecao-dica {
-  font-size: .72rem; color: var(--muted);
-  padding: 6px 16px 2px;
-  display: flex; align-items: center; gap: 6px;
-}
-.selecao-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: var(--brown-dark); color: #fff; flex-shrink: 0; }
-.sel-all-btn { background: none; border: none; color: rgba(255,255,255,.85); font-size: .8rem; font-weight: 600; display: flex; align-items: center; gap: 7px; }
-.sel-all-btn i { font-size: .9rem; color: var(--gold-light); }
-.sel-count { font-size: .78rem; font-weight: 700; color: var(--gold-light); }
+.selecao-dica { font-size: .82rem; color: var(--muted); padding: 10px 16px 4px; display: flex; align-items: center; gap: 8px; }
+.selecao-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; background: var(--brown-dark); color: #fff; flex-shrink: 0; }
+.sel-all-btn { background: none; border: none; min-height: 44px; padding: 0 6px; color: rgba(255,255,255,.92); font-size: .9rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.sel-all-btn i { font-size: 1.05rem; color: var(--gold-light); }
+.sel-count { font-size: .88rem; font-weight: 800; color: var(--gold-light); }
 
 /* ── Lista ─── */
 .lancamentos-list { padding-top: 8px; padding-bottom: max(96px, calc(72px + env(safe-area-inset-bottom))); touch-action: pan-y; }
-.lancamento-row { margin: 0 16px 8px; }
+.lancamento-row { margin: 0 16px 10px; min-height: 64px; }
 
 .row-operacional { border-left-color: var(--red); }
-.row-operacional 
-
 .row-pessoal { border-left-color: var(--purple); }
-.row-pessoal 
-
 .row-entrada { border-left-color: var(--green); }
-.row-entrada 
-
 .row-interna { opacity: .65; background: var(--gold-bg); border-left-color: var(--gold); }
 .row-interna:active { background: var(--gold-bg); }
 
@@ -1945,8 +1863,8 @@ onMounted(() => s.carregarFinanceiro())
 .row-banco-badge.itau    { background: var(--blue-bg); color: var(--blue); }
 .row-banco-badge.bb      { background: var(--gold-bg); color: var(--blue); }
 .row-left { flex: 1; min-width: 0; }
-.row-title { font-size: .9rem; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row-subtitle { font-size: .75rem; color: var(--muted); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
+.row-title { font-size: .96rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-subtitle { font-size: .8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
 
 /* ── Empty ─── */
 .empty-mini { text-align: center; color: var(--muted); padding: 32px 24px; font-size: .82rem; display: flex; flex-direction: column; align-items: center; gap: 8px; line-height: 1.5; }
@@ -1956,69 +1874,6 @@ onMounted(() => s.carregarFinanceiro())
 
 /* ── Relatório ─── */
 .relatorio-wrap { padding: 14px 16px max(96px, calc(72px + env(safe-area-inset-bottom))); display: flex; flex-direction: column; gap: 14px; }
-
-/* Banco grid */
-.banco-resumo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.banco-resumo-card { border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
-.banco-resumo-card.pagbank { background: var(--gold-bg); }
-.banco-resumo-card.itau    { background: var(--blue-bg); }
-.banco-nome { font-size: .8rem; font-weight: 800; color: var(--brown-dark); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
-.banco-linha { display: flex; align-items: center; justify-content: space-between; font-size: .78rem; }
-.banco-linha span { color: var(--muted); }
-.banco-linha.total { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 2px; font-weight: 700; }
-.banco-linha strong { font-family: var(--mono); font-size: .85rem; }
-
-/* Mei cards */
-.mei-grid { display: flex; flex-direction: column; gap: 10px; }
-.mei-card { border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 14px 12px; background: var(--surface); display: flex; flex-direction: column; gap: 12px; }
-.mei-head { display: flex; align-items: center; justify-content: space-between; }
-.mei-head h4 { font-size: .88rem; font-weight: 700; color: var(--brown-dark); }
-
-/* Três números do mês, lado a lado, sem caixinhas — só uma linha fina
-   separando as colunas, pra não competir visualmente com o resultado final */
-.mei-secundarias { display: grid; grid-template-columns: 1fr 1fr; }
-.mei-secundarias--3col { grid-template-columns: repeat(3, 1fr); }
-.mei-sec-item {
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 0 4px; border-left: 1px solid var(--border2);
-}
-.mei-sec-item:first-child { border-left: none; }
-.mei-sec-lbl { font-size: .58rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .2px; text-align: center; line-height: 1.25; }
-.mei-sec-item strong { font-family: var(--mono); font-size: .8rem; font-weight: 800; }
-
-/* Número principal do card — o resultado final do mês, o que a pessoa
-   realmente quer saber de cara. Centralizado, separado por uma linha fina
-   do resto (em vez de outra caixa) */
-.mei-principal { display: flex; flex-direction: column; align-items: center; gap: 2px; padding-top: 10px; border-top: 1px solid var(--border2); }
-.mei-principal-lbl { font-size: .62rem; text-transform: uppercase; font-weight: 800; color: var(--muted); letter-spacing: .4px; }
-.mei-principal-valor { font-size: 1.5rem; font-weight: 800; font-family: var(--mono); line-height: 1.15; }
-
-/* Composição completa — escondida por padrão, agrupada em 2 blocos
-   (entradas / saídas) em vez de 9 linhas soltas no mesmo nível */
-.mei-detalhes-toggle {
-  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 2px 0 0; border: none; background: transparent; color: var(--brown-mid); font-size: .72rem; font-weight: 700; text-align: center;
-}
-.mei-detalhes-toggle span { display: flex; align-items: center; gap: 6px; }
-.mei-detalhes-toggle i:last-child { font-size: .6rem; }
-.mei-detalhes-toggle:active { opacity: .6; }
-
-.mei-detalhe { display: flex; flex-direction: column; gap: 4px; }
-.mei-detalhe-grupo { padding: 2px 2px 6px; border-bottom: 1px solid var(--border2); }
-.mei-detalhe-grupo:last-child { border-bottom: none; padding-bottom: 2px; }
-.mei-line { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; font-size: .82rem; border-bottom: 1px solid rgba(0,0,0,.04); }
-.mei-line:last-child { border-bottom: none; }
-.mei-line span { color: var(--muted); }
-.mei-line strong { font-family: var(--mono); font-size: .88rem; }
-.mei-line.total { border-top: 1px solid var(--border2); margin-top: 4px; padding-top: 8px; font-weight: 700; border-bottom: none; }
-
-/* Report list */
-.report-list { display: flex; flex-direction: column; }
-.report-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
-.report-row:last-child { border-bottom: none; }
-.report-month { font-size: .88rem; font-weight: 700; color: var(--text); }
-.report-sub { font-size: .75rem; color: var(--muted); margin-top: 2px; }
-.report-value { font-family: var(--mono); font-size: .92rem; flex-shrink: 0; }
 
 /* Anual */
 .ano-selector-inline { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -2659,4 +2514,115 @@ onMounted(() => s.carregarFinanceiro())
   
   
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Financeiro › Mensal — visual novo (classes mn-*, só desta aba)
+══════════════════════════════════════════════════════════════ */
+.mn-pagina { gap: 20px; }
+.mn-pagina .c-green, .mn-pagina .c-red, .mn-pagina .c-blue, .mn-pagina .c-purple { font-variant-numeric: tabular-nums; }
+
+/* Período */
+.mn-periodo { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); }
+.mn-campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mn-campo--ano { flex: 0 0 76px; }
+.mn-campo--mes { flex: 1 1 200px; }
+.mn-label { font-size: .78rem; font-weight: 700; color: var(--muted); }
+.mn-select {
+  width: 100%; height: 48px; padding: 0 22px 0 9px; font-family: var(--font); font-size: .9rem; font-weight: 700; color: var(--brown-dark);
+  background-color: var(--cream); border: 1.5px solid var(--border); border-radius: var(--r-sm); cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238c7260' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 7px center; background-size: 10px;
+}
+.mn-select:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 1px; }
+.mn-mes { display: flex; align-items: center; gap: 5px; }
+.mn-mes .mn-select { flex: 1; min-width: 0; }
+.mn-seta {
+  width: 44px; height: 48px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--brown-mid); font-size: .9rem; background: var(--cream); border: 1.5px solid var(--border); border-radius: var(--r-sm); cursor: pointer;
+}
+.mn-seta:active:not(:disabled) { background: var(--cream-deep); }
+.mn-seta:disabled { opacity: .35; cursor: default; }
+.mn-seta:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 1px; }
+
+/* Blocos */
+.mn-bloco { display: flex; flex-direction: column; gap: 10px; }
+.mn-bloco-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 2px; }
+.mn-bloco-titulo { margin: 0; font-size: 1.02rem; font-weight: 800; color: var(--brown-dark); }
+.mn-bloco-sub { font-size: .8rem; font-weight: 600; color: var(--muted); }
+.mn-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
+.mn-vazio { margin: 0; padding: 22px 16px; text-align: center; font-size: .86rem; line-height: 1.5; color: var(--muted); }
+
+.mn-ponto { width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; background: var(--border2); }
+.mn-ponto--verde { background: var(--green); }
+.mn-ponto--vermelho { background: var(--red); }
+
+/* Por banco */
+.mn-banco { padding: 14px 16px; border-top: 1px solid var(--border); }
+.mn-banco:first-child { border-top: none; }
+.mn-banco-topo { display: flex; align-items: center; gap: 12px; }
+.mn-tile { width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: var(--r-md); font-size: 1.05rem; }
+.mn-tile--pagbank { background: var(--gold-bg); color: var(--gold-dark); }
+.mn-tile--itau { background: var(--orange-bg); color: var(--orange); }
+.mn-banco-nome { flex: 1; min-width: 0; font-size: .98rem; font-weight: 800; color: var(--brown-dark); }
+.mn-banco-saldo { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.mn-banco-saldo strong { font-family: var(--mono); font-size: 1.12rem; font-weight: 800; }
+.mn-mini-lbl { font-size: .72rem; font-weight: 700; color: var(--muted); }
+.mn-banco-det { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.mn-banco-det > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: var(--bg); border-radius: var(--r-sm); }
+.mn-banco-det span { font-size: .76rem; font-weight: 600; color: var(--muted); }
+.mn-banco-det strong { font-family: var(--mono); font-size: .92rem; font-weight: 800; }
+
+/* Card do mês */
+.mn-mes-card { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.mn-mes-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mn-mes-nome { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--brown-dark); }
+.mn-chip { padding: 4px 10px; border-radius: var(--r-full); background: var(--cream); color: var(--muted); font-size: .76rem; font-weight: 700; white-space: nowrap; }
+.mn-destaque { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 14px 12px; border-radius: var(--r-md); text-align: center; }
+.mn-destaque--ok { background: var(--green-bg); color: var(--green); }
+.mn-destaque--neg { background: var(--red-bg); color: var(--red); }
+.mn-destaque-lbl { font-size: .84rem; font-weight: 700; }
+.mn-destaque-valor { font-family: var(--mono); font-size: 1.75rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+
+.mn-linhas { display: flex; flex-direction: column; }
+.mn-linha { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 2px; border-top: 1px solid var(--border); }
+.mn-linhas .mn-linha:first-child { border-top: none; }
+.mn-linha-lbl { flex: 1; min-width: 0; font-size: .9rem; font-weight: 600; color: var(--text); }
+.mn-linha strong { font-family: var(--mono); font-size: .9rem; font-weight: 800; flex-shrink: 0; }
+
+/* Composição (aberta sob demanda) */
+.mn-toggle {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 46px; padding: 10px 12px;
+  font-family: var(--font); font-size: .88rem; font-weight: 700; color: var(--brown-mid);
+  background: var(--cream); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;
+}
+.mn-toggle:active { background: var(--cream-deep); }
+.mn-toggle:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 1px; }
+.mn-toggle-seta { font-size: .7rem; margin-left: 2px; }
+.mn-detalhe { display: flex; flex-direction: column; gap: 12px; }
+.mn-grupo { padding: 12px; background: var(--bg); border-radius: var(--r-md); }
+.mn-grupo-titulo { margin-bottom: 4px; font-size: .78rem; font-weight: 800; color: var(--muted); }
+.mn-linha--simples { min-height: 38px; padding: 6px 0; border-top: 1px solid rgba(0, 0, 0, .05); }
+.mn-grupo-titulo + .mn-linha--simples { border-top: none; }
+.mn-linha--total { margin-top: 4px; border-top: 1px solid var(--border2); }
+.mn-linha--total .mn-linha-lbl { font-weight: 800; color: var(--brown-dark); }
+
+/* Por categoria */
+.mn-cat { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.mn-cat:first-child { border-top: none; }
+.mn-cat-txt { flex: 1; min-width: 0; }
+.mn-cat-nome { font-size: .94rem; font-weight: 700; color: var(--brown-dark); overflow-wrap: anywhere; }
+.mn-cat-sub { margin-top: 2px; font-size: .78rem; color: var(--muted); }
+.mn-cat-valor { flex-shrink: 0; font-family: var(--mono); font-size: .95rem; font-weight: 800; }
+@media (prefers-reduced-motion: reduce) { .mn-seta, .mn-toggle { transition: none; } }
+
+/* ── Movimentações: valor da linha e conta por extenso ── */
+.lancamentos-list .row-right { font-family: var(--mono); font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lancamentos-list .row-right.green { color: var(--green); }
+.lancamentos-list .row-right.red { color: var(--red); }
+.lancamentos-list .fl-dot { display: none; }
+.lancamentos-list .fl-banco-sigla { display: none; }
+html.is-desktop .lancamentos-list .fl-banco-nome { display: none; }
+html.is-desktop .lancamentos-list .fl-banco-sigla { display: inline; }
+.fchip:focus-visible, .fbar-chip:focus-visible, .fbar-search-btn:focus-visible, .cat-list-item:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: -3px; }
 </style>
