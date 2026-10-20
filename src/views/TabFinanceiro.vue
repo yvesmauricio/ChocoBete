@@ -30,60 +30,78 @@
 
     <!-- ═══ ABA: IMPORTAR ═══ -->
     <template v-if="abaAtiva === 'importar'">
-      <div class="relatorio-wrap">
-        <section class="sheet-card importar-card">
-          <div class="sheet-body">
-            <div class="section-head">
-              <h4><i class="fas fa-file-import"></i> Importar extrato</h4>
-              <span class="badge badge-muted">{{ bancosImportacaoDisponiveis.length }} banco(s)</span>
-            </div>
+      <div class="relatorio-wrap im-pagina">
 
-            <div v-if="!temAlgumBancoConfigurado" class="empty-mini">
-              Cadastre uma conta bancária em Ajustes para importar extratos.
-            </div>
+        <header class="im-cab">
+          <h3 class="im-titulo">Importar extrato</h3>
+          <p class="im-desc">Traga os lançamentos do seu banco para o app enviando o arquivo do extrato.</p>
+        </header>
 
-            <template v-else>
-              <div class="banco-tabs">
-                <button v-if="temContasPagbank" class="banco-tab" :class="{ active: bancoImport === 'pagbank' }" @click="bancoImport = 'pagbank'">
-                  <i class="fas fa-file-csv"></i> PagBank CSV
-                </button>
-                <button v-if="temContasItau" class="banco-tab" :class="{ active: bancoImport === 'itau' }" @click="bancoImport = 'itau'">
-                  <i class="fas fa-file-pdf"></i> Itaú PDF
-                </button>
-                <button v-if="temContasBb" class="banco-tab" :class="{ active: bancoImport === 'bb' }" @click="bancoImport = 'bb'">
-                  <i class="fas fa-file-csv"></i> BB CSV
-                </button>
-              </div>
+        <div v-if="!temAlgumBancoConfigurado" class="im-card im-vazio">
+          <div class="im-vazio-icone"><i class="fas fa-building-columns"></i></div>
+          <strong>Nenhuma conta cadastrada</strong>
+          <span>Cadastre uma conta bancária em Ajustes › Financeiro para poder importar extratos.</span>
+        </div>
+
+        <template v-else>
+          <!-- Passo 1: banco (só aparece quando há mais de um) -->
+          <section v-if="bancosImportacaoDisponiveis.length > 1" class="im-bloco">
+            <div class="im-passo-cab"><span class="im-passo">1</span><h4>Escolha o banco</h4></div>
+            <div class="im-bancos" role="radiogroup" aria-label="Banco do extrato">
+              <button v-if="temContasPagbank" class="im-banco" :class="{ active: bancoImport === 'pagbank' }" role="radio" :aria-checked="bancoImport === 'pagbank'" @click="bancoImport = 'pagbank'">
+                <i class="fas fa-file-csv"></i><strong>PagBank</strong><span>arquivo CSV</span>
+              </button>
+              <button v-if="temContasItau" class="im-banco" :class="{ active: bancoImport === 'itau' }" role="radio" :aria-checked="bancoImport === 'itau'" @click="bancoImport = 'itau'">
+                <i class="fas fa-file-pdf"></i><strong>Itaú</strong><span>arquivo PDF</span>
+              </button>
+              <button v-if="temContasBb" class="im-banco" :class="{ active: bancoImport === 'bb' }" role="radio" :aria-checked="bancoImport === 'bb'" @click="bancoImport = 'bb'">
+                <i class="fas fa-file-csv"></i><strong>BB</strong><span>arquivo CSV</span>
+              </button>
+            </div>
+          </section>
+
+          <!-- Passo 2: envio do arquivo (os importadores são componentes próprios, não mudam) -->
+          <section class="im-bloco">
+            <div class="im-passo-cab">
+              <span v-if="bancosImportacaoDisponiveis.length > 1" class="im-passo">2</span>
+              <h4>{{ bancoImport === 'itau' ? 'Envie o PDF do Itaú' : bancoImport === 'bb' ? 'Envie o CSV do Banco do Brasil' : 'Envie o CSV do PagBank' }}</h4>
+            </div>
+            <div class="im-card im-card--painel">
               <div class="importador-panel">
                 <ImportadorExtrato v-if="bancoImport === 'pagbank'" @editar-lancamento="abrirModalEdicao" />
                 <ImportadorItau v-else-if="bancoImport === 'itau'" />
                 <ImportadorBancoBrasil v-else-if="bancoImport === 'bb'" />
               </div>
-            </template>
-
-            <div v-if="s.financeiro.length" class="extratos-admin">
-              <button class="extratos-admin-toggle" :class="{ active: mostrarExcluirBanco }" @click="mostrarExcluirBanco = !mostrarExcluirBanco">
-                <span><i class="fas fa-gear"></i> Gerenciar extratos importados</span>
-                <i class="fas" :class="mostrarExcluirBanco ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-              </button>
-              <Transition name="fade-slide">
-                <div v-if="mostrarExcluirBanco" class="excluir-banco-panel">
-                  <div class="excluir-banco-titulo"><i class="fas fa-trash-can"></i> Excluir extrato por banco</div>
-                  <div class="excluir-banco-list">
-                    <button v-for="b in bancosComLancamentos" :key="b.id" class="excluir-banco-btn" @click="handleExcluirPorBanco(b.id)">
-                      <span class="eb-nome">{{ b.label }}</span>
-                      <span class="eb-count">{{ b.count }} lançamento(s)</span>
-                      <i class="fas fa-chevron-right eb-arrow"></i>
-                    </button>
-                    <button class="excluir-banco-btn excluir-todos" @click="handleExcluirPorBanco('todos')">
-                      <span class="eb-nome">Excluir tudo</span>
-                      <span class="eb-count">{{ s.financeiro.length }} lançamento(s)</span>
-                      <i class="fas fa-chevron-right eb-arrow"></i>
-                    </button>
-                  </div>
-                </div>
-              </Transition>
             </div>
+          </section>
+        </template>
+
+        <!-- Gerenciar / excluir extratos: separado e em vermelho, por ser irreversível -->
+        <section v-if="s.financeiro.length" class="im-bloco">
+          <div class="im-card im-card--risco">
+            <button class="im-admin-toggle" :aria-expanded="mostrarExcluirBanco" @click="mostrarExcluirBanco = !mostrarExcluirBanco">
+              <span class="im-admin-icone"><i class="fas fa-trash-can"></i></span>
+              <span class="im-admin-txt">
+                <strong>Excluir extratos importados</strong>
+                <small>{{ s.financeiro.length }} {{ s.financeiro.length === 1 ? 'lançamento guardado' : 'lançamentos guardados' }}</small>
+              </span>
+              <i class="fas im-admin-seta" :class="mostrarExcluirBanco ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            </button>
+            <Transition name="fade-slide">
+              <div v-if="mostrarExcluirBanco" class="im-excluir">
+                <p class="im-excluir-aviso"><i class="fas fa-triangle-exclamation"></i> Apagar é permanente e não dá para desfazer. Antes de confirmar, o app pergunta de novo.</p>
+                <button v-for="b in bancosComLancamentos" :key="b.id" class="im-excluir-btn" @click="handleExcluirPorBanco(b.id)">
+                  <span class="im-excluir-nome">{{ b.label }}</span>
+                  <span class="im-excluir-qtd">{{ b.count }} {{ b.count === 1 ? 'lançamento' : 'lançamentos' }}</span>
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+                <button class="im-excluir-btn im-excluir-btn--todos" @click="handleExcluirPorBanco('todos')">
+                  <span class="im-excluir-nome">Excluir tudo</span>
+                  <span class="im-excluir-qtd">{{ s.financeiro.length }} {{ s.financeiro.length === 1 ? 'lançamento' : 'lançamentos' }}</span>
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+              </div>
+            </Transition>
           </div>
         </section>
       </div>
@@ -451,9 +469,13 @@
 
     <!-- ═══ ABA: META DE RETIRADA ═══ -->
     <template v-else-if="abaAtiva === 'mao-de-obra'">
-      <div class="relatorio-wrap">
-        <section class="sheet-card">
-          <div class="sheet-body">
+      <div class="relatorio-wrap mo-pagina">
+          <div class="mo-corpo">
+
+            <header class="mo-cab">
+              <h3 class="mo-titulo">Retirada e mão de obra</h3>
+              <p class="mo-desc">Quanto você pode retirar com segurança em cada mês e quanto vale a sua hora de trabalho.</p>
+            </header>
 
             <!-- Cabeçalho: as duas métricas globais, com o mesmo peso visual -->
             <div class="mtr-kpis">
@@ -462,6 +484,7 @@
                 <div class="mtr-kpi-txt">
                   <span class="mtr-label">Meta de retirada</span>
                   <strong class="mtr-valor">{{ R$(s.company.meta_salario_mensal) }}</strong>
+                  <span class="mtr-sub">Quanto você quer tirar por mês</span>
                 </div>
               </div>
               <div class="mtr-kpi mtr-kpi--giro">
@@ -497,7 +520,7 @@
 
                 <!-- Barra de progresso em relação à meta -->
                 <div class="mtr-bar-row">
-                  <div class="mtr-bar-bg">
+                  <div class="mtr-bar-bg" aria-hidden="true">
                     <div class="mtr-bar-fill"
                       :style="{
                         width: s.metaSalarioEm(mes.mes_ref)
@@ -551,7 +574,7 @@
 
               </div>
             </div>
-            <div v-else class="empty-mini">Nenhum dado financeiro ainda.</div>
+            <div v-else class="mo-vazio"><i class="fas fa-chart-simple"></i><strong>Nenhum dado financeiro ainda</strong><span>Importe um extrato para ver aqui a retirada segura de cada mês.</span></div>
 
             <!-- Explicação do tempo de produção — colapsável, fica fora do caminho -->
             <button class="mtr-explainer-toggle" @click="explicacaoAberta = !explicacaoAberta">
@@ -576,58 +599,79 @@
             </Transition>
 
           </div>
-        </section>
       </div>
     </template>
 
     <!-- ═══ ABA: ANUAL ═══ -->
     <template v-else-if="abaAtiva === 'anual'">
-      <div class="relatorio-wrap">
+      <div class="relatorio-wrap an-pagina">
+
+        <header class="an-cab">
+          <h3 class="an-titulo">Resumo do ano</h3>
+          <p class="an-desc">Quanto entrou, quanto saiu e o que sobrou em cada ano.</p>
+        </header>
+
         <!-- Seletor de ano -->
-        <div class="ano-selector-inline">
-          <button v-for="a in anosDisponiveis" :key="a" class="ano-btn"
-            :class="{ active: anoRelAnual === a }" @click="anoRelAnual = a">{{ a }}</button>
+        <div class="an-anos" role="radiogroup" aria-label="Ano">
+          <button v-for="a in anosDisponiveis" :key="a" class="an-ano" :class="{ active: anoRelAnual === a }"
+            role="radio" :aria-checked="anoRelAnual === a" @click="anoRelAnual = a">{{ a }}</button>
         </div>
 
-        <!-- Totais -->
-        <section class="sheet-card">
-          <div class="sheet-body">
-            <div class="section-head"><h4><i class="fas fa-chart-bar"></i> Resumo {{ anoRelAnual }}</h4></div>
-            <div class="anual-totais">
-              <div class="anual-item">
-                <div class="anual-label">Receita Total MEI</div>
-                <div class="anual-valor c-green">{{ R$(totalAnual.receitas) }}</div>
-                <div class="anual-sub">PIX de clientes (excl. renda pessoal)</div>
+        <!-- Resultado do ano em destaque -->
+        <div class="an-hero" :class="totalAnual.saldo >= 0 ? 'an-hero--ok' : 'an-hero--neg'">
+          <span class="an-hero-lbl">{{ totalAnual.saldo >= 0 ? 'Sobrou em ' + anoRelAnual : 'Faltou em ' + anoRelAnual }}</span>
+          <strong class="an-hero-valor">{{ R$(totalAnual.saldo) }}</strong>
+          <span class="an-hero-sub">Receita MEI − despesas operacionais</span>
+        </div>
+
+        <!-- De onde veio e para onde foi -->
+        <section class="an-bloco">
+          <header class="an-bloco-cab"><h4 class="an-bloco-titulo">Entradas e saídas</h4></header>
+          <div class="an-card">
+            <div class="an-linha">
+              <span class="an-ponto an-ponto--verde"></span>
+              <div class="an-linha-txt">
+                <div class="an-linha-nome">Receita MEI</div>
+                <div class="an-linha-sub">PIX de clientes (sem renda pessoal)</div>
               </div>
-              <div class="anual-item" v-if="totalAnual.outras_entradas" style="border-color:var(--purple-bg); background:var(--purple-bg);">
-                <div class="anual-label" style="color:var(--purple)">Entradas Não-MEI</div>
-                <div class="anual-valor c-purple">{{ R$(totalAnual.outras_entradas) }}</div>
-                <div class="anual-sub">Renda pessoal, rendimentos (não conta no faturamento MEI)</div>
+              <strong class="an-linha-valor c-green">{{ R$(totalAnual.receitas) }}</strong>
+            </div>
+            <div v-if="totalAnual.outras_entradas" class="an-linha">
+              <span class="an-ponto an-ponto--roxo"></span>
+              <div class="an-linha-txt">
+                <div class="an-linha-nome">Entradas não-MEI</div>
+                <div class="an-linha-sub">Renda pessoal e rendimentos. Não contam no faturamento MEI</div>
               </div>
-              <div class="anual-item">
-                <div class="anual-label">Despesas Operacionais</div>
-                <div class="anual-valor c-red">{{ R$(totalAnual.operacional) }}</div>
-                <div class="anual-sub">Insumos, mercado, serviços</div>
+              <strong class="an-linha-valor c-purple">{{ R$(totalAnual.outras_entradas) }}</strong>
+            </div>
+            <div class="an-linha">
+              <span class="an-ponto an-ponto--vermelho"></span>
+              <div class="an-linha-txt">
+                <div class="an-linha-nome">Despesas operacionais</div>
+                <div class="an-linha-sub">Insumos, mercado, serviços</div>
               </div>
-              <div class="anual-item">
-                <div class="anual-label">Saídas Pessoais</div>
-                <div class="anual-valor">{{ R$(totalAnual.pessoal) }}</div>
-                <div class="anual-sub">Moradia, transferências</div>
+              <strong class="an-linha-valor c-red">{{ R$(totalAnual.operacional) }}</strong>
+            </div>
+            <div class="an-linha">
+              <span class="an-ponto"></span>
+              <div class="an-linha-txt">
+                <div class="an-linha-nome">Saídas pessoais</div>
+                <div class="an-linha-sub">Moradia, transferências</div>
               </div>
-              <div class="anual-item destaque" :class="totalAnual.saldo >= 0 ? 'positivo' : 'negativo'">
-                <div class="anual-label">Saldo Operacional</div>
-                <div class="anual-valor" :class="totalAnual.saldo >= 0 ? 'c-green' : 'c-red'">{{ R$(totalAnual.saldo) }}</div>
-                <div class="anual-sub">Receita MEI − despesas operacionais</div>
-              </div>
+              <strong class="an-linha-valor">{{ R$(totalAnual.pessoal) }}</strong>
             </div>
           </div>
         </section>
 
-        <!-- Gráfico barras CSS -->
-        <section class="sheet-card" v-if="relatorioAnualMeses.length">
-          <div class="sheet-body">
-            <div class="section-head"><h4><i class="fas fa-chart-simple"></i> Evolução mensal</h4></div>
-            <div class="grafico-barras">
+        <!-- Gráfico de barras (CSS) -->
+        <section v-if="relatorioAnualMeses.length" class="an-bloco">
+          <header class="an-bloco-cab"><h4 class="an-bloco-titulo">Evolução mensal</h4></header>
+          <div class="an-card an-card--pad">
+            <div class="an-legenda">
+              <span class="an-leg an-leg--verde"><i></i> Receita MEI</span>
+              <span class="an-leg an-leg--vermelho"><i></i> Saída operacional</span>
+            </div>
+            <div class="grafico-barras an-grafico">
               <div v-for="item in relatorioAnualMeses" :key="item.mes_ref" class="barra-grupo">
                 <div class="barra-labels">
                   <div class="barra entrada" :style="{ height: barraAltura(item.receitas_mei) + 'px' }" :title="'Receita: ' + R$(item.receitas_mei)"></div>
@@ -636,23 +680,17 @@
                 <div class="barra-mes">{{ item.mes_ref.split('/')[0] }}/{{ item.mes_ref.split('/')[1].slice(2) }}</div>
               </div>
             </div>
-            <div class="grafico-legenda">
-              <span class="leg-entrada"><i class="fas fa-square"></i> Receita MEI</span>
-              <span class="leg-saida"><i class="fas fa-square"></i> Saída operacional</span>
-            </div>
           </div>
         </section>
 
         <!-- Tabela mensal -->
-        <section class="sheet-card" v-if="relatorioAnualMeses.length">
-          <div class="sheet-body">
-            <div class="section-head"><h4><i class="fas fa-table"></i> Detalhamento mensal</h4></div>
-            <div class="tabela-anual">
-              <div class="ta-hdr">
-                <span>Mês</span><span>Receita MEI</span><span>Saldo op.</span>
-              </div>
-              <div v-for="item in relatorioAnualMeses" :key="item.mes_ref" class="ta-row">
-                <span class="ta-mes">{{ item.mes_ref }}</span>
+        <section v-if="relatorioAnualMeses.length" class="an-bloco">
+          <header class="an-bloco-cab"><h4 class="an-bloco-titulo">Mês a mês</h4></header>
+          <div class="an-card">
+            <div class="an-tabela">
+              <div class="an-th"><span>Mês</span><span>Receita MEI</span><span>Saldo</span></div>
+              <div v-for="item in relatorioAnualMeses" :key="item.mes_ref" class="an-tr">
+                <span class="an-td-mes">{{ item.mes_ref }}</span>
                 <span class="c-green">{{ R$(item.receitas_mei) }}</span>
                 <span :class="item.saldo_operacional >= 0 ? 'c-green' : 'c-red'">{{ R$(item.saldo_operacional) }}</span>
               </div>
@@ -663,24 +701,28 @@
         <div v-if="!relatorioAnualMeses.length" class="app-empty">
           <i class="fas fa-chart-bar"></i>
           <p>Sem dados para {{ anoRelAnual }}.</p>
-          <button class="btn-abrir-import" @click="abaAtiva = 'importar'">
+          <button class="btn btn-primary" @click="abaAtiva = 'importar'">
             <i class="fas fa-file-import"></i> Importar extrato
           </button>
         </div>
       </div>
     </template>
 
-    <!-- ═══ ABA: RELATÓRIOS ═══ -->
     <template v-else-if="abaAtiva === 'relatorios'">
-      <div class="relatorio-wrap">
+      <div class="relatorio-wrap rl-pagina">
+
+        <header class="rl-cab">
+          <h3 class="rl-titulo">Relatórios oficiais</h3>
+          <p class="rl-desc">Livro Caixa do mês e Declaração Anual (DASN-SIMEI) do seu MEI, para conferir aqui e gerar em PDF.</p>
+        </header>
 
         <!-- ── Seletor tipo relatório ── -->
-        <div class="rel-tipo-nav">
-          <button class="rel-tipo-btn" :class="{ active: relTipo === 'mensal' }" @click="relTipo = 'mensal'">
-            <i class="fas fa-calendar-days"></i> Livro Caixa Mensal
+        <div class="rel-tipo-nav" role="radiogroup" aria-label="Tipo de relatório">
+          <button class="rel-tipo-btn" :class="{ active: relTipo === 'mensal' }" role="radio" :aria-checked="relTipo === 'mensal'" @click="relTipo = 'mensal'">
+            <i class="fas fa-calendar-days"></i> Livro Caixa mensal
           </button>
-          <button class="rel-tipo-btn" :class="{ active: relTipo === 'anual' }" @click="relTipo = 'anual'">
-            <i class="fas fa-file-invoice-dollar"></i> Declaração Anual
+          <button class="rel-tipo-btn" :class="{ active: relTipo === 'anual' }" role="radio" :aria-checked="relTipo === 'anual'" @click="relTipo = 'anual'">
+            <i class="fas fa-file-invoice-dollar"></i> Declaração anual
           </button>
         </div>
 
@@ -737,10 +779,10 @@
                       <option v-for="m in mesesRelatorio" :key="m.value" :value="m.value">{{ m.label }}</option>
                     </select>
                   </div>
-                  <div class="fg" style="margin:0; display: flex; align-items: center">
-                    <label class="incluir-pessoal-toggle-modern">
-                      <input type="checkbox" v-model="incluirRendasPessoais" />
+                  <div class="fg rl-fg-switch" style="margin:0">
+                    <label class="rl-switch-linha">
                       <span>Incluir rendas pessoais</span>
+                      <input type="checkbox" role="switch" class="rl-switch" v-model="incluirRendasPessoais" />
                     </label>
                   </div>
                 </div>
@@ -892,10 +934,10 @@
                       <option v-for="a in anosDisponiveis" :key="a" :value="a">{{ a }}</option>
                     </select>
                   </div>
-                  <div class="fg" style="margin:0; display: flex; align-items: center">
-                    <label class="incluir-pessoal-toggle-modern">
-                      <input type="checkbox" v-model="incluirRendasPessoais" />
+                  <div class="fg rl-fg-switch" style="margin:0">
+                    <label class="rl-switch-linha">
                       <span>Incluir rendas pessoais</span>
+                      <input type="checkbox" role="switch" class="rl-switch" v-model="incluirRendasPessoais" />
                     </label>
                   </div>
                 </div>
@@ -1597,52 +1639,6 @@ onMounted(() => s.carregarFinanceiro())
 <style scoped>
 /* seletor de grupo agora usa .seg-control/.seg-btn globais (main.css) */
 /* ── Painel excluir por banco ─────────────────────────────── */
-.excluir-banco-panel {
-  background: var(--red-bg);
-  border-bottom: 1px solid var(--red-dim);
-  padding: 10px 16px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.excluir-banco-titulo {
-  font-size: .7rem;
-  font-weight: 800;
-  color: var(--red);
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.excluir-banco-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.excluir-banco-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border: 1px solid var(--red-dim);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  color: var(--text);
-  text-align: left;
-  transition: all var(--t);
-}
-.excluir-banco-btn:active { background: var(--red-bg); }
-.excluir-banco-btn.excluir-todos {
-  border-color: var(--red);
-  background: var(--red-bg);
-  color: var(--red);
-}
-.excluir-banco-btn.excluir-todos:active { background: var(--red-bg); }
-.eb-nome { flex: 1; font-size: .84rem; font-weight: 700; }
-.eb-count { font-size: .72rem; color: var(--muted); font-weight: 500; }
-.excluir-banco-btn.excluir-todos .eb-count { color: var(--red); opacity: .75; }
-.eb-arrow { font-size: .65rem; color: var(--muted); flex-shrink: 0; }
 
 /* Transição painel excluir */
 .fade-slide-enter-active, .fade-slide-leave-active { transition: all .18s ease; }
@@ -1690,17 +1686,7 @@ onMounted(() => s.carregarFinanceiro())
 .tab-financeiro .aba-btn { flex: 0 0 auto; padding-left: 12px; padding-right: 12px; }
 
 /* ── Importadores ─── */
-.importar-card .sheet-body { padding-bottom: 0; }
-.banco-tabs { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; scrollbar-width: none; }
-.banco-tabs::-webkit-scrollbar { display: none; }
-.banco-tab { flex: 1 0 112px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); color: var(--muted); font-size: .8rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all var(--t); }
-.banco-tab.active { background: var(--brown); color: #fff; border-color: var(--brown); }
 .importador-panel { margin: 0 -14px; border-top: 1px solid var(--border); background: var(--bg); }
-.extratos-admin { margin: 14px -14px 0; padding: 12px 14px 14px; border-top: 1px solid var(--border); background: var(--cream); }
-.extratos-admin-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--muted); font-size: .8rem; font-weight: 800; text-align: left; }
-.extratos-admin-toggle span { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.extratos-admin-toggle.active { border-color: var(--red-dim); background: var(--red-bg); color: var(--red); }
-.extratos-admin .excluir-banco-panel { margin-top: 10px; border: 1px solid var(--red-dim); border-radius: var(--r-md); border-bottom: 1px solid var(--red-dim); }
 
 .cat-list { display: flex; flex-direction: column; }
 .cat-list-grupo { font-size: .8rem; font-weight: 800; color: var(--brown-mid); padding: 12px 16px 6px; background: var(--cream); border-bottom: .5px solid var(--border); }
@@ -1869,24 +1855,11 @@ onMounted(() => s.carregarFinanceiro())
 /* ── Empty ─── */
 .empty-mini { text-align: center; color: var(--muted); padding: 32px 24px; font-size: .82rem; display: flex; flex-direction: column; align-items: center; gap: 8px; line-height: 1.5; }
 .empty-mini i { font-size: 1.8rem; opacity: .2; }
-.btn-abrir-import { padding: 10px 20px; background: var(--brown); color: #fff; border: none; border-radius: var(--r-full); font-size: .85rem; font-weight: 700; display: flex; align-items: center; gap: 8px; transition: background var(--t); }
-.btn-abrir-import:active { background: var(--brown-dark); }
 
 /* ── Relatório ─── */
 .relatorio-wrap { padding: 14px 16px max(96px, calc(72px + env(safe-area-inset-bottom))); display: flex; flex-direction: column; gap: 14px; }
 
 /* Anual */
-.ano-selector-inline { display: flex; gap: 8px; flex-wrap: wrap; }
-.ano-btn { padding: 6px 16px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--bg); color: var(--muted); font-size: .82rem; font-weight: 700; transition: all var(--t); }
-.ano-btn.active { background: var(--brown); color: #fff; border-color: var(--brown); }
-.anual-totais { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.anual-item { border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; background: var(--bg); }
-.anual-item.destaque { border-width: 2px; }
-.anual-item.positivo { border-color: var(--green-dim); background: var(--green-bg); }
-.anual-item.negativo { border-color: var(--red); background: var(--red-bg); }
-.anual-label { font-size: .7rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
-.anual-valor { font-family: var(--mono); font-size: 1.05rem; font-weight: 700; color: var(--brown); margin-bottom: 4px; }
-.anual-sub { font-size: .7rem; color: var(--muted); line-height: 1.4; }
 
 /* Gráfico */
 .grafico-barras { display: flex; align-items: flex-end; gap: 6px; height: 80px; padding-bottom: 4px; overflow-x: auto; }
@@ -1896,41 +1869,14 @@ onMounted(() => s.carregarFinanceiro())
 .barra.entrada { background: var(--green); }
 .barra.saida   { background: var(--red); opacity: .75; }
 .barra-mes { font-size: .6rem; color: var(--muted); font-weight: 600; white-space: nowrap; }
-.grafico-legenda { display: flex; gap: 16px; margin-top: 8px; font-size: .75rem; color: var(--muted); font-weight: 600; }
-.leg-entrada i { color: var(--green); }
-.leg-saida   i { color: var(--red); }
 
 /* Tabela anual */
-.tabela-anual { display: flex; flex-direction: column; }
-.ta-hdr { display: grid; grid-template-columns: 58px 1fr 1fr; gap: 4px; padding: 6px 0 8px; font-size: .66rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); }
-.ta-row { display: grid; grid-template-columns: 58px 1fr 1fr; gap: 4px; padding: 8px 0; font-size: .8rem; border-bottom: 1px solid var(--border); }
-.ta-row:last-child { border-bottom: none; }
-.ta-mes { font-weight: 600; color: var(--text); font-family: var(--font); font-size: .75rem; }
-.ta-row span { font-family: var(--mono); font-size: .76rem; }
 
 .renda-pessoal { background: var(--purple-bg); border-radius: 4px; padding-left: 4px; padding-right: 4px; }
 
 /* ── Aba Relatórios ─────────────────────────────────────── */
-.rel-tipo-nav {
-  display: flex;
-  gap: 8px;
-  padding: 0 0 4px;
-}
-.rel-tipo-btn {
-  flex: 1;
-  padding: 9px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--bg);
-  color: var(--muted);
-  font-size: .78rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all var(--t);
-}
+.rel-tipo-nav { display: flex; gap: 8px; padding: 0; }
+.rel-tipo-btn { flex: 1; min-height: 52px; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--r-lg); background: var(--surface); color: var(--brown-mid); font-size: .88rem; font-weight: 800; line-height: 1.25; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all var(--t); }
 .rel-tipo-btn.active {
   background: var(--brown);
   color: #fff;
@@ -1941,10 +1887,10 @@ onMounted(() => s.carregarFinanceiro())
 .teto-card { border-left: 3px solid var(--brown); }
 .teto-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
 .teto-titulo { font-size: .88rem; font-weight: 800; color: var(--brown-dark); }
-.teto-sub { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+.teto-sub { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
 .teto-valor-wrap { text-align: right; flex-shrink: 0; }
 .teto-valor { font-family: var(--mono); font-size: 1.1rem; font-weight: 800; }
-.teto-pct { font-size: .7rem; color: var(--muted); margin-top: 2px; }
+.teto-pct { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
 
 .teto-barra-wrap { margin-bottom: 6px; }
 .teto-barra-bg {
@@ -1963,7 +1909,7 @@ onMounted(() => s.carregarFinanceiro())
 .teto-barra-fill.warning { background: var(--orange); }
 .teto-barra-fill.danger  { background: var(--red); }
 .teto-barra-mark { margin-top: 5px; text-align: right; padding-right: 2px; }
-.teto-falta { font-size: .68rem; color: var(--muted); font-weight: 600; display: inline-block; }
+.teto-falta { font-size: 0.78rem; color: var(--muted); font-weight: 600; display: inline-block; }
 
 .teto-alertas { margin-top: 4px; }
 .teto-alerta {
@@ -1972,7 +1918,7 @@ onMounted(() => s.carregarFinanceiro())
   gap: 8px;
   padding: 8px 10px;
   border-radius: var(--r-md);
-  font-size: .78rem;
+  font-size: 0.86rem;
   font-weight: 600;
 }
 .teto-alerta.alerta-warning { background: var(--gold-bg); color: var(--orange); }
@@ -1994,13 +1940,13 @@ onMounted(() => s.carregarFinanceiro())
   display: flex;
   flex-direction: column;
   gap: 1px;
-  font-size: .76rem;
+  font-size: 0.84rem;
 }
-.lc-cb-linha span { color: var(--muted); font-size: .64rem; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
-.lc-cb-linha strong { color: var(--text); font-size: .78rem; word-break: break-word; line-height: 1.3; }
+.lc-cb-linha span { color: var(--muted); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
+.lc-cb-linha strong { color: var(--text); font-size: 0.86rem; word-break: break-word; line-height: 1.3; }
 
 .lc-section-label {
-  font-size: .65rem;
+  font-size: 0.76rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: .6px;
@@ -2026,10 +1972,10 @@ onMounted(() => s.carregarFinanceiro())
 .lc-row .lc-col-cat  { order: 1; }
 .lc-row .lc-col-val  { order: 1; }
 .lc-row .lc-col-desc { order: 2; color: var(--text); font-size: .8rem; word-break: break-word; line-height: 1.35; }
-.lc-row .lc-col-data { order: 3; color: var(--muted); font-size: .68rem; font-weight: 600; }
+.lc-row .lc-col-data { order: 3; color: var(--muted); font-size: 0.78rem; font-weight: 600; }
 /* use flexbox row for first line via pseudo wrapper — handle in template instead */
 .lc-col-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.lc-col-data { color: var(--muted); font-size: .68rem; font-weight: 600; }
+.lc-col-data { color: var(--muted); font-size: 0.78rem; font-weight: 600; }
 .lc-col-desc { color: var(--text); word-break: break-word; line-height: 1.35; font-size: .8rem; }
 .lc-col-cat  { }
 .lc-col-val  { font-family: var(--mono); font-size: .86rem; font-weight: 700; flex-shrink: 0; }
@@ -2037,7 +1983,7 @@ onMounted(() => s.carregarFinanceiro())
   display: inline-block;
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: .64rem;
+  font-size: 0.78rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -2045,7 +1991,7 @@ onMounted(() => s.carregarFinanceiro())
 .lc-saida   { background: var(--red-bg); color: var(--red); }
 .lc-pessoal { background: var(--purple-bg); color: var(--purple); }
 
-.lc-vazio { font-size: .78rem; color: var(--muted); padding: 8px 0; }
+.lc-vazio { font-size: 0.86rem; color: var(--muted); padding: 8px 0; }
 
 .lc-total {
   display: flex;
@@ -2093,7 +2039,7 @@ onMounted(() => s.carregarFinanceiro())
   padding: 10px 12px;
 }
 .lc-acum-titulo {
-  font-size: .72rem;
+  font-size: 0.82rem;
   font-weight: 800;
   color: var(--brown-mid);
   text-transform: uppercase;
@@ -2107,7 +2053,7 @@ onMounted(() => s.carregarFinanceiro())
   padding: 8px 10px;
   border: 1px solid var(--border);
 }
-.lc-acum-item span { display: block; font-size: .66rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .3px; margin-bottom: 4px; }
+.lc-acum-item span { display: block; font-size: 0.78rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .3px; margin-bottom: 4px; }
 .lc-acum-item strong { font-family: var(--mono); font-size: .88rem; font-weight: 800; }
 
 /* Quadro anual */
@@ -2123,7 +2069,7 @@ onMounted(() => s.carregarFinanceiro())
   grid-template-columns: 62px 1fr 1fr;
   gap: 8px;
   padding: 10px 12px;
-  font-size: .76rem;
+  font-size: 0.84rem;
   border: 1px solid var(--border);
   border-left: 5px solid var(--brown-light);
   border-radius: var(--r-md);
@@ -2132,7 +2078,7 @@ onMounted(() => s.carregarFinanceiro())
   align-items: center;
 }
 .lc-q-linha.hdr {
-  font-size: .62rem;
+  font-size: 0.76rem;
   font-weight: 800;
   color: var(--muted);
   text-transform: uppercase;
@@ -2169,13 +2115,13 @@ onMounted(() => s.carregarFinanceiro())
 .lra-linha strong { font-family: var(--mono); font-size: .86rem; }
 .lra-linha.destaque { background: var(--cream); font-weight: 700; }
 .lra-linha.destaque span { color: var(--text); font-weight: 700; }
-.lra-linha.sub { background: var(--bg); opacity: .8; font-size: .76rem; }
+.lra-linha.sub { background: var(--bg); opacity: .8; font-size: 0.84rem; }
 .lra-verificacao {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  font-size: .76rem;
+  font-size: 0.84rem;
   font-weight: 700;
   background: var(--green-bg);
   color: var(--green);
@@ -2201,104 +2147,66 @@ onMounted(() => s.carregarFinanceiro())
 /* Cabeçalho — duas métricas com o mesmo peso visual, empilhadas no
    celular estreito (padrão do app, ver .mei-grid) e lado a lado a
    partir de 420px. */
-.mtr-kpis { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.mtr-kpis { display: flex; flex-direction: column; gap: 10px; }
 @media (min-width: 420px) { .mtr-kpis { flex-direction: row; } }
-.mtr-kpi {
-  flex: 1; display: flex; align-items: flex-start; gap: 10px;
-  padding: 14px; background: var(--bg); border-radius: var(--r-md);
-  border: 1px solid var(--border);
-}
-.mtr-kpi-ico {
-  width: 34px; height: 34px; flex-shrink: 0; border-radius: var(--r-sm);
-  background: var(--cream); color: var(--brown);
-  display: flex; align-items: center; justify-content: center; font-size: .95rem;
-}
+.mtr-kpi { flex: 1; display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: var(--surface); border-radius: var(--r-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.mtr-kpi-ico { width: 42px; height: 42px; flex-shrink: 0; border-radius: var(--r-md); background: var(--cream); color: var(--brown); display: flex; align-items: center; justify-content: center; font-size: 1.05rem; }
 .mtr-kpi--giro .mtr-kpi-ico { background: var(--orange-bg); color: var(--orange); }
 .mtr-kpi-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.mtr-label { font-size: .62rem; text-transform: uppercase; font-weight: 800; color: var(--muted); letter-spacing: .4px; }
-.mtr-valor { font-size: 1.05rem; font-weight: 800; color: var(--brown-dark); font-family: var(--mono); }
-.mtr-sub { font-size: .6rem; color: var(--muted); line-height: 1.3; margin-top: 1px; }
+.mtr-label { font-size: .8rem; font-weight: 700; color: var(--muted); }
+.mtr-valor { font-size: 1.35rem; font-weight: 800; color: var(--brown-dark); font-family: var(--mono); line-height: 1.2; }
+.mtr-sub { font-size: .78rem; color: var(--muted); line-height: 1.4; margin-top: 1px; }
 
-.mtr-lista { display: flex; flex-direction: column; gap: 10px; }
+.mtr-lista { display: flex; flex-direction: column; gap: 12px; }
 
-.mtr-card {
-  border: 1px solid var(--border); border-radius: var(--r-md);
-  padding: 14px; background: var(--surface);
-  display: flex; flex-direction: column; gap: 10px;
-}
+.mtr-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; background: var(--surface); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 14px; }
 
 /* Mês + selo de status — dá pra escanear a lista inteira sem ler números */
 .mtr-card-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.mtr-card-mes { font-weight: 800; font-size: .85rem; color: var(--brown-dark); }
-.mtr-badge {
-  font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .3px;
-  padding: 3px 9px; border-radius: var(--r-full); white-space: nowrap;
-}
+.mtr-card-mes { font-weight: 800; font-size: 1.08rem; color: var(--brown-dark); }
+.mtr-badge { font-size: .76rem; font-weight: 800; padding: 5px 11px; border-radius: var(--r-full); white-space: nowrap; }
 .mtr-badge--ok      { background: var(--green-bg);  color: var(--green); }
 .mtr-badge--parcial { background: var(--orange-bg); color: var(--orange); }
 .mtr-badge--baixo   { background: var(--red-bg);    color: var(--red); }
 
 /* Número principal do card — o que a pessoa realmente veio ver */
-.mtr-card-principal { display: flex; flex-direction: column; gap: 1px; }
-.mtr-card-principal-lbl { font-size: .62rem; text-transform: uppercase; font-weight: 800; color: var(--muted); letter-spacing: .4px; }
-.mtr-card-retirada { font-size: 1.4rem; font-weight: 800; font-family: var(--mono); line-height: 1.15; }
+.mtr-card-principal { display: flex; flex-direction: column; gap: 2px; }
+.mtr-card-principal-lbl { font-size: .84rem; font-weight: 700; color: var(--muted); }
+.mtr-card-retirada { font-size: 1.8rem; font-weight: 800; font-family: var(--mono); line-height: 1.15; font-variant-numeric: tabular-nums; }
 
 .mtr-bar-row { display: flex; align-items: center; gap: 8px; }
-.mtr-bar-bg { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
-.mtr-bar-fill { height: 100%; border-radius: 4px; transition: width .6s ease; }
-.mtr-bar-pct { font-size: .7rem; color: var(--muted); font-weight: 800; flex-shrink: 0; min-width: 30px; text-align: right; }
+.mtr-bar-bg { flex: 1; height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+.mtr-bar-fill { height: 100%; border-radius: 5px; transition: width .6s ease; }
+.mtr-bar-pct { font-size: .84rem; color: var(--brown-mid); font-weight: 800; flex-shrink: 0; min-width: 38px; text-align: right; }
 
-.mtr-labor {
-  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
-  font-size: .72rem; color: var(--muted); padding: 7px 9px;
-  background: var(--bg); border-radius: var(--r-sm);
-}
+.mtr-labor { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: .84rem; color: var(--muted); padding: 10px 12px; background: var(--bg); border-radius: var(--r-md); }
 .mtr-labor i { color: var(--brown-light); }
 .mtr-labor-sep { opacity: .4; }
-.mtr-labor-meta { opacity: .5; }
+.mtr-labor-meta { opacity: .75; }
 
 /* Detalhes do cálculo — escondido por padrão, abre em lista vertical
    (evita o wrap quebrado que operadores soltos causavam em telas estreitas) */
-.mtr-detalhes-toggle {
-  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 8px 10px; border: 1px dashed var(--border); border-radius: var(--r-sm);
-  background: transparent; color: var(--muted); font-size: .72rem; font-weight: 700; text-align: left;
-}
+.mtr-detalhes-toggle { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--cream); color: var(--brown-mid); font-size: .88rem; font-weight: 700; text-align: left; cursor: pointer; }
 .mtr-detalhes-toggle span { display: flex; align-items: center; gap: 6px; }
 .mtr-detalhes-toggle i:last-child { font-size: .62rem; }
-.mtr-detalhes-toggle:active { background: var(--bg); }
+.mtr-detalhes-toggle:active { background: var(--cream-deep); }
 
-.mtr-equacao { display: flex; flex-direction: column; gap: 6px; padding: 10px 10px 2px; }
-.mtr-eq-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .8rem; color: var(--brown); }
+.mtr-equacao { display: flex; flex-direction: column; gap: 4px; padding: 6px 4px 0; }
+.mtr-eq-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 38px; font-size: .92rem; color: var(--brown); }
 .mtr-eq-row--sub { color: var(--muted); }
-.mtr-eq-row strong { font-family: var(--mono); font-weight: 800; font-size: .82rem; }
-.mtr-eq-row--result {
-  margin-top: 4px; padding-top: 8px; border-top: 1px dashed var(--border);
-  font-weight: 800; color: var(--brown-dark);
-}
-.mtr-eq-row--result strong { font-size: .92rem; }
+.mtr-eq-row strong { font-family: var(--mono); font-weight: 800; font-size: .92rem; }
+.mtr-eq-row--result { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--border2); font-weight: 800; color: var(--brown-dark); }
+.mtr-eq-row--result strong { font-size: 1.02rem; }
 
 /* Explicação do tempo de produção — accordion, some do caminho até que
    a pessoa peça por ele */
-.mtr-explainer-toggle {
-  width: 100%; margin-top: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 12px 14px; border-radius: var(--r-md);
-  background: var(--blue-bg); border: 1px solid var(--blue-dim, #bfdbfe);
-  color: var(--blue); font-size: .78rem; font-weight: 800; text-align: left;
-}
+.mtr-explainer-toggle { width: 100%; min-height: 52px; margin-top: 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: var(--r-lg); background: var(--blue-bg); border: 1px solid var(--blue-dim, #bfdbfe); color: var(--blue); font-size: .88rem; font-weight: 800; text-align: left; cursor: pointer; }
 .mtr-explainer-toggle span { display: flex; align-items: center; gap: 8px; }
-.mtr-explainer {
-  margin-top: 8px; padding: 14px; border-radius: var(--r-md);
-  background: var(--blue-bg); border: 1px solid var(--blue-dim, #bfdbfe);
-  display: flex; flex-direction: column; gap: 10px;
-}
+.mtr-explainer { margin-top: -6px; padding: 16px; border-radius: var(--r-lg); background: var(--blue-bg); border: 1px solid var(--blue-dim, #bfdbfe); display: flex; flex-direction: column; gap: 12px; }
 .mtr-exp-item { display: flex; flex-direction: column; gap: 3px; }
-.mtr-exp-item strong { font-size: .75rem; color: var(--brown-dark); }
-.mtr-exp-item span { font-size: .72rem; color: var(--brown); line-height: 1.4; }
-.mtr-exp-aviso {
-  display: flex; gap: 8px; padding: 8px; border-radius: var(--r-sm);
-  background: var(--gold-bg); color: var(--gold-dark); font-size: .7rem; line-height: 1.4;
-}
+.mtr-exp-item strong { font-size: .9rem; color: var(--brown-dark); }
+.mtr-exp-item span { font-size: .84rem; color: var(--brown); line-height: 1.55; }
+.mtr-exp-aviso { display: flex; gap: 8px; padding: 10px 12px; border-radius: var(--r-md); background: var(--gold-bg); color: var(--gold-dark); font-size: .82rem; line-height: 1.5; }
 .mtr-exp-aviso i { flex-shrink: 0; margin-top: 1px; }
 
 @media (min-width: 420px) {
@@ -2308,11 +2216,6 @@ onMounted(() => s.carregarFinanceiro())
 /* ════════════════════════════════════════════════════════════
    FIXES SAMSUNG A22 — tela estreita (≤ 380px)
    ════════════════════════════════════════════════════════════ */
-
-/* 1 ── Cards de banco: empilhar em coluna única */
-@media (max-width: 380px) {
-  .banco-resumo-grid { grid-template-columns: 1fr; }
-}
 
 /* 2 ── Livro Caixa: layout mobile — descrição + valor na linha 1, data + tipo na linha 2 */
 @media (max-width: 380px) {
@@ -2328,7 +2231,7 @@ onMounted(() => s.carregarFinanceiro())
     order: 0;
     flex: 1 1 calc(100% - 76px);
     min-width: 0;
-    font-size: .78rem;
+    font-size: 0.86rem;
     font-weight: 600;
     color: var(--text);
     padding-right: 6px;
@@ -2339,14 +2242,14 @@ onMounted(() => s.carregarFinanceiro())
     order: 1;
     flex: 0 0 auto;
     min-width: 72px;
-    font-size: .78rem;
+    font-size: 0.86rem;
     text-align: right;
     padding-top: 0;
   }
   .lc-col-data {
     order: 2;
     flex: 0 0 auto;
-    font-size: .65rem;
+    font-size: 0.76rem;
     color: var(--muted);
     padding-top: 3px;
     margin-right: 8px;
@@ -2358,10 +2261,6 @@ onMounted(() => s.carregarFinanceiro())
   }
 }
 
-/* 3 ── Tabela anual (detalhamento mensal): 3 colunas, sem scroll */
-.tabela-anual {
-  width: 100%;
-}
 
 /* 4 ── Quadros DASN (Receita + Despesas): 3 colunas, sem scroll */
 .lc-quadro {
@@ -2370,20 +2269,6 @@ onMounted(() => s.carregarFinanceiro())
   scrollbar-width: none;
 }
 .lc-quadro::-webkit-scrollbar { display: none; }
-
-/* 5 ── Gráfico de barras anual: mais espaço em telas pequenas */
-@media (max-width: 380px) {
-  .grafico-barras { gap: 4px; }
-  .barra-grupo    { min-width: 30px; }
-  .barra          { width: 12px; }
-  .barra-mes      { font-size: .55rem; }
-}
-
-/* 6 ── Totais anuais: coluna única abaixo de 380px */
-@media (max-width: 380px) {
-  .anual-totais { grid-template-columns: 1fr; }
-  .anual-item   { padding: 10px 12px; }
-}
 
 /* Botão gerar documento oficial */
 .btn-gerar {
@@ -2413,48 +2298,11 @@ onMounted(() => s.carregarFinanceiro())
   cursor: pointer;
 }
 
-.report-config-box {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 10px 12px;
-  margin-bottom: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.report-config-grid {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.report-config-grid .fg { margin: 0; flex-shrink: 0; }
-.incluir-pessoal-toggle-modern {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.72rem;
-  color: var(--muted);
-  cursor: pointer;
-  flex: 1;
-  min-width: 0;
-}
-.btn-gerar-large {
-  width: 100%;
-  padding: 9px;
-  background: var(--blue);
-  color: #fff;
-  border: none;
-  border-radius: var(--r-md);
-  font-size: 0.8rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all var(--t);
-}
+.report-config-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; }
+.report-config-grid { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: end; }
+.report-config-grid .fg { margin: 0; }
+.incluir-pessoal-toggle-modern { display: flex; align-items: center; gap: 6px; font-size: .84rem; color: var(--muted); cursor: pointer; flex: 1; min-width: 0; }
+.btn-gerar-large { width: 100%; min-height: 52px; padding: 10px; background: var(--blue); color: #fff; border: none; border-radius: var(--r-md); font-size: .95rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all var(--t); }
 .btn-gerar-large:active { background: var(--brown-dark); transform: scale(0.98); }
 
 /* ════════════════════════════════════════════════════════════
@@ -2625,4 +2473,145 @@ onMounted(() => s.carregarFinanceiro())
 html.is-desktop .lancamentos-list .fl-banco-nome { display: none; }
 html.is-desktop .lancamentos-list .fl-banco-sigla { display: inline; }
 .fchip:focus-visible, .fbar-chip:focus-visible, .fbar-search-btn:focus-visible, .cat-list-item:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: -3px; }
+
+/* ══ Financeiro › Importar (classes im-*) ══ */
+.im-pagina { gap: 20px; }
+.im-cab { padding: 0 2px; }
+.im-titulo { margin: 0; font-size: 1.3rem; font-weight: 800; line-height: 1.2; color: var(--brown-dark); }
+.im-desc { margin: 4px 0 0; font-size: .88rem; line-height: 1.5; color: var(--muted); }
+.im-bloco { display: flex; flex-direction: column; gap: 10px; }
+.im-passo-cab { display: flex; align-items: center; gap: 10px; padding: 0 2px; }
+.im-passo-cab h4 { margin: 0; font-size: 1.02rem; font-weight: 800; color: var(--brown-dark); }
+.im-passo { width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--brown); color: #fff; font-size: .8rem; font-weight: 800; }
+.im-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
+.im-card--painel .importador-panel { margin: 0; border-top: none; background: var(--surface); }
+.im-card--risco { border-color: var(--red-dim); background: #fffafa; }
+
+.im-vazio { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 20px; text-align: center; }
+.im-vazio-icone { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--cream); color: var(--muted); font-size: 1.3rem; margin-bottom: 4px; }
+.im-vazio strong { font-size: 1rem; color: var(--brown-dark); }
+.im-vazio span { font-size: .86rem; line-height: 1.5; color: var(--muted); }
+
+/* Escolha do banco */
+.im-bancos { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.im-banco {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 76px; padding: 10px 8px;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-lg); color: var(--brown-mid); cursor: pointer; transition: all var(--t);
+}
+.im-banco i { font-size: 1.25rem; margin-bottom: 2px; }
+.im-banco strong { font-size: .95rem; font-weight: 800; color: var(--brown-dark); }
+.im-banco span { font-size: .76rem; font-weight: 600; color: var(--muted); }
+.im-banco.active { background: var(--brown); border-color: var(--brown); color: #fff; box-shadow: var(--shadow-sm); }
+.im-banco.active strong, .im-banco.active span { color: #fff; }
+.im-banco:focus-visible, .im-admin-toggle:focus-visible, .im-excluir-btn:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: -3px; }
+
+/* Excluir extratos */
+.im-admin-toggle { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 12px 16px; background: none; border: none; text-align: left; cursor: pointer; }
+.im-admin-icone { width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: var(--r-md); background: var(--red-bg); color: var(--red); }
+.im-admin-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.im-admin-txt strong { font-size: .95rem; font-weight: 800; color: var(--red); }
+.im-admin-txt small { font-size: .8rem; color: var(--muted); }
+.im-admin-seta { font-size: .75rem; color: var(--muted); }
+.im-excluir { display: flex; flex-direction: column; gap: 8px; padding: 4px 16px 16px; border-top: 1px solid var(--red-dim); }
+.im-excluir-aviso { margin: 8px 0 4px; font-size: .82rem; line-height: 1.5; color: var(--muted); }
+.im-excluir-aviso i { color: var(--red); margin-right: 4px; }
+.im-excluir-btn { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); cursor: pointer; text-align: left; }
+.im-excluir-btn:active { background: var(--red-bg); }
+.im-excluir-nome { flex: 1; font-size: .92rem; font-weight: 700; color: var(--brown-dark); }
+.im-excluir-qtd { font-size: .8rem; color: var(--muted); font-weight: 600; }
+.im-excluir-btn i { font-size: .7rem; color: var(--muted); }
+.im-excluir-btn--todos { border-color: var(--red-dim); background: var(--red-bg); }
+.im-excluir-btn--todos .im-excluir-nome, .im-excluir-btn--todos .im-excluir-qtd { color: var(--red); }
+
+/* ══ Financeiro › Retirada e mão de obra (mo-*) ══ */
+.mo-pagina { gap: 0; }
+/* A barra de progresso usava var(--accent), que não existe: sem isso a barra aparecia vazia quando a meta não era atingida */
+.mtr-bar-row { --accent: var(--orange); }
+.mo-corpo { display: flex; flex-direction: column; gap: 16px; }
+.mo-cab { padding: 0 2px; }
+.mo-titulo { margin: 0; font-size: 1.3rem; font-weight: 800; line-height: 1.2; color: var(--brown-dark); }
+.mo-desc { margin: 4px 0 0; font-size: .88rem; line-height: 1.5; color: var(--muted); }
+.mo-vazio { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 20px; text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.mo-vazio i { font-size: 1.6rem; color: var(--muted); margin-bottom: 4px; }
+.mo-vazio strong { font-size: 1rem; color: var(--brown-dark); }
+.mo-vazio span { font-size: .86rem; line-height: 1.5; color: var(--muted); }
+.mtr-detalhes-toggle:focus-visible, .mtr-explainer-toggle:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 1px; }
+
+/* ══ Financeiro › Anual (classes an-*) ══ */
+.an-pagina { gap: 20px; }
+.an-cab { padding: 0 2px; }
+.an-titulo { margin: 0; font-size: 1.3rem; font-weight: 800; line-height: 1.2; color: var(--brown-dark); }
+.an-desc { margin: 4px 0 0; font-size: .88rem; line-height: 1.5; color: var(--muted); }
+.an-anos { display: flex; gap: 8px; flex-wrap: wrap; }
+.an-ano { min-width: 76px; min-height: 46px; padding: 0 20px; border: 1.5px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--brown-mid); font-size: .95rem; font-weight: 800; cursor: pointer; transition: all var(--t); }
+.an-ano.active { background: var(--brown); border-color: var(--brown); color: #fff; }
+.an-ano:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 2px; }
+.an-hero { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 20px 16px; border-radius: var(--r-lg); text-align: center; }
+.an-hero--ok { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-dim); }
+.an-hero--neg { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-dim); }
+.an-hero-lbl { font-size: .9rem; font-weight: 700; }
+.an-hero-valor { font-family: var(--mono); font-size: 2rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.an-hero-sub { font-size: .8rem; font-weight: 600; opacity: .85; }
+.an-bloco { display: flex; flex-direction: column; gap: 10px; }
+.an-bloco-cab { padding: 0 2px; }
+.an-bloco-titulo { margin: 0; font-size: 1.02rem; font-weight: 800; color: var(--brown-dark); }
+.an-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
+.an-card--pad { padding: 16px; }
+.an-linha { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--border); }
+.an-linha:first-child { border-top: none; }
+.an-ponto { width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; background: var(--border2); }
+.an-ponto--verde { background: var(--green); }
+.an-ponto--vermelho { background: var(--red); }
+.an-ponto--roxo { background: var(--purple); }
+.an-linha-txt { flex: 1; min-width: 0; }
+.an-linha-nome { font-size: .95rem; font-weight: 700; color: var(--brown-dark); }
+.an-linha-sub { margin-top: 2px; font-size: .8rem; line-height: 1.4; color: var(--muted); }
+.an-linha-valor { flex-shrink: 0; font-family: var(--mono); font-size: .98rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* Gráfico: reaproveita as classes do script (barra-*), só maior e mais legível */
+.an-legenda { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; font-size: .82rem; font-weight: 700; color: var(--muted); }
+.an-leg { display: inline-flex; align-items: center; gap: 6px; }
+.an-leg i { width: 12px; height: 12px; border-radius: 3px; }
+.an-leg--verde i { background: var(--green); }
+.an-leg--vermelho i { background: var(--red); opacity: .75; }
+.an-grafico.grafico-barras { height: 132px; gap: 8px; padding-bottom: 4px; align-items: flex-end; }
+.an-grafico .barra-grupo { min-width: 44px; gap: 6px; }
+.an-grafico .barra-labels { height: 96px; gap: 3px; }
+.an-grafico .barra { width: 18px; border-radius: 4px 4px 0 0; transform: scaleY(1.55); transform-origin: bottom; }
+.an-grafico .barra-mes { font-size: .76rem; font-weight: 700; color: var(--brown-mid); }
+
+/* Tabela mês a mês */
+.an-tabela { display: flex; flex-direction: column; }
+.an-th, .an-tr { display: grid; grid-template-columns: 64px 1fr 1fr; gap: 8px; align-items: center; padding: 0 16px; }
+.an-th { min-height: 40px; background: var(--cream); font-size: .8rem; font-weight: 800; color: var(--muted); }
+.an-th span:not(:first-child), .an-tr span:not(:first-child) { text-align: right; }
+.an-tr { min-height: 48px; border-top: 1px solid var(--border); }
+.an-tr span { font-family: var(--mono); font-size: .88rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.an-tr .an-td-mes { font-family: var(--font); font-size: .88rem; font-weight: 800; color: var(--brown-dark); }
+
+/* ══ Financeiro › Relatórios (rl-*) ══ */
+.rl-pagina { gap: 16px; }
+.rl-cab { padding: 0 2px; }
+.rl-titulo { margin: 0; font-size: 1.3rem; font-weight: 800; line-height: 1.2; color: var(--brown-dark); }
+.rl-desc { margin: 4px 0 0; font-size: .88rem; line-height: 1.5; color: var(--muted); }
+.report-config-grid .input { min-height: 48px; font-size: 1rem; }
+.rl-switch-linha { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 0 14px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-sm); font-size: .92rem; font-weight: 700; color: var(--brown-dark); cursor: pointer; }
+.rl-switch { -webkit-appearance: none; appearance: none; position: relative; flex-shrink: 0; margin: 0; width: 50px; height: 30px; border-radius: var(--r-full); background: var(--border2); cursor: pointer; transition: background var(--t); }
+.rl-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform var(--t); }
+.rl-switch:checked { background: var(--green); }
+.rl-switch:checked::after { transform: translateX(20px); }
+.rl-switch:focus-visible, .rel-tipo-btn:focus-visible, .btn-gerar-large:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 2px; }
+@media (min-width: 560px) { .report-config-grid { grid-template-columns: 1fr 1fr; } }
+@media print { .rl-cab { display: none !important; } }
+
+/* Relatórios: valores em reais nunca quebram em duas linhas; o rótulo é que quebra */
+.lc-total, .lc-resumo-linha, .lra-linha { gap: 10px; }
+.lc-total > span:first-child, .lc-resumo-linha > span:first-child, .lra-linha > span:first-child { flex: 1; min-width: 0; }
+.lc-total strong, .lc-resumo-linha strong, .lra-linha strong, .lc-acum-item strong { white-space: nowrap; flex-shrink: 0; }
+.lc-q-linha { grid-template-columns: 56px 1fr 1fr; gap: 6px; padding: 10px; }
+.lc-q-linha span { font-size: .8rem; white-space: nowrap; }
+.lc-q-linha span:not(:first-child) { text-align: right; }
+.lc-q-linha span:first-child { white-space: normal; }
+.lc-q-linha.hdr span { font-size: .72rem; }
+.lc-q-linha .lc-q-mes { font-size: .8rem; }
 </style>

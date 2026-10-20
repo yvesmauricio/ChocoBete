@@ -43,9 +43,9 @@
           @mousedown="lpStart($event, p)"
           @mouseup="lpCancel"
           @mouseleave="lpCancel"
-          @touchstart.passive="lpStart($event, p)"
+          @touchstart="lpStart($event, p)"
           @touchend="lpCancel"
-          @touchmove.passive="lpCancel"
+          @touchmove="lpCancel"
           :chevron="false"
           :actions-width="350"
         >
@@ -445,11 +445,16 @@ const form = reactive({ uuid: null, nome: '', tipo: 'insumo', unidade_compra: 'k
 let _lpTimer = null
 let _lpOpened = false
 function lpStart(e, produto) {
+  // Toque nos botões do swipe (Editar, Histórico...) nunca é "toque longo" da linha.
+  if (e?.target?.closest?.('.swipe-btns')) return
   lpCancel()
   _lpOpened = false
   _lpTimer = setTimeout(() => {
     _lpTimer = null
     _lpOpened = true
+    // Se o botão do mouse for solto sobre a janela que acabou de abrir, o lpCancel
+    // da linha nunca roda: sem isto o flag ficava preso e o "Editar" ficava bloqueado.
+    setTimeout(() => { _lpOpened = false }, 1200)
     // Fecha histórico/edição/simulador antes de abrir a entrada, para nunca
     // termos dois modais sobrepostos (mesmo z-index) ao mesmo tempo.
     modalHistorico.value = null

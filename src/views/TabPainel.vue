@@ -115,73 +115,126 @@
       <div v-if="s.loading" class="loading-box"><div class="spinner spinner-sm"></div></div>
       <template v-else>
 
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <span class="kpi-lbl">Produção</span>
-            <span class="kpi-val">{{ stats.totalQtd }}<small> un</small></span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-lbl">Faturamento</span>
-            <span class="kpi-val c-green">{{ R$(stats.totalVenda) }}</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-lbl">Custo</span>
-            <span class="kpi-val c-orange">{{ R$(stats.totalCusto) }}</span>
-          </div>
-          <div class="kpi-card kpi-destaque">
-            <span class="kpi-lbl">Lucro est.</span>
-            <span class="kpi-val" :class="stats.totalLucro >= 0 ? 'c-green' : 'c-red'">{{ R$(stats.totalLucro) }}</span>
-          </div>
-        </div>
+        <!-- Período em foco (toque para mudar) -->
+        <button class="pn-periodo" :aria-expanded="filtrosAbertos" @click="filtrosAbertos = !filtrosAbertos">
+          <span class="pn-periodo-ico"><i class="fas fa-calendar-days"></i></span>
+          <span class="pn-periodo-txt">
+            <small>Mostrando<template v-if="periodoEhAtual"> · mês atual</template></small>
+            <strong>{{ periodoTitulo }}</strong>
+          </span>
+          <span class="pn-periodo-acao">{{ filtrosAbertos ? 'Fechar' : 'Mudar' }} <i class="fas" :class="filtrosAbertos ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span>
+        </button>
 
-        <div class="bloco-titulo">
-          <i class="fas fa-medal"></i> Top receitas
-          <span class="bloco-periodo">{{ periodoLabel }}</span>
-        </div>
-        <div class="sheet-card mb-0">
-          <div class="sheet-body p-0">
-            <div v-if="!stats.topReceitas.length" class="empty-mini">Sem produções no período</div>
-            <div v-for="(item, idx) in stats.topReceitas" :key="item.nome" class="rank-row">
-              <span class="rank-pos" :class="['rp-1','rp-2','rp-3'][idx] || 'rp-n'">{{ idx + 1 }}</span>
-              <div class="rank-body">
-                <div class="rank-nome">{{ item.nome }}</div>
-                <div class="rank-bar-bg">
-                  <div class="rank-bar-fill"
-                    :style="{ width: Math.round((item.qtd / stats.topReceitas[0].qtd) * 100) + '%', background: margemColor(item) }">
-                  </div>
+        <!-- Entradas e saídas (extrato do banco) -->
+        <section class="pn-card">
+          <header class="pn-card-cab">
+            <div class="pn-tile pn-tile--banco"><i class="fas fa-building-columns"></i></div>
+            <div class="pn-card-tit">
+              <h3>Entradas e saídas</h3>
+              <p>Do extrato do banco</p>
+            </div>
+          </header>
+
+          <template v-if="bancoPeriodo.quantidade">
+            <div class="pn-hero" :class="bancoPeriodo.saldo >= 0 ? 'pn-hero--ok' : 'pn-hero--neg'">
+              <span class="pn-hero-lbl">{{ bancoPeriodo.saldo >= 0 ? 'Sobrou no período' : 'Faltou no período' }}</span>
+              <strong class="pn-hero-valor">{{ R$(bancoPeriodo.saldo) }}</strong>
+            </div>
+
+            <div class="pn-duo">
+              <div class="pn-duo-item">
+                <span class="pn-duo-lbl"><i class="fas fa-circle-arrow-down c-green"></i> Entradas</span>
+                <strong class="c-green">{{ R$(bancoPeriodo.entradas) }}</strong>
+              </div>
+              <div class="pn-duo-item">
+                <span class="pn-duo-lbl"><i class="fas fa-circle-arrow-up c-red"></i> Saídas</span>
+                <strong class="c-red">{{ R$(bancoPeriodo.saidas) }}</strong>
+              </div>
+            </div>
+
+            <div class="pn-linhas">
+              <div class="pn-linha pn-linha--vendas">
+                <span class="pn-linha-lbl">Total de vendas</span>
+                <strong class="c-green">{{ R$(bancoPeriodo.vendas) }}</strong>
+              </div>
+              <div class="pn-linha">
+                <span class="pn-linha-lbl">Despesas do negócio</span>
+                <strong>{{ R$(bancoPeriodo.saidasOp) }}</strong>
+              </div>
+              <div class="pn-linha">
+                <span class="pn-linha-lbl">Saídas pessoais</span>
+                <strong>{{ R$(bancoPeriodo.saidasPes) }}</strong>
+              </div>
+            </div>
+          </template>
+
+          <div v-else class="pn-vazio">
+            <i class="fas fa-file-import"></i>
+            <strong>Nenhum lançamento neste período</strong>
+            <span>Importe o extrato do banco para ver aqui o que entrou e o que saiu.</span>
+            <button class="btn btn-secondary btn-sm" @click="s.setTab('financeiro')">Ir para o Financeiro</button>
+          </div>
+        </section>
+
+        <!-- Produção -->
+        <section class="pn-card">
+          <header class="pn-card-cab">
+            <div class="pn-tile pn-tile--prod"><i class="fas fa-cookie-bite"></i></div>
+            <div class="pn-card-tit">
+              <h3>Produção</h3>
+              <p>{{ stats.totalQtd }} {{ stats.totalQtd === 1 ? 'unidade produzida' : 'unidades produzidas' }}</p>
+            </div>
+          </header>
+
+          <template v-if="stats.totalQtd || stats.totalVenda">
+            <div class="pn-duo">
+              <div class="pn-duo-item">
+                <span class="pn-duo-lbl">Valor produzido</span>
+                <strong>{{ R$(stats.totalVenda) }}</strong>
+                <small>a preço de venda</small>
+              </div>
+              <div class="pn-duo-item">
+                <span class="pn-duo-lbl">Gasto para produzir</span>
+                <strong class="c-orange">{{ R$(stats.totalCusto) }}</strong>
+                <small>custo das receitas</small>
+              </div>
+            </div>
+            <div class="pn-lucro" :class="stats.totalLucro >= 0 ? 'pn-lucro--ok' : 'pn-lucro--neg'">
+              <div>
+                <span class="pn-lucro-lbl">Lucro estimado</span>
+                <small v-if="stats.totalVenda > 0">{{ Math.round((stats.totalLucro / stats.totalVenda) * 100) }}% de margem</small>
+              </div>
+              <strong>{{ R$(stats.totalLucro) }}</strong>
+            </div>
+            <p class="pn-nota">Estimativa com base no que foi produzido, não no dinheiro que entrou.</p>
+          </template>
+          <div v-else class="pn-vazio pn-vazio--leve">
+            <span>Nenhuma produção registrada neste período.</span>
+          </div>
+        </section>
+
+        <!-- Receitas mais produzidas -->
+        <section class="pn-bloco">
+          <header class="pn-bloco-cab">
+            <h3>Receitas mais produzidas</h3>
+          </header>
+          <div class="pn-card pn-card--lista">
+            <div v-if="!stats.topReceitas.length" class="pn-vazio pn-vazio--leve"><span>Sem produções no período.</span></div>
+            <div v-for="(item, idx) in stats.topReceitas" :key="item.nome" class="pn-rank">
+              <span class="pn-rank-pos" :class="['rp-1', 'rp-2', 'rp-3'][idx] || 'rp-n'">{{ idx + 1 }}</span>
+              <div class="pn-rank-corpo">
+                <div class="pn-rank-nome">{{ item.nome }}</div>
+                <div class="pn-rank-barra">
+                  <div class="pn-rank-fill" :style="{ width: Math.round((item.qtd / stats.topReceitas[0].qtd) * 100) + '%', background: margemColor(item) }"></div>
                 </div>
               </div>
-              <div class="rank-nums">
-                <span class="rank-qtd">{{ item.qtd }} <small>{{ item.unidade }}</small></span>
-                <span class="rank-lucro" :class="item.lucroTotal >= 0 ? 'c-green' : 'c-red'">{{ R$(item.lucroTotal) }}</span>
+              <div class="pn-rank-nums">
+                <span class="pn-rank-qtd">{{ item.qtd }} <small>{{ item.unidade }}</small></span>
+                <span class="pn-rank-lucro" :class="item.lucroTotal >= 0 ? 'c-green' : 'c-red'">{{ R$(item.lucroTotal) }}</span>
               </div>
             </div>
           </div>
-        </div>
-
-        <div v-if="stats.porCategoria.length > 1" class="bloco-titulo">
-          <i class="fas fa-layer-group"></i> Por categoria
-        </div>
-        <div v-if="stats.porCategoria.length > 1" class="sheet-card mb-0">
-          <div class="sheet-body">
-            <div v-for="cat in stats.porCategoria" :key="cat.nome" class="cat-row">
-              <span class="cat-nome">{{ cat.nome }}</span>
-              <div class="cat-bar-bg">
-                <div class="cat-bar-fill" :style="{ width: cat.percent + '%', background: avatarColor(cat.nome) }"></div>
-              </div>
-              <span class="cat-val">{{ cat.qtd }} un</span>
-            </div>
-          </div>
-        </div>
-
-        <button class="atalho-inteligencia" @click="s.setTab('inteligencia')">
-          <div class="ai-ico"><i class="fas fa-brain"></i></div>
-          <div class="ai-body">
-            <div class="ai-titulo">Inteligência de Vendas</div>
-            <div class="ai-sub">Preço mínimo, combos e estratégias</div>
-          </div>
-          <i class="fas fa-chevron-right ai-arrow"></i>
-        </button>
+        </section>
 
       </template>
     </div>
@@ -669,6 +722,63 @@ const stats = computed(() => {
 
   return { totalQtd, totalCusto, totalVenda, totalLucro: totalVenda - totalCusto, porCategoria, topReceitas }
 })
+
+// ── Entradas e saídas do banco no período escolhido ──
+// Mesma regra do Financeiro › Mensal (resumoFinanceiroPorMes na loja), só que
+// para qualquer período do filtro: mês, 7/30 dias, "Tudo" ou intervalo de datas.
+const financeiroFiltrado = computed(() => {
+  const todos = s.financeiro || []
+  const dataDe = (item) => {
+    const d = String(item.data || '')
+    return new Date(d.length === 10 ? d + 'T00:00:00' : d)
+  }
+  if (usandoIntervalo.value && dataIni.value && dataFim.value) {
+    const ini = new Date(dataIni.value + 'T00:00:00')
+    const fim = new Date(dataFim.value + 'T23:59:59')
+    return todos.filter(i => { const d = dataDe(i); return d >= ini && d <= fim })
+  }
+  const val = periodoAtivo.value
+  if (val === 'total') return todos
+  if (val === '7dias' || val === '30dias') {
+    const limite = new Date()
+    limite.setDate(limite.getDate() - (val === '7dias' ? 7 : 30))
+    return todos.filter(i => dataDe(i) >= limite)
+  }
+  return todos.filter(i => (i.mes_ref || getMesRef(i.data)) === val)
+})
+
+const bancoPeriodo = computed(() => {
+  let entradas = 0, vendas = 0, saidasOp = 0, saidasPes = 0, quantidade = 0
+  financeiroFiltrado.value.forEach(item => {
+    if (item.natureza === 'interna') return // transferência entre contas não conta
+    const valor = Number(item.valor || 0)
+    quantidade++
+    if (item.natureza === 'entrada') {
+      entradas += valor
+      if (item.categoria !== 'Rendimento Financeiro') vendas += valor
+    } else if (item.natureza === 'operacional') {
+      saidasOp -= valor
+    } else if (item.natureza === 'pessoal') {
+      if (valor > 0) entradas += valor
+      else saidasPes += Math.abs(valor)
+    }
+  })
+  const saidas = saidasOp + saidasPes
+  return { entradas, vendas, saidasOp, saidasPes, saidas, saldo: entradas - saidas, quantidade }
+})
+
+const NOMES_MES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+const periodoTitulo = computed(() => {
+  if (usandoIntervalo.value && dataIni.value && dataFim.value) return `${fmtDataBR(dataIni.value)} a ${fmtDataBR(dataFim.value)}`
+  const v = periodoAtivo.value
+  if (v === 'total') return 'Todo o período'
+  if (v === '7dias') return 'Últimos 7 dias'
+  if (v === '30dias') return 'Últimos 30 dias'
+  const m = /^(\d{2})\/(\d{4})$/.exec(v)
+  if (m) { const n = NOMES_MES[Number(m[1]) - 1] || m[1]; return `${n.charAt(0).toUpperCase() + n.slice(1)} de ${m[2]}` }
+  return periodoLabel.value
+})
+const periodoEhAtual = computed(() => !usandoIntervalo.value && periodoAtivo.value === mesAtualRef)
 
 // ── Meta de Retirada: mesma fonte de verdade do Financeiro (extrato bancário real) ──
 // A meta é sempre calculada por mês fechado no banco. Se o período selecionado no
@@ -1275,62 +1385,14 @@ function desmarcarTodos() { listaCompras.value.forEach(i => { i.checked = false 
   gap: 6px;
 }
 
-.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.kpi-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
-  padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;
-}
-.kpi-destaque { background: var(--gold-bg); border-color: var(--gold); }
-.kpi-lbl { font-size: .62rem; font-weight: 800; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; }
-.kpi-val { font-size: 1.08rem; font-weight: 800; font-family: var(--mono); color: var(--brown-dark); }
-.kpi-val small { font-size: .7rem; font-weight: 400; }
 
-.bloco-titulo {
-  font-size: .68rem; font-weight: 800; text-transform: uppercase;
-  color: var(--muted); letter-spacing: .5px; display: flex; align-items: center; gap: 6px;
-}
-.bloco-periodo { font-weight: 400; font-size: .65rem; margin-left: auto; color: var(--muted); text-transform: none; letter-spacing: 0; }
 
-.rank-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 11px 14px; border-bottom: 1px solid var(--border);
-}
-.rank-row:last-child { border-bottom: none; }
-.rank-pos { width: 18px; text-align: center; font-size: .78rem; font-weight: 800; flex-shrink: 0; }
 .rp-1 { color: #c9920c; }
 .rp-2 { color: #9e9e9e; }
 .rp-3 { color: #a0673a; }
 .rp-n { color: var(--muted); }
-.rank-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.rank-nome { font-size: .84rem; font-weight: 700; color: var(--brown-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rank-bar-bg { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-.rank-bar-fill { height: 100%; border-radius: 2px; transition: width .5s ease; }
-.rank-nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-.rank-qtd { font-size: .7rem; color: var(--muted); font-weight: 600; }
-.rank-lucro { font-size: .82rem; font-weight: 800; font-family: var(--mono); }
 
-.cat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.cat-row:last-child { margin-bottom: 0; }
-.cat-nome { font-size: .78rem; font-weight: 700; color: var(--brown); width: 72px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cat-bar-bg { flex: 1; height: 7px; background: var(--border); border-radius: 4px; overflow: hidden; }
-.cat-bar-fill { height: 100%; border-radius: 4px; transition: width .5s ease; }
-.cat-val { font-size: .7rem; font-weight: 800; color: var(--muted); width: 38px; text-align: right; flex-shrink: 0; }
 
-.atalho-inteligencia {
-  display: flex; align-items: center; gap: 12px; padding: 14px 16px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
-  cursor: pointer; width: 100%; text-align: left; transition: background .15s;
-}
-.atalho-inteligencia:active { background: var(--bg); }
-.ai-ico {
-  width: 36px; height: 36px; border-radius: var(--r-sm); flex-shrink: 0;
-  background: var(--brown-dark); color: var(--cream);
-  display: flex; align-items: center; justify-content: center; font-size: .9rem;
-}
-.ai-body { flex: 1; }
-.ai-titulo { font-size: .84rem; font-weight: 800; color: var(--brown-dark); }
-.ai-sub { font-size: .68rem; color: var(--muted); margin-top: 1px; }
-.ai-arrow { color: var(--muted); font-size: .8rem; }
 
 .lista-wrap { padding: 12px 16px 100px; display: flex; flex-direction: column; gap: 10px; }
 
@@ -1501,4 +1563,86 @@ function desmarcarTodos() { listaCompras.value.forEach(i => { i.checked = false 
 .preco-resultado strong { color: var(--brown-dark); }
 .preco-resultado-sec { background: var(--bg); color: var(--muted); }
 .mt-12 { margin-top: 4px; }
+
+/* ══ Painel › Resumo (classes pn-*) ══ */
+.painel-content { gap: 16px; }
+.pn-periodo { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); text-align: left; cursor: pointer; }
+.pn-periodo:active { background: var(--cream); }
+.pn-periodo-ico { width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: var(--r-md); background: var(--cream); color: var(--brown-mid); }
+.pn-periodo-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.pn-periodo-txt small { font-size: .76rem; font-weight: 600; color: var(--muted); }
+.pn-periodo-txt strong { font-size: 1.02rem; font-weight: 800; color: var(--brown-dark); }
+.pn-periodo-acao { flex-shrink: 0; font-size: .82rem; font-weight: 700; color: var(--brown-mid); display: flex; align-items: center; gap: 5px; }
+.pn-periodo-acao i { font-size: .65rem; }
+
+.pn-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow-sm); padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; }
+.pn-card--lista { padding: 4px 0; gap: 0; overflow: hidden; }
+.pn-card-cab { display: flex; align-items: center; gap: 12px; }
+.pn-tile { width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 14px; font-size: 1.1rem; }
+.pn-tile--banco { background: var(--blue-bg); color: var(--blue); }
+.pn-tile--prod { background: var(--gold-bg); color: var(--gold-dark); }
+.pn-card-tit h3 { margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--brown-dark); line-height: 1.25; }
+.pn-card-tit p { margin: 1px 0 0; font-size: .82rem; color: var(--muted); }
+
+.pn-hero { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 16px 12px; border-radius: 16px; text-align: center; }
+.pn-hero--ok { background: var(--green-bg); color: var(--green); }
+.pn-hero--neg { background: var(--red-bg); color: var(--red); }
+.pn-hero-lbl { font-size: .86rem; font-weight: 700; }
+.pn-hero-valor { font-family: var(--mono); font-size: 2rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+
+.pn-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pn-duo-item { display: flex; flex-direction: column; gap: 3px; padding: 12px; background: var(--bg); border-radius: 14px; min-width: 0; }
+.pn-duo-lbl { font-size: .8rem; font-weight: 700; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.pn-duo-item strong { font-family: var(--mono); font-size: 1.05rem; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pn-duo-item small { font-size: .74rem; color: var(--muted); }
+
+.pn-linhas { display: flex; flex-direction: column; }
+.pn-linha { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 46px; border-top: 1px solid var(--border); }
+.pn-linha:first-child { border-top: none; }
+.pn-linha-lbl { font-size: .92rem; font-weight: 600; color: var(--text); }
+.pn-linha strong { font-family: var(--mono); font-size: .95rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pn-linha--vendas .pn-linha-lbl { font-weight: 800; color: var(--brown-dark); }
+.pn-linha--vendas strong { font-size: 1.02rem; }
+
+.pn-lucro { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 16px; }
+.pn-lucro--ok { background: var(--green-bg); color: var(--green); }
+.pn-lucro--neg { background: var(--red-bg); color: var(--red); }
+.pn-lucro > div { display: flex; flex-direction: column; }
+.pn-lucro-lbl { font-size: .9rem; font-weight: 800; }
+.pn-lucro small { font-size: .76rem; font-weight: 600; opacity: .85; }
+.pn-lucro strong { flex-shrink: 0; white-space: nowrap; font-family: var(--mono); font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pn-nota { margin: 0; font-size: .78rem; line-height: 1.45; color: var(--muted); text-align: center; }
+
+.pn-vazio { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 12px 8px; text-align: center; }
+.pn-vazio i { font-size: 1.5rem; color: var(--muted); margin-bottom: 2px; }
+.pn-vazio strong { font-size: .98rem; color: var(--brown-dark); }
+.pn-vazio span { font-size: .84rem; line-height: 1.5; color: var(--muted); }
+.pn-vazio .btn { margin-top: 8px; min-height: 44px; }
+.pn-vazio--leve { padding: 14px 12px; }
+
+.pn-bloco { display: flex; flex-direction: column; gap: 10px; }
+.pn-bloco-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 2px; }
+.pn-bloco-cab h3 { margin: 0; font-size: 1.02rem; font-weight: 800; color: var(--brown-dark); }
+.pn-bloco-cab span { font-size: .8rem; font-weight: 600; color: var(--muted); text-align: right; }
+
+.pn-rank { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.pn-rank:first-child { border-top: none; }
+.pn-rank-pos { width: 30px; height: 30px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: .85rem; font-weight: 800; }
+.pn-rank-pos.rp-1 { background: var(--gold); color: #fff; }
+.pn-rank-pos.rp-2 { background: var(--border2); color: var(--brown-dark); }
+.pn-rank-pos.rp-3 { background: var(--orange-bg); color: var(--orange); }
+.pn-rank-pos.rp-n { background: var(--cream); color: var(--muted); }
+.pn-rank-corpo { flex: 1; min-width: 0; }
+.pn-rank-nome { font-size: .94rem; font-weight: 700; color: var(--brown-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pn-rank-barra { height: 6px; margin-top: 7px; background: var(--cream); border-radius: 3px; overflow: hidden; }
+.pn-rank-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
+.pn-rank-nums { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.pn-rank-qtd { font-family: var(--mono); font-size: .95rem; font-weight: 800; color: var(--brown-dark); }
+.pn-rank-qtd small { font-family: var(--font); font-size: .72rem; font-weight: 600; color: var(--muted); }
+.pn-rank-lucro { font-family: var(--mono); font-size: .8rem; font-weight: 700; }
+.pn-periodo:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 2px; }
+
+/* Filtro de período: alvos de toque maiores */
+.pchip { padding: 0 16px; min-height: 40px; font-size: .84rem; display: inline-flex; align-items: center; }
+.btn-intervalo { width: 40px; height: 40px; }
 </style>
