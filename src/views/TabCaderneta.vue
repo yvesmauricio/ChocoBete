@@ -2,146 +2,158 @@
   <div class="tab-caderneta">
 
     <!-- ══ TELA: DASHBOARD ══════════════════════════════════ -->
-    <div v-if="tela === 'dashboard'" class="cad-tela">
+    <div v-if="tela === 'dashboard'" class="cad-tela cd-tela">
 
-      <!-- Lombada perfurada — assinatura visual do "caderninho" -->
-      <div class="cad-spiral">
-        <span v-for="n in 12" :key="n"></span>
-      </div>
-
-      <div class="cad-hdr">
-        <div class="cad-hdr-row">
-          <div>
-            <h2 class="cad-hdr-hello">{{ saudacao }} <i class="fas" :class="saudacaoIcone"></i></h2>
-            <p class="cad-hdr-date">{{ dataBR }}</p>
-          </div>
-          <div class="cad-hdr-icons">
-            <!-- Sync com o Google Drive — mesmo botão do outro perfil: nuvem verde = salvo,
-                 amarela = salvando/pendente, vermelha = falhou (toque para tentar de novo) -->
-            <button
-              v-if="s.googleDriveConfigured && syncEstado !== 'idle'"
-              class="cad-hdr-icon-btn cad-hdr-sync"
-              :class="`cad-hdr-sync--${syncEstado}`"
-              :disabled="!syncClicavel"
-              :title="syncTitulo"
-              @click="onClickSync"
-            >
-              <i class="fas" :class="syncIcone"></i>
-            </button>
-            <button class="cad-hdr-icon-btn" @click="modalContato = true" title="Meu contato">
-              <i class="fas fa-address-card"></i>
-            </button>
-            <button class="cad-hdr-icon-btn" @click="emit('trocar-perfil')" title="Trocar perfil">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-            </button>
-          </div>
+      <!-- Cabeçalho: saudação grande e três botões fáceis de tocar -->
+      <header class="cd-hdr">
+        <div class="cd-hdr-txt">
+          <h2 class="cd-saud">{{ saudacao }} <i class="fas" :class="saudacaoIcone"></i></h2>
+          <p class="cd-data">{{ dataBR }}</p>
         </div>
-      </div>
+        <div class="cd-hdr-btns">
+          <!-- Sync com o Google Drive: nuvem verde = salvo, amarela = salvando/pendente,
+               vermelha = falhou (toque para tentar de novo) -->
+          <button
+            v-if="s.googleDriveConfigured && syncEstado !== 'idle'"
+            class="cd-icbtn cd-sync"
+            :class="`cd-sync--${syncEstado}`"
+            :disabled="!syncClicavel"
+            :title="syncTitulo"
+            :aria-label="syncTitulo"
+            @click="onClickSync"
+          >
+            <i class="fas" :class="syncIcone"></i>
+          </button>
+          <button class="cd-icbtn" title="Meu contato" aria-label="Meu contato" @click="modalContato = true">
+            <i class="fas fa-address-card"></i>
+          </button>
+          <button class="cd-icbtn" title="Trocar perfil" aria-label="Trocar perfil" @click="emit('trocar-perfil')">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </button>
+        </div>
+      </header>
 
-      <!-- Aviso de backup: Drive desconectado ou cópia antiga -->
-      <div v-if="s.alertaBackup" class="cad-alerta-backup">
-        <i class="fas fa-triangle-exclamation"></i>
-        <span>{{ s.alertaBackup.msg }}</span>
-        <button :disabled="fazendoBackup" @click="fazerBackupAgora">
-          {{ fazendoBackup ? 'Salvando…' : (s.googleDriveConfigured ? 'Salvar agora' : 'Baixar backup') }}
+      <div class="cd-corpo">
+
+        <!-- Aviso de backup: Drive desconectado ou cópia antiga -->
+        <div v-if="s.alertaBackup" class="cd-aviso cd-aviso--backup">
+          <i class="fas fa-triangle-exclamation"></i>
+          <span>{{ s.alertaBackup.msg }}</span>
+          <button :disabled="fazendoBackup" @click="fazerBackupAgora">
+            {{ fazendoBackup ? 'Salvando…' : (s.googleDriveConfigured ? 'Salvar agora' : 'Baixar backup') }}
+          </button>
+        </div>
+
+        <!-- Pedidos do cardápio esperando (antes só aparecia como número no botão de baixo) -->
+        <button v-if="pedidosBalcaoPendentes" class="cd-aviso cd-aviso--pedidos" :class="{ 'cd-aviso--urgente': pedidosBalcaoUrgentes }" @click="irPara('cardapio', { abrirPedidos: true })">
+          <i class="fas fa-clipboard-list"></i>
+          <span>{{ pedidosBalcaoPendentes }} {{ pedidosBalcaoPendentes === 1 ? 'pedido do cardápio aguardando' : 'pedidos do cardápio aguardando' }}</span>
+          <i class="fas fa-chevron-right cd-aviso-seta"></i>
         </button>
-      </div>
 
-      <div class="cad-body cad-body--comnav">
-
-        <!-- ══ Cobrar Pix — card direto no painel. O valor é o protagonista
-             (grande, centralizado); o QR e o copia-e-cola vêm logo abaixo. -->
-        <div class="cad-pix-card">
-          <div v-if="!chavePixVendedor" class="cad-cobr-vazio cad-cobr-vazio--card">
+        <!-- ══ Cobrar com Pix: o valor é o protagonista; QR e copia-e-cola logo abaixo -->
+        <section class="cd-pix">
+          <div v-if="!chavePixVendedor" class="cd-pix-vazio">
             <i class="fas fa-circle-info"></i>
             <p>Cadastre seu WhatsApp em <strong>Ajustes → Dados da loja</strong> (perfil Admin) pra habilitar o QR de cobrança Pix.</p>
           </div>
 
           <template v-else>
-            <div class="cad-pix-card-topo">
-              <div class="cad-pix-card-titulo"><i class="fas fa-qrcode"></i> Cobrar com Pix</div>
-              <label class="cad-pix-valor-hero" :class="{ 'cad-pix-valor-hero--vazio': !valorCobrancaTexto }">
-                <span class="cad-pix-valor-hero-prefixo">R$</span>
+            <div class="cd-pix-topo">
+              <div class="cd-pix-titulo"><i class="fas fa-qrcode"></i> Cobrar com Pix</div>
+              <label class="cd-pix-valor" :class="{ 'cd-pix-valor--vazio': !valorCobrancaTexto }">
+                <span class="cd-pix-rs">R$</span>
                 <input
-                  class="cad-pix-valor-hero-input"
+                  class="cd-pix-input"
                   type="text"
                   :value="valorCobrancaTexto"
                   :style="{ width: Math.max(valorCobrancaTexto.length, 4) + 'ch' }"
+                  aria-label="Valor da cobrança"
                   @input="onInputValorCobranca"
                   @keydown="bloquearLetrasValor"
                   inputmode="numeric"
                   placeholder="0,00"
                 >
               </label>
-              <button v-if="valorCobrancaTexto" class="cad-pix-valor-hero-limpar" @click="valorCobrancaTexto = ''">
-                <i class="fas fa-xmark"></i> Limpar
+              <button v-if="valorCobrancaTexto" class="cd-pix-limpar" @click="valorCobrancaTexto = ''">
+                <i class="fas fa-xmark"></i> Limpar valor
               </button>
-              <p v-else class="cad-pix-valor-hero-dica">Toque no valor e digite</p>
+              <p v-else class="cd-pix-dica">Toque no valor e digite</p>
             </div>
 
-            <div class="cad-pix-card-corpo">
-              <div class="cad-pix-qr-wrap">
-                <div v-if="qrPixSvg" class="cad-pix-qr" v-html="qrPixSvg"></div>
-                <div v-else class="cad-pix-qr-erro"><i class="fas fa-triangle-exclamation"></i> Não deu pra gerar o QR</div>
+            <div class="cd-pix-corpo">
+              <div class="cd-pix-qr-wrap">
+                <div v-if="qrPixSvg" class="cd-pix-qr" v-html="qrPixSvg"></div>
+                <div v-else class="cd-pix-qr-erro"><i class="fas fa-triangle-exclamation"></i> Não deu pra gerar o QR</div>
               </div>
 
-              <p class="cad-pix-hint">
+              <p class="cd-pix-hint">
                 {{ valorCobrancaNum > 0
                   ? `Cliente paga exatamente R$ ${fmt(valorCobrancaNum)} ao escanear`
                   : 'Sem valor definido — o cliente digita o valor no banco dele' }}
               </p>
 
-              <button class="cad-pix-copiar" :class="{ copiado: pixCopiado }" @click="copiarCodigoPixCobranca">
+              <button class="cd-pix-copiar" :class="{ copiado: pixCopiado }" @click="copiarCodigoPixCobranca">
                 <i class="fas" :class="pixCopiado ? 'fa-check' : 'fa-copy'"></i>
                 {{ pixCopiado ? 'Código copiado!' : 'Copiar código Pix' }}
               </button>
             </div>
           </template>
-        </div>
+        </section>
 
-        <!-- Alerta do dia -->
-        <div v-if="alertasDia.length">
-          <div class="cad-sec-title"><i class="fas fa-bell"></i> Cobranças de hoje</div>
-          <div class="cad-alerta-dia">
-            <div v-for="a in alertasDiaVisiveis" :key="a.clienteId" class="cad-alerta-item" @click="irParaResumo()">
-              <div class="cad-alerta-avatar">{{ iniciais(a.clienteNome) }}</div>
-              <div class="cad-alerta-info">
-                <div class="cad-alerta-nome">{{ a.clienteNome }}<span v-if="a.clienteFuncao" class="cad-funcao-tag">{{ a.clienteFuncao }}</span></div>
-                <div class="cad-alerta-loja">{{ a.lojaNome }}<template v-if="lojaLocal(a.lojaId)"> · {{ lojaLocal(a.lojaId) }}</template><template v-if="a.compras > 1"> · {{ a.compras }} compras</template></div>
-              </div>
-              <div class="cad-alerta-val">R$ {{ fmt(a.saldo) }}</div>
-            </div>
-            <div v-if="alertasDia.length > alertasDiaVisiveis.length" class="cad-alerta-mais" @click="irParaResumo()">
-              + {{ alertasDia.length - alertasDiaVisiveis.length }} mais cobranças <i class="fas fa-chevron-right"></i>
-            </div>
+        <!-- Cobranças de hoje -->
+        <section v-if="alertasDia.length" class="cd-bloco">
+          <header class="cd-bloco-cab">
+            <h3>Cobranças de hoje</h3>
+            <span class="cd-contagem">{{ alertasDia.length }}</span>
+          </header>
+          <div class="cd-card cd-card--lista">
+            <button v-for="a in alertasDiaVisiveis" :key="a.clienteId" class="cd-cob" @click="irParaResumo()">
+              <span class="cd-cob-avatar">{{ iniciais(a.clienteNome) }}</span>
+              <span class="cd-cob-info">
+                <span class="cd-cob-nome">{{ a.clienteNome }}<span v-if="a.clienteFuncao" class="cad-funcao-tag">{{ a.clienteFuncao }}</span></span>
+                <span class="cd-cob-sub">{{ a.lojaNome }}<template v-if="lojaLocal(a.lojaId)"> · {{ lojaLocal(a.lojaId) }}</template><template v-if="a.compras > 1"> · {{ a.compras }} compras</template></span>
+              </span>
+              <span class="cd-cob-val">R$ {{ fmt(a.saldo) }}</span>
+            </button>
+            <button v-if="alertasDia.length > alertasDiaVisiveis.length" class="cd-cob-mais" @click="irParaResumo()">
+              Ver mais {{ alertasDia.length - alertasDiaVisiveis.length }} {{ alertasDia.length - alertasDiaVisiveis.length === 1 ? 'cobrança' : 'cobranças' }} <i class="fas fa-chevron-right"></i>
+            </button>
           </div>
-        </div>
+        </section>
+
+        <!-- Atalhos de uso menos frequente -->
+        <section class="cd-bloco">
+          <header class="cd-bloco-cab"><h3>Outros atalhos</h3></header>
+          <div class="cd-atalhos">
+            <button class="cd-atalho" @click="irPara('cardapio')">
+              <i class="fas fa-utensils"></i><span>Cardápio</span>
+            </button>
+            <button class="cd-atalho" @click="irPara('cardapio', { abrirPedidos: true })">
+              <i class="fas fa-clipboard-list"></i><span>Pedidos</span>
+              <span v-if="pedidosBalcaoPendentes" class="cd-badge" :class="{ 'cd-badge--info': !pedidosBalcaoUrgentes }">{{ pedidosBalcaoPendentes }}</span>
+            </button>
+            <button class="cd-atalho" @click="abrirCalculadora">
+              <i class="fas fa-calculator"></i><span>Calculadora</span>
+            </button>
+          </div>
+        </section>
 
       </div>
 
-      <!-- Barra inferior — os botões que antes disputavam espaço na tela
-           (Fiado, Cobranças, Cardápio, Pedidos, Calculadora) agora ficam
-           sempre à mão aqui, deixando a tela livre pro QR de cobrança -->
-      <div class="cad-bottom-nav">
-        <button class="cad-bn-btn" @click="irParaNovaVenda">
-          <i class="fas fa-plus"></i><span>Fiado</span>
+      <!-- Barra de baixo: só as duas ações do dia a dia, grandes e sempre à mão -->
+      <nav class="cd-barra" aria-label="Ações principais">
+        <button class="cd-acao cd-acao--fiado" @click="irParaNovaVenda">
+          <span class="cd-acao-topo"><i class="fas fa-plus"></i><strong>Lançar fiado</strong></span>
+          <small>Nova venda a prazo</small>
         </button>
-        <button class="cad-bn-btn" @click="irParaResumo()">
-          <i class="fas fa-book-bookmark"></i><span>Cobranças</span>
+        <button class="cd-acao cd-acao--cobrar" @click="irParaResumo()">
+          <span class="cd-acao-topo"><i class="fas fa-book-bookmark"></i><strong>Cobranças</strong></span>
+          <small>{{ alertasDia.length ? alertasDia.length + ' para hoje' : 'Quem me deve' }}</small>
         </button>
-        <button class="cad-bn-btn" @click="irPara('cardapio')">
-          <i class="fas fa-utensils"></i><span>Cardápio</span>
-        </button>
-        <button class="cad-bn-btn" @click="irPara('cardapio', { abrirPedidos: true })">
-          <i class="fas fa-clipboard-list"></i><span>Pedidos</span>
-          <span v-if="pedidosBalcaoPendentes" class="cad-shortcut-badge" :class="{ 'cad-shortcut-badge--info': !pedidosBalcaoUrgentes }">{{ pedidosBalcaoPendentes }}</span>
-        </button>
-        <button class="cad-bn-btn" @click="abrirCalculadora">
-          <i class="fas fa-calculator"></i><span>Calc</span>
-        </button>
-      </div>
+      </nav>
     </div>
 
     <!-- ══ TELA: CARDÁPIO DIGITAL ═══════════════════════════ -->
@@ -3635,12 +3647,6 @@ onMounted(async () => {
 .cad-hdr-titulo-group > div { min-width: 0; }
 .cad-hdr-titulo-group .cad-hdr-titulo { font-size: 23px; white-space: normal; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
 .cad-hdr-titulo-group .cad-hdr-date { font-size: 13px; text-transform: none; white-space: normal; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
-.cad-hdr-hello {
-  font-family: var(--font-hand); font-size: 29px; font-weight: 800; color: var(--brown-dark);
-  line-height: 1; display: flex; align-items: baseline; gap: 6px; margin: 0;
-}
-.cad-hdr-hello i { font-size: 19px; }
-.cad-hdr-nome { color: var(--gold-dark); }
 .cad-hdr-titulo {
   font-family: var(--font-hand); font-size: 26px; font-weight: 800; color: var(--brown-dark);
   margin: 0; display: flex; align-items: center; gap: 8px;
@@ -3656,14 +3662,8 @@ onMounted(async () => {
 .cad-hdr-icon-btn.ativo { background: var(--gold); color: #fff; border-color: var(--gold); }
 .cad-hdr-icon-btn .cad-aa { font-weight: 800; font-size: 13px; }
 /* Botão de sync com o Drive no cabeçalho (mesmas cores do outro perfil) */
-.cad-hdr-sync--ok { color: var(--green); }
-.cad-hdr-sync--syncing { background: var(--gold); color: var(--brown-dark); border-color: var(--gold-light); }
-.cad-hdr-sync--error { background: var(--red); color: #fff; border-color: var(--red); }
-.cad-hdr-sync:not(:disabled) { cursor: pointer; }
-.cad-hdr-sync:disabled { opacity: .85; }
 
 /* ── Dashboard body ──────────────────────────────────── */
-.cad-body { flex: 1; overflow-y: auto; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
 
 /* Hero — card ledger dominante: a única info que precisa saltar aos olhos */
 .cad-hero {
@@ -3712,60 +3712,14 @@ onMounted(async () => {
 .cad-cta-fiado-seta { color: var(--gold-dark); font-size: 12px; flex-shrink: 0; }
 
 /* Títulos de seção */
-.cad-sec-title {
-  font-size: 11px; font-weight: 800; color: var(--brown-mid); text-transform: uppercase;
-  letter-spacing: .06em; margin: 4px 0 10px; display: flex; align-items: center; gap: 6px;
-}
-.cad-sec-title i { color: var(--gold-dark); }
 
 /* Alerta do dia */
-.cad-alerta-dia {
-  background: var(--surface); border: 1.5px solid var(--border);
-  border-radius: var(--r-md); box-shadow: var(--shadow); margin-bottom: 18px; overflow: hidden;
-}
-.cad-alerta-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 11px 14px; cursor: pointer; border-bottom: 1px solid var(--border);
-}
-.cad-alerta-item:last-of-type { border-bottom: none; }
-.cad-alerta-item:active { background: rgba(200,137,10,.08); }
-.cad-alerta-avatar {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: var(--brown); color: #fff;
-  font-size: 11.5px; font-weight: 800;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.cad-alerta-info { flex: 1; min-width: 0; }
-.cad-alerta-nome { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cad-alerta-loja { font-size: 11px; color: var(--muted); }
-.cad-alerta-val  { font-size: 13.5px; font-weight: 800; color: var(--brown); font-family: var(--mono); flex-shrink: 0; margin-left: auto; }
-.cad-alerta-mais {
-  text-align: center; padding: 8px 14px;
-  font-size: 12px; font-weight: 700; color: var(--gold-dark);
-  cursor: pointer; border-top: 1px solid var(--border);
-}
 
 /* Acesso rápido — grid 2×2: com 4 atalhos, fica mais equilibrado que uma
    fileira só (ficaria compacto demais) ou 3+1 sobrando sozinho embaixo. */
-.cad-shortcuts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; }
-.cad-shortcut {
-  position: relative;
-  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md);
-  padding: 14px 8px; text-align: center; cursor: pointer; box-shadow: var(--shadow);
-  font-family: var(--font); display: flex; flex-direction: column; align-items: center; gap: 6px;
-}
-.cad-shortcut:active { transform: scale(.97); border-color: var(--brown-light); }
-.cad-shortcut i { font-size: 16px; color: var(--gold-dark); }
-.cad-shortcut span { font-size: 11.5px; font-weight: 800; color: var(--brown-dark); }
-.cad-shortcut-badge {
-  position: absolute; top: 6px; right: 10px;
-  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px;
-  border-radius: 999px; background: var(--red, #c0392b); color: #fff; font-size: 10.5px; font-weight: 700; padding: 0 5px;
-}
 /* Badge azul: já tem tudo agendado, só falta entregar — sem urgência de
    ligar pro cliente. Sem essa classe, o vermelho padrão indica que tem
    pedido sem nenhuma data combinada ainda. */
-.cad-shortcut-badge--info { background: var(--blue, #1d4ed8); }
 
 /* ══ Cobrança — QR Pix + QR de contato (tela inicial da Bete) ══════════ */
 
@@ -3832,23 +3786,6 @@ onMounted(async () => {
 /* ── Barra inferior da Bete — reúne os atalhos que antes ficavam soltos
    na tela (Fiado, Cobranças, Cardápio, Pedidos, Calculadora), deixando o
    topo livre pro QR de cobrança. Mesmo padrão visual do AppNav do Yves. */
-.cad-bottom-nav {
-  display: flex; flex-shrink: 0;
-  /* Marrom escuro (igual ao theme-color do app): no Android com gestos/3 botões
-     a barra do sistema fica transparente e mostra essa cor por baixo, em vez
-     de um branco forte que destoa do resto do app. */
-  background: var(--brown-dark);
-  border-top: 1px solid rgba(255,255,255,.08); box-shadow: 0 -8px 24px rgba(61,31,7,.12);
-  padding: 2px 2px max(10px, env(safe-area-inset-bottom));
-}
-.cad-bn-btn {
-  position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 9px 4px 7px; min-height: 56px; border: none; background: transparent;
-  color: rgba(255,255,255,.72); font-family: var(--font); font-size: .64rem; font-weight: 700; cursor: pointer;
-}
-.cad-bn-btn i { font-size: 1.15rem; color: var(--gold); }
-.cad-bn-btn:active { color: #fff; }
-.cad-bn-btn:active i { color: #fff; }
 
 /* Cartão "Meu contato" — nome, telefone e Instagram bem legíveis + edição inline */
 .cad-ct-card {
@@ -3898,7 +3835,6 @@ onMounted(async () => {
 
 /* Reserva espaço no fim do scroll do dashboard pra barra inferior fixa
    (mesma altura aproximada do AppNav) não tampar o último conteúdo. */
-.cad-body--comnav { padding-bottom: 90px !important; }
 
 .cad-dash-actions { display: flex; gap: 10px; margin-bottom: 24px; }
 .cad-action-btn {
@@ -4391,7 +4327,6 @@ onMounted(async () => {
   border: 1.5px solid var(--border); border-radius: var(--r-sm);
   padding: 4px; background: var(--surface); box-sizing: border-box; flex-shrink: 0;
 }
-.cad-body { padding-bottom: max(18px, env(safe-area-inset-bottom)); }
 
 .kpi-card.alerta-red { border-color: var(--red-dim); background: var(--red-bg); }
 
@@ -4943,46 +4878,7 @@ onMounted(async () => {
 .cad-nv-desfazer:active { opacity: .7; }
 
 /* ══ Cartão Cobrar Pix (painel) ══ */
-.cad-pix-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 22px;
-  box-shadow: var(--shadow-md); overflow: hidden; margin-bottom: 18px;
-}
-.cad-pix-card-topo {
-  background: linear-gradient(155deg, var(--brown-dark) 0%, var(--brown) 70%, var(--brown-mid) 100%);
-  padding: 16px 16px 18px; display: flex; flex-direction: column; align-items: center; text-align: center;
-}
-.cad-pix-card-titulo {
-  display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800;
-  letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.78);
-}
-.cad-pix-card-titulo i { color: var(--gold-light, #f2c14e); font-size: 14px; }
-.cad-pix-valor-hero {
-  display: flex; align-items: baseline; justify-content: center; gap: 8px;
-  width: 100%; margin-top: 8px; padding: 6px 0 2px; cursor: text;
-  border-bottom: 2px dashed rgba(255,255,255,.28);
-}
-.cad-pix-valor-hero:focus-within { border-bottom-color: var(--gold-light, #f2c14e); }
-.cad-pix-valor-hero-prefixo { font-size: 22px; font-weight: 800; color: rgba(255,255,255,.7); }
-.cad-pix-valor-hero-input {
-  max-width: 100%; border: none; outline: none; background: transparent; padding: 0; text-align: center;
-  font-family: var(--mono); font-size: 46px; line-height: 1.15; font-weight: 800; color: #fff;
-  caret-color: var(--gold-light, #f2c14e);
-}
-.cad-pix-valor-hero-input::placeholder { color: rgba(255,255,255,.35); }
-.cad-pix-valor-hero-limpar {
-  margin-top: 10px; padding: 5px 12px; border: 0; border-radius: var(--r-full); cursor: pointer;
-  background: rgba(255,255,255,.14); color: #fff; font-family: var(--font); font-size: 12px; font-weight: 700;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.cad-pix-valor-hero-limpar:active { background: rgba(255,255,255,.25); }
-.cad-pix-valor-hero-dica { margin: 10px 0 0; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.6); }
 
-.cad-pix-card-corpo { padding: 18px 16px 16px; display: flex; flex-direction: column; align-items: center; }
-.cad-pix-card-corpo .cad-pix-qr-wrap { max-width: 230px; box-shadow: none; border: 1.5px solid var(--border); }
-.cad-pix-card-corpo .cad-pix-hint { margin-top: 12px; }
-.cad-pix-card-corpo .cad-pix-copiar { max-width: none; background: var(--brown-dark); border-color: var(--brown-dark); color: #fff; }
-.cad-pix-card-corpo .cad-pix-copiar.copiado { background: var(--green); border-color: var(--green); }
-.cad-cobr-vazio--card { margin: 0; border: 0; border-radius: 0; }
 
 /* ── Arquivadas e cadastros repetidos ── */
 .cad-arq-lista { margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
@@ -5004,16 +4900,6 @@ onMounted(async () => {
 .cad-dialog-btns--col { flex-direction: column; }
 
 /* Aviso de backup no início */
-.cad-alerta-backup {
-  display: flex; align-items: center; gap: 10px; margin: 8px 14px 0; padding: 10px 12px;
-  background: #fff4e0; color: #8a4b00; border-radius: var(--r-sm); font-size: 12px; font-weight: 700; line-height: 1.35;
-}
-.cad-alerta-backup span { flex: 1; }
-.cad-alerta-backup button {
-  flex-shrink: 0; padding: 7px 10px; border: none; border-radius: var(--r-sm);
-  background: #8a4b00; color: #fff; font-family: var(--font); font-size: 12px; font-weight: 800; cursor: pointer;
-}
-.cad-alerta-backup button:disabled { opacity: .6; }
 
 /* ══ Cobranças · redesign dos cards (Aberto / Vencidos / Histórico) ══ */
 .cad-resumo-seg-btn { min-width: 0; }
@@ -5155,4 +5041,113 @@ onMounted(async () => {
   .cad-cli-avatar { width: 36px; height: 36px; }
   .cad-cli-valor b { font-size: 15px; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Caderninho › Início do vendedor (classes cd-*)
+══════════════════════════════════════════════════════════════ */
+.cd-tela { background: var(--bg); }
+
+/* Cabeçalho */
+.cd-hdr { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 10px; background: var(--surface); flex-shrink: 0; }
+.cd-hdr-txt { min-width: 0; }
+.cd-saud { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 1.45rem; font-weight: 800; line-height: 1.15; color: var(--brown-dark); }
+.cd-saud i { font-size: 1.1rem; color: var(--gold); }
+.cd-data { margin: 2px 0 0; font-size: .82rem; font-weight: 600; color: var(--muted); }
+.cd-data::first-letter { text-transform: uppercase; }
+.cd-hdr-btns { display: flex; gap: 8px; flex-shrink: 0; }
+.cd-icbtn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 14px; background: var(--cream); color: var(--brown-mid); font-size: 1.05rem; cursor: pointer; padding: 0; transition: background var(--t); }
+.cd-icbtn:active { background: var(--cream-deep); }
+.cd-icbtn:focus-visible, .cd-atalho:focus-visible, .cd-acao:focus-visible, .cd-cob:focus-visible, .cd-pix-copiar:focus-visible, .cd-aviso:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 2px; }
+.cd-sync--ok { color: var(--green); background: var(--green-bg); }
+.cd-sync--syncing { background: var(--gold-bg); color: var(--gold-dark); }
+.cd-sync--error { background: var(--red); color: #fff; }
+.cd-sync:disabled { opacity: .9; cursor: default; }
+.cd-sync:not(:disabled) { cursor: pointer; }
+
+/* Corpo com rolagem própria (a barra de baixo fica fixa) */
+.cd-corpo { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 24px; display: flex; flex-direction: column; gap: 16px; }
+.cd-corpo > * { flex-shrink: 0; }
+
+/* Avisos */
+.cd-aviso { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; border: none; border-radius: var(--r-md); font-family: var(--font); font-size: .86rem; font-weight: 700; line-height: 1.35; text-align: left; }
+.cd-aviso > span { flex: 1; min-width: 0; }
+.cd-aviso--backup { background: #fff4e0; color: #8a4b00; }
+.cd-aviso--backup button { flex-shrink: 0; min-height: 40px; padding: 0 14px; border: none; border-radius: var(--r-sm); background: #8a4b00; color: #fff; font-family: var(--font); font-size: .84rem; font-weight: 800; cursor: pointer; }
+.cd-aviso--backup button:disabled { opacity: .6; }
+.cd-aviso--pedidos { background: var(--blue-bg); color: var(--blue); cursor: pointer; min-height: 52px; }
+.cd-aviso--urgente { background: var(--red-bg); color: var(--red); }
+.cd-aviso-seta { font-size: .75rem; opacity: .7; }
+
+/* Cartão do Pix */
+.cd-pix { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; box-shadow: var(--shadow-md); overflow: hidden; }
+.cd-pix-topo { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 14px 16px 16px; background: linear-gradient(155deg, var(--brown-dark) 0%, var(--brown) 70%, var(--brown-mid) 100%); }
+.cd-pix-titulo { display: inline-flex; align-items: center; gap: 8px; font-size: .92rem; font-weight: 700; color: rgba(255, 255, 255, .85); }
+.cd-pix-titulo i { color: var(--gold-light, #f2c14e); }
+.cd-pix-valor { display: flex; align-items: baseline; justify-content: center; gap: 8px; width: 100%; margin-top: 8px; padding: 6px 0 4px; cursor: text; border-bottom: 2px dashed rgba(255, 255, 255, .28); }
+.cd-pix-valor:focus-within { border-bottom-color: var(--gold-light, #f2c14e); }
+.cd-pix-rs { font-size: 1.4rem; font-weight: 800; color: rgba(255, 255, 255, .7); }
+.cd-pix-input { max-width: 100%; border: none; outline: none; background: transparent; padding: 0; text-align: center; font-family: var(--mono); font-size: 2.6rem !important; line-height: 1.15; font-weight: 800; color: #fff; caret-color: var(--gold-light, #f2c14e); }
+.cd-pix-input::placeholder { color: rgba(255, 255, 255, .35); }
+.cd-pix-limpar { margin-top: 10px; min-height: 36px; padding: 0 14px; border: 0; border-radius: var(--r-full); background: rgba(255, 255, 255, .16); color: #fff; font-family: var(--font); font-size: .84rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.cd-pix-limpar:active { background: rgba(255, 255, 255, .26); }
+.cd-pix-dica { margin: 10px 0 0; font-size: .84rem; font-weight: 600; color: rgba(255, 255, 255, .65); }
+.cd-pix-corpo { display: flex; flex-direction: column; align-items: center; padding: 16px 16px 14px; }
+.cd-pix-qr-wrap { width: 100%; max-width: 200px; aspect-ratio: 1; padding: 12px; background: #fff; border: 1.5px solid var(--border); border-radius: 20px; }
+.cd-pix-qr { width: 100%; height: 100%; }
+.cd-pix-qr :deep(svg) { width: 100%; height: 100%; display: block; }
+.cd-pix-qr-erro { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; font-size: .86rem; color: var(--muted); }
+.cd-pix-qr-erro i { font-size: 1.3rem; color: var(--red); }
+.cd-pix-hint { margin: 10px 0 0; font-size: .84rem; line-height: 1.45; font-weight: 600; text-align: center; color: var(--muted); }
+.cd-pix-copiar { width: 100%; min-height: 50px; margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: var(--r-md); background: var(--brown-dark); color: #fff; font-family: var(--font); font-size: 1rem; font-weight: 800; cursor: pointer; transition: background var(--t), transform var(--t); }
+.cd-pix-copiar:active { transform: scale(.98); }
+.cd-pix-copiar.copiado { background: var(--green); }
+.cd-pix-vazio { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 26px 20px; text-align: center; }
+.cd-pix-vazio i { font-size: 1.6rem; color: var(--gold-dark); }
+.cd-pix-vazio p { margin: 0; font-size: .92rem; line-height: 1.55; color: var(--muted); }
+.cd-pix-vazio strong { color: var(--brown-dark); }
+
+/* Blocos e lista de cobranças */
+.cd-bloco { display: flex; flex-direction: column; gap: 10px; }
+.cd-bloco-cab { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
+.cd-bloco-cab h3 { margin: 0; font-size: 1.02rem; font-weight: 800; color: var(--brown-dark); }
+.cd-contagem { min-width: 24px; padding: 2px 8px; border-radius: var(--r-full); background: var(--gold-bg); color: var(--gold-dark); font-size: .78rem; font-weight: 800; text-align: center; }
+.cd-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow-sm); overflow: hidden; }
+.cd-card--lista { display: flex; flex-direction: column; }
+.cd-cob { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 68px; padding: 12px 16px; border: none; border-top: 1px solid var(--border); background: transparent; font-family: var(--font); text-align: left; cursor: pointer; }
+.cd-cob:first-child { border-top: none; }
+.cd-cob:active { background: var(--cream); }
+.cd-cob-avatar { width: 42px; height: 42px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--gold-bg); color: var(--gold-dark); font-size: .92rem; font-weight: 800; }
+.cd-cob-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cd-cob-nome { font-size: .96rem; font-weight: 800; color: var(--brown-dark); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-cob-sub { font-size: .8rem; color: var(--muted); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-cob-val { flex-shrink: 0; font-family: var(--mono); font-size: 1rem; font-weight: 800; color: var(--red); font-variant-numeric: tabular-nums; }
+.cd-cob-mais { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 50px; border: none; border-top: 1px solid var(--border); background: var(--cream); color: var(--brown-mid); font-family: var(--font); font-size: .88rem; font-weight: 800; cursor: pointer; }
+.cd-cob-mais i { font-size: .7rem; }
+
+/* Atalhos secundários */
+.cd-atalhos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.cd-atalho { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 84px; padding: 12px 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-sm); color: var(--brown-mid); font-family: var(--font); cursor: pointer; transition: transform var(--t); }
+.cd-atalho:active { transform: scale(.97); background: var(--cream); }
+.cd-atalho i { font-size: 1.3rem; color: var(--gold-dark); }
+.cd-atalho span { font-size: .84rem; font-weight: 800; color: var(--brown-dark); }
+.cd-badge { position: absolute; top: 8px; right: 10px; min-width: 22px; height: 22px; padding: 0 6px; display: flex; align-items: center; justify-content: center; border-radius: 11px; background: var(--red); color: #fff; font-size: .74rem; font-weight: 800; }
+.cd-badge--info { background: var(--blue, #1d4ed8); }
+
+/* Barra de baixo com as duas ações principais */
+.cd-barra { flex-shrink: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 10px 14px max(12px, env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -8px 24px rgba(61, 31, 7, .06); }
+.cd-acao { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; min-height: 66px; padding: 10px 14px; border: none; border-radius: 18px; font-family: var(--font); text-align: left; cursor: pointer; transition: transform var(--t); }
+.cd-acao:active { transform: scale(.98); }
+.cd-acao-topo { display: flex; align-items: center; gap: 8px; max-width: 100%; }
+.cd-acao-topo i { flex-shrink: 0; font-size: 1rem; }
+.cd-acao-topo strong { min-width: 0; font-size: 1rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cd-acao small { max-width: 100%; font-size: .78rem; font-weight: 600; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cd-acao--fiado { background: var(--brown-dark); color: #fff; }
+.cd-acao--fiado .cd-acao-topo i { color: var(--gold-light, #f2c14e); }
+.cd-acao--cobrar { background: var(--gold-bg); color: var(--brown-dark); border: 1px solid var(--gold-light, #f2c14e); }
+.cd-acao--cobrar .cd-acao-topo i { color: var(--gold-dark); }
+@media (max-width: 340px) {
+  .cd-acao { padding: 8px 10px; } .cd-acao small { display: none; } .cd-acao-topo i { display: none; }
+  .cd-icbtn { width: 40px; height: 40px; } .cd-hdr-btns { gap: 6px; } .cd-saud { font-size: 1.2rem; }
+}
+@media (prefers-reduced-motion: reduce) { .cd-atalho, .cd-acao, .cd-pix-copiar, .cd-icbtn { transition: none; } }
 </style>
