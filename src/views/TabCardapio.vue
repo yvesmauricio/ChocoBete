@@ -44,30 +44,68 @@
 
     <div class="cad-body cp-body" @touchstart.passive="onSwipeStart" @touchend="onSwipeEnd">
 
-      <!-- ── Ação principal ──
-           Só o essencial fica visível: enviar (ação do dia a dia) e tela
-           cheia (modo balcão). Tudo que é configuração — capa/rodapé, prazo
-           e sinal, WhatsApp de pedidos, aparência e opções avançadas (PDF,
-           link permanente, pedidos do balcão) — mexe-se uma vez e quase não
-           se toca de novo, então fica dentro do modal "Configurações", em
-           vez de disputar espaço com a lista de itens (o que se usa toda hora). -->
-      <div class="cp-acoes-bloco" :class="{ 'cp-acoes--bete': props.standalone }">
-        <button class="cp-acao-tela-cheia" @click="telaCheiaAberta = true">
-          <i class="fas fa-expand"></i>
-          <span>Abrir cardápio em tela cheia</span>
+      <!-- ── Modo balcão + compartilhar ──
+           "Enviar cardápio" já atualiza o link (se a publicação estiver configurada) e abre o
+           compartilhamento. "Atualizar link" só republica, sem enviar a ninguém: serve pra quem
+           já divulgou o link (bio do Instagram, status) e quer que ele mostre as mudanças de agora. -->
+      <section class="cx-compartilhar">
+        <button class="cx-balcao" @click="telaCheiaAberta = true">
+          <span class="cx-balcao-ico"><i class="fas fa-expand"></i></span>
+          <span class="cx-balcao-txt"><strong>Abrir cardápio em tela cheia</strong><small>Para mostrar ao cliente no balcão</small></span>
+          <i class="fas fa-chevron-right cx-balcao-seta"></i>
         </button>
-        <div class="cp-acoes">
-          <button class="cp-acao cp-acao--principal" :disabled="gerandoPedidoInterativo" @click="gerarCardapioInterativo">
-            <i class="fas fa-share-nodes"></i> {{ gerandoPedidoInterativo ? 'Gerando...' : 'Enviar pro cliente' }}
+
+        <div class="cx-card">
+          <div class="cx-card-cab">
+            <span class="cx-tile cx-tile--ouro"><i class="fas fa-share-nodes"></i></span>
+            <div class="cx-card-tit">
+              <h3>Enviar ao cliente</h3>
+              <p>{{ publicacaoDisponivel ? 'Atualiza o link do cardápio e abre o WhatsApp (ou outro app) para você enviar.' : 'Gera o cardápio e abre o WhatsApp (ou outro app) para você enviar.' }}</p>
+            </div>
+          </div>
+          <button class="cx-btn-enviar" :disabled="gerandoPedidoInterativo" @click="gerarCardapioInterativo">
+            <i class="fas" :class="gerandoPedidoInterativo ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+            {{ gerandoPedidoInterativo ? 'Preparando…' : 'Enviar cardápio' }}
           </button>
-          <button v-if="publicacaoDisponivel" class="cp-acao cp-acao--secundaria" :disabled="publicandoLink || linkStatus === 'aguardando'" @click="publicarLinkCardapioInterativo" title="Atualiza o link que você já divulgou (bio, status) com as mudanças de agora — suas edições já ficam salvas sozinhas, isso aqui só é pra quem já tinha compartilhado o link antes">
-            <i class="fas" :class="publicandoLink ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-up'"></i> {{ publicandoLink ? 'Atualizando...' : linkStatus === 'aguardando' ? `Atualizar link online (${linkSegundosRestantes}s)` : 'Atualizar link online' }}
+
+          <div v-if="publicacaoDisponivel" class="cx-link">
+            <div class="cx-link-cab">
+              <span class="cx-link-lbl"><i class="fas fa-link"></i> Link do cardápio</span>
+              <span v-if="linkStatus === 'publicando'" class="cx-status cx-status--espera"><i class="fas fa-spinner fa-spin"></i> Atualizando…</span>
+              <span v-else-if="linkStatus === 'aguardando'" class="cx-status cx-status--espera"><i class="fas fa-clock"></i> Propagando</span>
+              <span v-else-if="linkStatus === 'pronto'" class="cx-status cx-status--ok"><i class="fas fa-circle-check"></i> Atualizado</span>
+            </div>
+            <a v-if="urlCardapioPublicado" :href="urlCardapioPublicado" target="_blank" rel="noopener noreferrer" class="cx-link-url">
+              <span>{{ urlCardapioPublicado.replace('https://', '').replace('http://', '') }}</span>
+              <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+            <p v-if="linkStatus === 'aguardando'" class="cx-link-aviso">Publicado! Espere um pouquinho antes de mandar o link ao cliente.</p>
+            <p v-else-if="linkStatus === 'pronto'" class="cx-link-aviso cx-link-aviso--ok">Pronto! O link já deve estar atualizado, pode enviar.</p>
+            <div class="cx-link-btns">
+              <button class="cx-btn-sec" :disabled="!urlCardapioPublicado" @click="copiarLinkPublicado">
+                <i class="fas fa-copy"></i> Copiar link
+              </button>
+              <button class="cx-btn-sec" :disabled="publicandoLink || linkStatus === 'aguardando'" @click="publicarLinkCardapioInterativo"
+                title="Atualiza o link que você já divulgou (bio, status) com as mudanças de agora, sem enviar nada a ninguém">
+                <i class="fas" :class="publicandoLink ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-up'"></i>
+                {{ publicandoLink ? 'Atualizando…' : linkStatus === 'aguardando' ? `Atualizar (${linkSegundosRestantes}s)` : 'Atualizar link' }}
+              </button>
+            </div>
+            <p class="cx-nota">Mudou preço ou item? Toque em <strong>Atualizar link</strong>: quem já tem o link (bio do Instagram, status) passa a ver a versão nova. Suas edições ficam salvas aqui na hora, mas só vão para o link quando você atualiza.</p>
+          </div>
+          <p v-else class="cx-nota cx-nota--solta">Para enviar um <strong>link</strong> em vez de um arquivo, configure a publicação em <button type="button" class="cp-link-inline" @click="s.setTab('ajustes')">Ajustes → Sistema</button>.</p>
+        </div>
+
+        <div class="cx-atalhos">
+          <button class="cx-atalho" @click="abrirPainelPedidos">
+            <i class="fas fa-clipboard-list"></i><span>Pedidos</span>
+            <span v-if="pedidosPendentesCount" class="cx-badge">{{ pedidosPendentesCount }}</span>
           </button>
-          <button class="cp-acao cp-acao--secundaria cp-acao--icone" @click="configModalAberto = true" title="Configurações do cardápio">
-            <i class="fas fa-gear"></i>
+          <button class="cx-atalho" @click="configModalAberto = true">
+            <i class="fas fa-gear"></i><span>Configurações</span>
           </button>
         </div>
-      </div>
+      </section>
 
       <p v-if="!todosItensAtivos.length" class="cp-aviso">
         <i class="fas fa-circle-info"></i> Nenhum item ativo ainda — ative pelo menos uma receita na lista abaixo pra gerar o cardápio.
@@ -121,10 +159,13 @@
                 <span class="cp-switch" :class="{ on: itemCfg(r.uuid).ativo }"><span class="cp-switch-bola"></span></span>
               </button>
 
-              <div class="cp-item-avatar">
+              <!-- Tocar na foto já abre a escolha de imagem: o caminho mais curto pra trocar a foto -->
+              <label class="cp-item-avatar cx-avatar" :title="itemCfg(r.uuid).foto ? 'Trocar foto' : 'Adicionar foto'">
+                <input type="file" accept="image/*" hidden @change="e => onFotoSelecionada(r, e)">
                 <img v-if="itemCfg(r.uuid).foto" :src="itemCfg(r.uuid).foto" alt="">
                 <span v-else>{{ itemCfg(r.uuid).emoji || '🍫' }}</span>
-              </div>
+                <span class="cx-avatar-cam"><i class="fas fa-camera"></i></span>
+              </label>
 
               <button class="cp-item-corpo" @click="expandido = expandido === r.uuid ? null : r.uuid">
                 <div class="cp-item-linha1">
@@ -143,30 +184,59 @@
               </button>
             </div>
 
-            <!-- Painel expandido -->
-            <div v-if="expandido === r.uuid" class="cp-item-painel">
-              <div class="cp-field">
-                <div class="cp-field-cabecalho">
-                  <span>Descrição de venda (curta)</span>
-                  <div class="cp-field-cabecalho-btns">
-                    <button type="button" class="cp-copiar-btn" @click="abrirCopiarDeOutroItem(r)">
-                      <i class="fas fa-copy"></i> Copiar de outro item
-                    </button>
-                    <button type="button" class="cp-ia-btn" @click="copiarPromptDescricao(r)">
-                      <i class="fas fa-wand-magic-sparkles"></i> Pedir ideia à IA
+<!-- Painel expandido: blocos curtos e rotulados, na ordem em que a pessoa mexe -->
+            <div v-if="expandido === r.uuid" class="cp-item-painel cx-painel">
+
+              <div class="cx-bloco">
+                <div class="cx-bloco-tit"><i class="fas fa-camera"></i> Foto</div>
+                <div class="cx-foto">
+                  <div class="cx-foto-prev">
+                    <img v-if="itemCfg(r.uuid).foto" :src="itemCfg(r.uuid).foto" alt="">
+                    <span v-else>{{ itemCfg(r.uuid).emoji || '🍫' }}</span>
+                  </div>
+                  <div class="cx-foto-btns">
+                    <label class="cx-btn-sec cx-btn-upload">
+                      <input type="file" accept="image/*" hidden @change="e => onFotoSelecionada(r, e)">
+                      <i class="fas fa-camera"></i> {{ itemCfg(r.uuid).foto ? 'Trocar foto' : 'Adicionar foto' }}
+                    </label>
+                    <button v-if="itemCfg(r.uuid).foto" class="cx-btn-sec cx-btn-perigo" @click="itemCfg(r.uuid).foto = null; salvar()">
+                      <i class="fas fa-trash"></i> Remover
                     </button>
                   </div>
                 </div>
-                <textarea v-model="itemCfg(r.uuid).descricao" maxlength="120" rows="2"
-                  placeholder="Ex: trufa de chocolate belga com recheio de doce de leite"
-                  @change="salvar"></textarea>
+                <details class="cx-saiba">
+                  <summary>Quais fotos funcionam?</summary>
+                  <p>JPG, PNG ou WEBP, qualquer tamanho — é redimensionada e comprimida automaticamente. Fotos de iPhone em HEIC podem não abrir; se der problema, exporte como JPG antes.</p>
+                </details>
+                <label v-if="!itemCfg(r.uuid).foto" class="cp-field cx-emoji-campo">
+                  <span>Sem foto? Escolha um emoji</span>
+                  <input v-model="itemCfg(r.uuid).emoji" maxlength="4" @change="salvar">
+                </label>
               </div>
 
-              <div class="cp-field-linha">
+              <div class="cx-bloco">
+                <div class="cp-field-cabecalho">
+                  <div class="cx-bloco-tit"><i class="fas fa-align-left"></i> Descrição curta</div>
+                  <span class="cx-contador">{{ (itemCfg(r.uuid).descricao || '').length }}/120</span>
+                </div>
+                <textarea v-model="itemCfg(r.uuid).descricao" maxlength="120" rows="2" class="cx-textarea"
+                  placeholder="Ex: trufa de chocolate belga com recheio de doce de leite"
+                  @change="salvar"></textarea>
+                <div class="cp-field-cabecalho-btns">
+                  <button type="button" class="cp-copiar-btn" @click="abrirCopiarDeOutroItem(r)">
+                    <i class="fas fa-copy"></i> Copiar de outro item
+                  </button>
+                  <button type="button" class="cp-ia-btn" @click="copiarPromptDescricao(r)">
+                    <i class="fas fa-wand-magic-sparkles"></i> Pedir ideia à IA
+                  </button>
+                </div>
+              </div>
+
+              <div class="cx-bloco">
                 <label class="cp-field">
-                  <span>
-                    Preço no cardápio
-                    <button type="button" class="cp-hist-preco-btn" title="Ver histórico de preços" @click="abrirHistoricoPreco(r)">
+                  <span class="cx-bloco-tit">
+                    <i class="fas fa-tag"></i> Preço no cardápio
+                    <button type="button" class="cp-hist-preco-btn" title="Ver histórico de preços" aria-label="Ver histórico de preços" @click="abrirHistoricoPreco(r)">
                       <i class="fas fa-clock-rotate-left"></i>
                     </button>
                   </span>
@@ -182,42 +252,30 @@
                       class="input input-prefixed" type="text" inputmode="numeric" placeholder="0,00"
                     >
                   </div>
-                  <div class="hint">Esse preço também atualiza o preço de venda sugerido na receita.</div>
-                </label>
-                <label class="cp-field cp-field--emoji">
-                  <span>Emoji</span>
-                  <input v-model="itemCfg(r.uuid).emoji" maxlength="4" @change="salvar">
+                  <div class="cx-nota">Esse preço também atualiza o preço de venda sugerido na receita.</div>
                 </label>
               </div>
 
-              <div class="cp-foto-linha">
-                <label class="cp-upload">
-                  <input type="file" accept="image/*" hidden @change="e => onFotoSelecionada(r, e)">
-                  <i class="fas fa-camera"></i> {{ itemCfg(r.uuid).foto ? 'Trocar foto' : 'Adicionar foto' }}
+              <div class="cx-bloco cx-bloco--lista">
+                <label class="cx-linha-switch">
+                  <span class="cx-linha-txt"><strong><i class="fas fa-star"></i> Marcar como “Mais pedido”</strong><small>Aparece com uma estrelinha no cardápio.</small></span>
+                  <input type="checkbox" role="switch" class="cx-switch" v-model="itemCfg(r.uuid).destaque" @change="salvar">
                 </label>
-                <button v-if="itemCfg(r.uuid).foto" class="cp-remover-foto" @click="itemCfg(r.uuid).foto = null; salvar()">
-                  <i class="fas fa-trash"></i> Remover
-                </button>
+                <label class="cx-linha-switch">
+                  <span class="cx-linha-txt"><strong><i class="fas fa-clock"></i> Sob encomenda</strong><small>Sem entrega na hora: o cliente vê o aviso.</small></span>
+                  <input type="checkbox" role="switch" class="cx-switch" v-model="itemCfg(r.uuid).sob_encomenda" @change="salvar">
+                </label>
+                <details v-if="itemCfg(r.uuid).sob_encomenda" class="cx-saiba cx-saiba--dentro">
+                  <summary>Como isso funciona?</summary>
+                  <p>Continua visível e pedível no cardápio, só que com o aviso “Sob encomenda” — o cliente já sabe que precisa esperar. Usa o mesmo prazo e sinal configurados em Configurações → Pedidos e pagamento deste cardápio.</p>
+                </details>
               </div>
-              <p class="cp-hint">Foto: JPG, PNG ou WEBP, qualquer tamanho — é redimensionada e comprimida automaticamente. Fotos de iPhone em HEIC podem não abrir; se der problema, exporte como JPG antes.</p>
 
-              <label class="cp-check">
-                <input type="checkbox" v-model="itemCfg(r.uuid).destaque" @change="salvar">
-                <span>Marcar como "Mais pedido" <i class="fas fa-star"></i></span>
-              </label>
-
-              <label class="cp-check cp-check--encomenda">
-                <input type="checkbox" v-model="itemCfg(r.uuid).sob_encomenda" @change="salvar">
-                <span>Sob encomenda (sem entrega na hora) <i class="fas fa-clock"></i></span>
-              </label>
-              <p v-if="itemCfg(r.uuid).sob_encomenda" class="cp-hint">
-                Continua visível e pedível no cardápio, só que com o aviso "Sob encomenda" — o cliente já sabe que precisa esperar. Usa o mesmo prazo e sinal configurados em Configurações → Antecedência e sinal deste cardápio.
-              </p>
-
-              <div class="cp-item-acoes">
-                <div class="cp-ordem-btns">
-                  <button type="button" class="cp-ordem-btn" @click="mover(r, -1)" title="Subir"><i class="fas fa-arrow-up"></i></button>
-                  <button type="button" class="cp-ordem-btn" @click="mover(r, 1)" title="Descer"><i class="fas fa-arrow-down"></i></button>
+              <div class="cx-ordem">
+                <span class="cx-ordem-lbl">Posição na lista</span>
+                <div class="cx-ordem-btns">
+                  <button type="button" class="cx-btn-sec" @click="mover(r, -1)"><i class="fas fa-arrow-up"></i> Subir</button>
+                  <button type="button" class="cx-btn-sec" @click="mover(r, 1)"><i class="fas fa-arrow-down"></i> Descer</button>
                 </div>
               </div>
             </div>
@@ -238,13 +296,14 @@
       </template>
       <div class="cp-modal-config-body">
 
-        <!-- ── Personalizar capa/rodapé ── -->
-        <div class="cp-config-card">
-          <button class="cp-config-toggle" @click="configAberta = !configAberta">
-            <span><i class="fas fa-pen"></i> Personalizar capa e rodapé</span>
-            <i class="fas" :class="configAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        <!-- ── Capa e textos ── -->
+        <div class="cx-sec">
+          <button class="cx-sec-cab" :aria-expanded="configAberta" @click="configAberta = !configAberta">
+            <span class="cx-tile"><i class="fas fa-pen"></i></span>
+            <span class="cx-sec-txt"><strong>Capa e textos</strong><small>{{ config.nome_cardapio || s.company.nome || 'ChocoBete' }}</small></span>
+            <i class="fas cx-seta" :class="configAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </button>
-          <div v-if="configAberta" class="cp-config-corpo">
+          <div v-if="configAberta" class="cx-sec-corpo">
             <label class="cp-field">
               <span>Nome do cardápio</span>
               <input v-model="config.nome_cardapio" :placeholder="s.company.nome || 'ChocoBete'" @change="salvar">
@@ -257,17 +316,21 @@
               <span>Mensagem no rodapé</span>
               <input v-model="config.mensagem_rodape" placeholder="Peça já e encomende o seu! 🍫" @change="salvar">
             </label>
-            <p class="cp-hint">O contato do rodapé é o mesmo texto configurado em Ajustes → dados usados na etiqueta.</p>
+            <p class="cx-nota">O contato do rodapé é o mesmo texto configurado em Ajustes → dados usados na etiqueta.</p>
           </div>
         </div>
 
-        <!-- ── Prazo de encomenda e sinal ── -->
-        <div class="cp-config-card">
-          <button class="cp-config-toggle" @click="politicaAberta = !politicaAberta">
-            <span><i class="fas fa-clock"></i> Prazo de encomenda e sinal</span>
-            <i class="fas" :class="politicaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        <!-- ── Pedidos e pagamento ── -->
+        <div class="cx-sec">
+          <button class="cx-sec-cab" :aria-expanded="politicaAberta" @click="politicaAberta = !politicaAberta">
+            <span class="cx-tile"><i class="fas fa-clock"></i></span>
+            <span class="cx-sec-txt">
+              <strong>Pedidos e pagamento</strong>
+              <small>{{ config.antecedencia_dias ? config.antecedencia_dias + ' dia(s) de antecedência' : 'Sem aviso de prazo' }}{{ config.sinal_ativo ? ' · sinal de ' + config.sinal_percentual + '%' : '' }}</small>
+            </span>
+            <i class="fas cx-seta" :class="politicaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </button>
-          <div v-if="politicaAberta" class="cp-config-corpo">
+          <div v-if="politicaAberta" class="cx-sec-corpo">
             <label class="cp-field cp-field--dias">
               <span>Antecedência mínima para encomendas</span>
               <div class="cp-dias-linha">
@@ -276,22 +339,26 @@
               </div>
             </label>
 
-            <label class="cp-check">
-              <input type="checkbox" v-model="config.sinal_ativo" @change="salvar">
-              <span>Exigir sinal para confirmar a encomenda</span>
-            </label>
-
-            <label class="cp-check">
-              <input type="checkbox" v-model="config.pagamento_ativo" @change="salvar">
-              <span>Ativar pagamento no cardápio enviado ao cliente</span>
-            </label>
-            <p class="cp-hint">Desmarcado, o cliente apenas seleciona os produtos, confere o total e envia o pedido pelo WhatsApp. Não aparecem as etapas de recebimento, pagamento ou Pix.</p>
+            <div class="cx-bloco--lista">
+              <label class="cx-linha-switch">
+                <span class="cx-linha-txt"><strong>Exigir sinal para confirmar</strong><small>O cliente paga uma parte antes.</small></span>
+                <input type="checkbox" role="switch" class="cx-switch" v-model="config.sinal_ativo" @change="salvar">
+              </label>
+              <label class="cx-linha-switch">
+                <span class="cx-linha-txt"><strong>Pagamento no cardápio</strong><small>Mostra recebimento, pagamento e Pix ao cliente.</small></span>
+                <input type="checkbox" role="switch" class="cx-switch" v-model="config.pagamento_ativo" @change="salvar">
+              </label>
+            </div>
+            <details class="cx-saiba">
+              <summary>E se eu desligar o pagamento?</summary>
+              <p>Desligado, o cliente apenas seleciona os produtos, confere o total e envia o pedido pelo WhatsApp. Não aparecem as etapas de recebimento, pagamento ou Pix.</p>
+            </details>
 
             <label v-if="config.sinal_ativo && config.pagamento_ativo" class="cp-field cp-field--dias">
               <span>Porcentagem cobrada como sinal via Pix</span>
               <div class="cp-dias-linha">
                 <input class="input" type="number" min="1" max="100" v-model.number="config.sinal_percentual" @change="salvar">
-                <span class="cp-dias-sufixo">% do total — o cardápio interativo já calcula o valor do sinal e gera o código Pix sozinho</span>
+                <span class="cp-dias-sufixo">% do total — o valor do sinal e o código Pix são calculados sozinhos</span>
               </div>
             </label>
 
@@ -302,18 +369,22 @@
                 @change="salvar"></textarea>
             </label>
 
-            <p class="cp-hint">Esse aviso aparece automaticamente: como uma caixa destacada no cardápio completo (PDF e tela cheia), como um resumo curto no rodapé de cada foto compartilhada, e como uma foto extra só com essas regras no fim do álbum enviado pro WhatsApp.</p>
-            <p v-if="config.pagamento_ativo" class="cp-hint"><i class="fas fa-credit-card"></i> O botão de Pix no cardápio interativo usa sua chave do tipo telefone — o mesmo número do "WhatsApp pra receber os pedidos" logo abaixo, sem cadastro extra. {{ config.sinal_ativo ? 'Com o sinal ativo, ele cobra só a porcentagem definida acima; o restante fica combinado pra entrega.' : 'Sem sinal ativo, ele cobra o valor total do pedido.' }}</p>
+            <details class="cx-saiba">
+              <summary>Onde esse aviso aparece? E o Pix?</summary>
+              <p>Esse aviso aparece automaticamente: como uma caixa destacada no cardápio completo (PDF e tela cheia), como um resumo curto no rodapé de cada foto compartilhada, e como uma foto extra só com essas regras no fim do álbum enviado pro WhatsApp.</p>
+              <p v-if="config.pagamento_ativo"><i class="fas fa-credit-card"></i> O botão de Pix no cardápio interativo usa sua chave do tipo telefone — o mesmo número de WhatsApp para receber pedidos, sem cadastro extra. {{ config.sinal_ativo ? 'Com o sinal ativo, ele cobra só a porcentagem definida acima; o restante fica combinado pra entrega.' : 'Sem sinal ativo, ele cobra o valor total do pedido.' }}</p>
+            </details>
           </div>
         </div>
 
         <!-- ── Retirada e entrega (só existe no cardápio Dia a dia) ── -->
-        <div v-if="cardapioAtivo === 'diaadia'" class="cp-config-card">
-          <button class="cp-config-toggle" @click="entregaAberta = !entregaAberta">
-            <span><i class="fas fa-motorcycle"></i> Retirada e entrega</span>
-            <i class="fas" :class="entregaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        <div v-if="cardapioAtivo === 'diaadia'" class="cx-sec">
+          <button class="cx-sec-cab" :aria-expanded="entregaAberta" @click="entregaAberta = !entregaAberta">
+            <span class="cx-tile"><i class="fas fa-motorcycle"></i></span>
+            <span class="cx-sec-txt"><strong>Retirada e entrega</strong><small>Taxa de entrega: R$ {{ maskMoney(config.taxa_entrega) || '0,00' }}</small></span>
+            <i class="fas cx-seta" :class="entregaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </button>
-          <div v-if="entregaAberta" class="cp-config-corpo">
+          <div v-if="entregaAberta" class="cx-sec-corpo">
             <label class="cp-field cp-field--dias">
               <span>Taxa de entrega</span>
               <div class="cp-dias-linha">
@@ -326,46 +397,34 @@
                 >
               </div>
             </label>
-            <p class="cp-hint">Esse valor aparece pro cliente quando ele escolhe "Receber em casa" no cardápio interativo. Deixe 0 se ainda não tiver um valor definido — nesse caso o cardápio mostra "a combinar" em vez de cobrar errado.</p>
+            <details class="cx-saiba">
+              <summary>Como a taxa aparece pro cliente?</summary>
+              <p>Esse valor aparece pro cliente quando ele escolhe “Receber em casa” no cardápio interativo. Deixe 0 se ainda não tiver um valor definido — nesse caso o cardápio mostra “a combinar” em vez de cobrar errado.</p>
+            </details>
           </div>
         </div>
 
         <!-- ── Aparência e comportamento ── -->
-        <div class="cp-config-card">
-          <button class="cp-config-toggle" @click="aparenciaAberta = !aparenciaAberta">
-            <span><i class="fas fa-sliders"></i> Aparência e comportamento</span>
-            <i class="fas" :class="aparenciaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        <div class="cx-sec">
+          <button class="cx-sec-cab" :aria-expanded="aparenciaAberta" @click="aparenciaAberta = !aparenciaAberta">
+            <span class="cx-tile"><i class="fas fa-sliders"></i></span>
+            <span class="cx-sec-txt"><strong>Aparência e comportamento</strong><small>Fotos nos itens: {{ config.mostrar_foto_itens !== false ? 'sim' : 'não' }}</small></span>
+            <i class="fas cx-seta" :class="aparenciaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </button>
-          <div v-if="aparenciaAberta" class="cp-config-corpo">
-            <div class="cp-mais-opcoes-item">
-              <div class="cp-modo-cliente-texto">
-                <strong><i class="fas fa-store"></i> Abrir sempre em tela cheia</strong>
-                <span>Ideal pra deixar o celular no balcão mostrando o cardápio. Pra editar, toque no X da tela cheia pra voltar aqui.</span>
-              </div>
-              <button class="cp-grupo-switch-btn" @click="config.abrir_tela_cheia_padrao = !config.abrir_tela_cheia_padrao; salvar()">
+          <div v-if="aparenciaAberta" class="cx-sec-corpo">
+            <div class="cx-bloco--lista">
+              <button type="button" class="cx-linha-switch" role="switch" :aria-checked="!!config.abrir_tela_cheia_padrao" @click="config.abrir_tela_cheia_padrao = !config.abrir_tela_cheia_padrao; salvar()">
+                <span class="cx-linha-txt"><strong><i class="fas fa-store"></i> Abrir sempre em tela cheia</strong><small>Ideal pra deixar o celular no balcão. Pra editar, toque no X da tela cheia.</small></span>
                 <span class="cp-switch" :class="{ on: config.abrir_tela_cheia_padrao }"><span class="cp-switch-bola"></span></span>
               </button>
-            </div>
-
-            <div class="cp-mais-opcoes-divisor"></div>
-
-            <div class="cp-mais-opcoes-item">
-              <div class="cp-modo-cliente-texto">
-                <strong><i class="fas fa-image"></i> Mostrar foto em cada sabor</strong>
-                <span>Desligue pra exibir só o banner da categoria no cardápio digital, sem foto ou emoji nos itens. As fotos continuam guardadas.</span>
-              </div>
-              <button class="cp-grupo-switch-btn" @click="config.mostrar_foto_itens = config.mostrar_foto_itens === false; salvar()">
+              <button type="button" class="cx-linha-switch" role="switch" :aria-checked="config.mostrar_foto_itens !== false" @click="config.mostrar_foto_itens = config.mostrar_foto_itens === false; salvar()">
+                <span class="cx-linha-txt"><strong><i class="fas fa-image"></i> Mostrar foto em cada sabor</strong><small>Desligado, só o banner da categoria aparece. As fotos continuam guardadas.</small></span>
                 <span class="cp-switch" :class="{ on: config.mostrar_foto_itens !== false }"><span class="cp-switch-bola"></span></span>
               </button>
             </div>
 
-            <div class="cp-mais-opcoes-divisor"></div>
-
-            <div class="cp-mais-opcoes-item">
-              <div class="cp-modo-cliente-texto">
-                <strong><i class="fas fa-thumbtack"></i> Aba padrão ao abrir</strong>
-                <span>Qual cardápio já vem selecionado quando você entra aqui.</span>
-              </div>
+            <div class="cx-linha-fixa">
+              <span class="cx-linha-txt"><strong><i class="fas fa-thumbtack"></i> Cardápio que abre primeiro</strong><small>Qual já vem selecionado quando você entra aqui.</small></span>
               <div class="cp-aba-padrao-grupo">
                 <button
                   v-for="c in CARDAPIOS" :key="c.id"
@@ -377,77 +436,23 @@
           </div>
         </div>
 
-        <!-- ── Avançado: PDF (plano B), link permanente e pedidos do balcão ── -->
-        <div class="cp-config-card">
-          <button class="cp-config-toggle" @click="avancadoAberta = !avancadoAberta">
-            <span><i class="fas fa-toolbox"></i> Avançado</span>
-            <i class="fas" :class="avancadoAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        <!-- ── Avançado: PDF ── -->
+        <div class="cx-sec">
+          <button class="cx-sec-cab" :aria-expanded="avancadoAberta" @click="avancadoAberta = !avancadoAberta">
+            <span class="cx-tile"><i class="fas fa-toolbox"></i></span>
+            <span class="cx-sec-txt"><strong>Avançado</strong><small>Resumo em PDF</small></span>
+            <i class="fas cx-seta" :class="avancadoAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </button>
-          <div v-if="avancadoAberta" class="cp-config-corpo">
-
-            <div class="cp-mais-opcoes-item">
-              <div class="cp-modo-cliente-texto">
-                <strong><i class="fas fa-file-pdf"></i> Resumo em PDF</strong>
-                <span>Folha única (A5), com QR code pro cardápio online — use como plano C, pra quem prefere ver tudo numa folha só em vez do cardápio interativo.</span>
-              </div>
+          <div v-if="avancadoAberta" class="cx-sec-corpo">
+            <div class="cx-linha-fixa">
+              <span class="cx-linha-txt"><strong><i class="fas fa-file-pdf"></i> Resumo em PDF</strong><small>Folha única (A5) com QR code pro cardápio online. Para quem prefere ver tudo numa folha só.</small></span>
+              <button class="cx-btn-sec" :disabled="gerandoPdf" @click="baixarPdf">
+                <i class="fas" :class="gerandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i> {{ gerandoPdf ? 'Gerando…' : 'Baixar' }}
+              </button>
             </div>
-            <p v-if="!urlCardapioPublicado" class="cp-hint">
+            <p v-if="!urlCardapioPublicado" class="cx-nota">
               O QR code só aparece se o cardápio online estiver publicado — sem isso, sai só o rodapé de texto. <button type="button" class="cp-link-inline" @click="s.setTab('ajustes')">Configurar publicação</button>
             </p>
-            <div class="cp-pdf-config-linha">
-              <button class="cp-acao" :disabled="gerandoPdf" @click="baixarPdf">
-                <i class="fas" :class="gerandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i> {{ gerandoPdf ? 'Gerando...' : 'Baixar' }}
-              </button>
-            </div>
-
-            <div class="cp-mais-opcoes-divisor"></div>
-
-            <div class="cp-mais-opcoes-item">
-              <div class="cp-modo-cliente-texto">
-                <strong><i class="fas fa-link"></i> Link permanente</strong>
-                <span>Endereço fixo do cardápio (bom pra bio do Instagram) — só atualiza quando você clica em "Atualizar link online". Pro dia a dia, "Enviar pro cliente" já resolve sem precisar disso.</span>
-              </div>
-            </div>
-
-            <template v-if="!publicacaoDisponivel">
-              <p class="cp-hint">
-                Publicação ainda não configurada.
-                <button type="button" class="cp-link-inline" @click="s.setTab('ajustes')">Configurar em Ajustes → Backup</button>
-              </p>
-            </template>
-            <template v-else>
-              <a v-if="urlCardapioPublicado" :href="urlCardapioPublicado" target="_blank" rel="noopener noreferrer" class="cp-link-url-linha">
-                <code class="cp-link-url cp-link-url--clicavel">{{ urlCardapioPublicado }} <i class="fas fa-arrow-up-right-from-square"></i></code>
-              </a>
-
-              <p v-if="linkStatus === 'publicando'" class="cp-link-status is-publicando">
-                <i class="fas fa-spinner fa-spin"></i> Publicando o cardápio...
-              </p>
-              <p v-else-if="linkStatus === 'aguardando'" class="cp-link-status is-aguardando">
-                <i class="fas fa-clock"></i> Publicado! Ainda propagando. Espere antes de enviar esse link pro cliente.
-              </p>
-              <p v-else-if="linkStatus === 'pronto'" class="cp-link-status is-pronto">
-                <i class="fas fa-circle-check"></i> Pronto! O link já deve estar atualizado — pode enviar.
-              </p>
-
-              <button class="cp-acao" style="width:100%; justify-content:center;" :disabled="publicandoLink || linkStatus === 'aguardando'" @click="publicarLinkCardapioInterativo">
-                <i class="fas fa-link"></i> {{ publicandoLink ? 'Atualizando...' : linkStatus === 'aguardando' ? `Atualizar link agora (${linkSegundosRestantes}s)` : 'Atualizar link agora' }}
-              </button>
-              <p class="cp-hint">Esse mesmo botão também aparece como "Atualizar link online" no topo da tela. Nada é enviado sozinho: toda edição fica salva aqui no app na hora, mas só vai pro link quando você aperta esse botão — assim ele nunca muda sem você mandar.</p>
-            </template>
-
-            <div class="cp-mais-opcoes-divisor"></div>
-
-            <div class="cp-mais-opcoes-item">
-              <div class="cp-modo-cliente-texto">
-                <strong><i class="fas fa-clipboard-list"></i> Pedidos do balcão</strong>
-                <span>Toda vez que você fecha um pedido pela tela cheia (com o cliente na sua frente), ele fica salvo aqui — com nome, telefone e pra quando ficou combinado.</span>
-              </div>
-              <button class="cp-acao" @click="configModalAberto = false; abrirPainelPedidos()">
-                <i class="fas fa-clipboard-list"></i> Ver
-                <span v-if="pedidosPendentesCount" class="cp-badge">{{ pedidosPendentesCount }}</span>
-              </button>
-            </div>
           </div>
         </div>
 
@@ -1623,6 +1628,17 @@ async function compartilharLinkCardapio(url, { title, text } = {}) {
   return 'falha'
 }
 
+async function copiarLinkPublicado() {
+  const url = urlCardapioPublicado.value
+  if (!url) return
+  try {
+    await navigator.clipboard.writeText(url)
+    s.notify?.('Link copiado! Cole no WhatsApp ou na bio do Instagram.')
+  } catch {
+    s.notify?.('Não consegui copiar sozinho. O link é: ' + url)
+  }
+}
+
 async function gerarCardapioInterativo() {
   if (!todosItensAtivos.value.length) { s.notify?.('Ative pelo menos uma receita antes de gerar o cardápio.'); return }
   if (!numeroEfetivoPedido.value) {
@@ -1695,7 +1711,7 @@ async function publicarLinkCardapioInterativo() {
   }
   const cfgPub = await carregarConfigPublicacao()
   if (!publicacaoConfigurada(cfgPub)) {
-    s.notify?.('Configure a publicação em Ajustes → Backup (token do GitHub e repositório) antes de gerar o link.')
+    s.notify?.('Configure a publicação em Ajustes → Sistema (token do GitHub) antes de gerar o link.')
     return
   }
   publicandoLink.value = true
@@ -1802,11 +1818,6 @@ async function publicarLinkCardapioInterativo() {
 
 /* CTA "Enviar cardápio" no perfil da Bete — mesmo canhoto/ticket do CTA
    "Lançar novo fiado" do Início, pra manter a mesma linguagem visual. */
-.cp-acoes--bete .cp-acao--principal {
-  position: relative; border: 1.5px dashed var(--gold); background: var(--gold-bg);
-  color: var(--brown-dark); box-shadow: none;
-}
-.cp-acoes--bete .cp-acao--principal i { color: var(--gold-dark); }
 
 .cad-search-bar { padding: 0 0 2px; display: flex; align-items: center; gap: 8px; }
 .cad-search-wrap {
@@ -1825,21 +1836,11 @@ async function publicarLinkCardapioInterativo() {
 
 .cp-body { display: flex; flex-direction: column; gap: 14px; }
 
-.cp-acoes-bloco { display: flex; flex-direction: column; gap: 8px; }
 
 /* Ação principal do dia a dia: abrir o cardápio em tela cheia (modo balcão).
    Fica sozinha, grande e sem disputar espaço com o resto — é o botão que
    quem atende o cliente (ex: a esposa) precisa achar de primeira. */
-.cp-acao-tela-cheia {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  width: 100%; padding: 16px 14px; border-radius: var(--r-lg); border: none;
-  background: var(--gold); color: #2b1a06; font-weight: 800; font-size: 15px;
-  box-shadow: 0 2px 8px rgba(200,137,10,.28); transition: var(--t);
-}
-.cp-acao-tela-cheia i { font-size: 18px; }
-.cp-acao-tela-cheia:active { transform: scale(.98); }
 
-.cp-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
 .cp-acao {
   flex: 1; min-width: 104px; display: flex; align-items: center; justify-content: center; gap: 6px;
   padding: 11px 10px; border-radius: var(--r-lg); border: 1px solid var(--border2);
@@ -1854,20 +1855,9 @@ async function publicarLinkCardapioInterativo() {
    uma sensação de "três botões de apps diferentes" na mesma barra. Agora
    os dois dividem a mesma linguagem (contorno + peso), só distinguindo
    por conteúdo: texto+ícone vs. só ícone. */
-.cp-acao--secundaria { background: var(--surface); color: var(--brown); border-color: var(--border2); }
 .cp-acao--icone { flex: 0 0 auto; min-width: 0; width: 44px; padding: 11px; }
 
-.cp-mais-opcoes-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.cp-mais-opcoes-item .cp-acao { flex: 0 0 auto; min-width: 0; padding: 9px 14px; }
-.cp-mais-opcoes-divisor { height: 1px; background: var(--border); margin: 2px 0; }
 
-.cp-link-url-linha { display: block; overflow-x: auto; text-decoration: none; }
-.cp-link-url {
-  display: block; font-size: 11.5px; color: var(--brown-mid); background: var(--cream);
-  border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px 10px; white-space: nowrap;
-}
-.cp-link-url--clicavel { color: var(--brown); font-weight: 700; }
-.cp-link-url--clicavel i { font-size: 10px; margin-left: 4px; opacity: .7; }
 
 /* ── Corpo do modal "Configurações do cardápio" ──
    O BaseModal não tem padding próprio no body (pra caber conteúdos que
@@ -1875,13 +1865,6 @@ async function publicarLinkCardapioInterativo() {
    quem usa — igual ao cp-body da tela principal. */
 .cp-modal-config-body { display: flex; flex-direction: column; gap: 14px; padding: 14px; }
 .cp-link-inline { color: var(--brown); font-weight: 700; text-decoration: underline; background: none; border: none; padding: 0; font-size: inherit; }
-.cp-link-status {
-  display: flex; align-items: center; gap: 7px; font-size: 11.5px; line-height: 1.4;
-  border-radius: var(--r-md); padding: 9px 12px; font-weight: 600;
-}
-.cp-link-status.is-publicando { background: var(--gold-bg); color: var(--gold-dark); }
-.cp-link-status.is-aguardando { background: var(--gold-bg); color: var(--gold-dark); }
-.cp-link-status.is-pronto { background: var(--green-bg); color: var(--green); }
 
 .cp-aviso {
   display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--gold-dark);
@@ -1889,18 +1872,7 @@ async function publicarLinkCardapioInterativo() {
   padding: 9px 12px;
 }
 
-.cp-modo-cliente-texto { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.cp-modo-cliente-texto strong { font-size: 13px; color: var(--brown-dark); display: flex; align-items: center; gap: 6px; }
-.cp-modo-cliente-texto span { font-size: 11px; color: var(--brown-mid); line-height: 1.4; }
 
-.cp-config-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
-.cp-config-toggle {
-  width: 100%; display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; font-weight: 700; font-size: 13px; color: var(--brown); background: var(--cream);
-  border: none; text-align: left;
-}
-.cp-config-corpo { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
-.cp-hint { font-size: 11px; color: var(--muted); line-height: 1.4; }
 
 .cp-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 600; min-width: 0; }
 .cp-hist-preco-btn { background: none; border: none; color: var(--brown-mid); padding: 0 0 0 4px; cursor: pointer; font-size: 12px; vertical-align: middle; }
@@ -1923,10 +1895,6 @@ async function publicarLinkCardapioInterativo() {
   font-size: 11px; font-weight: 700; color: var(--terracota-escuro, #7a4520); background: var(--surface);
   border: 1px solid var(--border2); border-radius: var(--r-full); padding: 4px 10px;
 }
-.cp-field-linha { display: flex; gap: 8px; }
-.cp-field-linha .cp-field { flex: 1; min-width: 0; }
-.cp-field--emoji { flex: 0 0 76px; }
-.cp-field--emoji input { text-align: center; font-size: 18px; padding: 9px 4px; }
 
 .cp-dias-linha { display: flex; align-items: center; gap: 8px; }
 .cp-dias-linha input {
@@ -2047,7 +2015,7 @@ async function publicarLinkCardapioInterativo() {
 .cp-item-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .cp-item-corpo { flex: 1; min-width: 0; text-align: left; border: none; background: none; padding: 0; }
-.cp-item-linha1 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cp-item-linha1 { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
 .cp-item-nome { font-weight: 700; font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cp-item-selos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
 .cp-item-selo-destaque {
@@ -2061,7 +2029,6 @@ async function publicarLinkCardapioInterativo() {
   color: #8a5a00; background: #fdf0d5; border: 1px solid #e8c179; border-radius: 999px;
   padding: 1px 7px; width: fit-content;
 }
-.cp-check--encomenda { margin-top: -4px; }
 .cp-item-preco { font-weight: 800; font-size: 13px; color: var(--gold-dark); white-space: nowrap; }
 .cp-item-desc { font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -2069,24 +2036,9 @@ async function publicarLinkCardapioInterativo() {
 
 .cp-item-painel { padding: 4px 12px 14px; display: flex; flex-direction: column; gap: 10px; border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 12px; }
 
-.cp-foto-linha { display: flex; align-items: center; gap: 8px; }
-.cp-upload {
-  display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: var(--r-md);
-  background: var(--cream); border: 1px solid var(--border2); font-size: 12.5px; font-weight: 700; color: var(--brown);
-  white-space: nowrap; flex-shrink: 0;
-}
 .cp-remover-foto { font-size: 12px; color: var(--red); font-weight: 700; padding: 6px 8px; border: none; background: none; }
 
-.cp-check { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text); }
 
-.cp-item-acoes { display: flex; justify-content: flex-end; }
-.cp-ordem-btns { display: inline-flex; border-radius: var(--r-md); border: 1px solid var(--border2); overflow: hidden; }
-.cp-ordem-btn {
-  width: 38px; height: 32px; display: flex; align-items: center; justify-content: center;
-  background: var(--surface); border: none; color: var(--brown-mid); font-size: 12px; transition: var(--t);
-}
-.cp-ordem-btn:not(:last-child) { border-right: 1px solid var(--border2); }
-.cp-ordem-btn:active { background: var(--gold-bg); color: var(--gold-dark); }
 
 /* ── Tela cheia ──
    Usa as variáveis do design system do app — o cardápio interativo
@@ -2242,4 +2194,142 @@ async function publicarLinkCardapioInterativo() {
 .cp-capa-previa-titulo { position: absolute; left: 14px; bottom: 12px; z-index: 1; color: #fff; font-weight: 800; font-size: 17px; text-transform: uppercase; letter-spacing: .06em; text-shadow: 0 2px 6px rgba(0,0,0,.4); }
 .cp-capa-acoes { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .cp-capa-btn { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+
+/* ══════════════════════════════════════════════════════════════
+   Cardápio no app (classes cx-*)
+══════════════════════════════════════════════════════════════ */
+.cp-body { gap: 16px; }
+.cx-compartilhar { display: flex; flex-direction: column; gap: 12px; }
+
+/* Modo balcão: o botão que quem atende precisa achar de primeira */
+.cx-balcao { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 70px; padding: 12px 14px; border: none; border-radius: 20px; background: linear-gradient(135deg, var(--gold) 0%, #e0a21d 100%); color: #2b1a06; text-align: left; box-shadow: 0 6px 16px rgba(200, 137, 10, .28); cursor: pointer; font-family: var(--font); transition: transform var(--t); }
+.cx-balcao:active { transform: scale(.985); }
+.cx-balcao-ico { width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: rgba(255, 255, 255, .38); font-size: 1.15rem; }
+.cx-balcao-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.cx-balcao-txt strong { font-size: 1rem; font-weight: 800; }
+.cx-balcao-txt small { margin-top: 2px; font-size: .8rem; font-weight: 600; opacity: .8; }
+.cx-balcao-seta { font-size: .8rem; opacity: .65; }
+
+/* Cartões */
+.cx-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow-sm); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.cx-card-cab { display: flex; align-items: center; gap: 12px; }
+.cx-tile { width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: var(--cream); color: var(--brown-mid); font-size: 1.05rem; }
+.cx-tile--ouro { background: var(--gold-bg); color: var(--gold-dark); }
+.cx-card-tit h3 { margin: 0; font-size: 1.05rem; font-weight: 800; line-height: 1.25; color: var(--brown-dark); }
+.cx-card-tit p { margin: 2px 0 0; font-size: .84rem; line-height: 1.4; color: var(--muted); }
+
+/* Botões */
+.cx-btn-enviar { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 54px; border: none; border-radius: 16px; background: var(--brown-dark); color: #fff; font-family: var(--font); font-size: 1.02rem; font-weight: 800; cursor: pointer; transition: transform var(--t); }
+.cx-btn-enviar:active { transform: scale(.98); }
+.cx-btn-enviar:disabled { opacity: .65; }
+.cx-btn-sec { flex: 1; min-height: 46px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1.5px solid var(--border2); border-radius: 14px; background: var(--surface); color: var(--brown); font-family: var(--font); font-size: .88rem; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background var(--t); }
+.cx-btn-sec:active { background: var(--cream); }
+.cx-btn-sec:disabled { opacity: .55; }
+.cx-btn-perigo { color: var(--red); border-color: var(--red-dim, #f3b4b4); }
+.cx-btn-sec:focus-visible, .cx-btn-enviar:focus-visible, .cx-balcao:focus-visible, .cx-atalho:focus-visible, .cx-sec-cab:focus-visible, .cx-linha-switch:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 2px; }
+
+/* Link do cardápio */
+.cx-link { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.cx-link-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cx-link-lbl { font-size: .88rem; font-weight: 800; color: var(--brown-dark); display: inline-flex; align-items: center; gap: 7px; }
+.cx-link-lbl i { color: var(--gold-dark); }
+.cx-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--r-full); font-size: .76rem; font-weight: 800; }
+.cx-status--ok { background: var(--green-bg); color: var(--green); }
+.cx-status--espera { background: var(--gold-bg); color: var(--gold-dark); }
+.cx-link-url { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: 14px; background: var(--cream); border: 1px solid var(--border); color: var(--brown); font-size: .86rem; font-weight: 700; text-decoration: none; min-width: 0; }
+.cx-link-url span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cx-link-url i { flex-shrink: 0; font-size: .75rem; opacity: .6; }
+.cx-link-aviso { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--gold-bg); color: var(--gold-dark); font-size: .84rem; font-weight: 700; line-height: 1.4; }
+.cx-link-aviso--ok { background: var(--green-bg); color: var(--green); }
+.cx-link-btns { display: flex; gap: 8px; }
+.cx-nota { margin: 0; font-size: .8rem; line-height: 1.5; color: var(--muted); }
+.cx-nota--solta { padding-top: 2px; }
+
+/* Atalhos */
+.cx-atalhos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cx-atalho { position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 56px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-sm); color: var(--brown-dark); font-family: var(--font); font-size: .88rem; font-weight: 800; cursor: pointer; }
+.cx-atalho:active { background: var(--cream); }
+.cx-atalho i { font-size: 1.05rem; color: var(--gold-dark); }
+.cx-badge { min-width: 22px; height: 22px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 11px; background: var(--red); color: #fff; font-size: .74rem; font-weight: 800; }
+
+/* Configurações: seções com resumo do estado atual */
+.cp-modal-config-body { gap: 12px; }
+.cx-sec { border: 1px solid var(--border); border-radius: 18px; background: var(--surface); overflow: hidden; }
+.cx-sec-cab { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 68px; padding: 12px 14px; background: none; border: none; text-align: left; cursor: pointer; font-family: var(--font); }
+.cx-sec-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cx-sec-txt strong { font-size: .96rem; font-weight: 800; color: var(--brown-dark); }
+.cx-sec-txt small { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-seta { font-size: .75rem; color: var(--muted); }
+.cx-sec-corpo { display: flex; flex-direction: column; gap: 14px; padding: 14px 14px 16px; border-top: 1px solid var(--border); }
+.cx-sec-corpo .cp-field > input, .cx-sec-corpo .cp-field > textarea { padding: 12px; min-height: 48px; border-radius: 12px; border-width: 1.5px; }
+.cx-sec-corpo .cp-field > textarea { min-height: 80px; }
+.cx-sec-corpo .cp-field { font-size: .84rem; color: var(--brown-mid); font-weight: 700; gap: 6px; }
+
+/* Linhas com interruptor */
+.cx-bloco--lista { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); display: flex; flex-direction: column; gap: 0; }
+.cx-linha-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 62px; padding: 12px 14px; border: none; border-top: 1px solid var(--border); background: none; text-align: left; cursor: pointer; font-family: var(--font); }
+.cx-linha-switch:first-child { border-top: none; }
+.cx-linha-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cx-linha-txt strong { font-size: .92rem; font-weight: 800; color: var(--brown-dark); display: flex; align-items: center; gap: 7px; }
+.cx-linha-txt strong i { color: var(--gold-dark); font-size: .85rem; }
+.cx-linha-txt small { font-size: .8rem; line-height: 1.4; color: var(--muted); }
+.cx-linha-fixa { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cx-linha-fixa .cx-btn-sec { flex: 0 0 auto; }
+.cx-switch { -webkit-appearance: none; appearance: none; position: relative; flex-shrink: 0; margin: 0; width: 50px; height: 30px; border-radius: var(--r-full); background: var(--border2); cursor: pointer; transition: background var(--t); }
+.cx-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform var(--t); }
+.cx-switch:checked { background: var(--gold); }
+.cx-switch:checked::after { transform: translateX(20px); }
+.cx-switch:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 2px; }
+
+/* Explicações longas recolhidas */
+.cx-saiba { border-radius: 12px; background: var(--bg); }
+.cx-saiba > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 12px; font-size: .84rem; font-weight: 700; color: var(--brown-mid); }
+.cx-saiba > summary::-webkit-details-marker { display: none; }
+.cx-saiba > summary::before { content: '?'; width: 20px; height: 20px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--border2); color: var(--brown-dark); font-size: .72rem; font-weight: 800; }
+.cx-saiba > p { margin: 0; padding: 0 12px 12px; font-size: .82rem; line-height: 1.55; color: var(--muted); }
+.cx-saiba--dentro { border-radius: 0; border-top: 1px solid var(--border); }
+
+/* Edição do item */
+.cp-item { border-radius: 18px; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
+.cp-item-topo { gap: 10px; padding: 12px; }
+.cp-item-avatar { width: 54px; height: 54px; border-radius: 14px; overflow: visible; font-size: 1.5rem; }
+.cp-item-avatar img { border-radius: 13px; }
+.cx-avatar { position: relative; cursor: pointer; }
+.cx-avatar-cam { position: absolute; right: -4px; bottom: -4px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--brown-dark); color: #fff; font-size: .6rem; border: 2px solid var(--surface); }
+.cx-painel { gap: 18px; padding: 14px 14px 16px; }
+.cx-bloco { display: flex; flex-direction: column; gap: 10px; }
+.cx-bloco--lista { gap: 0; }
+.cx-bloco-tit { font-size: .9rem; font-weight: 800; color: var(--brown-dark); display: flex; align-items: center; gap: 7px; }
+.cx-bloco-tit > i { color: var(--gold-dark); font-size: .85rem; }
+.cx-foto { display: flex; align-items: center; gap: 14px; }
+.cx-foto-prev { width: 92px; height: 92px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 18px; background: var(--gold-bg); border: 1px solid var(--gold-light); font-size: 2.3rem; }
+.cx-foto-prev img { width: 100%; height: 100%; object-fit: cover; }
+.cx-foto-btns { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.cx-foto-btns .cx-btn-sec { width: 100%; flex: none; }
+.cx-emoji-campo input { width: 88px; text-align: center; }
+.cx-contador { font-size: .78rem; font-weight: 700; color: var(--muted); }
+.cx-textarea { width: 100%; font: inherit; padding: 12px; min-height: 76px; border-radius: 12px; border: 1.5px solid var(--border2); background: var(--bg); color: var(--text); resize: vertical; box-sizing: border-box; }
+.cx-painel .input-with-prefix { min-height: 48px; border: 1.5px solid var(--border2); border-radius: 12px; }
+.cx-painel .input-with-prefix input { min-height: 46px; }
+.cx-ordem { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cx-ordem-lbl { font-size: .86rem; font-weight: 700; color: var(--muted); }
+.cx-ordem-btns { display: flex; gap: 8px; }
+.cx-ordem-btns .cx-btn-sec { flex: 0 0 auto; }
+
+/* Lista por categoria: título legível, alvos de toque maiores */
+.cp-grupos { gap: 20px; }
+.cp-grupo-titulo { font-size: 1.02rem; font-weight: 800; letter-spacing: 0; text-transform: none; color: var(--brown-dark); }
+.cp-grupo-selo-minimo, .cp-grupo-selo-estado { font-size: .72rem; padding: 3px 9px; }
+.cp-grupo-opcoes-btn { width: 40px; height: 40px; font-size: .95rem; }
+.cp-switch-btn { padding: 4px; }
+.cp-switch { width: 46px; height: 28px; padding: 3px; }
+.cp-switch-bola { width: 22px; height: 22px; }
+.cp-switch.on .cp-switch-bola { transform: translateX(18px); }
+.cp-item-nome { font-size: .97rem; max-width: 100%; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.25; }
+.cp-item-preco { font-size: .92rem; }
+.cp-item-desc { font-size: .82rem; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+.cp-item-expand { width: 40px; height: 40px; }
+.cp-tab { padding: 14px 6px; font-size: .92rem; }
+.cp-aba-padrao-btn { min-height: 40px; font-size: .84rem; padding: 0 14px; }
+@media (prefers-reduced-motion: reduce) { .cx-switch, .cx-switch::after, .cx-balcao, .cx-btn-enviar { transition: none; } }
 </style>

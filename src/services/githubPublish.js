@@ -128,7 +128,7 @@ export async function publicarArquivoGitHub(conteudoTexto, configParcial = {}) {
   const config = { ...(await carregarConfigPublicacao()), ...configParcial }
 
   if (!publicacaoConfigurada(config)) {
-    throw new Error('Publicação não configurada. Preencha o token e o repositório em Ajustes → Backup.')
+    throw new Error('Publicação não configurada. Preencha o token em Ajustes → Sistema (e confira o repositório no .env).')
   }
 
   const caminhoApi = String(config.caminho).replace(/^\/+/, '')

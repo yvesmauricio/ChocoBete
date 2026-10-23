@@ -572,78 +572,78 @@ const CSS_PEDIDO = `
     --borda: #e8e0d4;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { background: var(--creme); color: var(--marrom); font-family: 'Plus Jakarta Sans', sans-serif; }
-  body { padding-bottom: 130px; }
+  html, body { background: #faf6f0; color: var(--marrom); font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+  body { padding-bottom: 140px; }
   /* ── Capa: faixa de chocolate com a marca centralizada, filete dourado embaixo ── */
-  .ip-capa {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center;
-    padding: max(22px, env(safe-area-inset-top)) 20px 24px;
-    background: radial-gradient(120% 140% at 50% 0%, #5a3016 0%, #3d1f07 55%, #2a1504 100%);
-    border-bottom: 3px solid #c8890a;
-  }
-  .ip-capa .selo { width: 64px; height: 64px; flex-shrink: 0; border-radius: 50%; border: 2px solid #c8890a; display: flex; align-items: center; justify-content: center; font-size: 30px; background: rgba(255,255,255,.08); overflow: hidden; }
-  .ip-capa-texto { min-width: 0; text-align: center; }
-  .ip-capa .marca { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 25px; line-height: 1.1; color: #fff; text-transform: uppercase; letter-spacing: .09em; }
-  .ip-capa .subtitulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 11px; color: #f0c25e; text-transform: uppercase; letter-spacing: .22em; margin-top: 7px; line-height: 1.4; }
+  .ip-capa { 
+    display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px; text-align: left;
+    padding: max(20px, env(safe-area-inset-top)) 20px 22px;
+    background: radial-gradient(120% 170% at 0% 0%, #5a3016 0%, #3d1f07 55%, #2a1504 100%);
+    border-bottom: none; border-radius: 0 0 28px 28px; box-shadow: 0 10px 28px rgba(42,21,4,.20);
+   }
+  .ip-capa .selo { width: 60px; height: 60px; flex-shrink: 0; border-radius: 50%; border: 2px solid rgba(240,194,94,.85); display: flex; align-items: center; justify-content: center; font-size: 28px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .ip-capa-texto { min-width: 0; flex: 1; text-align: left; }
+  .ip-capa .marca { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 21px; line-height: 1.15; color: #fff; text-transform: uppercase; letter-spacing: .05em; overflow-wrap: anywhere; }
+  .ip-capa-insta { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 12px; border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; font-size: 12.5px; font-weight: 700; text-decoration: none; letter-spacing: normal; }
+  .ip-capa .subtitulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 11px; color: #f0c25e; text-transform: uppercase; letter-spacing: .16em; margin-top: 5px; line-height: 1.4; }
 
   /* ── Seção da categoria: banner com a imagem + título por cima, e os itens
      logo abaixo no mesmo cartão (estrutura de cardápio digital). O banner é o
      botão que abre/fecha a lista. ── */
-  .categoria-bloco {
-    margin: 0 16px 20px; background: #fff; border-radius: 20px; overflow: hidden;
-    border: 1px solid var(--borda); box-shadow: 0 4px 14px rgba(61,31,7,.08);
-  }
-  .ip-cat-nav + .categoria-bloco, .ip-capa + .categoria-bloco { margin-top: 18px; }
-  .categoria-titulo {
-    position: relative; display: block; width: 100%; min-height: 148px; padding: 0; border: none; cursor: pointer;
+  .categoria-bloco { 
+    margin: 0 14px 14px; background: #fff; border-radius: 22px; overflow: hidden;
+    border: 1px solid var(--borda); box-shadow: 0 6px 20px rgba(61,31,7,.07);
+   }
+  .ip-cat-nav + .categoria-bloco, .ip-capa + .categoria-bloco { margin-top: 16px; }
+  .categoria-titulo { 
+    position: relative; display: flex; align-items: flex-end; width: 100%; min-height: 84px; padding: 0; border: none; cursor: pointer;
     text-align: left; background: #3d1f07; overflow: hidden; color: #fff;
-  }
+   }
   .categoria-capa-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-  .categoria-capa-fundo {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 22px;
+  .categoria-capa-fundo { 
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 64px;
     background: linear-gradient(135deg, #5a3016 0%, #3d1f07 60%, #2a1504 100%);
-    font-size: 76px; opacity: .95;
-  }
+    font-size: 44px; opacity: .95;
+   }
   .categoria-capa-fundo span { opacity: .28; filter: grayscale(.2); }
-  .categoria-capa-veu { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,10,3,.10) 0%, rgba(20,10,3,.45) 55%, rgba(20,10,3,.86) 100%); }
-  .categoria-capa-info {
-    position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 54px 14px 18px;
+  .categoria-capa-veu { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(20,10,3,.88) 0%, rgba(20,10,3,.60) 55%, rgba(20,10,3,.28) 100%); }
+  .categoria-capa-info { 
+    position: relative; z-index: 1; padding: 14px 60px 14px 16px;
     display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
-  }
-  .categoria-titulo-texto {
-    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 24px; line-height: 1.05;
-    text-transform: uppercase; letter-spacing: .06em; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.45);
-  }
-  .categoria-titulo-texto::after { content: ''; display: block; width: 38px; height: 3px; border-radius: 2px; background: #f0c25e; margin-top: 8px; }
+   }
+  .categoria-titulo-texto { 
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 19px; line-height: 1.1;
+    text-transform: uppercase; letter-spacing: .05em; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.45);
+   }
   .categoria-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-  .categoria-contagem {
-    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 11px; color: #fff;
-    background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 2px 10px; flex-shrink: 0;
-  }
-  .categoria-selecionados {
-    display: none; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 11px; color: #3d1f07;
+  .categoria-contagem { 
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 12px; color: #fff;
+    background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.32); border-radius: 999px; padding: 2px 10px; flex-shrink: 0;
+   }
+  .categoria-selecionados { 
+    display: none; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 12px; color: #3d1f07;
     background: #f0c25e; border-radius: 999px; padding: 2px 10px; flex-shrink: 0;
-  }
-  .categoria-chevron {
-    position: absolute; right: 14px; bottom: 16px; width: 30px; height: 30px; border-radius: 50%;
+   }
+  .categoria-chevron { 
+    position: absolute; right: 14px; top: 50%; margin-top: -16px; width: 32px; height: 32px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff;
     background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.4); transition: transform .2s ease; flex-shrink: 0;
-  }
+   }
   .categoria-bloco.aberta .categoria-chevron { transform: rotate(180deg); }
-  .categoria-itens { display: none; padding: 4px 0 6px; }
+  .categoria-itens { display: none; padding: 2px 0 6px; }
   .categoria-bloco.aberta .categoria-itens { display: block; }
 
-  .ip-cat-nav {
+  .ip-cat-nav { 
     position: sticky; top: 0; z-index: 15; display: flex; gap: 8px; overflow-x: auto;
-    padding: 10px 16px; background: var(--creme-fundo); border-bottom: 1px solid var(--borda);
-    -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  }
+    padding: 12px 16px; background: rgba(250,246,240,.94); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(232,224,212,.9); -webkit-overflow-scrolling: touch; scrollbar-width: none;
+   }
   .ip-cat-nav::-webkit-scrollbar { display: none; }
-  .ip-cat-chip {
-    flex-shrink: 0; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 12.5px;
-    color: var(--marrom); background: #fff; border: 1.5px solid var(--terracota-claro); border-radius: 999px;
-    padding: 7px 14px; white-space: nowrap;
-  }
+  .ip-cat-chip { 
+    flex-shrink: 0; display: inline-flex; align-items: center; min-height: 40px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 14px;
+    color: var(--marrom); background: #fff; border: 1.5px solid var(--borda); border-radius: 999px;
+    padding: 0 16px; white-space: nowrap; transition: background .15s ease, color .15s ease;
+   }
   .ip-cat-chip.ativo { background: var(--terracota); color: #fff; border-color: var(--terracota); }
   .categoria-selo-minimo {
     display: inline-block; font-family: 'Plus Jakarta Sans', sans-serif; text-transform: none;
@@ -666,8 +666,8 @@ const CSS_PEDIDO = `
     box-shadow: 0 1px 3px rgba(168,104,0,.35);
   }
   .item-selo-encomenda { background: #fdf0d5; color: #8a5a00; border: 1px solid #e8c179; }
-  .categoria-titulo .categoria-selo-minimo { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); color: #fff; font-size: 11px; padding: 2px 10px; }
-  .categoria-titulo .categoria-preco-unico { background: #f0c25e; border: none; color: #3d1f07; font-size: 11px; font-weight: 800; padding: 2px 10px; }
+  .categoria-titulo .categoria-selo-minimo { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); color: #fff; font-size: 12px; padding: 2px 10px; }
+  .categoria-titulo .categoria-preco-unico { background: #f0c25e; border: none; color: #3d1f07; font-size: 12px; font-weight: 800; padding: 2px 10px; }
 
   /* ── Item: card branco sobre o fundo creme. Avatar fica no topo, alinhado
      com a primeira linha do corpo. Dentro do corpo: nome sozinho (livre pra
@@ -675,7 +675,7 @@ const CSS_PEDIDO = `
      descrição opcional embaixo, e por último preço + contador juntos na
      mesma linha — ficam próximos um do outro, sem vão vazio, mas sem
      espremer o nome. ── */
-  .ip-item { background: transparent; border-radius: 0; padding: 14px 16px; margin: 0; border-bottom: 1px dashed var(--borda); }
+  .ip-item { background: transparent; border-radius: 0; padding: 14px 16px; margin: 0; border-bottom: 1px solid #f1eadf; }
   .ip-item:last-child { border-bottom: none; }
   .ip-item-topo { display: flex; align-items: flex-start; gap: 12px; }
   .ip-item-avatar { width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; background: var(--creme-fundo); display: flex; align-items: center; justify-content: center; font-size: 22px; }
@@ -701,11 +701,11 @@ const CSS_PEDIDO = `
   .ip-item-preco { font-weight: 800; font-size: 12pt; color: var(--terracota-escuro); white-space: nowrap; }
 
   .ip-qtd { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-  .ip-qtd-btn {
-    width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid var(--terracota-claro);
-    background: transparent; color: var(--terracota); font-size: 18px; font-weight: 700; line-height: 1;
+  .ip-qtd-btn { 
+    width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--terracota-claro);
+    background: transparent; color: var(--terracota); font-size: 19px; font-weight: 700; line-height: 1;
     flex-shrink: 0; touch-action: manipulation;
-  }
+   }
   .ip-qtd-btn:active { background: var(--creme-fundo); }
   .ip-qtd-btn:last-child { background: var(--terracota); border-color: var(--terracota); color: #fff; }
   .ip-qtd-btn:last-child:active { background: #2a1504; }
@@ -713,19 +713,19 @@ const CSS_PEDIDO = `
      digitar o número direto, sem precisar ficar batendo no + várias vezes.
      -moz-appearance/-webkit-appearance somem com as setinhas nativas de
      number, e o font-size 16px evita o zoom automático do Safari ao focar. */
-  .ip-qtd-valor {
-    width: 34px; height: 34px; min-width: 34px; text-align: center; font-weight: 700; font-size: 16px;
-    color: var(--marrom); border: 1.5px solid transparent; border-radius: 8px; background: transparent;
+  .ip-qtd-valor { 
+    width: 36px; height: 36px; min-width: 36px; text-align: center; font-weight: 800; font-size: 16px;
+    color: var(--marrom); border: 1.5px solid transparent; border-radius: 10px; background: transparent;
     font-family: 'Plus Jakarta Sans', sans-serif; padding: 0; -moz-appearance: textfield; appearance: textfield;
-  }
+   }
   .ip-qtd-valor::-webkit-outer-spin-button, .ip-qtd-valor::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .ip-qtd-valor:focus { outline: none; border-color: var(--terracota); background: var(--creme-fundo); }
   /* Quantidade 0: só um botão "+ Adicionar". O contador − N + aparece depois
      da primeira adição (classe .tem-qtd, ver sincronizarQtdUI). */
-  .ip-qtd-add-txt { display: none; font-size: 13px; font-weight: 700; margin-left: 4px; }
+  .ip-qtd-add-txt { display: none; font-size: 14px; font-weight: 700; margin-left: 4px; }
   .ip-qtd:not(.tem-qtd) .ip-qtd-btn:first-child,
   .ip-qtd:not(.tem-qtd) .ip-qtd-valor { display: none; }
-  .ip-qtd:not(.tem-qtd) .ip-qtd-btn:last-child { width: auto; height: 36px; padding: 0 14px; border-radius: 999px; font-size: 16px; }
+  .ip-qtd:not(.tem-qtd) .ip-qtd-btn:last-child { width: auto; height: 40px; padding: 0 16px; border-radius: 999px; font-size: 16px; }
   .ip-qtd:not(.tem-qtd) .ip-qtd-add-txt { display: inline; }
 
   /* Categoria com preço único: preço no título + linhas compactas por sabor. */
@@ -734,18 +734,18 @@ const CSS_PEDIDO = `
     background: var(--creme-fundo); border: 1px solid var(--terracota-claro); border-radius: 999px;
     padding: 2px 10px; flex-shrink: 0;
   }
-  .ip-item--compacto { padding: 9px 16px; margin: 0; }
+  .ip-item--compacto { padding: 13px 16px; margin: 0; }
   .ip-item--compacto .ip-item-topo { align-items: center; gap: 10px; }
   .ip-item--compacto .ip-item-avatar { width: 40px; height: 40px; font-size: 18px; }
   .ip-item--compacto .ip-item-corpo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .ip-item--compacto .ip-item-info { flex: 1; min-width: 0; }
-  .ip-item--compacto .ip-item-nome { font-size: 12pt; }
+  .ip-item--compacto .ip-item-nome { font-size: 11.5pt; font-weight: 700; line-height: 1.3; }
   .ip-item--compacto.tem-desc .ip-item-info { cursor: pointer; }
   .ip-item--compacto.tem-desc .ip-item-nome::before { content: '▸ '; font-size: 10px; color: var(--terracota-claro); }
   .ip-item--compacto.tem-desc.desc-aberta .ip-item-nome::before { content: '▾ '; }
   .ip-item--compacto .ip-item-nome { font-size: 11.5pt; font-weight: 700; }
-  .ip-item--compacto .ip-item-meta { margin-top: 2px; font-size: 9.5pt; color: var(--terracota-desc); line-height: 1.3; }
-  .ip-item--compacto .ip-item-preco { font-weight: 700; color: var(--terracota-escuro); font-size: 10.5pt; }
+  .ip-item--compacto .ip-item-meta { margin-top: 3px; font-size: 10pt; color: var(--terracota-desc); line-height: 1.35; }
+  .ip-item--compacto .ip-item-preco { font-weight: 800; color: var(--terracota-escuro); font-size: 11pt; }
   .ip-item--compacto .ip-item-encomenda { font-weight: 500; }
   .ip-item--compacto .item-selo-destaque {
     background: none; box-shadow: none; border: none; padding: 0; margin-left: 5px;
@@ -754,33 +754,38 @@ const CSS_PEDIDO = `
   .ip-item--compacto .ip-item-desc { display: none; }
   .ip-item--compacto.desc-aberta .ip-item-desc { display: block; -webkit-line-clamp: unset; overflow: visible; }
 
-  .ip-politica { margin: 22px 18px 0; border: 1.5px solid var(--terracota-claro); border-radius: 8px; padding: 12px 14px; background: var(--creme-fundo); }
+  .ip-politica { margin: 8px 14px 0; border: 1px solid var(--borda); border-radius: 20px; padding: 16px; background: #fff; box-shadow: 0 6px 20px rgba(61,31,7,.06); }
   .ip-politica--alerta { border-color: #c0463a; background: #fbe7e3; }
-  .ip-politica-titulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 10.5pt; color: var(--terracota-escuro); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
+  .ip-politica-titulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 14px; color: var(--terracota-escuro); text-transform: none; letter-spacing: 0; margin-bottom: 8px; }
   .ip-politica--alerta .ip-politica-titulo { color: #a5372c; }
-  .ip-politica-linha { font-size: 11pt; color: var(--marrom-medio); line-height: 1.5; margin-top: 4px; }
+  .ip-politica-linha { font-size: 10.5pt; color: var(--marrom-medio); line-height: 1.55; margin-top: 6px; }
   .ip-politica-linha:first-of-type { margin-top: 0; }
   .ip-politica-linha b { color: var(--marrom); }
 
-  .ip-barra { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--borda); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; }
+  .ip-barra { 
+    position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 20;
+    background: #fff; border: 1px solid var(--borda); border-radius: 24px; box-shadow: 0 12px 32px rgba(42,21,4,.20);
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+   }
   .ip-barra-linha { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .ip-aviso-minimo { font-size: 12px; line-height: 1.4; color: #a5372c; background: #fbe7e3; border: 1px solid #eab7ac; border-radius: 6px; padding: 6px 10px; }
+  .ip-aviso-minimo { font-size: 12.5px; line-height: 1.4; color: #a5372c; background: #fbe7e3; border: 1px solid #eab7ac; border-radius: 12px; padding: 8px 12px; }
   .ip-aviso-minimo b { color: #8f2c22; }
-  .ip-barra-info { font-size: 15px; color: var(--marrom-medio); }
-  .ip-barra-info strong { display: block; font-size: 18px; color: var(--terracota-escuro); font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; }
-  .ip-btn-enviar { flex-shrink: 0; background: var(--terracota); color: #fff; font-weight: 600; font-size: 17px; border: none; border-radius: 999px; padding: 13px 24px; }
+  .ip-barra-info { font-size: 13.5px; font-weight: 600; color: var(--marrom-medio); line-height: 1.25; }
+  .ip-barra-info strong { display: block; font-size: 20px; color: var(--terracota-escuro); font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; }
+  .ip-btn-enviar { flex-shrink: 0; background: var(--terracota); color: #fff; font-weight: 800; font-size: 16px; border: none; border-radius: 16px; padding: 14px 22px; }
   .ip-btn-enviar:disabled { opacity: .4; }
 
   .ip-modal-overlay {
     position: fixed; inset: 0; background: rgba(62,43,35,.45); z-index: 200;
     display: flex; align-items: flex-end; justify-content: center;
   }
-  .ip-modal-card {
-    width: 100%; max-width: 480px; max-height: 82vh; overflow-y: auto;
-    background: var(--creme); border: 1px solid var(--borda); border-bottom: none;
-    border-radius: 18px 18px 0 0; padding: 22px 18px calc(18px + env(safe-area-inset-bottom));
-  }
-  .ip-modal-titulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 24pt; color: var(--marrom-suave); text-align: center; margin-bottom: 14px; }
+  .ip-modal-card { 
+    width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto;
+    background: #fffdf9; border: 1px solid var(--borda); border-bottom: none;
+    border-radius: 26px 26px 0 0; padding: 14px 18px calc(18px + env(safe-area-inset-bottom));
+   }
+  .ip-modal-card::before { content: ''; display: block; width: 44px; height: 4px; border-radius: 2px; background: #e4dacb; margin: 0 auto 16px; }
+  .ip-modal-titulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 21px; line-height: 1.2; color: var(--marrom-suave); text-align: center; margin-bottom: 16px; }
 
   /* ── Lightbox da foto do item: toque no avatar (marcado com o selo ⤢)
        abre a foto ampliada, centralizada, com nome e preço embaixo — pra
@@ -805,18 +810,18 @@ const CSS_PEDIDO = `
   .ip-modal-itens { border-top: 1px solid var(--borda); }
   .ip-modal-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14.5px; color: var(--marrom); padding: 9px 0; border-bottom: 1px dashed var(--borda); }
   .ip-modal-total { display: flex; align-items: baseline; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--borda); }
-  .ip-modal-total span { font-size: 14.5px; color: var(--marrom-medio); text-transform: uppercase; letter-spacing: .5px; }
+  .ip-modal-total span { font-size: 15px; font-weight: 700; color: var(--marrom-medio); text-transform: none; letter-spacing: 0; }
   .ip-modal-total strong { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 19pt; color: var(--terracota-escuro); }
-  .ip-modal-politica { margin-top: 14px; font-size: 11.5pt; color: var(--marrom-medio); line-height: 1.55; white-space: pre-line; background: var(--creme-fundo); border: 1px solid var(--terracota-claro); border-radius: 8px; padding: 10px 12px; }
+  .ip-modal-politica { margin-top: 14px; font-size: 11.5pt; color: var(--marrom-medio); line-height: 1.55; white-space: pre-line; background: var(--creme-fundo); border: 1px solid var(--terracota-claro); border-radius: 14px; padding: 10px 12px; }
   .ip-modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
-  .ip-modal-btn { flex: 1; border-radius: 999px; padding: 14px; font-weight: 700; font-size: 14px; }
+  .ip-modal-btn { flex: 1; border-radius: 16px; padding: 15px 14px; font-weight: 800; font-size: 15px; }
   .ip-modal-btn--voltar { background: transparent; border: 1px solid var(--terracota-claro); color: var(--terracota); }
   .ip-modal-btn--confirmar { background: var(--terracota); border: none; color: #fff; }
   /* Botão que realmente abre o WhatsApp: verde, pra ficar óbvio o que acontece ao tocar. */
   .ip-modal-btn--whatsapp { background: #178a45; flex: 1.5; white-space: nowrap; }
   .ip-modal-btn--whatsapp:active { background: #0f6e36; }
 
-  .ip-modal-pix { margin-top: 16px; background: var(--creme-fundo); border: 1.5px solid var(--terracota-claro); border-radius: 12px; padding: 14px; }
+  .ip-modal-pix { margin-top: 16px; background: #fff; border: 1.5px solid var(--borda); border-radius: 18px; padding: 16px; }
   .ip-modal-pix-titulo { font-size: 12.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--terracota-escuro); display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
   .ip-modal-pix-linha { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
   .ip-modal-pix-linha span { font-size: 13.5px; color: var(--marrom); }
@@ -847,21 +852,21 @@ const CSS_PEDIDO = `
   .ip-modal-entrega { margin: 14px 0 4px; background: var(--creme-fundo); border: 1.5px dashed var(--terracota-claro); border-radius: 14px; padding: 12px 14px; }
   .ip-modal-entrega-check { display: flex; align-items: center; gap: 10px; font-size: 14.5px; font-weight: 700; color: var(--marrom); cursor: pointer; user-select: none; }
   .ip-modal-entrega-check input[type="checkbox"] { width: 21px; height: 21px; accent-color: var(--terracota); cursor: pointer; flex-shrink: 0; }
-  .ip-modal-cliente-campo span { font-size: 12px; color: var(--marrom-medio); text-transform: uppercase; letter-spacing: .4px; }
+  .ip-modal-cliente-campo span { font-size: 12.5px; font-weight: 700; color: var(--marrom-medio); text-transform: none; letter-spacing: 0; }
   .ip-modal-cliente-campo input {
-    background: #fff; border: 1px solid var(--terracota-claro); border-radius: 8px;
-    padding: 12px 12px; font-size: 16px; color: var(--marrom); font-family: 'Plus Jakarta Sans', sans-serif;
+    background: #fff; border: 1.5px solid var(--borda); border-radius: 12px;
+    padding: 13px 14px; font-size: 16px; color: var(--marrom); font-family: 'Plus Jakarta Sans', sans-serif;
   }
   .ip-modal-cliente-campo input::placeholder { color: #B0977E; }
 
   .ip-modal-sucesso { display: none; flex-direction: column; align-items: center; text-align: center; padding: 36px 12px; }
   .ip-modal-sucesso-check { font-size: 42px; margin-bottom: 10px; }
-  .ip-modal-sucesso-texto { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 24pt; color: var(--marrom-suave); font-weight: 700; }
+  .ip-modal-sucesso-texto { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; color: var(--marrom-suave); font-weight: 800; }
   .ip-modal-sucesso-sub { font-size: 14px; color: var(--marrom-medio); margin-top: 6px; line-height: 1.4; }
   .ip-modal-instrucao { display: none; flex-direction: column; align-items: center; text-align: center; padding: 20px 6px 4px; }
   .ip-modal-instrucao-seta { font-size: 58px; line-height: 1; animation: cbApontarSeta 1.1s ease-in-out infinite; }
   @keyframes cbApontarSeta { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(10px); } }
-  .ip-modal-instrucao-titulo { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 25pt; color: var(--marrom-suave); font-weight: 700; margin-top: 4px; }
+  .ip-modal-instrucao-titulo { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; color: var(--marrom-suave); font-weight: 800; margin-top: 4px; line-height: 1.2; }
   .ip-modal-instrucao-texto { font-size: 14.5px; color: var(--marrom); margin-top: 8px; line-height: 1.55; }
   .ip-modal-instrucao-destaque { display: inline-block; background: #25D366; color: #fff; font-weight: 800; padding: 10px 18px; border-radius: 999px; margin-top: 14px; font-size: 14.5px; }
   .ip-modal-instrucao-acoes { display: flex; gap: 10px; margin-top: 22px; width: 100%; }
@@ -876,13 +881,13 @@ const CSS_PEDIDO = `
        cardápio Dia a dia, cliente final. Cada etapa é um bloco dentro do
        mesmo modal; só uma fica visível por vez. ── */
   .ip-opcoes { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
-  .ip-opcao {
-    display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left;
-    width: 100%; background: #fff; border: 1.5px solid var(--terracota-claro); border-radius: 12px; padding: 14px 16px;
-  }
+  .ip-opcao { 
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left;
+    width: 100%; background: #fff; border: 1.5px solid var(--borda); border-radius: 18px; padding: 16px 18px;
+   }
   .ip-opcao:active { background: var(--creme-fundo); border-color: var(--terracota); }
-  .ip-opcao-titulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; color: var(--marrom); }
-  .ip-opcao-desc { font-size: 12.5px; color: var(--terracota-desc); }
+  .ip-opcao-titulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 16px; color: var(--marrom); }
+  .ip-opcao-desc { font-size: 13px; color: var(--terracota-desc); }
 
   .ip-endereco-form { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
   .ip-endereco-erro { font-size: 12.5px; color: #a5372c; background: #fbe7e3; border: 1px solid #eab7ac; border-radius: 8px; padding: 8px 10px; margin-top: 10px; }
@@ -1086,7 +1091,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     <div class="ip-capa-texto">
       <div class="marca">${escHtml(nome)}</div>
       <div class="subtitulo">${escHtml(config.subtitulo || '')}</div>
-      ${normalizarInstagram(empresa?.instagram) ? `<a class="subtitulo" style="display:inline-block;margin-top:4px;color:inherit;text-decoration:none;font-weight:700;" href="${urlInstagram(empresa.instagram)}" target="_blank" rel="noopener">📷 @${normalizarInstagram(empresa.instagram)}</a>` : ''}
+      ${normalizarInstagram(empresa?.instagram) ? `<a class="ip-capa-insta" href="${urlInstagram(empresa.instagram)}" target="_blank" rel="noopener">📷 @${normalizarInstagram(empresa.instagram)}</a>` : ''}
     </div>
   </div>` : ''}
 
@@ -1099,7 +1104,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     <div id="ip-aviso-minimo" class="ip-aviso-minimo" style="display:none;"></div>
     <div class="ip-barra-linha">
       <div class="ip-barra-info">
-        <span id="ip-contador">0</span> item(ns)
+        <span id="ip-contador">0</span> <span id="ip-contador-rotulo">itens</span>
         <strong id="ip-total">R$ 0,00</strong>
       </div>
       <button type="button" class="ip-btn-enviar" id="ip-btn-enviar" disabled onclick="abrirConfirmacao()">${textoBotaoRevisar}</button>
@@ -1557,6 +1562,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       for (var i = 0; i < ITENS.length; i++) { total += ITENS[i].preco * qtds[i]; totalItens += qtds[i]; }
       document.getElementById('ip-total').textContent = fmtBRL(total);
       document.getElementById('ip-contador').textContent = totalItens;
+      document.getElementById('ip-contador-rotulo').textContent = totalItens === 1 ? 'item' : 'itens';
       atualizarBadgesCategorias();
       sincronizarQtdUI();
 
