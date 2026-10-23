@@ -217,7 +217,7 @@
               <div class="lc-hist-resumo">
                 <div class="lc-hist-kpi">
                   <span class="lc-hist-kpi-lbl">Atual</span>
-                  <span class="lc-hist-kpi-val">{{ R$(historicoPrecos[historicoPrecos.length-1].custo_por_unidade) }}</span>
+                  <span class="lc-hist-kpi-val">{{ fmtPrecoBase(pbHist(historicoPrecos[historicoPrecos.length-1]), modalHistorico.unidade_base) }}</span>
                 </div>
                 <div class="lc-hist-kpi" v-if="historicoPrecos.length > 1">
                   <span class="lc-hist-kpi-lbl">Variação</span>
@@ -237,19 +237,23 @@
                   <template v-for="(h, idx) in historicoPrecos" :key="idx">
                     <rect
                       :x="idx * (300 / historicoPrecos.length) + 3"
-                      :y="90 - (h.custo_por_unidade / maxPrecoHist * 75)"
+                      :y="90 - (pbHist(h) / maxPrecoHist * 75)"
                       :width="(300 / historicoPrecos.length) - 6"
-                      :height="(h.custo_por_unidade / maxPrecoHist * 75)"
+                      :height="(pbHist(h) / maxPrecoHist * 75)"
                       rx="3" fill="url(#barGradIns)"
                     />
                   </template>
                 </svg>
               </div>
               <div class="lc-hist-tabela">
-                <div v-for="(h, idx) in [...historicoPrecos].reverse()" :key="idx" class="lc-hist-row">
+                <div v-for="(h, idx) in [...historicoPrecos].reverse()" :key="idx" class="lc-hist-row" style="flex-wrap:wrap;row-gap:3px">
                   <span class="lc-hist-data">{{ new Date(h.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' }) }}</span>
                   <span class="lc-hist-qtd" v-if="h.quantidade_comprada">+{{ fmtQ(h.quantidade_comprada, modalHistorico?.unidade_base) }}</span>
-                  <span class="lc-hist-preco">{{ R$(h.custo_por_unidade) }}</span>
+                  <span class="lc-hist-preco">{{ fmtPrecoBase(pbHist(h), modalHistorico?.unidade_base) }}</span>
+                  <span style="flex-basis:100%;font-size:.72rem;color:var(--muted)">
+                    <template v-if="h.valor_pago > 0">Pago {{ R$(h.valor_pago) }}<template v-if="h.estoque_apos != null"> · </template></template>
+                    <template v-if="h.estoque_apos != null">Estoque ficou {{ fmtQ(h.estoque_apos, modalHistorico?.unidade_base) }}</template>
+                  </span>
                 </div>
               </div>
             </template>
@@ -379,7 +383,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted, onUnmounted, inject, watch } from 'vue'
 import { useStore } from '../store.js'
-import { R$, normalizar, maskMoney, parseMoney, fmtQtd as fmtQ } from '../utils.js'
+import { R$, normalizar, maskMoney, parseMoney, fmtQtd as fmtQ, precoBaseHistorico, fmtPrecoBase } from '../utils.js'
 import BaseModal from '../components/BaseModal.vue'
 import AppListRow from '../components/AppListRow.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
@@ -477,12 +481,14 @@ function lpCancel() {
 const modalHistorico = ref(null)
 const historicoPrecos = ref([])
 const loadingHistorico = ref(false)
-const maxPrecoHist = computed(() => Math.max(...historicoPrecos.value.map(h => h.custo_por_unidade), 0.01))
+// Preço por unidade-base (R$/g → exibido como R$/kg) — comparável entre compras
+const pbHist = (h) => precoBaseHistorico(h, modalHistorico.value)
+const maxPrecoHist = computed(() => Math.max(...historicoPrecos.value.map(pbHist), 0.000001))
 const variacaoPreco = computed(() => {
   if (historicoPrecos.value.length < 2) return 0
-  const p = historicoPrecos.value[0].custo_por_unidade
-  const u = historicoPrecos.value[historicoPrecos.value.length - 1].custo_por_unidade
-  return ((u - p) / p) * 100
+  const p = pbHist(historicoPrecos.value[0])
+  const u = pbHist(historicoPrecos.value[historicoPrecos.value.length - 1])
+  return p > 0 ? ((u - p) / p) * 100 : 0
 })
 
 async function abrirHistorico(item) {

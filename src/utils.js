@@ -55,6 +55,23 @@ export const fmtQtd = (v, u = '') => {
   return fmt + (u ? ' ' + u : '')
 }
 
+/** Preço por unidade-base (g, ml, un) de um registro do histórico de compras.
+ *  Registros novos guardam `preco_unitario`; os antigos são derivados do
+ *  preço da embalagem ÷ quantidade na embalagem atual do insumo. */
+export const precoBaseHistorico = (h, prod) => {
+  if (Number(h?.preco_unitario) > 0) return Number(h.preco_unitario)
+  const fator = Number(prod?.fator_conversao || prod?.fatorConv || 0)
+  return fator > 0 ? Number(h?.custo_por_unidade || 0) / fator : 0
+}
+
+/** Formata preço por unidade-base de forma legível: g → R$/kg, ml → R$/L. */
+export const fmtPrecoBase = (valor, unidade = 'un') => {
+  const n = Number(valor || 0)
+  if (unidade === 'g') return R$(n * 1000) + '/kg'
+  if (unidade === 'ml') return R$(n * 1000) + '/L'
+  return R$(n) + '/' + (unidade || 'un')
+}
+
 export const formatarData = (dataIso) => {
   if (!dataIso) return ''
   const [ano, mes, dia] = dataIso.split('-')

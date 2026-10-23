@@ -2322,7 +2322,9 @@ async function registrarProducaoFantasma(dados) {
   }
 
   // ── CRUD: INGREDIENTES (produtos) ────────
-  async function salvarProduto(dados) {
+  // `meta` (opcional): { quantidade_comprada, valor_pago } — informado pela tela de
+  // compra pra o histórico registrar exatamente o que foi comprado e pago.
+  async function salvarProduto(dados, meta = {}) {
     const obj = clean(dados)
     obj.uuid = obj.uuid || crypto.randomUUID()
     obj.nome = String(obj.nome || '').trim()
@@ -2332,14 +2334,20 @@ async function registrarProducaoFantasma(dados) {
     if (Number(obj.fator_conversao || 0) <= 0) failValidation('Informe uma quantidade valida na embalagem.')
     if (Number(obj.custo_por_unidade || 0) < 0) failValidation('O preco de compra nao pode ser negativo.')
     if (Number(obj.peso_unitario || 0) < 0) failValidation('O peso por unidade nao pode ser negativo.')
+    // Insumos que ficaram negativos por baixas antigas: normaliza para 0 em vez de travar a edição
+    if (Number(obj.estoque_atual || 0) < 0 && !(meta?.quantidade_comprada > 0)) {
+      const ant = await db.produtos.get(obj.uuid)
+      if (ant && Number(ant.estoque_atual || 0) === Number(obj.estoque_atual)) obj.estoque_atual = 0
+    }
     if (Number(obj.estoque_atual || 0) < 0) failValidation('O estoque atual nao pode ser negativo.')
     if (Number(obj.estoque_minimo || 0) < 0) failValidation('O estoque minimo nao pode ser negativo.')
 
     const antigo = await db.produtos.get(obj.uuid)
     const estoqueAntigo = antigo ? Number(antigo.estoque_atual || 0) : 0
     const estoqueNovo = Number(obj.estoque_atual || 0)
-    const quantidadeComprada = estoqueNovo - estoqueAntigo
-    const houveEntradaEstoque = quantidadeComprada > 0
+    const qtdMeta = Number(meta?.quantidade_comprada || 0)
+    const quantidadeComprada = qtdMeta > 0 ? qtdMeta : estoqueNovo - estoqueAntigo
+    const houveEntradaEstoque = quantidadeComprada > 0 && (qtdMeta > 0 || estoqueNovo > estoqueAntigo)
     const precoMudou = !antigo || antigo.custo_por_unidade !== obj.custo_por_unidade
 
     await db.produtos.put(obj)
@@ -2348,11 +2356,21 @@ async function registrarProducaoFantasma(dados) {
     // de estoque for feita (aumento do estoque_atual) - antes so registrava
     // quando o preco mudava, entao compras repetidas pelo mesmo preco sumiam.
     if (precoMudou || houveEntradaEstoque) {
+      const fatorHist = Number(obj.fator_conversao || 0)
+      const precoUnitHist = fatorHist > 0 ? Number(obj.custo_por_unidade || 0) / fatorHist : null
+      const valorPagoMeta = Number(meta?.valor_pago || 0)
       await db.historico_precos.add({
         produto_uuid: obj.uuid,
         data: new Date().toISOString(),
+        // preço da EMBALAGEM cadastrada (mantido por compatibilidade)
         custo_por_unidade: obj.custo_por_unidade,
+        // preço por unidade-base (g/ml/un) — comparável entre compras
+        preco_unitario: precoUnitHist,
         quantidade_comprada: houveEntradaEstoque ? quantidadeComprada : null,
+        // quanto foi realmente pago nesta compra
+        valor_pago: houveEntradaEstoque
+          ? (valorPagoMeta > 0 ? valorPagoMeta : (precoUnitHist ? precoUnitHist * quantidadeComprada : null))
+          : null,
         estoque_apos: estoqueNovo
       })
     }
@@ -2648,7 +2666,8 @@ async function registrarProducaoFantasma(dados) {
     for (const item of listaUso) {
       const prod = produtos.value.find(p => p.uuid === item.id)
       if (prod) {
-        const novoEstoque = (prod.estoque_atual || 0) - item.total
+        // Trava em zero: estoque negativo impediria salvar/editar o insumo depois
+        const novoEstoque = Math.max(0, (prod.estoque_atual || 0) - item.total)
         prod.estoque_atual = novoEstoque
         updates.push(db.produtos.update(prod.uuid, { estoque_atual: novoEstoque }))
       }
@@ -2663,8 +2682,12 @@ async function registrarProducaoFantasma(dados) {
     if (!producao.ingredientes_snapshot) return
     
     const updates = []
-    const fator = (producao.quantidade_produzida || producao.quantidade || 0) / 1 // O snapshot já costuma estar escalado ou guardamos a base
-    // Para garantir precisão, usamos a mesma lógica de expansão
+    // Mesma escala usada na baixa (Cozinha): quantidade produzida ÷ rendimento da receita.
+    // O snapshot guarda os ingredientes para UM rendimento da receita, não por unidade.
+    // Registros novos gravam `rendimento_base`; os antigos usam o rendimento atual da receita.
+    const rec = receitas.value.find(r => r.uuid === producao.receita_id)
+    const rendimentoBase = Number(producao.rendimento_base) || Number(rec?.rendimento) || 1
+    const fator = (producao.quantidade_produzida || producao.quantidade || 0) / rendimentoBase
     const mapaResgate = {}
     expandirIngredientes(producao.ingredientes_snapshot, fator, mapaResgate)
 

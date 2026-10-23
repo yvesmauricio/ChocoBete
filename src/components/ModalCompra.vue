@@ -81,14 +81,9 @@
               <strong>{{ R$(fracResultado * modalPreco.fatorConv) }}</strong>
             </div>
 
-            <div class="preco-field mt-12">
-              <label class="preco-label">Qtd. recebida</label>
-              <div class="qtd-entrada-row">
-                <button class="qtd-e-btn" @click="qtdEntradaInput = String(Math.max(1, (parseFloat(qtdEntradaInput) || 1) - 1))">-</button>
-                <input class="qtd-e-input" type="text" inputmode="numeric" :value="qtdEntradaInput" @input="e => qtdEntradaInput = e.target.value.replace(/\D/g, '')" @keydown="bloquearLetras" />
-                <button class="qtd-e-btn" @click="qtdEntradaInput = String((parseFloat(qtdEntradaInput) || 0) + 1)">+</button>
-                <span class="qtd-e-unid">{{ modalPreco.nomeEmbPlural || 'un' }}</span>
-              </div>
+            <div v-if="fracResultado > 0" class="preco-resultado preco-resultado-sec">
+              <i class="fas fa-warehouse"></i>
+              Entra no estoque: <strong>{{ fmtQ(parseFloat(String(fracQtd).replace(',', '.')) || 0, modalPreco.unidade) }}</strong>
             </div>
 
             <button class="btn btn-primary btn-sm mt-12" :disabled="!(fracResultado > 0)" @click="confirmarPrecoFrac">

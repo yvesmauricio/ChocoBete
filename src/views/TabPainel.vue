@@ -431,7 +431,7 @@
                 <div class="lc-hist-resumo">
                   <div class="lc-hist-kpi">
                     <span class="lc-hist-kpi-lbl">Atual</span>
-                    <span class="lc-hist-kpi-val">{{ R$(historicoPrecos[historicoPrecos.length-1].custo_por_unidade) }}</span>
+                    <span class="lc-hist-kpi-val">{{ fmtPrecoBase(pbHist(historicoPrecos[historicoPrecos.length-1]), modalHistorico.unidade) }}</span>
                   </div>
                   <div class="lc-hist-kpi" v-if="historicoPrecos.length > 1">
                     <span class="lc-hist-kpi-lbl">Variação</span>
@@ -441,11 +441,11 @@
                   </div>
                   <div class="lc-hist-kpi" v-if="historicoPrecos.length > 1">
                     <span class="lc-hist-kpi-lbl">Mínimo</span>
-                    <span class="lc-hist-kpi-val">{{ R$(Math.min(...historicoPrecos.map(h=>h.custo_por_unidade))) }}</span>
+                    <span class="lc-hist-kpi-val">{{ fmtPrecoBase(Math.min(...historicoPrecos.map(pbHist)), modalHistorico.unidade) }}</span>
                   </div>
                   <div class="lc-hist-kpi" v-if="historicoPrecos.length > 1">
                     <span class="lc-hist-kpi-lbl">Máximo</span>
-                    <span class="lc-hist-kpi-val">{{ R$(Math.max(...historicoPrecos.map(h=>h.custo_por_unidade))) }}</span>
+                    <span class="lc-hist-kpi-val">{{ fmtPrecoBase(Math.max(...historicoPrecos.map(pbHist)), modalHistorico.unidade) }}</span>
                   </div>
                 </div>
                 <!-- Gráfico de barras simples SVG -->
@@ -460,9 +460,9 @@
                     <template v-for="(h, idx) in historicoPrecos" :key="idx">
                       <rect
                         :x="idx * (300 / historicoPrecos.length) + 3"
-                        :y="90 - (h.custo_por_unidade / maxPrecoHist) * 75"
+                        :y="90 - (pbHist(h) / maxPrecoHist) * 75"
                         :width="(300 / historicoPrecos.length) - 6"
-                        :height="(h.custo_por_unidade / maxPrecoHist) * 75"
+                        :height="(pbHist(h) / maxPrecoHist) * 75"
                         rx="3" fill="url(#barGrad)"
                       />
                       <text
@@ -477,14 +477,19 @@
                 </div>
                 <!-- Tabela -->
                 <div class="lc-hist-tabela">
-                  <div v-for="(h, idx) in [...historicoPrecos].reverse()" :key="idx" class="lc-hist-row">
+                  <div v-for="(h, idx) in [...historicoPrecos].reverse()" :key="idx" class="lc-hist-row" style="flex-wrap:wrap;row-gap:3px">
                     <span class="lc-hist-data">{{ fmtDataHist(h.data) }}</span>
-                    <span class="lc-hist-preco">{{ R$(h.custo_por_unidade) }}</span>
+                    <span class="lc-hist-qtd" v-if="h.quantidade_comprada">+{{ fmtQ(h.quantidade_comprada, modalHistorico.unidade) }}</span>
+                    <span class="lc-hist-preco">{{ fmtPrecoBase(pbHist(h), modalHistorico.unidade) }}</span>
                     <span v-if="idx < historicoPrecos.length - 1" class="lc-hist-delta"
-                      :class="historicoPrecos[historicoPrecos.length-1-idx].custo_por_unidade > historicoPrecos[historicoPrecos.length-2-idx].custo_por_unidade ? 'c-red' : 'c-green'">
-                      {{ historicoPrecos[historicoPrecos.length-1-idx].custo_por_unidade > historicoPrecos[historicoPrecos.length-2-idx].custo_por_unidade ? '▲' : '▼' }}
+                      :class="pbHist(historicoPrecos[historicoPrecos.length-1-idx]) > pbHist(historicoPrecos[historicoPrecos.length-2-idx]) ? 'c-red' : 'c-green'">
+                      {{ pbHist(historicoPrecos[historicoPrecos.length-1-idx]) > pbHist(historicoPrecos[historicoPrecos.length-2-idx]) ? '▲' : '▼' }}
                     </span>
                     <span v-else class="lc-hist-delta" style="opacity:0">·</span>
+                    <span style="flex-basis:100%;font-size:.72rem;color:var(--muted)">
+                      <template v-if="h.valor_pago > 0">Pago {{ R$(h.valor_pago) }}<template v-if="h.estoque_apos != null"> · </template></template>
+                      <template v-if="h.estoque_apos != null">Estoque ficou {{ fmtQ(h.estoque_apos, modalHistorico.unidade) }}</template>
+                    </span>
                   </div>
                 </div>
               </template>
@@ -521,7 +526,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useStore } from '../store.js'
 import CategoryFilter from '../components/CategoryFilter.vue'
-import { R$, avatarColor, fmtQtd as fmtQ, getMesRef, normalizar } from '../utils.js'
+import { R$, avatarColor, fmtQtd as fmtQ, getMesRef, normalizar, precoBaseHistorico, fmtPrecoBase } from '../utils.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
 import SwipeRow from '../components/SwipeRow.vue'
 import { useSwipe } from '../composables/useSwipe.js'
@@ -1177,14 +1182,16 @@ function ajustarValorCompra(item, delta) {
 const modalHistorico = ref(null)
 const historicoPrecos = ref([])
 const loadingHistorico = ref(false)
+// Preço por unidade-base (R$/g → exibido como R$/kg) — comparável entre compras
+const pbHist = (h) => precoBaseHistorico(h, modalHistorico.value)
 const variacaoPreco = computed(() => {
   if (historicoPrecos.value.length < 2) return 0
-  const primeiro = historicoPrecos.value[0].custo_por_unidade
-  const ultimo = historicoPrecos.value[historicoPrecos.value.length - 1].custo_por_unidade
-  return ((ultimo - primeiro) / primeiro) * 100
+  const primeiro = pbHist(historicoPrecos.value[0])
+  const ultimo = pbHist(historicoPrecos.value[historicoPrecos.value.length - 1])
+  return primeiro > 0 ? ((ultimo - primeiro) / primeiro) * 100 : 0
 })
 const maxPrecoHist = computed(() =>
-  Math.max(...historicoPrecos.value.map(h => h.custo_por_unidade), 0.01)
+  Math.max(...historicoPrecos.value.map(pbHist), 0.000001)
 )
 
 async function abrirHistorico(item) {

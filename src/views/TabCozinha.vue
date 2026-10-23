@@ -823,6 +823,8 @@ async function finalizarLote(apenasAgendar = false, isPresente = false) {
     receita_id: item.receita_id,
     receita_nome: item.nome,
     quantidade_produzida: item.qtd_produzir,
+    // rendimento da receita no momento da produção — necessário pra estornar o estoque na escala certa
+    rendimento_base: item.rendimento_base || 1,
     unidade_rendimento: item.unidade,
     eh_intermediaria: item.eh_intermediaria,
     agendado: apenasAgendar,

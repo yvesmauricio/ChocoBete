@@ -125,16 +125,27 @@ export function useModalCompra(options = {}) {
     fracResultado.value = (valor > 0 && qtd > 0) ? valor / qtd : 0
   }
 
-  async function confirmarCompra(item, custoPorEmbalagem) {
+  // opts.qtdBase / opts.valorPago: usados na compra fracionada, onde o que entra
+  // no estoque é a quantidade DIGITADA (ex.: 290 g) e não "N embalagens".
+  async function confirmarCompra(item, custoPorEmbalagem, opts = {}) {
     const prod = s.produtos.find(p => p.uuid === item.id)
     if (!prod) {
       s.notify('Produto nao encontrado', 'error')
       return false
     }
 
-    const qtdEmb = parseFloat(qtdEntradaInput.value) || 1
     const fator = Number(prod.fator_conversao) > 0 ? Number(prod.fator_conversao) : 1
-    const novoEstoque = (Number(prod.estoque_atual) || 0) + (qtdEmb * fator)
+    let qtdBase, valorPago
+    if (Number(opts.qtdBase) > 0) {
+      qtdBase = Number(opts.qtdBase)
+      valorPago = Number(opts.valorPago) || 0
+    } else {
+      const qtdEmbInput = parseFloat(qtdEntradaInput.value) || 1
+      qtdBase = qtdEmbInput * fator
+      valorPago = custoPorEmbalagem * qtdEmbInput
+    }
+    const qtdEmb = qtdBase / fator
+    const novoEstoque = Math.max(0, Number(prod.estoque_atual) || 0) + qtdBase
 
     try {
       await s.salvarProduto({
@@ -142,7 +153,7 @@ export function useModalCompra(options = {}) {
         fator_conversao: fator,
         custo_por_unidade: custoPorEmbalagem,
         estoque_atual: novoEstoque
-      })
+      }, { quantidade_comprada: qtdBase, valor_pago: valorPago })
       options.onCompraConfirmada?.({ item, produto: prod, qtdEmb, fator, novoEstoque, custoPorEmbalagem })
       return true
     } catch (e) {
@@ -162,7 +173,9 @@ export function useModalCompra(options = {}) {
     const prod = s.produtos.find(p => p.uuid === item?.id)
     if (!prod || fracResultado.value <= 0) return
     const novoCustoPorEmb = fracResultado.value * (prod.fator_conversao || 1)
-    if (await confirmarCompra(item, novoCustoPorEmb)) fecharModalPreco()
+    const qtdBase = parseFloat(String(fracQtd.value).replace(',', '.')) || 0
+    const valorPago = parseMoney(fracValor.value) || 0
+    if (await confirmarCompra(item, novoCustoPorEmb, { qtdBase, valorPago })) fecharModalPreco()
   }
 
   return {
