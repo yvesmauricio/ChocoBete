@@ -7,13 +7,13 @@
           <button
             class="btn-icon filtro-toggle-btn"
             :class="{ active: buscaAberta }"
-            title="Buscar"
+            title="Buscar" aria-label="Buscar"
             @click="buscaAberta = !buscaAberta"
           >
             <i class="fas fa-filter"></i>
             <span v-if="busca.trim()" class="filtro-toggle-dot"></span>
           </button>
-          <button class="btn-icon" @click="gerarRelatorio" title="Gerar Relatório de Produção"><i class="fas fa-file-pdf"></i></button>
+          <button class="btn-icon" @click="gerarRelatorio" title="Gerar Relatório de Produção" aria-label="Gerar relatório em PDF"><i class="fas fa-file-pdf"></i></button>
           <button class="btn btn-primary btn-sm" @click="s.setTab('cozinha')"><i class="fas fa-plus"></i> Produzir</button>
         </div>
       </div>
@@ -25,9 +25,9 @@
       </Transition>
       <div class="cat-filter-wrap">
         <div class="cal-header mes-nav-producao">
-          <button class="cal-nav" :disabled="!podeVoltarMes" @click="mesAnterior"><i class="fas fa-chevron-left"></i></button>
+          <button class="cal-nav" :disabled="!podeVoltarMes" aria-label="Mês anterior" @click="mesAnterior"><i class="fas fa-chevron-left"></i></button>
           <span class="cal-titulo mes-nav-producao-titulo">{{ labelMesAtivo }}</span>
-          <button class="cal-nav" :disabled="!podeAvancarMes" @click="mesProximo"><i class="fas fa-chevron-right"></i></button>
+          <button class="cal-nav" :disabled="!podeAvancarMes" aria-label="Próximo mês" @click="mesProximo"><i class="fas fa-chevron-right"></i></button>
         </div>
       </div>
     </div>
@@ -37,6 +37,28 @@
     </div>
 
     <template v-else-if="gruposProducao.length">
+      <!-- Resumo do mês: quanto produziu, quanto gastou e quanto deve render -->
+      <section class="pd-resumo">
+        <div class="pd-resumo-topo">
+          <h3 class="pd-resumo-titulo">Resumo do mês</h3>
+          <div class="pd-resumo-chips">
+            <span class="pd-chip"><i class="fas fa-layer-group"></i> {{ resumoMesProducao.lotes }} {{ resumoMesProducao.lotes === 1 ? 'lote' : 'lotes' }}</span>
+            <span v-if="resumoMesProducao.minutos > 0" class="pd-chip"><i class="fas fa-clock"></i> {{ fmtTime(resumoMesProducao.minutos) }}</span>
+          </div>
+        </div>
+        <div class="pd-resumo-duo">
+          <div class="pd-resumo-item"><span>Gasto para produzir</span><strong>{{ R$(resumoMesProducao.custo) }}</strong></div>
+          <div class="pd-resumo-item"><span>Valor de venda</span><strong>{{ R$(resumoMesProducao.venda) }}</strong></div>
+        </div>
+        <div class="pd-resumo-lucro" :class="resumoMesProducao.lucro >= 0 ? 'pd-resumo-lucro--ok' : 'pd-resumo-lucro--neg'">
+          <div>
+            <span class="pd-resumo-lucro-lbl">Lucro estimado</span>
+            <small v-if="resumoMesProducao.venda > 0">{{ Math.round((resumoMesProducao.lucro / resumoMesProducao.venda) * 100) }}% de margem</small>
+          </div>
+          <strong>{{ R$(resumoMesProducao.lucro) }}</strong>
+        </div>
+      </section>
+
       <div class="production-groups">
         <!-- Cabeçalho de colunas (só aparece no layout de desktop) -->
         <div class="tbl-head tbl-head--lotes" aria-hidden="true">
@@ -93,28 +115,28 @@
                 <!-- Timer -->
                 <template v-if="!grupo.duracaoMinutos || s.timer.activeLoteId === grupo.id">
                   <button v-if="s.timer.activeLoteId === grupo.id && s.timer.isRunning"
-                    class="lote-act-btn act-pause" @click="s.pauseTimer" title="Pausar">
+                    class="lote-act-btn act-pause" @click="s.pauseTimer" title="Pausar" aria-label="Pausar o cronômetro">
                     <i class="fas fa-pause"></i>
                   </button>
                   <button v-else-if="s.timer.activeLoteId === grupo.id && !s.timer.isRunning"
-                    class="lote-act-btn act-play" @click="s.startTimer(grupo.id)" title="Retomar">
+                    class="lote-act-btn act-play" @click="s.startTimer(grupo.id)" title="Retomar" aria-label="Retomar o cronômetro">
                     <i class="fas fa-play"></i>
                   </button>
                   <button v-else
-                    class="lote-act-btn act-play" @click="s.startTimer(grupo.id)" title="Iniciar timer">
+                    class="lote-act-btn act-play" @click="s.startTimer(grupo.id)" title="Iniciar timer" aria-label="Iniciar o cronômetro">
                     <i class="fas fa-play"></i>
                   </button>
                   <button v-if="s.timer.activeLoteId === grupo.id"
-                    class="lote-act-btn act-stop" @click="confirmStopTimer" title="Parar timer">
+                    class="lote-act-btn act-stop" @click="confirmStopTimer" title="Parar timer" aria-label="Parar o cronômetro">
                     <i class="fas fa-stop"></i>
                   </button>
                 </template>
                 <!-- Retomar na Cozinha -->
-                <button class="lote-act-btn act-retomar" @click="handleRetomar(grupo)" title="Editar na Cozinha">
+                <button class="lote-act-btn act-retomar" @click="handleRetomar(grupo)" title="Editar na Cozinha" aria-label="Editar este lote na Cozinha">
                   <i class="fas fa-utensils"></i>
                 </button>
                 <!-- Painel de pesagem consolidado -->
-                <button class="lote-act-btn act-pesar" @click="abrirPainelPesagem(grupo)" title="Ver total para pesar">
+                <button class="lote-act-btn act-pesar" @click="abrirPainelPesagem(grupo)" title="Ver total para pesar" aria-label="Ver o total para pesar">
                   <i class="fas fa-scale-balanced"></i>
                 </button>
               </div>
@@ -137,6 +159,13 @@
             </template>
           </SwipeRow>
 
+          <!-- Números do lote no celular (no computador já aparecem nas colunas) -->
+          <div v-if="s.loteOriginalEmEdicao !== grupo.id" class="pd-lote-nums" @click="toggleGrupo(grupo.id)">
+            <span><small>Custo</small><b>{{ R$(grupo.custoTotal) }}</b></span>
+            <span><small>Venda</small><b>{{ R$(grupo.vendaTotal) }}</b></span>
+            <span><small>Lucro</small><b :class="grupo.vendaTotal - grupo.custoTotal < 0 ? 'c-red' : 'c-green'">{{ R$(grupo.vendaTotal - grupo.custoTotal) }}</b></span>
+          </div>
+
           <!-- Lote travado (em edição na Cozinha): sem swipe, só status + retomar -->
           <div v-else class="lote-hdr-row">
             <div class="lote-hdr" @click="toggleGrupo(grupo.id)">
@@ -151,10 +180,10 @@
               </div>
             </div>
             <div class="lote-acts" @click.stop>
-              <button class="lote-act-btn act-retomar" @click="continuarEdicao" title="Continuar editando na Cozinha">
+              <button class="lote-act-btn act-retomar" @click="continuarEdicao" title="Continuar editando na Cozinha" aria-label="Continuar editando na Cozinha">
                 <i class="fas fa-utensils"></i>
               </button>
-              <button class="lote-act-btn act-cancelar" @click="cancelarEdicao" title="Cancelar edição">
+              <button class="lote-act-btn act-cancelar" @click="cancelarEdicao" title="Cancelar edição" aria-label="Cancelar a edição">
                 <i class="fas fa-xmark"></i>
               </button>
             </div>
@@ -727,6 +756,15 @@ function larguraAcoesLote(grupo) {
   return qtdBotoes * 70
 }
 
+// Soma dos lotes do mês exibido (respeita a busca): serve só pra mostrar o resumo no topo
+const resumoMesProducao = computed(() => {
+  const g = gruposProducao.value
+  const custo = g.reduce((a, x) => a + (x.custoTotal || 0), 0)
+  const venda = g.reduce((a, x) => a + (x.vendaTotal || 0), 0)
+  const minutos = g.reduce((a, x) => a + (x.duracaoMinutos || 0), 0)
+  return { lotes: g.length, custo, venda, lucro: venda - custo, minutos }
+})
+
 function toggleGrupo(id) {
   gruposAbertos.value[id] = !gruposAbertos.value[id]
 }
@@ -945,12 +983,7 @@ onMounted(() => {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 8px;
 }
-.cal-nav {
-  width: 34px; height: 34px; border: none; background: transparent;
-  color: var(--brown-mid); font-size: .9rem; border-radius: var(--r-sm);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-}
+.cal-nav { width: 44px; height: 44px; border: none; background: transparent; color: var(--brown-mid); font-size: 1rem; border-radius: var(--r-md); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .cal-nav:active { background: var(--gold-bg); }
 .cal-nav:disabled { opacity: .35; pointer-events: none; }
 .cal-titulo {
@@ -958,23 +991,17 @@ onMounted(() => {
   text-transform: capitalize;
 }
 .mes-nav-producao { padding: 0 16px; margin-bottom: 0; }
-.mes-nav-producao-titulo { font-size: .95rem; }
+.mes-nav-producao-titulo { font-size: 1.05rem; text-transform: none; display: inline-block; }
+.mes-nav-producao-titulo::first-letter { text-transform: uppercase; }
 
 /* ── Cards de lote (nova UI) ── */
-.production-groups { display:flex; flex-direction:column; gap:10px; padding:8px 0 }
-.production-card {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:var(--r-lg); margin:0 12px; overflow:hidden;
-}
+.production-groups { display: flex; flex-direction: column; gap: 12px; padding: 8px 0; }
+.production-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; margin: 0 12px; overflow: hidden; box-shadow: var(--shadow-sm); }
 .card-agendado { border-color:var(--gold); background:var(--gold-bg); }
 
 /* Cabeçalho do lote */
 .lote-hdr-row { display:flex; align-items:center; width:100%; }
-.lote-hdr {
-  flex:1; min-width:0;
-  display:flex; align-items:center; gap:10px;
-  padding:12px 4px 12px 14px; cursor:pointer; user-select:none;
-}
+.lote-hdr { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 14px 4px 10px 14px; cursor: pointer; user-select: none; }
 .lote-hdr:active { background:var(--bg); }
 
 /* SwipeRow do cabeçalho do lote: remove o "cartão dentro do cartão",
@@ -983,9 +1010,7 @@ onMounted(() => {
   margin:0 !important; border:none !important; border-radius:0 !important;
   box-shadow:none !important; background:transparent !important;
 }
-.lote-dot {
-  width:9px; height:9px; border-radius:50%; flex-shrink:0; margin-top:1px;
-}
+.lote-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; margin-top: 1px; }
 .dot-done      { background:var(--green); }
 .dot-running   { background:var(--blue); animation:pulse-dot 1s infinite; }
 .dot-scheduled { background:var(--gold-dark); }
@@ -993,28 +1018,20 @@ onMounted(() => {
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
 
 .lote-info { flex:1; min-width:0; }
-.lote-titulo { font-size:.88rem; font-weight:800; color:var(--brown-dark); }
-.lote-meta { display:flex; align-items:center; gap:5px; margin-top:3px; flex-wrap:wrap; }
-.lbadge {
-  font-size:.65rem; font-weight:700; padding:2px 7px;
-  border-radius:var(--r-full); border:1px solid transparent; display:inline-flex; align-items:center; gap:3px;
-}
+.lote-titulo { font-size: 1rem; font-weight: 800; color: var(--brown-dark); white-space: nowrap; }
+.lote-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.lbadge { max-width: 100%; white-space: nowrap; font-size: .74rem; font-weight: 700; padding: 3px 9px; border-radius: var(--r-full); border: 1px solid transparent; display: inline-flex; align-items: center; gap: 4px; }
 .lbadge-done      { background:var(--blue-bg); border-color:var(--blue-dim); color:var(--blue); }
 .lbadge-running   { background:var(--blue-bg); border-color:var(--blue-dim); color:var(--blue); }
 .lbadge-scheduled { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); }
 .lbadge-warning   { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); cursor:help; }
 .lbadge-est       { background:var(--cream); border-color:var(--border); color:var(--muted); }
 .lbadge-sep       { color:var(--border2); font-size:.7rem; }
-.lbadge-info      { font-size:.68rem; color:var(--muted); }
+.lbadge-info { font-size: .78rem; color: var(--muted); font-weight: 600; }
 
 /* Ações do lote (fixas, fora do swipe: timer precisa de acesso imediato) */
-.lote-acts { display:flex; align-items:center; gap:4px; flex-shrink:0; padding-right:14px; }
-.lote-act-btn {
-  width:32px; height:32px; border-radius:var(--r-md); border:1px solid var(--border);
-  background:var(--surface); color:var(--muted); font-size:.8rem;
-  display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;
-  transition:all var(--t);
-}
+.lote-acts { display: flex; align-items: center; gap: 4px; flex-shrink: 0; padding-right: 10px; }
+.lote-act-btn { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: .9rem; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all var(--t); }
 .lote-act-btn:active { transform:scale(.9); }
 .act-play  { background:var(--green-bg); color:var(--green); border-color:var(--green-dim); }
 .act-pause { background:var(--blue-bg); color:var(--blue); border-color:var(--blue-dim); }
@@ -1154,30 +1171,19 @@ onMounted(() => {
 
 /* Itens do lote */
 .lote-body { border-top:1px solid var(--border); background:var(--bg); }
-.item-linha {
-  display:flex; align-items:center; gap:8px; padding:10px 14px;
-}
+.item-linha { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
 .lote-body > .item-linha { border-bottom:1px solid var(--border); }
 .lote-body > .item-linha:last-child { border-bottom:none; }
-.item-icon {
-  width:28px; height:28px; border-radius:var(--r-sm); flex-shrink:0;
-  display:flex; align-items:center; justify-content:center; font-size:.78rem;
-}
+.item-icon { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: .88rem; }
 .ic-gold { background:var(--gold-bg); color:var(--gold-dark); }
 .ic-blue { background:var(--blue-bg); color:var(--blue); }
 .item-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.item-nome { font-size:.82rem; font-weight:700; color:var(--brown-dark); }
-.item-qtd { font-size:.85rem; font-weight:800; font-family:var(--mono); color:var(--brown); flex-shrink:0; padding-right:14px; }
-.item-qtd small { font-size:.65rem; font-weight:400; }
+.item-nome { font-size: .92rem; font-weight: 700; color: var(--brown-dark); }
+.item-qtd { font-size: .95rem; font-weight: 800; font-family: var(--mono); color: var(--brown); flex-shrink: 0; padding-right: 14px; }
+.item-qtd small { font-size: .74rem; font-weight: 600; }
 .item-edit-inline { display:flex; align-items:center; gap:4px; flex-shrink:0; padding-right:14px; }
-.item-qty-input {
-  width:58px; padding:4px 6px; border-radius:var(--r-sm); border:1.5px solid var(--blue);
-  font-size:.85rem; font-weight:800; font-family:var(--mono); text-align:center; background:var(--surface);
-}
-.item-edit-ok {
-  width:28px; height:28px; border-radius:var(--r-sm); background:var(--green);
-  color:#fff; border:none; font-size:.78rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
-}
+.item-qty-input { width: 64px; padding: 8px 6px; border-radius: var(--r-sm); border: 1.5px solid var(--blue); font-size: .95rem; font-weight: 800; font-family: var(--mono); text-align: center; background: var(--surface); }
+.item-edit-ok { width: 40px; height: 40px; border-radius: var(--r-sm); background: var(--green); color: #fff; border: none; font-size: .9rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
 /* SwipeRow do item: mesmo raciocínio do cabeçalho, sem cartão duplicado */
 :deep(.item-swipe.swipe-wrap) {
@@ -1275,5 +1281,36 @@ onMounted(() => {
 .global-item span   { font-size:.86rem; font-weight:700; color:var(--brown) }
 .global-item strong { font-size:.95rem; font-weight:800; font-family:var(--mono); color:var(--gold-dark) }
 
+/* ══════════════════════════════════════════════════════════════
+   Produção › lotes (classes pd-*)
+══════════════════════════════════════════════════════════════ */
+/* Resumo do mês */
+.pd-resumo { margin: 12px 12px 4px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 14px; }
+.pd-resumo-topo { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.pd-resumo-titulo { margin: 0; font-size: 1rem; font-weight: 800; color: var(--brown-dark); }
+.pd-resumo-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.pd-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--r-full); background: var(--cream); color: var(--brown-mid); font-size: .76rem; font-weight: 700; white-space: nowrap; }
+.pd-chip i { font-size: .7rem; color: var(--gold-dark); }
+.pd-resumo-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pd-resumo-item { display: flex; flex-direction: column; gap: 3px; padding: 12px; background: var(--bg); border-radius: 14px; min-width: 0; }
+.pd-resumo-item span { font-size: .8rem; font-weight: 700; color: var(--muted); }
+.pd-resumo-item strong { font-family: var(--mono); font-size: 1.05rem; font-weight: 800; color: var(--brown-dark); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pd-resumo-lucro { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 16px; }
+.pd-resumo-lucro--ok { background: var(--green-bg); color: var(--green); }
+.pd-resumo-lucro--neg { background: var(--red-bg); color: var(--red); }
+.pd-resumo-lucro > div { display: flex; flex-direction: column; }
+.pd-resumo-lucro-lbl { font-size: .9rem; font-weight: 800; }
+.pd-resumo-lucro small { font-size: .76rem; font-weight: 600; opacity: .85; }
+.pd-resumo-lucro strong { flex-shrink: 0; white-space: nowrap; font-family: var(--mono); font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 
+/* Números do lote no celular (no computador já existem as colunas) */
+.pd-lote-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 0 14px 12px; cursor: pointer; }
+.pd-lote-nums span { display: flex; flex-direction: column; gap: 1px; padding: 7px 8px; background: var(--bg); border-radius: 10px; min-width: 0; }
+.pd-lote-nums small { font-size: .7rem; font-weight: 700; color: var(--muted); }
+.pd-lote-nums b { font-family: var(--mono); font-size: .8rem; font-weight: 800; color: var(--brown-dark); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd-lote-nums b.c-red { color: var(--red); }
+.pd-lote-nums b.c-green { color: var(--green); }
+html.is-desktop .pd-lote-nums { display: none; }
+@media (max-width: 340px) { .pd-lote-nums b { font-size: .74rem; } }
+.lote-act-btn:focus-visible, .cal-nav:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 2px; }
 </style>
