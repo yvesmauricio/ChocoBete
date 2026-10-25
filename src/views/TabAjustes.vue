@@ -202,7 +202,7 @@
             <h4 class="aj-grupo-titulo">Dados do negócio</h4>
           </div>
           <article class="aj-card">
-            <div class="aj-form">
+            <div class="aj-form aj-form--grade">
               <div class="fg">
                 <label class="label" for="aj-marca">Nome da marca</label>
                 <input id="aj-marca" v-model="company.nome" class="input" placeholder="Ex: ChocoBete" />

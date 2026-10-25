@@ -1201,17 +1201,29 @@ html.is-desktop .etq-step{flex:0 1 200px}
 html.is-desktop .etq-sabores-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px}
 html.is-desktop .etq-sabores-list > .etq-sabor-row{margin:0}
 
-/* Ajustes: formulários em colunas, sem espaçamento duplicado */
-html.is-desktop .tab-ajustes .sheet-body{padding:20px 24px}
-html.is-desktop .tab-ajustes .form-grid{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px 24px;align-items:start;
-}
-html.is-desktop .tab-ajustes .form-grid > .fg{margin:0}
-html.is-desktop .tab-ajustes .form-grid .fg .fg{margin:0}
+/* Ajustes: o conteúdo começa alinhado ao cabeçalho (mesma margem das outras telas) e
+   as seções (.aj-*) se distribuem em até 2 colunas, aproveitando a largura. O título
+   da seção vira só leitura de tela, porque a aba ativa já mostra o mesmo nome. */
 html.is-desktop .tab-ajustes .fg{margin-bottom:0}
-html.is-desktop .tab-ajustes .section-label{margin:0 0 6px}
-html.is-desktop .tab-ajustes .hint.mb-12{margin-bottom:16px}
-html.is-desktop .tab-ajustes .logo-upload-linha{align-items:center;gap:18px;margin-bottom:8px}
+html.is-desktop .tab-ajustes .aba-btn{flex:0 0 auto;padding:12px 18px;font-size:.84rem}
+html.is-desktop .tab-ajustes .ajustes-content{padding:20px 24px 48px;gap:0}
+html.is-desktop .tab-ajustes .aj-pagina{display:block;width:100%;max-width:1240px;margin:0;columns:2 440px;column-gap:28px}
+html.is-desktop .tab-ajustes .aj-pagina > *{margin:0 0 20px}
+html.is-desktop .tab-ajustes .aj-cab,
+html.is-desktop .tab-ajustes .aj-resumo,
+html.is-desktop .tab-ajustes .aj-rodape,
+html.is-desktop .tab-ajustes .aj-salvar{column-span:all}
+html.is-desktop .tab-ajustes .aj-cab{margin-bottom:16px}
+html.is-desktop .tab-ajustes .aj-titulo{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+html.is-desktop .tab-ajustes .aj-desc{margin:0;font-size:.92rem}
+html.is-desktop .tab-ajustes .aj-grupo{display:block;margin-top:0}
+html.is-desktop .tab-ajustes .aj-grupo > *{margin:0 0 12px;break-inside:avoid}
+html.is-desktop .tab-ajustes .aj-grupo > .aj-grupo-cab{break-after:avoid}
+html.is-desktop .tab-ajustes .aj-salvar{display:flex;width:min(100%,420px);margin:4px 0 0}
+/* Formulário longo (Identidade › Dados do negócio): campos curtos lado a lado */
+html.is-desktop .tab-ajustes .aj-form--grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 18px}
+html.is-desktop .tab-ajustes .aj-form--grade > .fg:nth-child(-n+2),
+html.is-desktop .tab-ajustes .aj-form--grade > .aj-form-2{grid-column:1 / -1}
 
 /* ── Adaptação a janelas menores (ex.: 1024×768) ── */
 @media (max-width:1279px){
@@ -1219,6 +1231,7 @@ html.is-desktop .tab-ajustes .logo-upload-linha{align-items:center;gap:18px;marg
   html.is-desktop .nav-btn{padding:10px 12px;gap:10px;font-size:.84rem}
   html.is-desktop .tab-hdr{padding-left:16px;padding-right:16px}
   html.is-desktop .tab-hdr-top .tab-title{font-size:1rem}
+  html.is-desktop .tab-ajustes .ajustes-content{padding-left:16px;padding-right:16px}
   html.is-desktop .tbl-head--insumos .th-cols,
   html.is-desktop .row-cols--insumos{grid-template-columns:100px 110px 96px 92px}
   html.is-desktop .tbl-head--receitas .th-cols,
@@ -1239,6 +1252,7 @@ html.is-desktop .tab-ajustes .logo-upload-linha{align-items:center;gap:18px;marg
 @media (min-width:1600px){
   html.is-desktop{--side-w:248px;--lote-w:460px}
   html.is-desktop .tab-hdr{padding-left:32px;padding-right:32px}
+  html.is-desktop .tab-ajustes .ajustes-content{padding-left:32px;padding-right:32px}
 }
 
 /* retoques */
@@ -1246,8 +1260,6 @@ html.is-desktop .tab-ajustes .logo-upload-linha{align-items:center;gap:18px;marg
   html.is-desktop .aba-nav{margin-left:-16px;margin-right:-16px}
   html.is-desktop .cat-filter-wrap{margin-left:-16px;margin-right:-16px}
 }
-html.is-desktop .tab-ajustes .sheet-body > .section-label:not(:first-child),
-html.is-desktop .tab-ajustes .sheet-body > .form-grid ~ .section-label{margin-top:24px}
 
 /* ================================================================
    DESKTOP — Etiquetas, passo 2: folha INTEIRA visível, sem rolar
