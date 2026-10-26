@@ -16,20 +16,25 @@
       <span>Mais</span>
     </button>
 
-    <!-- Menu de overflow -->
-    <Transition name="menu-pop">
-      <div v-if="menuAberto && !isDesktop" class="nav-overflow-menu" @click.stop>
-        <button v-for="n in navExtraVisiveis" :key="n.id"
-          class="nav-overflow-item" :class="{ active: s.tab === n.id }"
-          @click="s.setTab(n.id); menuAberto = false">
-          <i :class="n.icon"></i>
-          <span>{{ n.label }}</span>
-        </button>
-      </div>
-    </Transition>
+    <!-- Menu de overflow e backdrop são levados pro <body>: a .nav cria a própria camada
+         (z-index 100), então, dentro dela, o menu ficava SOB qualquer barra fixa de tela
+         (ex.: "Voltar/Continuar" das Etiquetas, z-index 101). Fora dela, o z-index do menu
+         (110) passa a valer de verdade e ele fica acima dessas barras. -->
+    <Teleport to="body">
+      <Transition name="menu-pop">
+        <div v-if="menuAberto && !isDesktop" class="nav-overflow-menu" @click.stop>
+          <button v-for="n in navExtraVisiveis" :key="n.id"
+            class="nav-overflow-item" :class="{ active: s.tab === n.id }"
+            @click="s.setTab(n.id); menuAberto = false">
+            <i :class="n.icon"></i>
+            <span>{{ n.label }}</span>
+          </button>
+        </div>
+      </Transition>
 
-    <!-- Backdrop para fechar o menu -->
-    <div v-if="menuAberto && !isDesktop" class="nav-overflow-backdrop" @click="menuAberto = false" />
+      <!-- Backdrop para fechar o menu -->
+      <div v-if="menuAberto && !isDesktop" class="nav-overflow-backdrop" @click="menuAberto = false" />
+    </Teleport>
   </nav>
 </template>
 
@@ -112,8 +117,7 @@ const itensBarra = computed(() => {
 
 .nav-overflow-backdrop {
   position: fixed;
-  inset: 0;
-  z-index: calc(var(--z-header) + 9);
+  inset: 0 0 calc(64px + env(safe-area-inset-bottom)) 0; /* deixa a barra de baixo livre */  z-index: calc(var(--z-header) + 9);
 }
 
 .menu-pop-enter-active { animation: menu-in .18s cubic-bezier(.34,1.56,.64,1); }
