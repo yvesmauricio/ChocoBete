@@ -44,7 +44,7 @@ export default defineConfig({
         short_name: 'chocobete',
         description: 'Gestão de Confeitaria Local-Only',
         theme_color: '#3d2008',
-        background_color: '#fdf5e8',
+        background_color: '#3d2008',
         display: 'standalone',
         // Ao instalar no computador (Chrome/Edge), abre como janela própria de app
         display_override: ['standalone', 'minimal-ui'],
