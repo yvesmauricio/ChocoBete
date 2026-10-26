@@ -5086,7 +5086,7 @@ onMounted(async () => {
 .cd-pix-valor { display: flex; align-items: baseline; justify-content: center; gap: 8px; width: 100%; margin-top: 8px; padding: 6px 0 4px; cursor: text; border-bottom: 2px dashed rgba(255, 255, 255, .28); }
 .cd-pix-valor:focus-within { border-bottom-color: var(--gold-light, #f2c14e); }
 .cd-pix-rs { font-size: 1.4rem; font-weight: 800; color: rgba(255, 255, 255, .7); }
-.cd-pix-input { max-width: 100%; border: none; outline: none; background: transparent; padding: 0; text-align: center; font-family: var(--mono); font-size: 2.6rem !important; line-height: 1.15; font-weight: 800; color: #fff; caret-color: var(--gold-light, #f2c14e); }
+.cd-pix-input { max-width: 100%; border: none; outline: none; background: transparent; padding: 0; text-align: center; font-family: var(--mono); font-size: 1.4rem !important; line-height: 1.15; font-weight: 800; color: #fff; caret-color: var(--gold-light, #f2c14e); }
 .cd-pix-input::placeholder { color: rgba(255, 255, 255, .35); }
 .cd-pix-limpar { margin-top: 10px; min-height: 36px; padding: 0 14px; border: 0; border-radius: var(--r-full); background: rgba(255, 255, 255, .16); color: #fff; font-family: var(--font); font-size: .84rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .cd-pix-limpar:active { background: rgba(255, 255, 255, .26); }
