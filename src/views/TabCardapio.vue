@@ -300,13 +300,13 @@
         <div class="cx-sec">
           <button class="cx-sec-cab" :aria-expanded="configAberta" @click="configAberta = !configAberta">
             <span class="cx-tile"><i class="fas fa-pen"></i></span>
-            <span class="cx-sec-txt"><strong>Capa e textos</strong><small>{{ config.nome_cardapio || s.company.nome || 'ChocoBete' }}</small></span>
+            <span class="cx-sec-txt"><strong>Capa e textos</strong><small>{{ config.nome_cardapio || s.company.nome || 'Meu cardápio' }}</small></span>
             <i class="fas cx-seta" :class="configAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </button>
           <div v-if="configAberta" class="cx-sec-corpo">
             <label class="cp-field">
               <span>Nome do cardápio</span>
-              <input v-model="config.nome_cardapio" :placeholder="s.company.nome || 'ChocoBete'" @change="salvar">
+              <input v-model="config.nome_cardapio" :placeholder="s.company.nome || 'Meu cardápio'" @change="salvar">
             </label>
             <label class="cp-field">
               <span>Subtítulo</span>
@@ -1609,7 +1609,7 @@ async function baixarPdf() {
 async function compartilharLinkCardapio(url, { title, text } = {}) {
   if (navigator.share) {
     try {
-      await navigator.share({ title, text })
+      await navigator.share({ title, text, url })
       return 'compartilhado'
     } catch {
       // Continua para fallback

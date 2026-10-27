@@ -327,7 +327,7 @@ function compartilhar() {
     const prefixo = i.tipo === 'receita' ? '🥣 ' : ''
     return `• ${prefixo}${i.nome}: ${fmtQ(i.total, i.unidade)} ${status}`
   }).join('\n')
-  const msg = `📋 *PEDIDO DO DIA*\n${pedidoLines}\n\n🍫 *INSUMOS A SEPARAR*\n${insumoLines}\n\n_chocobete_`
+  const msg = `📋 *PEDIDO DO DIA*\n${pedidoLines}\n\n🍫 *INSUMOS A SEPARAR*\n${insumoLines}${s.company.nome ? `\n\n_${s.company.nome}_` : ''}`
   if (navigator.share) {
     navigator.share({ title: 'Pedido do Dia', text: msg }).catch(() => {})
   } else {

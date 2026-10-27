@@ -196,12 +196,12 @@ export const useStore = defineStore('choco', () => {
 
   // ── Config ────────────────────────────────
   const company = ref({
-    nome: 'ChocoBete Produção',
+    nome: '', // vazio = telas usam um nome genérico até a loja preencher em Ajustes
     slogan: 'Registro de Produção',
     logo: null, // dataURL (base64, PNG) do logotipo enviado — null usa o ícone padrão
     posicao_etiqueta: 0,
     contato_etiqueta: '', // texto livre exibido na etiqueta (whatsapp/instagram)
-    whatsapp_pedidos: '', // número (com DDD, formatado tipo "(21) 99943-0023") usado no link do WhatsApp do cardápio interativo — quem consome (numeroWhatsAppFormatado, chavePixDoWhatsapp) já limpa a formatação sozinho
+    whatsapp_pedidos: '', // número (com DDD, formatado tipo "(21) 99999-0000") usado no link do WhatsApp do cardápio interativo — quem consome (numeroWhatsAppFormatado, chavePixDoWhatsapp) já limpa a formatação sozinho
     mostrar_hora_venda: true, // se falso, mensagens de WhatsApp da Caderneta (comprovante/cobrança) omitem o horário da venda — útil pra quem lança fiado fora da hora real da compra
     instagram: '', // usuário do Instagram (sem @) — aparece em Meu contato (Caderneta), no vCard/QR e no cardápio interativo
     razao_social: '',
@@ -1669,7 +1669,7 @@ export const useStore = defineStore('choco', () => {
       try {
         const dados = JSON.parse(e.target.result)
         if (!validarBackupValido(dados)) {
-          notify('Esse arquivo não parece ser um backup do ChocoBete.', 'error')
+          notify('Esse arquivo não parece ser um backup do app.', 'error')
           return
         }
         const ok = await confirmarAcao.ask(
@@ -1780,7 +1780,7 @@ export const useStore = defineStore('choco', () => {
 
   async function _aplicarRecuperacaoInicial(dados, origemLabel) {
     if (!validarBackupValido(dados)) {
-      notify('Não encontramos um backup reconhecível do ChocoBete aí.', 'error')
+      notify('Não encontramos um backup reconhecível do app aí.', 'error')
       return { ok: false }
     }
     await importarDados(dados)
@@ -1993,7 +1993,7 @@ function sugerirProducaoFantasma() {
     receita: receitaMaisComum,
     quantidade_estimada: qtdEstimada,
     valor_estimado: diferenca,
-    mensagem: `Parece que Bete produziu cerca de ${qtdEstimada} un de ${receitaMaisComum.nome} sem registrar`
+    mensagem: `Parece que cerca de ${qtdEstimada} un de ${receitaMaisComum.nome} foram produzidas sem registrar`
   }
 }
 

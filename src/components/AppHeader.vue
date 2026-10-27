@@ -6,7 +6,7 @@
         <i v-else class="fas fa-cookie-bite"></i>
       </div>
       <div class="hdr-text">
-        <div class="hdr-name">{{ s.company.nome }}</div>
+        <div class="hdr-name">{{ s.company.nome || 'Minha confeitaria' }}</div>
         <div class="hdr-slogan">{{ s.company.slogan }}</div>
       </div>
     </div>

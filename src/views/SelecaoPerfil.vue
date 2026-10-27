@@ -6,7 +6,7 @@
         <img v-if="s.company.logo" :src="s.company.logo" alt="">
         <i v-else class="fas fa-cookie-bite"></i>
       </div>
-      <div class="perfil-logo-nome">ChocoBete</div>
+      <div class="perfil-logo-nome">{{ s.company.nome || 'Minha confeitaria' }}</div>
       <div class="perfil-logo-sub">Quem está usando?</div>
     </div>
 

@@ -928,7 +928,7 @@ function compartilharReceita(r) {
               `*Ingredientes:*\n${ingredientes}\n` +
               `--------------------------------\n` +
               (r.modo_preparo ? `*Modo de Preparo:*\n${r.modo_preparo}\n` : '') +
-              `\n_Gerado por ${s.company.nome}_`
+              (s.company.nome ? `\n_Gerado por ${s.company.nome}_` : '')
 
   if (navigator.share) {
     navigator.share({ title: `Receita: ${r.nome}`, text: msg }).catch(() => {})

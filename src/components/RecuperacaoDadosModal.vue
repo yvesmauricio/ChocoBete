@@ -4,7 +4,7 @@
     <h1 class="rec-titulo">Não encontramos dados aqui</h1>
     <p class="rec-desc">
       Isso costuma acontecer depois de limpar os dados do app, reinstalar
-      ou trocar de aparelho. Se você já usou o ChocoBete antes, escolha
+      ou trocar de aparelho. Se você já usou o app antes, escolha
       abaixo de onde restaurar — senão, é só começar do zero.
     </p>
 

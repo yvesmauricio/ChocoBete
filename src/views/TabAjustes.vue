@@ -22,13 +22,13 @@
       <section v-if="abaAtiva === 'perfis'" class="aj-pagina fade-in">
         <header class="aj-cab">
           <h3 class="aj-titulo">Perfis de uso</h3>
-          <p class="aj-desc">Escolha como o ChocoBete abre e quais telas cada perfil enxerga.</p>
+          <p class="aj-desc">Escolha como o app abre e quais telas cada perfil enxerga.</p>
         </header>
 
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Ao abrir o app</h4>
-            <p class="aj-grupo-desc">Qual perfil aparece quando o ChocoBete é aberto.</p>
+            <p class="aj-grupo-desc">Qual perfil aparece quando o app é aberto.</p>
           </div>
           <article class="aj-card">
             <div class="aj-form">
@@ -205,7 +205,7 @@
             <div class="aj-form aj-form--grade">
               <div class="fg">
                 <label class="label" for="aj-marca">Nome da marca</label>
-                <input id="aj-marca" v-model="company.nome" class="input" placeholder="Ex: ChocoBete" />
+                <input id="aj-marca" v-model="company.nome" class="input" placeholder="Ex: Doces da Ana" />
               </div>
               <div class="fg">
                 <label class="label" for="aj-razao">Razão social</label>
@@ -249,13 +249,13 @@
               <div class="fg">
                 <label class="label" for="aj-whats">WhatsApp para pedidos</label>
                 <input id="aj-whats" :value="maskTelefone(company.whatsapp_pedidos)" @input="e => company.whatsapp_pedidos = maskTelefone(e.target.value)"
-                  class="input" type="tel" inputmode="numeric" placeholder="Ex: (21) 99943-0023" />
+                  class="input" type="tel" inputmode="numeric" placeholder="Ex: (21) 99999-0000" />
                 <span class="aj-nota">Com DDD, sem +55. É para este número que vão os pedidos feitos no cardápio interativo.</span>
               </div>
               <div class="fg">
                 <label class="label" for="aj-insta">Instagram</label>
                 <input id="aj-insta" :value="company.instagram ? '@' + company.instagram : ''" @input="e => company.instagram = normalizarInstagram(e.target.value)"
-                  class="input" type="text" autocapitalize="none" autocorrect="off" placeholder="Ex: @chocobete" />
+                  class="input" type="text" autocapitalize="none" autocorrect="off" placeholder="Ex: @docesdaana" />
                 <span class="aj-nota">Aparece em Meu contato (Caderneta), no QR de contato e no cabeçalho do cardápio. Para atualizar o cardápio que já está no ar, publique-o de novo.</span>
               </div>
             </div>
@@ -395,7 +395,7 @@
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Taxas da máquina</h4>
-            <p class="aj-grupo-desc">Usadas na calculadora de taxas do Caderninho da Bete.</p>
+            <p class="aj-grupo-desc">Usadas na calculadora de taxas do Caderninho.</p>
           </div>
           <article class="aj-card">
             <div class="aj-form">
@@ -747,7 +747,7 @@
         </div>
       </section>
 
-      <div class="version-info">chocobete v3.2 · Local Storage & IndexedDB</div>
+      <div class="version-info">v3.2 · Local Storage & IndexedDB</div>
     </div>
 
     <!-- ── Modal de Conta Bancária ── -->

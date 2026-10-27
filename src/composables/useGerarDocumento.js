@@ -802,7 +802,7 @@ export function gerarDASNSIMEI({
 // RELATÓRIO TÉCNICO DE RECEITAS
 // ══════════════════════════════════════════════════════════════════
 export function gerarRelatorioReceitas({ empresa, receitas, produtos, todasReceitas }) {
-  const nomeEmpresa = empresa?.razao_social || empresa?.nome || 'chocobete'
+  const nomeEmpresa = empresa?.razao_social || empresa?.nome || 'Minha confeitaria'
   
   const receitasHtml = receitas.map(r => {
     const ingredientesHtml = (r.ingredientes || []).map(ing => {
@@ -885,7 +885,7 @@ export function gerarRelatorioReceitas({ empresa, receitas, produtos, todasRecei
 // RELATÓRIO DE PRODUÇÃO
 // ══════════════════════════════════════════════════════════════════
 export function gerarRelatorioProducao({ empresa, grupos, periodo }) {
-  const nomeEmpresa = empresa?.razao_social || empresa?.nome || 'chocobete'
+  const nomeEmpresa = empresa?.razao_social || empresa?.nome || 'Minha confeitaria'
 
   const gruposHtml = grupos.map(g => {
     const itensHtml = g.itens.map(item => `

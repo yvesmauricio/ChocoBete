@@ -156,7 +156,7 @@
             <!-- Texto de contato -->
             <div class="fg mb-16">
               <label class="label">Texto de contato na etiqueta</label>
-              <input v-model="company.contato_etiqueta" class="input" placeholder="Ex: Bete (21) 9 9943-0023" />
+              <input v-model="company.contato_etiqueta" class="input" placeholder="Ex: Doces da Ana (21) 9 9999-0000" />
               <p class="hint">Aparece embaixo do sabor em cada etiqueta. Se vazio, usa o contato da empresa.</p>
             </div>
 
@@ -437,7 +437,7 @@ function resetarWizard() {
 }
 
 async function gerarEtiquetasAvulsas() {
-  const contato = company.contato_etiqueta?.trim() || 'Bete 9 9943-0023'
+  const contato = company.contato_etiqueta?.trim() || [company.nome, company.whatsapp_pedidos].filter(Boolean).join(' ').trim()
 
   // ── Modo manual: gera a partir das posições marcadas no preview ──
   if (modoManual.value) {

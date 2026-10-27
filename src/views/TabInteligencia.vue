@@ -810,7 +810,7 @@ async function atualizarPreco() {
       ? `DAS-MEI mensal: R$${Number(s.company.das_mei_mensal).toFixed(2)}`
       : ''
 
-    return `CONTEXTO DO NEGÓCIO (chocobete):
+    return `CONTEXTO DO NEGÓCIO (${s.company?.nome || 'confeitaria'}):
 Negócio: confeitaria artesanal MEI - Vendas Porta-a-porta e encomendas
 Meta de retirada mensal: R$${meta.toFixed(2)}
 ${dasInfo}
