@@ -1609,7 +1609,7 @@ async function baixarPdf() {
 async function compartilharLinkCardapio(url, { title, text } = {}) {
   if (navigator.share) {
     try {
-      await navigator.share({ title, text, url })
+      await navigator.share({ title, text })
       return 'compartilhado'
     } catch {
       // Continua para fallback
