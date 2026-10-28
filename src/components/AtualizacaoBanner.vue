@@ -6,6 +6,7 @@
         <div class="upd-texto">
           <strong>Nova versão disponível</strong>
           <span>Termine o que estiver fazendo e atualize.</span>
+          <span v-if="rotulos" class="upd-versoes">{{ rotulos.atual }} → {{ rotulos.nova }}</span>
         </div>
         <button class="upd-btn upd-btn--sec" @click="adiarAtualizacao">Depois</button>
         <button class="upd-btn upd-btn--pri" @click="aplicarAtualizacao">Atualizar</button>
@@ -15,7 +16,11 @@
 </template>
 
 <script setup>
-import { novaVersao, aviso, aplicarAtualizacao, adiarAtualizacao } from '../services/atualizacaoApp.js'
+import { computed } from 'vue'
+import { novaVersao, versaoNova, aviso, aplicarAtualizacao, adiarAtualizacao } from '../services/atualizacaoApp.js'
+import { versaoInstalada, rotulosVersao } from '../services/versaoApp.js'
+
+const rotulos = computed(() => (versaoNova.value ? rotulosVersao(versaoInstalada, versaoNova.value) : null))
 </script>
 
 <style scoped>
@@ -40,6 +45,7 @@ import { novaVersao, aviso, aplicarAtualizacao, adiarAtualizacao } from '../serv
 .upd-texto { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
 .upd-texto strong { font-size: .88rem; }
 .upd-texto span { font-size: .74rem; opacity: .8; }
+.upd-texto .upd-versoes { margin-top: 2px; font-variant-numeric: tabular-nums; opacity: .95; }
 .upd-btn {
   border: 0; border-radius: var(--r-full);
   padding: 8px 14px; font-size: .8rem; font-weight: 700;

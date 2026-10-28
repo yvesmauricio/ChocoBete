@@ -5,8 +5,10 @@
 //   quem decide o momento é o usuário (evita perder algo não salvo).
 import { ref } from 'vue'
 import { registerSW } from 'virtual:pwa-register'
+import { buscarVersaoPublicada } from './versaoApp.js'
 
 export const novaVersao = ref(false)   // há versão nova pronta pra aplicar?
+export const versaoNova = ref(null)    // { versao, build, commit } da versão que vai instalar (null = não sabemos)
 export const aviso = ref(true)         // o aviso está visível? (o "Depois" apenas esconde)
 
 let updateSW = null
@@ -31,6 +33,8 @@ export function iniciarAtualizacaoApp() {
     onNeedRefresh() {
       novaVersao.value = true
       aviso.value = true
+      // Descobre qual é a versão nova pra mostrar no aviso (falha = só não mostra)
+      buscarVersaoPublicada().then((v) => { versaoNova.value = v })
     },
     onOfflineReady() {
       console.log('App pronto para uso offline')
