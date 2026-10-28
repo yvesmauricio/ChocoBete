@@ -25,7 +25,6 @@
     "fake-indexeddb": "^6.2.6",
     "prettier": "^3.9.4",
     "vite": "^5.2.0",
-    "vite-plugin-pwa": "^0.20.0",
-    "wrangler": "^4.154.0"
+    "vite-plugin-pwa": "^0.20.0"
   }
 }
