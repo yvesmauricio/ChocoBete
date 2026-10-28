@@ -17,17 +17,17 @@
       <AppHeader />
 
       <main class="main">
-        <TabReceitas     v-show="s.tab === 'receitas'" />
-        <TabProducao     v-show="s.tab === 'producao'" />
-        <TabPainel       v-show="s.tab === 'painel'" />
-        <TabInsumos      v-show="s.tab === 'insumos'" />
-        <TabInteligencia v-show="s.tab === 'inteligencia'" />
-        <TabFinanceiro   v-show="s.tab === 'financeiro'" />
-        <TabCozinha      v-show="s.tab === 'cozinha'" />
-        <TabBriefing     v-show="s.tab === 'briefing'" />
-        <TabAjustes      v-show="s.tab === 'ajustes'" />
-        <TabEtiquetas    v-show="s.tab === 'etiquetas'" />
-        <TabCardapio     v-show="s.tab === 'cardapio'" />
+        <TabReceitas     v-if="abasVisitadas.receitas" v-show="s.tab === 'receitas'" />
+        <TabProducao     v-if="abasVisitadas.producao" v-show="s.tab === 'producao'" />
+        <TabPainel       v-if="abasVisitadas.painel" v-show="s.tab === 'painel'" />
+        <TabInsumos      v-if="abasVisitadas.insumos" v-show="s.tab === 'insumos'" />
+        <TabInteligencia v-if="abasVisitadas.inteligencia" v-show="s.tab === 'inteligencia'" />
+        <TabFinanceiro   v-if="abasVisitadas.financeiro" v-show="s.tab === 'financeiro'" />
+        <TabCozinha      v-if="abasVisitadas.cozinha" v-show="s.tab === 'cozinha'" />
+        <TabBriefing     v-if="abasVisitadas.briefing" v-show="s.tab === 'briefing'" />
+        <TabAjustes      v-if="abasVisitadas.ajustes" v-show="s.tab === 'ajustes'" />
+        <TabEtiquetas    v-if="abasVisitadas.etiquetas" v-show="s.tab === 'etiquetas'" />
+        <TabCardapio     v-if="abasVisitadas.cardapio" v-show="s.tab === 'cardapio'" />
       </main>
 
       <AppNav :modulos="perfilInfo.modulos" />
@@ -111,7 +111,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, reactive, computed, ref, provide } from 'vue'
+import { onMounted, onUnmounted, reactive, computed, ref, provide, watch } from 'vue'
 import { useStore } from './store.js'
 import { useAndroidBackGuard } from './composables/useAndroidBackGuard.js'
 import { tentarReconectarSilenciosamente } from './services/googleDriveBackup.js'
@@ -119,19 +119,11 @@ import AppHeader      from './components/AppHeader.vue'
 import AppNav         from './components/AppNav.vue'
 import ConfirmDialog  from './components/ConfirmDialog.vue'
 import AtualizacaoBanner from './components/AtualizacaoBanner.vue'
-import TabReceitas    from './views/TabReceitas.vue'
-import TabProducao    from './views/TabProducao.vue'
-import TabPainel      from './views/TabPainel.vue'
-import TabInsumos     from './views/TabInsumos.vue'
-import TabInteligencia from './views/TabInteligencia.vue'
-import TabFinanceiro  from './views/TabFinanceiro.vue'
-import TabCozinha     from './views/TabCozinha.vue'
-import TabAjustes     from './views/TabAjustes.vue'
-import TabBriefing    from './views/TabBriefing.vue'
-import TabEtiquetas   from './views/TabEtiquetas.vue'
-import TabCardapio    from './views/TabCardapio.vue'
-import TabCaderneta   from './views/TabCaderneta.vue'
 import SelecaoPerfil  from './views/SelecaoPerfil.vue'
+import {
+  TabReceitas, TabProducao, TabPainel, TabInsumos, TabInteligencia, TabFinanceiro,
+  TabCozinha, TabAjustes, TabBriefing, TabEtiquetas, TabCardapio, TabCaderneta
+} from './views/abasAsync.js'
 
 const s = useStore()
 
@@ -162,6 +154,20 @@ const perfilInfo = computed(() => {
   if (extra) return { tipo: 'admin', modulos: extra.modulos, nome: extra.nome }
   return null
 })
+
+// ── Abas sob demanda ───────────────────────────────────────
+// Cada aba só é montada (e seu código só é baixado) na 1ª vez que é aberta.
+// Depois disso continua montada com v-show, como antes — o estado dela
+// (filtros, formulários, rascunhos) não se perde ao trocar de aba.
+// Ao sair do perfil (volta pra seleção), zera: o próximo perfil começa leve.
+const abasVisitadas = reactive({})
+watch([() => s.tab, perfilInfo], ([tab, info]) => {
+  if (info?.tipo !== 'admin') {
+    for (const k of Object.keys(abasVisitadas)) delete abasVisitadas[k]
+    return
+  }
+  abasVisitadas[tab] = true
+}, { immediate: true })
 
 async function onSelecionarPerfil(p) {
   // Não persiste: a cada abertura do app volta pra seleção de perfil

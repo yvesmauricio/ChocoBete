@@ -194,7 +194,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed } from 'vue'
+import { ref, reactive, watch, computed, onMounted } from 'vue'
 import { useStore } from '../store.js'
 import { textoEtiquetaReceita } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
@@ -296,8 +296,8 @@ const receitasParaEtiqueta = computed(() => {
 })
 
 // ── Pré-seleção vinda de Produção (botão "Etiqueta" num lote/produção) ──
-// As abas usam v-show (ficam sempre montadas), então onMounted só dispararia
-// na primeira renderização do app. Por isso observamos a mudança do sinal.
+// Depois de montada, a aba fica viva (v-show): por isso também observamos a
+// mudança do sinal, e não só o onMounted.
 function aplicarPreSelecao(preSelecao) {
   if (!preSelecao || !preSelecao.length) return
 
@@ -321,9 +321,15 @@ function aplicarPreSelecao(preSelecao) {
   }
 }
 
+// A aba agora é montada sob demanda: ao vir de Produção, o sinal já está
+// preenchido quando esta tela monta. Aplicamos em onMounted (e não com
+// `immediate`) porque aplicarPreSelecao usa computeds declarados mais abaixo.
 watch(() => s.etiquetasPreSelecao, (val) => {
   if (val && val.length) aplicarPreSelecao(val)
-}, { immediate: true })
+})
+onMounted(() => {
+  if (s.etiquetasPreSelecao?.length) aplicarPreSelecao(s.etiquetasPreSelecao)
+})
 
 const totalEtiquetasSelecionadas = computed(() =>
   Object.values(etqQtds).reduce((acc, q) => acc + (Number(q) || 0), 0)
