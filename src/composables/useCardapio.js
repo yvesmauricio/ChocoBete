@@ -73,7 +73,7 @@ function chaveConfigCardapio(id) {
 
 const CONFIG_DEFAULT = (id = 'festa') => ({
   nome_cardapio: '',      // vazio = usa s.company.nome
-  subtitulo: id === 'diaadia' ? 'Doces para o dia a dia' : 'Chocolates Artesanais',
+  subtitulo: id === 'diaadia' ? 'Chocolate nobre, feito à mão' : 'Chocolates Artesanais',
   mensagem_rodape: 'Peça já e encomende o seu! 🍫',
   abrir_tela_cheia_padrao: false, // true = abre direto na tela cheia (modo "mostrar pro cliente")
   pagamento_ativo: true, // true = checkout com recebimento, Pix e pagamento no cardápio publicado
@@ -241,7 +241,7 @@ export function redimensionarImagem(arquivo, { maxLado = 640, qualidade = 0.82 }
 // Caveat (manuscrita) pros títulos/destaques — em vez das serifadas
 // Playfair Display / Cormorant Garamond que o cardápio (tela, PDF e imagem
 // de WhatsApp) usava antes.
-const GOOGLE_FONTS_URL_CARDAPIO = 'https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap'
+const GOOGLE_FONTS_URL_CARDAPIO = 'https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Gelasio:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap'
 
 // ── Tema "Resumo pra vender" — folha única A5, fundo branco, pensada pra
 // caber tudo (10-20 itens) numa olhada só: 2 colunas fluindo com CSS
@@ -560,19 +560,19 @@ const CSS_PEDIDO = `
        principal do app, ex. "Enviar cardápio"); --terracota-escuro é o
        acento pra texto (preço, legendas) — mais marrom que dourado, pra não
        pesar a tela inteira pro amarelo. */
-    --terracota: #3d1f07;
-    --terracota-escuro: #7a4520;
-    --terracota-claro: #c49a6c;
-    --terracota-desc: #8c7260;
-    --creme: #f7f3ee;
-    --creme-fundo: #f0e8d8;
-    --marrom: #3d1f07;
-    --marrom-suave: #2a1504;
-    --marrom-medio: #7a4520;
-    --borda: #e8e0d4;
+    --terracota: #5A2F3B;
+    --terracota-escuro: #5A2F3B;
+    --terracota-claro: #B58A94;
+    --terracota-desc: #6b6068;
+    --creme: #FBF5EC;
+    --creme-fundo: #F6E9EC;
+    --marrom: #3a2a2e;
+    --marrom-suave: #2a1c20;
+    --marrom-medio: #5A2F3B;
+    --borda: #EADDE0;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { background: #faf6f0; color: var(--marrom); font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+  html, body { background: #FBF5EC; color: var(--marrom); font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
   body { padding-bottom: 140px; }
   /* ── Capa: faixa de chocolate com a marca centralizada, filete dourado embaixo ── */
   .ip-capa { 
@@ -913,6 +913,37 @@ const CSS_PEDIDO = `
   }
   .ip-modal-pagamento-posterior .ip-modal-pix-titulo { justify-content: center; margin-bottom: 4px; }
   .ip-modal-pagamento-posterior-sub { font-size: 12.5px; color: var(--terracota-desc); }
+
+  /* ══ Tema leve (mesmo visual do cartão de visitas): creme, vinho e rosé,
+     títulos em serifa (Gelasio). Fica por último de propósito — sobrepõe só
+     a aparência; nenhuma regra de layout ou de pedido é alterada. Para voltar
+     ao visual antigo basta remover este bloco e restaurar as variáveis do :root. ══ */
+  .ip-capa { display: block; text-align: center; background: var(--creme); box-shadow: none; border-radius: 0; padding: max(28px, env(safe-area-inset-top)) 20px 18px; }
+  .ip-capa .selo { display: none; }
+  .ip-capa-texto { text-align: center; }
+  .ip-capa .marca { font-family: 'Gelasio', Georgia, serif; font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 34px; color: var(--terracota); }
+  .ip-capa .marca::after { content: ""; display: block; width: 120px; height: 10px; margin: 10px auto 2px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='10' viewBox='0 0 120 10'%3E%3Cpath d='M0 5H46M74 5H120' stroke='%23B58A94' stroke-width='1'/%3E%3Cpath d='M60 .5L64.5 5 60 9.5 55.5 5z' fill='%23B58A94'/%3E%3C/svg%3E") center / 120px 10px no-repeat; }
+  .ip-capa .subtitulo { color: #4A4A4A; font-weight: 500; font-size: 10.5px; letter-spacing: .22em; margin-top: 8px; }
+  .ip-capa-insta { background: transparent; color: var(--terracota); border: 1px solid var(--terracota-claro); font-family: 'Gelasio', Georgia, serif; font-weight: 400; }
+  .categoria-bloco { box-shadow: none; border-radius: 16px; }
+  .categoria-titulo { background: var(--creme-fundo); color: var(--terracota); min-height: 56px; align-items: center; }
+  .categoria-capa-img, .categoria-capa-fundo, .categoria-capa-veu { display: none; }
+  .categoria-capa-info { padding: 12px 56px 12px 16px; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+  .categoria-titulo-texto { font-family: 'Gelasio', Georgia, serif; font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 19px; color: var(--terracota); text-shadow: none; }
+  .categoria-contagem { color: var(--terracota); background: #fff; border: 1px solid var(--terracota-claro); font-weight: 500; }
+  .categoria-selecionados { background: var(--terracota); color: #fff; }
+  .categoria-chevron { color: var(--terracota); background: #fff; border: 1px solid var(--terracota-claro); }
+  .categoria-titulo .categoria-selo-minimo,
+  .categoria-titulo .categoria-preco-unico { background: #fff; border: 1px solid var(--terracota-claro); color: var(--terracota); font-size: 12px; font-weight: 500; padding: 2px 10px; }
+  .ip-cat-nav { background: rgba(251,245,236,.94); }
+  .ip-cat-chip { border: 1px solid var(--terracota-claro); font-weight: 500; color: var(--terracota); }
+  .ip-cat-chip.ativo { color: #fff; }
+  .ip-item { border-bottom-color: #F1E6E8; }
+  .ip-item-nome { font-family: 'Gelasio', Georgia, serif; font-weight: 700; color: var(--terracota); }
+  .ip-item-preco { font-weight: 600; }
+  .item-selo-destaque { background: var(--creme-fundo); color: var(--terracota); border: 1px solid var(--terracota-claro); box-shadow: none; }
+  .item-selo-encomenda { background: #fff; color: var(--terracota-desc); border: 1px solid var(--borda); }
+  .ip-btn-enviar { border-radius: 14px; font-weight: 600; }
 `
 
 /**
