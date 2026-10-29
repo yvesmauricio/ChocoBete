@@ -35,6 +35,9 @@ importers:
       vue:
         specifier: ^3.4.0
         version: 3.5.44
+      workbox-window:
+        specifier: ^7.4.1
+        version: 7.4.1
     devDependencies:
       '@vitejs/plugin-vue':
         specifier: ^5.0.4
