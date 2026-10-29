@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -13,18 +12,6 @@ const BASE = isGitHubPages ? '/ChocoBete/' : '/'
 // (com revision: null ele nunca era atualizado nos aparelhos).
 const BUILD_ID = Date.now().toString()
 
-// ── Versão do app ─────────────────────────────────────────
-// Vai embutida no código (versão INSTALADA) e também publicada em
-// /version.json (o app lê esse arquivo pra saber qual é a versão NOVA
-// quando aparece o aviso de atualização). `versao` vem do package.json;
-// `build` muda a cada build, então dá pra distinguir mesmo sem mudar o número.
-const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
-const INFO_VERSAO = {
-  versao: pkg.version,
-  build: new Date(Number(BUILD_ID)).toISOString(),
-  commit: (process.env.GITHUB_SHA || process.env.CF_PAGES_COMMIT_SHA || '').slice(0, 7)
-}
-
 // Caminhos das páginas públicas do cardápio (o link que vai pro cliente).
 // O Cloudflare Pages serve essas páginas TANTO com ".html" no final quanto
 // sem (URL "limpa" — ex: /pedido-diaadia funciona igual a
@@ -36,22 +23,8 @@ const PUBLIC_MENU_PATHS = /\/pedido(-diaadia|-festa)?(\.html)?$/
 export default defineConfig({
   base: BASE,
 
-  define: {
-    __APP_VERSION__: JSON.stringify(INFO_VERSAO.versao),
-    __APP_BUILD__: JSON.stringify(INFO_VERSAO.build),
-    __APP_COMMIT__: JSON.stringify(INFO_VERSAO.commit)
-  },
-
   plugins: [
     vue(),
-
-    // Publica /version.json junto do app (fora do pré-cache: ver runtimeCaching)
-    {
-      name: 'version-json',
-      generateBundle() {
-        this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify(INFO_VERSAO) })
-      }
-    },
 
     VitePWA({
       registerType: 'prompt',
@@ -123,11 +96,6 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,ico,png,svg,woff,woff2,docx}'],
 
         runtimeCaching: [
-          {
-            // version.json diz qual é a versão publicada AGORA: nunca do cache.
-            urlPattern: ({ url }) => url.pathname.endsWith('/version.json'),
-            handler: 'NetworkOnly'
-          },
           {
             // Páginas públicas do cardápio (/pedido-diaadia.html,
             // /pedido-festa.html, /pedido.html) NUNCA devem passar pela

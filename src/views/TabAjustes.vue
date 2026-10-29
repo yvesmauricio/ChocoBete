@@ -727,36 +727,6 @@
         </div>
 
         <div class="aj-grupo">
-        <div class="aj-grupo">
-          <div class="aj-grupo-cab">
-            <h4 class="aj-grupo-titulo">Versão do app</h4>
-            <p class="aj-grupo-desc">Qual versão está instalada neste aparelho.</p>
-          </div>
-          <article class="aj-card">
-            <div class="aj-row">
-              <div class="aj-tile"><i class="fas fa-code-branch"></i></div>
-              <div class="aj-row-txt">
-                <div class="aj-row-titulo">Instalada: v{{ versaoInstalada.versao }}</div>
-                <div v-if="detalheInstalada" class="aj-row-sub">{{ detalheInstalada }}</div>
-              </div>
-            </div>
-            <template v-if="novaVersao">
-              <div class="aj-row">
-                <div class="aj-tile"><i class="fas fa-circle-arrow-up"></i></div>
-                <div class="aj-row-txt">
-                  <div class="aj-row-titulo">Nova versão disponível<template v-if="rotulosAtualizacao">: {{ rotulosAtualizacao.nova }}</template></div>
-                  <div class="aj-row-sub">Já foi baixada. Termine o que estiver fazendo e atualize.</div>
-                </div>
-              </div>
-              <div class="aj-acoes">
-                <button class="btn btn-primary" @click="aplicarAtualizacao">
-                  <i class="fas fa-rotate"></i> Atualizar agora
-                </button>
-              </div>
-            </template>
-          </article>
-        </div>
-
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo aj-grupo-titulo--risco">Zona de risco</h4>
           </div>
@@ -870,12 +840,6 @@ import { carregarConfigPublicacao, salvarConfigPublicacao } from '../services/gi
 import { statusBackupLocal, escolherPastaBackupLocal, reautorizarPastaBackupLocal, desconectarPastaBackupLocal } from '../services/localBackup.js'
 import BaseModal from '../components/BaseModal.vue'
 import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
-import { novaVersao, versaoNova, aplicarAtualizacao } from '../services/atualizacaoApp.js'
-import { versaoInstalada, rotulosVersao, dataBuild } from '../services/versaoApp.js'
-
-// Versão do app (seção Sistema): a instalada e, se houver, a que vai ser instalada
-const rotulosAtualizacao = computed(() => (versaoNova.value ? rotulosVersao(versaoInstalada, versaoNova.value) : null))
-const detalheInstalada = computed(() => [dataBuild(versaoInstalada) && `build de ${dataBuild(versaoInstalada)}`, versaoInstalada.commit && `commit ${versaoInstalada.commit}`].filter(Boolean).join(' · '))
 
 const s = useStore()
 const confirmar = useAppConfirm()

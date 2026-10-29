@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ChocoBete — Monte seu pedido</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Gelasio:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
   :root {
     /* Unificado com as variáveis do design system do app (main.css) — mesmos
        tons de marrom/dourado usados em todas as outras telas. --terracota é
@@ -205,6 +205,41 @@
   .ip-checagem-btn { flex: 1; border-radius: 999px; padding: 12px; font-weight: 700; font-size: 14px; border: none; }
   .ip-checagem-btn--sim { background: var(--terracota); color: #fff; }
   .ip-checagem-btn--nao { background: #fff; border: 1.5px solid var(--terracota); color: var(--terracota); }
+</style>
+<style id="tema-leve">
+:root{--terracota:#5A2F3B;--terracota-escuro:#5A2F3B;--terracota-claro:#B58A94;--terracota-desc:#6b6068;--creme:#FBF5EC;--creme-fundo:#F6E9EC;--marrom:#3a2a2e;--marrom-suave:#2a1c20;--marrom-medio:#5A2F3B;--borda:#EADDE0}
+html,body{background:#FBF5EC}
+/* ══ Tema leve (mesmo visual do cartão de visitas): creme, vinho e rosé,
+     títulos em serifa (Gelasio). Fica por último de propósito — sobrepõe só
+     a aparência; nenhuma regra de layout ou de pedido é alterada. Para voltar
+     ao visual antigo basta remover este bloco e restaurar as variáveis do :root. ══ */
+  .ip-capa { display: block; text-align: center; background: var(--creme); box-shadow: none; border-radius: 0; padding: max(28px, env(safe-area-inset-top)) 20px 18px; }
+  .ip-capa .selo { display: none; }
+  .ip-capa-texto { text-align: center; }
+  .ip-capa .marca { font-family: 'Gelasio', Georgia, serif; font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 34px; color: var(--terracota); }
+  .ip-capa .marca::after { content: ""; display: block; width: 120px; height: 10px; margin: 10px auto 2px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='10' viewBox='0 0 120 10'%3E%3Cpath d='M0 5H46M74 5H120' stroke='%23B58A94' stroke-width='1'/%3E%3Cpath d='M60 .5L64.5 5 60 9.5 55.5 5z' fill='%23B58A94'/%3E%3C/svg%3E") center / 120px 10px no-repeat; }
+  .ip-capa .subtitulo { color: #4A4A4A; font-weight: 500; font-size: 10.5px; letter-spacing: .22em; margin-top: 8px; }
+  .ip-capa-insta { background: transparent; color: var(--terracota); border: 1px solid var(--terracota-claro); font-family: 'Gelasio', Georgia, serif; font-weight: 400; }
+  .categoria-bloco { box-shadow: none; border-radius: 16px; }
+  .categoria-titulo { background: var(--creme-fundo); color: var(--terracota); min-height: 56px; align-items: center; }
+  .categoria-capa-img, .categoria-capa-fundo, .categoria-capa-veu { display: none; }
+  .categoria-capa-info { padding: 12px 56px 12px 16px; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+  .categoria-titulo-texto { font-family: 'Gelasio', Georgia, serif; font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 19px; color: var(--terracota); text-shadow: none; }
+  .categoria-contagem { color: var(--terracota); background: #fff; border: 1px solid var(--terracota-claro); font-weight: 500; }
+  .categoria-selecionados { background: var(--terracota); color: #fff; }
+  .categoria-chevron { color: var(--terracota); background: #fff; border: 1px solid var(--terracota-claro); }
+  .categoria-titulo .categoria-selo-minimo,
+  .categoria-titulo .categoria-preco-unico { background: #fff; border: 1px solid var(--terracota-claro); color: var(--terracota); font-size: 12px; font-weight: 500; padding: 2px 10px; }
+  .ip-cat-nav { background: rgba(251,245,236,.94); }
+  .ip-cat-chip { border: 1px solid var(--terracota-claro); font-weight: 500; color: var(--terracota); }
+  .ip-cat-chip.ativo { color: #fff; }
+  .ip-item { border-bottom-color: #F1E6E8; }
+  .ip-item-nome { font-family: 'Gelasio', Georgia, serif; font-weight: 700; color: var(--terracota); }
+  .ip-item-preco { font-weight: 600; }
+  .item-selo-destaque { background: var(--creme-fundo); color: var(--terracota); border: 1px solid var(--terracota-claro); box-shadow: none; }
+  .item-selo-encomenda { background: #fff; color: var(--terracota-desc); border: 1px solid var(--borda); }
+  .ip-btn-enviar { border-radius: 14px; font-weight: 600; }
+
 </style>
 </head>
 <body>
