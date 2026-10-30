@@ -82,8 +82,17 @@
             <p v-if="linkStatus === 'aguardando'" class="cx-link-aviso">Publicado! Espere um pouquinho antes de mandar o link ao cliente.</p>
             <p v-else-if="linkStatus === 'pronto'" class="cx-link-aviso cx-link-aviso--ok">Pronto! O link já deve estar atualizado, pode enviar.</p>
             <div class="cx-link-btns">
-              <button class="cx-btn-sec" :disabled="!urlCardapioPublicado" @click="copiarLinkPublicado">
-                <i class="fas fa-copy"></i> Copiar link
+              <button class="cx-btn-sec" :disabled="!urlPaginaEscolha" @click="copiarLinkPublicado('escolha')"
+                title="Link geral (bio, status, primeira conversa): o cliente escolhe entre Dia a dia e Festas">
+                <i class="fas fa-copy"></i> Copiar link geral
+              </button>
+              <button class="cx-btn-sec" :disabled="!urlDiretoDe('diaadia')" @click="copiarLinkPublicado('diaadia')"
+                title="Vai direto para o cardápio Dia a dia (use quando o cliente já disse o que quer)">
+                <i class="fas fa-copy"></i> Link Dia a dia
+              </button>
+              <button class="cx-btn-sec" :disabled="!urlDiretoDe('festa')" @click="copiarLinkPublicado('festa')"
+                title="Vai direto para o cardápio de Festas e encomendas">
+                <i class="fas fa-copy"></i> Link Festas
               </button>
               <button class="cx-btn-sec" :disabled="publicandoLink || linkStatus === 'aguardando'" @click="publicarLinkCardapioInterativo"
                 title="Atualiza o link que você já divulgou (bio, status) com as mudanças de agora, sem enviar nada a ninguém">
@@ -926,6 +935,16 @@ const urlCardapioPublicado = computed(() => {
   if (!configPublicacao.value?.dominio) return ''
   return urlPublicaFinal({ ...configPublicacao.value, caminho: `public/pedido-${cardapioAtivo.value}.html` })
 })
+// Link geral: página /pedido, onde o cliente escolhe Dia a dia ou Festas.
+const urlPaginaEscolha = computed(() => {
+  if (!configPublicacao.value?.dominio) return ''
+  return urlPublicaFinal({ ...configPublicacao.value, caminho: 'public/pedido' })
+})
+// Link direto de um cardápio específico (diaadia | festa).
+function urlDiretoDe(id) {
+  if (!configPublicacao.value?.dominio) return ''
+  return urlPublicaFinal({ ...configPublicacao.value, caminho: `public/pedido-${id}.html` })
+}
 const publicacaoDisponivel = computed(() => publicacaoConfigurada(configPublicacao.value))
 
 const busca = ref('')
@@ -1639,12 +1658,14 @@ function abrirCardapioPublicado() {
   window.location.href = url
 }
 
-async function copiarLinkPublicado() {
-  const url = urlCardapioPublicado.value
+async function copiarLinkPublicado(tipo = 'escolha') {
+  const url = tipo === 'escolha' ? urlPaginaEscolha.value : urlDiretoDe(tipo)
   if (!url) return
   try {
     await navigator.clipboard.writeText(url)
-    s.notify?.('Link copiado! Cole no WhatsApp ou na bio do Instagram.')
+    s.notify?.(tipo === 'escolha'
+      ? 'Link geral copiado! O cliente escolhe entre Dia a dia e Festas. Ideal pra bio e primeira conversa.'
+      : 'Link direto copiado! Cole no WhatsApp do cliente.')
   } catch {
     s.notify?.('Não consegui copiar sozinho. O link é: ' + url)
   }
