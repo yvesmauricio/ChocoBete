@@ -275,10 +275,8 @@ const CSS_CARDAPIO_COMPACTO = `
 
   /* Itens em 2 colunas que se ajustam sozinhas */
   .cc-area { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
-  .cc-bloco { width: 100%; }
-  .cardapio-compacto[data-estreito="1"] .cc-bloco { width: 76%; }
   .cc-itens { width: 100%; column-count: var(--cols); column-gap: 7mm; }
-  .cc-categoria--topo { margin: 0 0 2mm; }
+  .cardapio-compacto[data-estreito="1"] .cc-itens { width: 76%; }
   .cc-canto { position: absolute; width: 21mm; height: 21mm; }
   .cc-canto svg { width: 100%; height: 100%; display: block; }
   .cc-canto--tl { top: 3mm; left: 3mm; }
@@ -292,9 +290,9 @@ const CSS_CARDAPIO_COMPACTO = `
   }
   .cc-categoria-desc { margin-top: .5mm; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 500; font-size: .66em; line-height: 1.35; color: var(--desc); }
   .cc-grupo { break-inside: avoid; }
-  /* modos de encaixe: a = colunas equilibradas, categoria inteira; d = equilibradas, categoria grande pode se dividir; b/c = enche coluna por coluna (sem/com divisão) */
+  /* modos de encaixe quando o cardápio é longo: b = enche coluna por coluna; c = idem e deixa uma categoria grande se partir */
   .cardapio-compacto[data-modo="b"] .cc-itens, .cardapio-compacto[data-modo="c"] .cc-itens { column-fill: auto; height: 100%; }
-  .cardapio-compacto[data-modo="c"] .cc-grupo, .cardapio-compacto[data-modo="d"] .cc-grupo { break-inside: auto; }
+  .cardapio-compacto[data-modo="c"] .cc-grupo { break-inside: auto; }
   .cc-grupo:first-child .cc-categoria { margin-top: 0; }
   .cc-item { break-inside: avoid; padding: 1.7mm 0; border-bottom: .25mm solid #F1E6E8; }
   .cc-item-linha1 { display: flex; align-items: baseline; justify-content: space-between; gap: 3mm; }
@@ -373,16 +371,12 @@ export function separarDescricaoComum(itens) {
   }
 }
 
-function faixaCategoriaHtml(nome, descricao, extra = '') {
-  return `<div class="cc-categoria ${extra}">${escHtml(nome)}${descricao ? `<div class="cc-categoria-desc">${escHtml(descricao)}</div>` : ''}</div>`
-}
-
 function renderCategoriaCompacta(grupo) {
   const { descricaoCategoria, itens } = separarDescricaoComum(grupo.itens)
   // Cada categoria é um bloco que não se parte entre colunas (o título nunca fica sem os itens)
   return `
     <div class="cc-grupo">
-      ${faixaCategoriaHtml(grupo.categoria, descricaoCategoria)}
+      <div class="cc-categoria">${escHtml(grupo.categoria)}${descricaoCategoria ? `<div class="cc-categoria-desc">${escHtml(descricaoCategoria)}</div>` : ''}</div>
       ${itens.map(renderItemCompacto).join('')}
     </div>`
 }
@@ -410,18 +404,6 @@ function cardapioCompactoDocHtml({ config, grupos, empresa, linkOnline }) {
       ${contato ? `<div class="contato">${escHtml(contato)}</div>` : ''}
     </div>`
 
-  // 1 só categoria: a faixa fica em cima, ocupando a largura toda, e os itens se dividem em
-  // colunas iguais logo abaixo (as colunas começam alinhadas). Várias categorias: cada uma
-  // é um bloco dentro das colunas.
-  let conteudoItens
-  if (grupos.length === 1) {
-    const { descricaoCategoria, itens } = separarDescricaoComum(grupos[0].itens)
-    conteudoItens = `${faixaCategoriaHtml(grupos[0].categoria, descricaoCategoria, 'cc-categoria--topo')}
-        <div class="cc-itens">${itens.map(renderItemCompacto).join('')}</div>`
-  } else {
-    conteudoItens = `<div class="cc-itens">${grupos.map(renderCategoriaCompacta).join('')}</div>`
-  }
-
   return `
   <div class="cardapio-compacto">
     ${CANTOS_HTML}
@@ -431,46 +413,12 @@ function cardapioCompactoDocHtml({ config, grupos, empresa, linkOnline }) {
       ${config.subtitulo ? `<div class="cc-subtitulo">${escHtml(config.subtitulo)}</div>` : ''}
     </div>
     <div class="cc-area">
-      <div class="cc-bloco">
-        ${conteudoItens}
+      <div class="cc-itens">
+        ${grupos.map(renderCategoriaCompacta).join('')}
       </div>
     </div>
     ${rodape}
   </div>`
-}
-
-/**
- * Escolhe o melhor encaixe pra folha (altura fixa de 210 mm): procura a MAIOR letra
- * possível e, pra cada tamanho, o arranjo mais bonito — 1 coluna centralizada (só 1
- * categoria), 2 colunas equilibradas, 2 colunas com categoria dividida, 3 colunas...
- * Cardápio pequeno cresce um pouco as letras e fica centralizado na folha; cardápio
- * grande reduz até caber. O rodapé/QR nunca é cortado.
- */
-function ajustarLayoutCompacto(el, qtdGrupos) {
-  const itensEl = el.querySelector('.cc-itens')
-  const areaEl = el.querySelector('.cc-area')
-  const blocoEl = el.querySelector('.cc-bloco')
-  const estourou = () => itensEl.scrollWidth > itensEl.clientWidth + 2
-    || blocoEl.offsetHeight > areaEl.clientHeight + 2
-    || itensEl.scrollHeight > itensEl.clientHeight + 2
-  const aplicar = (cols, modo, u) => {
-    el.dataset.modo = modo
-    el.dataset.estreito = cols === 1 ? '1' : ''
-    el.style.setProperty('--cols', String(cols))
-    el.style.setProperty('--u', String(u))
-  }
-  for (let u = 1.2; u >= 0.5 - 1e-9; u = Math.round((u - 0.03) * 100) / 100) {
-    const opcoes = []
-    if (qtdGrupos === 1) opcoes.push([1, 'a'])
-    opcoes.push([2, 'a'], [2, 'd'])
-    if (u <= 0.9) opcoes.push([3, 'a'], [3, 'd'])
-    if (u <= 0.8) opcoes.push([2, 'b'], [2, 'c'], [3, 'b'], [3, 'c'])
-    for (const [cols, modo] of opcoes) {
-      aplicar(cols, modo, u)
-      if (!estourou()) return true
-    }
-  }
-  return false
 }
 
 /**
@@ -491,7 +439,35 @@ export async function gerarPdfCardapioCompacto({ config, grupos, empresa, linkOn
   await garantirFontesCarregadas()
 
   const el = wrapper.querySelector('.cardapio-compacto')
-  ajustarLayoutCompacto(el, grupos.length)
+  const itensEl = el.querySelector('.cc-itens')
+  const areaEl = el.querySelector('.cc-area')
+  // A folha tem altura fixa (210 mm). Estourou = passou da área útil (altura) ou o
+  // navegador criou colunas extras à direita. O rodapé/QR nunca é cortado.
+  const estourou = () => itensEl.scrollWidth > itensEl.clientWidth + 2
+    || itensEl.offsetHeight > areaEl.clientHeight + 2
+    || itensEl.scrollHeight > itensEl.clientHeight + 2
+  const aplicar = (cols, u) => {
+    el.style.setProperty('--cols', String(cols))
+    el.style.setProperty('--u', String(u))
+    el.dataset.estreito = cols === 1 ? '1' : ''
+  }
+  // Poucos itens: a categoria fica centralizada na folha (1 só categoria = 1 coluna estreita
+  // no meio). Cardápio maior: do mais bonito pro mais apertado — letras grandes e colunas
+  // equilibradas; depois letras menores; depois enche coluna por coluna; por fim 3 colunas.
+  const configs = grupos.length === 1
+    ? [[1, 1, 0.7], [2, 1, 0.72], [3, 0.88, 0.5]]
+    : [[2, 1, 0.72], [3, 0.88, 0.5]]
+  let coube = false
+  for (const [cols, uIni, uMin] of configs) {
+    for (let u = uIni; u >= uMin - 1e-9 && !coube; u = Math.round((u - 0.03) * 100) / 100) {
+      for (const modo of ['a', 'b', 'c']) {
+        el.dataset.modo = modo
+        aplicar(cols, u)
+        if (!estourou()) { coube = true; break }
+      }
+    }
+    if (coube) break
+  }
 
   let canvas
   try {
