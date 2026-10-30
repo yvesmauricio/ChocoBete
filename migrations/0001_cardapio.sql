@@ -4,8 +4,8 @@
 --   · dinheiro = INTEGER em centavos (nunca float)
 --   · atualizado_em = ms desde 1970, SEMPRE carimbado pelo servidor
 --   · apagado_em    = exclusão lógica (nunca DELETE), senão o outro aparelho não fica sabendo
- 
--- rCardápios (diaadia, festa): configuração + HTML publicado
+
+-- Cardápios (diaadia, festa): configuração + HTML publicado
 CREATE TABLE cardapios (
   id            TEXT PRIMARY KEY,                 -- 'diaadia' | 'festa'
   config        TEXT NOT NULL DEFAULT '{}',       -- JSON só com o que o servidor precisa

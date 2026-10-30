@@ -27,3 +27,6 @@
 /pedido-festa
   Cache-Control: no-cache, must-revalidate
 
+# Versão publicada: o app consulta pra saber se há atualização. Nunca pode vir de cache.
+/version.json
+  Cache-Control: no-store

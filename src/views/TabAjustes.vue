@@ -619,6 +619,42 @@
 
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
+            <h4 class="aj-grupo-titulo">Versão e atualização</h4>
+            <p class="aj-grupo-desc">O app confere sozinho ao abrir e de tempos em tempos. Aqui você força a verificação na hora.</p>
+          </div>
+          <article class="aj-card">
+            <div class="aj-row">
+              <div class="aj-tile"><i class="fas fa-code-branch"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-titulo">Versão instalada neste aparelho</div>
+                <div class="aj-row-sub">
+                  <template v-if="commitCurto">Commit <button type="button" class="aj-commit" title="Toque para copiar" @click="copiarCommit">{{ commitCurto }}</button> · </template>v{{ versaoInstalada.versao }}<template v-if="dataBuildTxt"> · publicada em {{ dataBuildTxt }}</template>
+                </div>
+              </div>
+            </div>
+            <p v-if="mensagemAtualizacao" class="aj-atualiza" :class="classeAtualizacao" role="status">
+              {{ mensagemAtualizacao }}<small v-if="atualizacao.quando"> Verificado às {{ atualizacao.quando }}.</small>
+            </p>
+            <div class="aj-acoes">
+              <button class="btn btn-secondary" :disabled="atualizacao.buscando || atualizacao.forcando" @click="buscarAtualizacao">
+                <i class="fas fa-rotate" :class="{ 'fa-spin': atualizacao.buscando }"></i> {{ atualizacao.buscando ? 'Buscando…' : 'Buscar atualização' }}
+              </button>
+              <button v-if="novaVersao" class="btn btn-primary" @click="aplicarAtualizacao">
+                <i class="fas fa-circle-arrow-up"></i> Atualizar agora
+              </button>
+            </div>
+            <details class="aj-atualiza-avancado">
+              <summary>O app não atualiza?</summary>
+              <p>Isto apaga só a cópia do app guardada no aparelho e recarrega com a versão publicada. Seus dados não são apagados. Precisa de internet.</p>
+              <button class="btn btn-secondary" :disabled="atualizacao.buscando || atualizacao.forcando" @click="forcarAtualizacao">
+                <i class="fas fa-bolt"></i> {{ atualizacao.forcando ? 'Atualizando…' : 'Forçar atualização completa' }}
+              </button>
+            </details>
+          </article>
+        </div>
+
+        <div class="aj-grupo">
+          <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Layout da tela</h4>
             <p class="aj-grupo-desc">Como o app se organiza. Agora está no modo {{ isDesktop ? 'computador' : 'celular' }}.</p>
           </div>
@@ -862,6 +898,8 @@ import {
 } from '../composables/useCaderneta.js'
 import { carregarConfigPublicacao, salvarConfigPublicacao } from '../services/githubPublish.js'
 import { carregarConfigD1, salvarConfigD1, testarConexaoD1, despublicarCardapioD1, d1Configurado } from '../services/d1Publish.js'
+import { versaoInstalada, dataBuild } from '../services/versaoApp.js'
+import { novaVersao, buscarAtualizacaoAgora, aplicarAtualizacao, forcarAtualizacaoCompleta } from '../services/atualizacaoApp.js'
 import { statusBackupLocal, escolherPastaBackupLocal, reautorizarPastaBackupLocal, desconectarPastaBackupLocal } from '../services/localBackup.js'
 import BaseModal from '../components/BaseModal.vue'
 import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
@@ -894,6 +932,64 @@ const modulosYves = [
 // persistidos aqui) — só o token continua sendo digitado e salvo no app.
 const pub = reactive({ token: '', owner: '', repo: '', branch: 'main', caminho: 'public/pedido.html', dominio: '' })
 carregarConfigPublicacao().then(cfg => Object.assign(pub, cfg))
+
+// ── Versão e atualização do app ──
+const commitCurto = (versaoInstalada.commit || '').slice(0, 7)
+const dataBuildTxt = dataBuild(versaoInstalada)
+const atualizacao = reactive({ buscando: false, forcando: false, estado: '', publicada: null, quando: '' })
+
+const mensagemAtualizacao = computed(() => {
+  const nova = atualizacao.publicada?.commit ? ` (commit ${atualizacao.publicada.commit.slice(0, 7)})` : ''
+  switch (atualizacao.estado) {
+    case 'offline': return 'Sem internet. Conecte e tente de novo.'
+    case 'erro': return 'Não consegui consultar o servidor agora. Tente de novo em instantes.'
+    case 'nova': return `Nova versão pronta${nova}. Toque em "Atualizar agora".`
+    case 'diferente': return `Há uma versão mais nova publicada${nova}, mas ela ainda não terminou de chegar neste aparelho. Aguarde alguns segundos e busque de novo; se continuar assim, use "Forçar atualização completa".`
+    case 'atualizado': return 'Você está na versão mais recente.'
+    default: return ''
+  }
+})
+const classeAtualizacao = computed(() => (
+  atualizacao.estado === 'atualizado' ? 'aj-atualiza--ok'
+    : ['nova', 'diferente'].includes(atualizacao.estado) ? 'aj-atualiza--nova'
+      : 'aj-atualiza--aviso'
+))
+
+async function buscarAtualizacao() {
+  if (atualizacao.buscando || atualizacao.forcando) return
+  atualizacao.buscando = true
+  try {
+    const r = await buscarAtualizacaoAgora()
+    atualizacao.estado = r.estado
+    atualizacao.publicada = r.publicada
+    atualizacao.quando = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    atualizacao.estado = 'erro'
+  } finally {
+    atualizacao.buscando = false
+  }
+}
+
+async function forcarAtualizacao() {
+  if (atualizacao.buscando || atualizacao.forcando) return
+  if (!confirm('Forçar atualização completa?\n\nO app apaga a cópia guardada de si mesmo e recarrega já com a versão publicada. Seus dados (pedidos, receitas, financeiro) NÃO são apagados.\n\nPrecisa de internet.')) return
+  atualizacao.forcando = true
+  try {
+    await forcarAtualizacaoCompleta() // recarrega a página se der certo
+  } catch (err) {
+    atualizacao.forcando = false
+    s.notify(err?.message || 'Não consegui forçar a atualização agora.')
+  }
+}
+
+async function copiarCommit() {
+  try {
+    await navigator.clipboard.writeText(commitCurto)
+    s.notify(`Commit ${commitCurto} copiado.`)
+  } catch {
+    s.notify(`Commit: ${commitCurto}`)
+  }
+}
 
 // ── Publicação no servidor (D1) ──
 // Sem token salvo aqui, o app continua publicando pelo GitHub como antes.
@@ -1288,6 +1384,15 @@ async function zerarDados() {
 .aj-grupo-cab { padding: 0 2px; }
 .aj-grupo-titulo { margin: 0; font-size: 1.02rem; font-weight: 800; line-height: 1.3; color: var(--brown-dark); }
 .aj-grupo-titulo--risco { color: var(--red); }
+.aj-commit { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85em; font-weight: 700; padding: 1px 8px; border: 1px solid var(--border, rgba(0,0,0,.15)); border-radius: 999px; background: var(--cream); color: var(--brown-dark); cursor: pointer; }
+.aj-atualiza { margin: 10px 16px 0; padding: 10px 12px; border-radius: var(--r-sm); font-size: .86rem; line-height: 1.4; }
+.aj-atualiza small { display: block; margin-top: 2px; opacity: .7; }
+.aj-atualiza--ok { background: rgba(46, 125, 50, .1); color: #2e7d32; }
+.aj-atualiza--nova { background: var(--cream); color: var(--brown-dark); font-weight: 600; }
+.aj-atualiza--aviso { background: rgba(198, 40, 40, .08); color: var(--red); }
+.aj-atualiza-avancado { margin: 4px 16px 16px; font-size: .84rem; }
+.aj-atualiza-avancado summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+.aj-atualiza-avancado p { margin: 8px 0; color: var(--muted); }
 .aj-grupo-desc { margin: 2px 0 0; font-size: .84rem; line-height: 1.45; color: var(--muted); }
 
 /* Cartão */

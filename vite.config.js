@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import { readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 
 // Detecta automaticamente o ambiente de publicação
 const isGitHubPages = process.env.GITHUB_ACTIONS === 'true'
@@ -11,6 +13,26 @@ const BASE = isGitHubPages ? '/ChocoBete/' : '/'
 // Muda a cada build → força o Service Worker a baixar de novo o index.html
 // (com revision: null ele nunca era atualizado nos aparelhos).
 const BUILD_ID = Date.now().toString()
+
+// ── Identificação da versão (aparece em Ajustes → Sistema → Versão e atualização) ──
+// Commit: o Cloudflare Pages informa em CF_PAGES_COMMIT_SHA; no GitHub Actions é GITHUB_SHA;
+// no seu computador vem do git. Se nada disso existir, fica vazio (a tela mostra só a data).
+function commitCurto() {
+  const doAmbiente = process.env.CF_PAGES_COMMIT_SHA || process.env.GITHUB_SHA || ''
+  if (doAmbiente) return doAmbiente.slice(0, 7)
+  try { return execSync('git rev-parse --short=7 HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { return '' }
+}
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+const APP_INFO = { versao: pkg.version, build: new Date(Number(BUILD_ID)).toISOString(), commit: commitCurto() }
+
+// Gera /version.json no build: é o que o app consulta pra saber qual versão está PUBLICADA.
+// (.json não entra na lista do cache offline, então a consulta sempre vai à rede.)
+const versaoJson = () => ({
+  name: 'chocobete-version-json',
+  generateBundle() {
+    this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify(APP_INFO) })
+  }
+})
 
 // Caminhos das páginas públicas do cardápio (o link que vai pro cliente).
 // O Cloudflare Pages serve essas páginas TANTO com ".html" no final quanto
@@ -23,8 +45,15 @@ const PUBLIC_MENU_PATHS = /\/pedido(-diaadia|-festa)?(\.html)?$/
 export default defineConfig({
   base: BASE,
 
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_INFO.versao),
+    __APP_BUILD__: JSON.stringify(APP_INFO.build),
+    __APP_COMMIT__: JSON.stringify(APP_INFO.commit)
+  },
+
   plugins: [
     vue(),
+    versaoJson(),
 
     VitePWA({
       registerType: 'prompt',
