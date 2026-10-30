@@ -1035,7 +1035,7 @@ const CSS_PEDIDO = `
  * Nada disso depende de internet, servidor ou conta — só do WhatsApp já
  * instalado no celular de quem for pedir.
  */
-export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao = false, cardapioId = '' }) {
+export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao = false, cardapioId = '', apiPedido = '' }) {
   const nome = config.nome_cardapio || empresa?.nome || 'Cardápio'
   const numero = numeroWhatsAppFormatado(empresa?.whatsapp_pedidos)
   const itensGlobais = grupos.flatMap(g => g.itens)
@@ -1070,7 +1070,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
   const taxaEntrega = cardapioId === 'diaadia' ? Number(config.taxa_entrega || 0) : 0
   const textoBotaoRevisar = novoFluxoAtivo ? 'Revisar pedido' : 'Confirmar pedido'
 
-  const dadosJs = itensGlobais.map(i => ({ nome: i.nome, preco: Number(i.preco || 0), categoria: i.categoria }))
+  const dadosJs = itensGlobais.map(i => ({ uuid: i.uuid, nome: i.nome, preco: apiPedido ? Math.round(Number(i.preco || 0) * 100) / 100 : Number(i.preco || 0), categoria: i.categoria }))
   const dadosJsonSeguro = JSON.stringify(dadosJs).replace(/</g, '\\u003c')
 
   // Pedido mínimo por categoria (ex: "Festa" precisa de um mínimo em R$ pra
@@ -1466,6 +1466,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     var CATEGORIA_FESTA = 'FESTA';
     var COM_ESCOLHA_RECEBIMENTO = ${JSON.stringify(comEscolhaRecebimento)};
     var TAXA_ENTREGA = ${JSON.stringify(taxaEntrega)};
+    var API_PEDIDO = ${JSON.stringify(apiPedido && !modoBalcao ? apiPedido : '')};
 
     // ── "ler mais" só aparece quando a descrição realmente estoura 2 linhas —
     // uma descrição curta (1 linha) não ganha esse link à toa. ──
@@ -1956,7 +1957,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       ultimoResumo.totalGeral = totalGeral;
     }
 
-    function confirmarEnvio() {
+    function confirmarEnvioInterno() {
       if (!ultimoResumo) return;
       var temEntrega = ultimoResumo.recebimento === 'entrega';
       var msg = 'Olá! Gostaria de fazer o seguinte pedido:\\n\\n' + ultimoResumo.linhas.join('\\n');
@@ -1983,6 +1984,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
         }
       }
       if (POLITICA_TEXTO) msg += '\\n\\n' + POLITICA_TEXTO;
+      if (CODIGO_PEDIDO) msg += '\\n\\nPedido nº ' + CODIGO_PEDIDO;
 
       var linkWhats = 'https://wa.me/' + NUMERO + '?text=' + encodeURIComponent(msg);
       document.getElementById('ip-modal-instrucao').style.display = 'none';
@@ -2136,7 +2138,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       var elConteudo = document.getElementById('ip-modal-conteudo');
       if (elConteudo) elConteudo.style.display = 'block';
     }
-    function confirmarEnvio() {
+    function confirmarEnvioInterno() {
       if (!ultimoResumo) return;
       var msg = 'Olá! Gostaria de fazer o seguinte pedido:\\n\\n' + ultimoResumo.linhas.join('\\n') + '\\n\\nTotal: ' + fmtBRL(ultimoResumo.total);
       if (ultimoResumo.valorPix) {
@@ -2145,6 +2147,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
           : '\\n\\n💳 Vou pagar via Pix: ' + fmtBRL(ultimoResumo.valorPix) + ' (mando o comprovante aqui)';
       }
       if (POLITICA_TEXTO) msg += '\\n\\n' + POLITICA_TEXTO;
+      if (CODIGO_PEDIDO) msg += '\\n\\nPedido nº ' + CODIGO_PEDIDO;
       // Marca que um pedido ficou "pendente de confirmação" — se a pessoa
       // voltar pro navegador (por não ter conseguido enviar, ou por engano),
       // a gente pergunta e oferece reabrir o WhatsApp. Ver checarRetornoPedido().
@@ -2152,6 +2155,89 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       window.location.href = 'https://wa.me/' + NUMERO + '?text=' + encodeURIComponent(msg);
     }
     `}
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Registro do pedido no servidor (D1). Só roda se o cardápio foi
+    // publicado com API (API_PEDIDO preenchido) e não é modo balcão.
+    // O servidor recalcula o total com os preços DELE; se não bater com o
+    // que a página mostrou, o pedido não segue. Se o servidor estiver fora
+    // do ar ou lento, o pedido segue pelo WhatsApp exatamente como antes.
+    // ═══════════════════════════════════════════════════════════════════
+    var CODIGO_PEDIDO = '';
+    var ultimoRegistro = null;
+    function novoPedidoId() {
+      var alfabeto = 'abcdefghjkmnpqrstuvwxyz23456789', id = 'p', i;
+      try {
+        var buf = new Uint8Array(14);
+        crypto.getRandomValues(buf);
+        for (i = 0; i < buf.length; i++) id += alfabeto.charAt(buf[i] % alfabeto.length);
+      } catch (e) {
+        for (i = 0; i < 14; i++) id += alfabeto.charAt(Math.floor(Math.random() * alfabeto.length));
+      }
+      return id;
+    }
+    function enderecoParaTexto(e) {
+      if (!e) return '';
+      return [e.rua, e.numero, e.complemento, e.bairro, e.referencia].filter(Boolean).join(', ');
+    }
+    function confirmarEnvio() {
+      if (!ultimoResumo) return;
+      if (!API_PEDIDO || MODO_BALCAO || typeof fetch !== 'function') { confirmarEnvioInterno(); return; }
+
+      var linhasApi = [];
+      for (var i = 0; i < ITENS.length; i++) {
+        if (qtds[i] > 0 && ITENS[i].uuid) linhasApi.push({ uuid: ITENS[i].uuid, qtd: qtds[i] });
+      }
+      if (!linhasApi.length) { confirmarEnvioInterno(); return; }
+
+      var recebimentoApi = ultimoResumo.recebimento === 'entrega' ? 'entrega' : 'retirada';
+      // Mesmo pedido reenviado (ex.: "abrir de novo") reaproveita o id; pedido diferente ganha id novo.
+      var assinatura = JSON.stringify([linhasApi, recebimentoApi]);
+      if (!ultimoRegistro || ultimoRegistro.assinatura !== assinatura) {
+        ultimoRegistro = { assinatura: assinatura, id: novoPedidoId() };
+      }
+      var end = ultimoResumo.endereco || null;
+      var corpo = {
+        cardapio_id: CARDAPIO_ID,
+        pedido_id: ultimoRegistro.id,
+        itens: linhasApi,
+        recebimento: recebimentoApi,
+        cliente_nome: end ? end.nome : '',
+        endereco: enderecoParaTexto(end)
+      };
+
+      var terminou = false;
+      function seguir() { if (terminou) return; terminou = true; confirmarEnvioInterno(); }
+      var timer = setTimeout(seguir, 8000);
+
+      fetch(API_PEDIDO, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
+        .then(function (r) { return r.json().then(function (d) { return { status: r.status, dados: d }; }); })
+        .then(function (res) {
+          if (terminou) return;
+          clearTimeout(timer);
+          var d = res.dados || {};
+          if (res.status === 200 && d.ok) {
+            var totalLocal = Math.round((ultimoResumo.totalGeral != null ? ultimoResumo.totalGeral : ultimoResumo.total) * 100);
+            if (d.total !== totalLocal) {
+              terminou = true;
+              alert('Os valores deste pedido foram atualizados. A página vai recarregar para você conferir de novo.');
+              location.reload();
+              return;
+            }
+            CODIGO_PEDIDO = String(ultimoRegistro.id).slice(-6).toUpperCase();
+            seguir();
+            return;
+          }
+          if (res.status === 422) {
+            terminou = true;
+            alert(d.erro || 'Não foi possível confirmar o pedido. A página vai recarregar.');
+            location.reload();
+            return;
+          }
+          seguir(); // 429, erro do servidor etc.: segue pelo WhatsApp como sempre foi
+        })
+        .catch(function () { if (!terminou) { clearTimeout(timer); seguir(); } });
+    }
 
     // ── Modo balcão: em vez de abrir o WhatsApp (não faz sentido quando é
     // você segurando o celular na frente do cliente), salva o pedido — com

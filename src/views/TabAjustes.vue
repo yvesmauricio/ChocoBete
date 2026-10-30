@@ -724,6 +724,30 @@
               </button>
             </div>
           </details>
+
+          <!-- Publicação no servidor (Cloudflare D1): substitui o token do GitHub -->
+          <details class="aj-card aj-colapso">
+            <summary class="aj-row">
+              <div class="aj-tile"><i class="fas fa-server"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-cabeca">
+                  <div class="aj-row-titulo">Servidor do Cardápio (D1)</div>
+                  <span class="aj-pill" :class="d1Configurado(d1) ? 'aj-pill--ok' : 'aj-pill--off'">{{ d1Configurado(d1) ? 'Ligado' : 'Desligado' }}</span>
+                </div>
+                <div class="aj-row-sub">Publica no servidor e confere os preços de cada pedido. Mais seguro que o token do GitHub.</div>
+              </div>
+            </summary>
+            <div class="aj-form">
+              <div class="fg">
+                <label class="label" for="aj-token-d1">Chave de administrador</label>
+                <input id="aj-token-d1" v-model="d1.token" class="input" type="password" placeholder="mesma chave do ADMIN_TOKEN" autocomplete="off" />
+                <span class="aj-nota">Deixe vazio para continuar publicando pelo GitHub. Esta chave só permite editar o cardápio, nada mais.</span>
+              </div>
+              <button class="btn btn-secondary" :disabled="d1Testando" @click="salvarServidor">
+                <i class="fas fa-floppy-disk"></i> {{ d1Testando ? 'Testando…' : 'Salvar e testar' }}
+              </button>
+            </div>
+          </details>
         </div>
 
         <div class="aj-grupo">
@@ -837,6 +861,7 @@ import {
   salvarTaxas 
 } from '../composables/useCaderneta.js'
 import { carregarConfigPublicacao, salvarConfigPublicacao } from '../services/githubPublish.js'
+import { carregarConfigD1, salvarConfigD1, testarConexaoD1, despublicarCardapioD1, d1Configurado } from '../services/d1Publish.js'
 import { statusBackupLocal, escolherPastaBackupLocal, reautorizarPastaBackupLocal, desconectarPastaBackupLocal } from '../services/localBackup.js'
 import BaseModal from '../components/BaseModal.vue'
 import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
@@ -869,6 +894,49 @@ const modulosYves = [
 // persistidos aqui) — só o token continua sendo digitado e salvo no app.
 const pub = reactive({ token: '', owner: '', repo: '', branch: 'main', caminho: 'public/pedido.html', dominio: '' })
 carregarConfigPublicacao().then(cfg => Object.assign(pub, cfg))
+
+// ── Publicação no servidor (D1) ──
+// Sem token salvo aqui, o app continua publicando pelo GitHub como antes.
+const d1 = reactive({ token: '' })
+const d1Testando = ref(false)
+carregarConfigD1().then(cfg => Object.assign(d1, cfg)).catch(() => {})
+
+async function salvarServidor() {
+  const token = String(d1.token || '').trim()
+  if (token && token.length < 32) {
+    s.notify('O token precisa ter pelo menos 32 caracteres. Gere um com: openssl rand -hex 32')
+    return
+  }
+  d1.token = token
+  const anterior = await carregarConfigD1().catch(() => ({ token: '' }))
+  if (!token && d1Configurado(anterior)) {
+    // Desligando: tira as versões do servidor do ar, senão elas continuariam à frente do arquivo do GitHub.
+    d1Testando.value = true
+    try {
+      await despublicarCardapioD1('diaadia', anterior)
+      await despublicarCardapioD1('festa', anterior)
+      await salvarConfigD1({ token: '' })
+      s.notify('Servidor desligado. Os links voltaram ao arquivo do GitHub; publique de novo para atualizar.')
+    } catch (err) {
+      d1.token = anterior.token // não perde o token se não conseguiu despublicar
+      s.notify('Não consegui desligar agora (' + (err?.message || 'sem conexão') + '). Tente de novo com internet.')
+    } finally {
+      d1Testando.value = false
+    }
+    return
+  }
+  await salvarConfigD1({ token })
+  if (!token) { s.notify('Publicação no servidor desligada. O app publica pelo GitHub.'); return }
+  d1Testando.value = true
+  try {
+    await testarConexaoD1({ token })
+    s.notify('Servidor conectado! O cardápio agora é publicado nele.')
+  } catch (err) {
+    s.notify((err?.message || 'Não consegui falar com o servidor.') + ' (token salvo mesmo assim)')
+  } finally {
+    d1Testando.value = false
+  }
+}
 
 async function salvarPublicacao() {
   // Salva o token normalmente, mas owner/repo/branch/dominio são sempre

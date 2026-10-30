@@ -781,6 +781,7 @@ import {
   garantirFontesCarregadas,
 } from '../composables/useCardapio.js'
 import { publicarArquivoGitHub, carregarConfigPublicacao, publicacaoConfigurada, urlPublicaFinal } from '../services/githubPublish.js'
+import { carregarConfigD1, d1Configurado, publicarCardapioD1 } from '../services/d1Publish.js'
 import { salvarPedidoCardapio, listarPedidosCardapio, atualizarStatusPedidoCardapio, excluirPedidoCardapio } from '../db.js'
 import BaseModal from '../components/BaseModal.vue'
 
@@ -892,9 +893,14 @@ function fecharOpcoesGrupo() {
 // WhatsApp de pedidos (Ajustes → Identidade) ainda não tenha sido definido.
 const numeroSugerido = computed(() => extrairTelefoneDeTexto(s.company.contato_etiqueta))
 const numeroEfetivoPedido = computed(() => s.company.whatsapp_pedidos || numeroSugerido.value)
+// Publicação no servidor (D1) ligada? Então o link é o "limpo" (/pedido-diaadia), que passa pela
+// função do servidor; sem isso (GitHub), continua o endereço .html de sempre.
+const configD1 = ref(null)
+const publicandoNoServidor = computed(() => d1Configurado(configD1.value))
+const semHtmlSeServidor = (url) => (publicandoNoServidor.value ? url.replace(/\.html$/, '') : url)
 const urlCardapioPublicado = computed(() => {
   if (!configPublicacao.value?.dominio) return ''
-  return urlPublicaFinal({ ...configPublicacao.value, caminho: `public/pedido-${cardapioAtivo.value}.html` })
+  return semHtmlSeServidor(urlPublicaFinal({ ...configPublicacao.value, caminho: `public/pedido-${cardapioAtivo.value}.html` }))
 })
 // Qual link mostrar/copiar: geral (/pedido, cliente escolhe) ou direto.
 const tipoLink = ref('escolha')
@@ -912,9 +918,9 @@ watch(cardapioAtivo, (id) => { if (tipoLink.value !== 'escolha') tipoLink.value 
 const urlLinkAtual = computed(() => {
   if (!configPublicacao.value?.dominio) return ''
   const o = opcoesLink.find(x => x.id === tipoLink.value) || opcoesLink[0]
-  return urlPublicaFinal({ ...configPublicacao.value, caminho: o.caminho })
+  return semHtmlSeServidor(urlPublicaFinal({ ...configPublicacao.value, caminho: o.caminho }))
 })
-const publicacaoDisponivel = computed(() => publicacaoConfigurada(configPublicacao.value))
+const publicacaoDisponivel = computed(() => publicacaoConfigurada(configPublicacao.value) || publicandoNoServidor.value)
 
 const busca = ref('')
 const expandido = ref(null)
@@ -953,6 +959,7 @@ onMounted(async () => {
   cardapioAtivo.value = abaPadrao.value
   const [, publicacao] = await Promise.all([carregarCardapioAtivo(), carregarConfigPublicacao(), carregarPedidosSalvos()])
   configPublicacao.value = publicacao
+  configD1.value = await carregarConfigD1().catch(() => null)
   await nextTick()
   // Modo "mostrar pro cliente": abre direto na tela cheia. Pra editar o
   // cardápio, é só tocar em "Editar cardápio" — volta pra esta tela normalmente.
@@ -1638,6 +1645,24 @@ async function copiarLinkPublicado() {
   }
 }
 
+/**
+ * Publica o cardápio. Com o servidor ligado (token em Ajustes), publica SÓ nele: a versão do
+ * servidor tem prioridade sobre o arquivo do GitHub, então publicar nos dois não adiantaria.
+ * Sem token, publica pelo GitHub exatamente como sempre foi.
+ * `html` é o HTML clássico (sem registro de pedidos), usado no GitHub.
+ */
+async function publicarCardapio({ html, cfgPub, usarServidor, empresaComNumero }) {
+  const caminho = `public/pedido-${cardapioAtivo.value}.html`
+  if (usarServidor) {
+    const htmlServidor = gerarHtmlPedidoInterativo({
+      config, grupos: gruposAtivos.value, empresa: empresaComNumero, cardapioId: cardapioAtivo.value, apiPedido: '/api/pedido',
+    })
+    await publicarCardapioD1({ id: cardapioAtivo.value, html: htmlServidor, config, grupos: gruposAtivos.value })
+    return { url: urlPublicaFinal({ ...cfgPub, caminho }).replace(/\.html$/, '') }
+  }
+  return publicarArquivoGitHub(html, { caminho })
+}
+
 async function gerarCardapioInterativo() {
   if (!todosItensAtivos.value.length) { s.notify?.('Ative pelo menos uma receita antes de gerar o cardápio.'); return }
   if (!numeroEfetivoPedido.value) {
@@ -1650,13 +1675,17 @@ async function gerarCardapioInterativo() {
     const html = gerarHtmlPedidoInterativo({ config, grupos: gruposAtivos.value, empresa: empresaComNumero, cardapioId: cardapioAtivo.value })
 
     const cfgPub = await carregarConfigPublicacao()
-    const linkPublicacao = urlPublicaFinal({ ...cfgPub, caminho: `public/pedido-${cardapioAtivo.value}.html` })
+    const cfgD1 = await carregarConfigD1().catch(() => null)
+    const usarServidor = d1Configurado(cfgD1)
+    const linkBase = urlPublicaFinal({ ...cfgPub, caminho: `public/pedido-${cardapioAtivo.value}.html` })
+    const linkPublicacao = usarServidor ? linkBase.replace(/\.html$/, '') : linkBase
     const textoCompartilhamento = `Confira o cardápio de ${config.nome_cardapio || s.company.nome || 'Cardápio'} e monte seu pedido aqui:`
 
-    if (publicacaoConfigurada(cfgPub) && linkPublicacao.startsWith('http')) {
+    if ((usarServidor || publicacaoConfigurada(cfgPub)) && linkPublicacao.startsWith('http')) {
       try {
-        const { url } = await publicarArquivoGitHub(html, { caminho: `public/pedido-${cardapioAtivo.value}.html` })
+        const { url } = await publicarCardapio({ html, cfgPub, usarServidor, empresaComNumero })
         configPublicacao.value = cfgPub
+        configD1.value = cfgD1
         const urlParaCompartilhar = urlLinkAtual.value || url || linkPublicacao
         const resultado = await compartilharLinkCardapio(urlParaCompartilhar, {
           title: `Cardápio ${config.nome_cardapio || s.company.nome || 'Cardápio'}`,
@@ -1670,7 +1699,7 @@ async function gerarCardapioInterativo() {
         }
         return
       } catch (err) {
-        s.notify?.('Não foi possível publicar o cardápio no GitHub. Enviando HTML como alternativa.')
+        s.notify?.(`Não foi possível publicar o cardápio ${usarServidor ? 'no servidor' : 'no GitHub'}. Enviando HTML como alternativa.`)
       }
     }
 
@@ -1709,8 +1738,10 @@ async function publicarLinkCardapioInterativo() {
     return
   }
   const cfgPub = await carregarConfigPublicacao()
-  if (!publicacaoConfigurada(cfgPub)) {
-    s.notify?.('Configure a publicação em Ajustes → Sistema (token do GitHub) antes de gerar o link.')
+  const cfgD1 = await carregarConfigD1().catch(() => null)
+  const usarServidor = d1Configurado(cfgD1)
+  if (!usarServidor && !publicacaoConfigurada(cfgPub)) {
+    s.notify?.('Configure a publicação em Ajustes → Sistema antes de gerar o link.')
     return
   }
   publicandoLink.value = true
@@ -1719,8 +1750,9 @@ async function publicarLinkCardapioInterativo() {
   try {
     const empresaComNumero = { ...s.company, whatsapp_pedidos: numeroEfetivoPedido.value }
     const html = gerarHtmlPedidoInterativo({ config, grupos: gruposAtivos.value, empresa: empresaComNumero, cardapioId: cardapioAtivo.value })
-    await publicarArquivoGitHub(html, { caminho: `public/pedido-${cardapioAtivo.value}.html` })
+    await publicarCardapio({ html, cfgPub, usarServidor, empresaComNumero })
     configPublicacao.value = cfgPub
+    configD1.value = cfgD1
     iniciarContagemLink()
   } catch (err) {
     linkStatus.value = 'idle'
