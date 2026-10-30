@@ -115,7 +115,10 @@ export default defineConfig({
             // "sem essa exceção" — ver PUBLIC_MENU_PATHS no topo do arquivo:
             // cobre tanto /pedido-diaadia.html quanto /pedido-diaadia (a
             // versão sem extensão que o Cloudflare também serve).
-            urlPattern: ({ url }) => PUBLIC_MENU_PATHS.test(url.pathname),
+            // ATENÇÃO: o Workbox copia esta função como TEXTO para dentro do sw.js, onde as
+            // variáveis deste arquivo (como PUBLIC_MENU_PATHS) NÃO existem. Por isso o regex
+            // fica escrito aqui dentro — mantenha igual ao PUBLIC_MENU_PATHS do topo.
+            urlPattern: ({ url }) => /\/pedido(-diaadia|-festa)?(\.html)?$/.test(url.pathname),
             handler: 'NetworkOnly'
           },
           {
