@@ -1648,7 +1648,7 @@ async function baixarPdf() {
 async function compartilharLinkCardapio(url, { title, text } = {}) {
   if (navigator.share) {
     try {
-      await navigator.share({ title, text, url })
+      await navigator.share({ title, text })
       return 'compartilhado'
     } catch {
       // Continua para fallback
@@ -1730,7 +1730,7 @@ async function gerarCardapioInterativo() {
         const { url } = await publicarCardapio({ html, cfgPub, usarServidor, empresaComNumero })
         configPublicacao.value = cfgPub
         configD1.value = cfgD1
-        const urlParaCompartilhar = urlLinkAtual.value || url 
+        const urlParaCompartilhar = urlLinkAtual.value || url || linkPublicacao
         const resultado = await compartilharLinkCardapio(urlParaCompartilhar, {
           title: `Cardápio ${config.nome_cardapio || s.company.nome || 'Cardápio'}`,
           text: `${textoCompartilhamento} ${urlParaCompartilhar}`,
