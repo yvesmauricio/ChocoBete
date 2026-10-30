@@ -29,22 +29,12 @@
       </div>
     </div>
 
-    <!-- ── Abas do cardápio ── indicador claro de qual cardápio está
-         aberto (nome + ícone + traço embaixo), e ao mesmo tempo o "alvo"
-         visual do swipe: arrasta o dedo pra esquerda/direita em qualquer
-         ponto do conteúdo abaixo pra trocar. Tocar na aba também troca,
-         pra quem prefere/usa mouse. -->
-    <div class="cp-tabs" :style="{ '--cp-seg-count': CARDAPIOS.length, '--cp-seg-index': cardapioAtivoIndex }">
-      <span class="cp-tabs-underline"></span>
-      <button v-for="c in CARDAPIOS" :key="c.id" class="cp-tab" :class="{ active: cardapioAtivo === c.id }"
-        @click="trocarCardapio(c.id)">
-        <i class="fas" :class="c.icone"></i> {{ c.label }}
-      </button>
-    </div>
+    <div class="cad-body cp-body">
 
-    <div class="cad-body cp-body" @touchstart.passive="onSwipeStart" @touchend="onSwipeEnd">
-
-      <!-- ── Modo balcão + compartilhar ──
+      <!-- ── Enviar / compartilhar (GLOBAL, fora das abas Festa/Dia a dia) ── 
+           Modo balcão + enviar + link + atalhos. Ficam antes das abas porque
+           são ações gerais; as abas abaixo só tratam do conteúdo de cada cardápio.
+          
            "Enviar cardápio" já atualiza o link (se a publicação estiver configurada) e abre o
            compartilhamento. "Atualizar link" só republica, sem enviar a ninguém: serve pra quem
            já divulgou o link (bio do Instagram, status) e quer que ele mostre as mudanças de agora. -->
@@ -77,7 +67,7 @@
             </div>
             <div class="cx-link-seg" role="tablist" aria-label="Tipo de link">
               <button v-for="o in opcoesLink" :key="o.id" type="button" role="tab" class="cx-link-seg-btn"
-                :class="{ 'cx-link-seg-btn--on': tipoLink === o.id }" :aria-selected="tipoLink === o.id" @click="tipoLink = o.id">{{ o.label }}</button>
+                :class="{ 'cx-link-seg-btn--on': tipoLink === o.id }" :aria-selected="tipoLink === o.id" @click="escolherTipoLink(o.id)">{{ o.label }}</button>
             </div>
             <a v-if="urlLinkAtual" :href="urlLinkAtual" class="cx-link-url" @click.prevent="abrirCardapioPublicado">
               <span>{{ urlLinkAtual.replace('https://', '').replace('http://', '') }}</span>
@@ -111,6 +101,23 @@
           </button>
         </div>
       </section>
+
+    <!-- ── Abas do cardápio ── indicador claro de qual cardápio está
+         aberto (nome + ícone + traço embaixo), e ao mesmo tempo o "alvo"
+         visual do swipe: arrasta o dedo pra esquerda/direita em qualquer
+         ponto do conteúdo abaixo pra trocar. Tocar na aba também troca,
+         pra quem prefere/usa mouse. -->
+    <div class="cp-tabs cp-tabs--sticky" :style="{ '--cp-seg-count': CARDAPIOS.length, '--cp-seg-index': cardapioAtivoIndex }">
+      <span class="cp-tabs-underline"></span>
+      <button v-for="c in CARDAPIOS" :key="c.id" class="cp-tab" :class="{ active: cardapioAtivo === c.id }"
+        @click="trocarCardapio(c.id)">
+        <i class="fas" :class="c.icone"></i> {{ c.label }}
+      </button>
+    </div>
+
+
+      <div class="cp-conteudo" @touchstart.passive="onSwipeStart" @touchend="onSwipeEnd">
+
 
       <p v-if="!todosItensAtivos.length" class="cp-aviso">
         <i class="fas fa-circle-info"></i> Nenhum item ativo ainda — ative pelo menos uma receita na lista abaixo pra gerar o cardápio.
@@ -286,6 +293,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -938,6 +946,12 @@ const opcoesLink = [
   { id: 'diaadia',  label: 'Dia a dia', caminho: 'public/pedido-diaadia.html', dica: 'Vai direto ao cardápio do dia a dia. Use quando o cliente já disse o que quer.' },
   { id: 'festa',    label: 'Festas',    caminho: 'public/pedido-festa.html',   dica: 'Vai direto ao cardápio de festas e encomendas.' },
 ]
+function escolherTipoLink(id) {
+  tipoLink.value = id
+  // Link direto de um cardápio = aquele cardápio fica ativo (é ele que "Enviar"/"Atualizar" publicam)
+  if (id !== 'escolha') trocarCardapio(id)
+}
+watch(cardapioAtivo, (id) => { if (tipoLink.value !== 'escolha') tipoLink.value = id })
 const urlLinkAtual = computed(() => {
   if (!configPublicacao.value?.dominio) return ''
   const o = opcoesLink.find(x => x.id === tipoLink.value) || opcoesLink[0]
@@ -1686,7 +1700,7 @@ async function gerarCardapioInterativo() {
       try {
         const { url } = await publicarArquivoGitHub(html, { caminho: `public/pedido-${cardapioAtivo.value}.html` })
         configPublicacao.value = cfgPub
-        const urlParaCompartilhar = url || linkPublicacao
+        const urlParaCompartilhar = urlLinkAtual.value || url || linkPublicacao
         const resultado = await compartilharLinkCardapio(urlParaCompartilhar, {
           title: `Cardápio ${config.nome_cardapio || s.company.nome || 'Cardápio'}`,
           text: `${textoCompartilhamento} ${urlParaCompartilhar}`,
@@ -1863,6 +1877,8 @@ async function publicarLinkCardapioInterativo() {
 .cad-empty-ico { font-size: 40px; margin-bottom: 10px; }
 
 .cp-body { display: flex; flex-direction: column; gap: 14px; }
+.cp-conteudo { display: flex; flex-direction: column; gap: 14px; }
+.cp-tabs--sticky { position: sticky; top: -14px; z-index: 3; margin: 0 -16px; flex-shrink: 0; }
 
 
 /* Ação principal do dia a dia: abrir o cardápio em tela cheia (modo balcão).
@@ -2226,7 +2242,7 @@ async function publicarLinkCardapioInterativo() {
 /* ══════════════════════════════════════════════════════════════
    Cardápio no app (classes cx-*)
 ══════════════════════════════════════════════════════════════ */
-.cp-body { gap: 16px; }
+.cp-body, .cp-conteudo { gap: 16px; }
 .cx-compartilhar { display: flex; flex-direction: column; gap: 12px; }
 
 /* Modo balcão: o botão que quem atende precisa achar de primeira */
