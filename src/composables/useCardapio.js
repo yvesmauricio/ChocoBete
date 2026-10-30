@@ -243,118 +243,120 @@ export function redimensionarImagem(arquivo, { maxLado = 640, qualidade = 0.82 }
 // de WhatsApp) usava antes.
 const GOOGLE_FONTS_URL_CARDAPIO = 'https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Gelasio:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap'
 
-// ── Tema "Resumo pra vender" — folha única A5, fundo branco, pensada pra
-// caber tudo (10-20 itens) numa olhada só: 2 colunas fluindo com CSS
-// multi-coluna (se ajusta sozinho ao número de itens, sem precisar calcular
-// quantas linhas cabem), sem foto grande de capa, sem política de encomenda
-// (isso é conversa de fechar pedido, não de vitrine) — só nome, preço,
-// descrição curta e, no rodapé, um QR code pro cardápio online pra quem
-// preferir pedir pelo celular. ──
+// ── Resumo em PDF — meia folha A4 (A5, 148×210 mm), pronto pra imprimir ──
+// Mesma identidade dos cardápios publicados (tema leve): fundo creme, vinho e
+// rosé, títulos em Gelasio (serifa), corpo em Plus Jakarta Sans, cabeçalho
+// centralizado com o filete ornamental e categorias em faixa rosé. Tudo que é
+// tamanho de letra usa "em" em cima de --u, pra a geração poder reduzir a
+// escala sozinha e garantir 1 folha só quando o cardápio tem muitos itens.
 const CSS_CARDAPIO_COMPACTO = `
   @import url('${GOOGLE_FONTS_URL_CARDAPIO}');
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: #fff; color: #3d1f07; font-family: 'Plus Jakarta Sans', sans-serif; }
+  html, body { background: #FBF5EC; }
   .cardapio-compacto {
-    width: 148mm; min-height: 210mm; margin: 0 auto;
-    padding: 10mm; background: #fff; display: flex; flex-direction: column;
+    --vinho: #5A2F3B; --rose: #B58A94; --rose-claro: #F6E9EC; --creme: #FBF5EC; --cinza: #4A4A4A; --desc: #6b6068; --borda: #EADDE0;
+    --u: 1;
+    font-size: calc(10pt * var(--u));
+    width: 148mm; min-height: 210mm; padding: 11mm 10mm 9mm; background: var(--creme); color: var(--cinza);
+    font-family: 'Plus Jakarta Sans', sans-serif; display: flex; flex-direction: column;
+    -webkit-font-smoothing: antialiased;
   }
   @media print {
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-    html, body { background: #fff; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    @page { size: 148mm 210mm; margin: 0; }
   }
 
-  .cc-topo { text-align: center; margin-bottom: 4mm; }
-  .cc-topo .selo {
-    width: 34px; height: 34px; margin: 0 auto 2mm; border-radius: 50%;
-    border: 1.5px solid #c49a6c; display: flex; align-items: center; justify-content: center;
-    font-size: 17px; background: #f0e8d8;
-  }
-  .cc-topo .marca { font-family: 'Caveat', cursive; font-weight: 700; font-size: 22pt; color: #2a1504; }
-  .cc-topo .subtitulo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 9pt; color: #7a4520; margin-top: .5mm; }
-  .cc-divisor { height: 1px; background: linear-gradient(90deg, transparent, #c49a6c, transparent); margin-bottom: 4mm; }
+  /* Cabeçalho centralizado: marca em serifa, filete, subtítulo espaçado */
+  .cc-topo { text-align: center; margin-bottom: 5mm; }
+  .cc-marca { font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: 2.5em; line-height: 1.1; color: var(--vinho); }
+  .cc-fio { display: block; width: 30mm; height: 2.6mm; margin: 2.2mm auto 1.6mm; }
+  .cc-subtitulo { font-size: .85em; font-weight: 500; letter-spacing: .22em; text-transform: uppercase; color: var(--cinza); }
 
-  .cc-itens { flex: 1; column-count: 2; column-gap: 6mm; }
-  .cc-categoria-titulo {
-    font-family: 'Caveat', cursive; font-weight: 700; font-size: 14pt; color: #2a1504;
-    break-after: avoid-column; break-inside: avoid;
-    margin: 3mm 0 1.5mm;
+  /* Itens em 2 colunas que se ajustam sozinhas */
+  .cc-itens { flex: 1; column-count: 2; column-gap: 7mm; }
+  .cc-categoria {
+    break-after: avoid-column; break-inside: avoid; margin: 3.6mm 0 2mm;
+    padding: 1.6mm 3mm; border-radius: 2.2mm; background: var(--rose-claro);
+    font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: 1.15em; color: var(--vinho);
   }
-  .cc-categoria-titulo:first-child { margin-top: 0; }
-  .cc-item { break-inside: avoid; margin-bottom: 2.8mm; }
-  .cc-item-linha1 { display: flex; align-items: baseline; justify-content: space-between; gap: 4mm; }
-  .cc-item-nome { font-weight: 700; font-size: 9.5pt; color: #3d1f07; line-height: 1.25; }
-  .cc-item-preco { font-weight: 800; font-size: 9pt; color: #7a4520; white-space: nowrap; }
-  .cc-item-desc {
-    font-size: 7.5pt; color: #8c7260; line-height: 1.3; margin-top: .4mm;
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden;
-  }
+  .cc-grupo { break-inside: avoid; }
+  .cc-grupo:first-child .cc-categoria { margin-top: 0; }
+  .cc-item { break-inside: avoid; padding: 1.7mm 0; border-bottom: .25mm solid #F1E6E8; }
+  .cc-item-linha1 { display: flex; align-items: baseline; justify-content: space-between; gap: 3mm; }
+  .cc-item-nome { font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: .98em; line-height: 1.25; color: var(--vinho); }
+  .cc-item-preco { font-weight: 600; font-size: .92em; color: var(--vinho); white-space: nowrap; }
+  .cc-item-desc { font-size: .78em; color: var(--desc); line-height: 1.35; margin-top: .6mm; }
   .cc-item-selo {
-    display: inline-block; font-size: 6pt; font-weight: 700; letter-spacing: .3px;
-    text-transform: uppercase; color: #fff; background: #c8890a;
-    padding: 1px 4px; border-radius: 999px; margin-left: 4px; vertical-align: middle;
+    display: inline-block; margin-left: 1.5mm; padding: .2mm 1.6mm; border-radius: 999px; vertical-align: middle;
+    background: var(--rose-claro); border: .25mm solid var(--rose); color: var(--vinho);
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: .62em; letter-spacing: .02em; white-space: nowrap;
   }
 
-  .cc-rodape {
-    margin-top: 4mm; border-radius: 8px; background: #f0e8d8;
-    padding: 3.5mm 4mm; display: flex; align-items: center; gap: 4mm;
-  }
-  .cc-rodape-qr { width: 20mm; height: 20mm; flex-shrink: 0; background: #fff; border-radius: 4px; padding: 1.5mm; }
+  /* Rodapé: QR do cardápio online (ou mensagem + contato) */
+  .cc-rodape { margin-top: 5mm; padding: 3.2mm 4mm; border: .3mm solid var(--rose); border-radius: 3mm; background: #fff; display: flex; align-items: center; gap: 4mm; }
+  .cc-rodape-qr { width: 21mm; height: 21mm; flex-shrink: 0; }
   .cc-rodape-qr svg { width: 100%; height: 100%; display: block; }
   .cc-rodape-texto { flex: 1; min-width: 0; }
-  .cc-rodape-titulo { font-family: 'Caveat', cursive; font-weight: 700; font-size: 13pt; color: #2a1504; line-height: 1.15; }
-  .cc-rodape-link { font-size: 7.5pt; color: #7a4520; word-break: break-all; margin-top: .5mm; }
-  .cc-rodape-simples { margin-top: 4mm; text-align: center; }
-  .cc-rodape-simples .msg { font-family: 'Caveat', cursive; font-weight: 700; font-size: 13pt; color: #7a4520; }
-  .cc-rodape-simples .contato { font-size: 8pt; color: #8c7260; margin-top: 1mm; }
+  .cc-rodape-titulo { font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: 1.1em; line-height: 1.2; color: var(--vinho); }
+  .cc-rodape-link { font-size: .72em; color: var(--desc); word-break: break-all; margin-top: 1mm; }
+  .cc-rodape-simples { margin-top: 5mm; text-align: center; }
+  .cc-rodape-simples .msg { font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: 1.1em; color: var(--vinho); }
+  .cc-rodape-simples .contato { font-size: .8em; color: var(--desc); margin-top: 1mm; }
 `
+
+// Filete ornamental (o mesmo dos cardápios publicados): linha, losango, linha
+const FIO_ORNAMENTO_SVG = `<svg class="cc-fio" viewBox="0 0 120 10" aria-hidden="true"><path d="M0 5H46M74 5H120" stroke="#B58A94" stroke-width="1" fill="none"/><path d="M60 .5L64.5 5 60 9.5 55.5 5z" fill="#B58A94"/></svg>`
 
 function renderItemCompacto(item) {
   return `
     <div class="cc-item">
       <div class="cc-item-linha1">
-        <span class="cc-item-nome">${item.nome}${item.destaque ? '<span class="cc-item-selo">★ Mais pedido</span>' : ''}</span>
+        <span class="cc-item-nome">${escHtml(item.nome)}${item.destaque ? '<span class="cc-item-selo">★ Mais pedido</span>' : ''}</span>
         <span class="cc-item-preco">${R$(item.preco)}</span>
       </div>
-      ${item.descricao ? `<div class="cc-item-desc">${item.descricao}</div>` : ''}
+      ${item.descricao ? `<div class="cc-item-desc">${escHtml(item.descricao)}</div>` : ''}
     </div>`
 }
 
 function renderCategoriaCompacta(grupo) {
+  // Cada categoria é um bloco que não se parte entre colunas (o título nunca fica sem os itens)
   return `
-    <div class="cc-categoria-titulo">${grupo.categoria}</div>
-    ${grupo.itens.map(renderItemCompacto).join('')}`
+    <div class="cc-grupo">
+      <div class="cc-categoria">${escHtml(grupo.categoria)}</div>
+      ${grupo.itens.map(renderItemCompacto).join('')}
+    </div>`
 }
 
-/** Monta o documento HTML do modelo "Resumo pra vender" (folha única, A5). */
+/** Monta o documento HTML do "Resumo em PDF" (meia folha A4 = A5). */
 function cardapioCompactoDocHtml({ config, grupos, empresa, linkOnline }) {
   const nome = config.nome_cardapio || empresa?.nome || 'Cardápio'
   const instaImpresso = normalizarInstagram(empresa?.instagram)
   const contato = [empresa?.contato_etiqueta || '', instaImpresso ? '@' + instaImpresso : ''].filter(Boolean).join(' · ')
-  const svgQr = linkOnline ? gerarQrSvg(linkOnline, { cellSize: 4, margin: 2 }) : null
+  const svgQr = linkOnline ? gerarQrSvg(linkOnline, { cellSize: 4, margin: 1 }) : null
 
   const rodape = svgQr
     ? `
     <div class="cc-rodape">
       <div class="cc-rodape-qr">${svgQr}</div>
       <div class="cc-rodape-texto">
-        <div class="cc-rodape-titulo">📱 Peça também pelo cardápio online</div>
-        <div class="cc-rodape-link">${linkOnline}</div>
+        <div class="cc-rodape-titulo">Peça também pelo cardápio online</div>
+        <div class="cc-rodape-link">${escHtml(String(linkOnline).replace(/^https?:\/\//, ''))}</div>
+        ${contato ? `<div class="cc-rodape-link">${escHtml(contato)}</div>` : ''}
       </div>
     </div>`
     : `
     <div class="cc-rodape-simples">
-      <div class="msg">${config.mensagem_rodape || ''}</div>
-      ${contato ? `<div class="contato">${contato}</div>` : ''}
+      <div class="msg">${escHtml(config.mensagem_rodape || '')}</div>
+      ${contato ? `<div class="contato">${escHtml(contato)}</div>` : ''}
     </div>`
 
   return `
   <div class="cardapio-compacto">
     <div class="cc-topo">
-      <div class="selo">${seloMarca(empresa)}</div>
-      <div class="marca">${nome}</div>
-      <div class="subtitulo">${config.subtitulo || ''}</div>
+      <div class="cc-marca">${escHtml(nome)}</div>
+      ${FIO_ORNAMENTO_SVG}
+      ${config.subtitulo ? `<div class="cc-subtitulo">${escHtml(config.subtitulo)}</div>` : ''}
     </div>
-    <div class="cc-divisor"></div>
     <div class="cc-itens">
       ${grupos.map(renderCategoriaCompacta).join('')}
     </div>
@@ -363,10 +365,10 @@ function cardapioCompactoDocHtml({ config, grupos, empresa, linkOnline }) {
 }
 
 /**
- * Gera o PDF do modelo "Resumo pra vender": folha única A5, fundo branco,
- * 2 colunas, com QR code pro cardápio online no rodapé (quando publicado).
- * Mesma técnica das imagens pro WhatsApp (html2canvas + jsPDF), mas sempre A5 e
- * sempre 1 página só — não precisa escolher tamanho.
+ * Gera o PDF "Resumo": meia folha A4 (A5 retrato, 148×210 mm), 1 página só.
+ * Captura em alta resolução (≈300 dpi) pra imprimir nítido. Se tiver itens
+ * demais, reduz a escala das letras (até um limite legível) em vez de cortar
+ * ou espremer a imagem.
  */
 export async function gerarPdfCardapioCompacto({ config, grupos, empresa, linkOnline }) {
   const [html2canvas, jsPDF] = await Promise.all([getHtml2Canvas(), getJsPDF()])
@@ -379,35 +381,41 @@ export async function gerarPdfCardapioCompacto({ config, grupos, empresa, linkOn
   document.body.appendChild(wrapper)
   await garantirFontesCarregadas()
 
+  const el = wrapper.querySelector('.cardapio-compacto')
+  // 210 mm em pixels CSS (96 dpi); se passar, reduz a escala das letras aos poucos
+  const alturaMaxPx = (210 / 25.4) * 96
+  let u = 1
+  while (el.offsetHeight > alturaMaxPx + 1 && u > 0.55) {
+    u = Math.round((u - 0.04) * 100) / 100
+    el.style.setProperty('--u', String(u))
+  }
+
   let canvas
   try {
-    canvas = await html2canvas(wrapper.querySelector('.cardapio-compacto'), {
-      backgroundColor: '#ffffff',
-      scale: 2,
+    canvas = await html2canvas(el, {
+      backgroundColor: '#FBF5EC',
+      scale: 4, // 148 mm ≈ 559 px × 4 ≈ 2236 px de largura (~380 dpi)
       useCORS: true,
+      width: el.offsetWidth,
+      height: Math.min(el.offsetHeight, Math.ceil(alturaMaxPx)),
     })
   } finally {
     document.body.removeChild(wrapper)
   }
 
-  const imgData = canvas.toDataURL('image/jpeg', 0.95)
-  const pdf = new jsPDF('p', 'mm', 'a5')
-  const pageWidth = pdf.internal.pageSize.getWidth()
-  const pageHeight = pdf.internal.pageSize.getHeight()
-  const alturaImagemMm = (canvas.height * pageWidth) / canvas.width
-  // Se o conteúdo (com muitos itens) acabar passando um pouco da folha,
-  // encolhe pra caber inteiro numa página só — é sempre 1 folha, nunca 2.
-  const escala = Math.min(1, pageHeight / alturaImagemMm)
-  const larguraPdf = pageWidth * escala
-  const alturaPdf = alturaImagemMm * escala
-  const xOffset = (pageWidth - larguraPdf) / 2
-  const yOffset = escala < 1 ? 0 : (pageHeight - alturaPdf) / 2
-
-  pdf.addImage(imgData, 'JPEG', xOffset, yOffset, larguraPdf, alturaPdf)
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' })
+  const larguraPagina = pdf.internal.pageSize.getWidth()   // 148
+  const alturaPagina = pdf.internal.pageSize.getHeight()   // 210
+  // Pinta a folha toda de creme (garante que não sobra borda branca) e
+  // encaixa a imagem de cima pra baixo, sem distorcer.
+  pdf.setFillColor(251, 245, 236)
+  pdf.rect(0, 0, larguraPagina, alturaPagina, 'F')
+  const alturaImagem = Math.min(alturaPagina, (canvas.height * larguraPagina) / canvas.width)
+  pdf.addImage(canvas.toDataURL('image/jpeg', 0.97), 'JPEG', 0, 0, larguraPagina, alturaImagem)
 
   const nome = config.nome_cardapio || empresa?.nome || 'cardapio'
-  const slug = nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-  pdf.save(`${slug || 'cardapio'}-resumo.pdf`)
+  const slug = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  pdf.save(`${slug || 'cardapio'}-resumo-a5.pdf`)
 }
 
 function iconeOuFoto(item) {
@@ -509,6 +517,7 @@ export function garantirFontesCarregadas() {
   }).then(async () => {
     try {
       await Promise.all([
+        document.fonts.load('700 30pt "Gelasio"'),
         document.fonts.load('700 30pt "Caveat"'),
         document.fonts.load('600 15pt "Caveat"'),
         document.fonts.load('700 12pt "Plus Jakarta Sans"'),

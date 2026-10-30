@@ -50,7 +50,7 @@
             <span class="cx-tile cx-tile--ouro"><i class="fas fa-share-nodes"></i></span>
             <div class="cx-card-tit">
               <h3>Enviar ao cliente</h3>
-              <p>{{ publicacaoDisponivel ? 'Atualiza o link do cardápio e abre o WhatsApp (ou outro app) para você enviar.' : 'Gera o cardápio e abre o WhatsApp (ou outro app) para você enviar.' }}</p>
+              <p>{{ publicacaoDisponivel ? 'Atualiza o link e abre o WhatsApp para enviar.' : 'Gera o cardápio e abre o WhatsApp para enviar.' }}</p>
             </div>
           </div>
           <button class="cx-btn-enviar" :disabled="gerandoPedidoInterativo" @click="gerarCardapioInterativo">
@@ -81,12 +81,12 @@
                 <i class="fas fa-copy"></i> Copiar link
               </button>
               <button class="cx-btn-sec" :disabled="publicandoLink || linkStatus === 'aguardando'" @click="publicarLinkCardapioInterativo"
-                title="Atualiza o link que você já divulgou (bio, status) com as mudanças de agora, sem enviar nada a ninguém">
+               >
                 <i class="fas" :class="publicandoLink ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-up'"></i>
                 {{ publicandoLink ? 'Atualizando…' : linkStatus === 'aguardando' ? `Atualizar (${linkSegundosRestantes}s)` : 'Atualizar link' }}
               </button>
             </div>
-            <p class="cx-nota">Mudou preço ou item? Toque em <strong>Atualizar link</strong>: quem já tem o link (bio do Instagram, status) passa a ver a versão nova. Suas edições ficam salvas aqui na hora, mas só vão para o link quando você atualiza.</p>
+            <p class="cx-nota">Mudou preço ou item? Toque em <strong>Atualizar link</strong> para quem já tem o link (bio, status) ver a versão nova.</p>
           </div>
           <p v-else class="cx-nota cx-nota--solta">Para enviar um <strong>link</strong> em vez de um arquivo, configure a publicação em <button type="button" class="cp-link-inline" @click="s.setTab('ajustes')">Ajustes → Sistema</button>.</p>
         </div>
@@ -96,8 +96,11 @@
             <i class="fas fa-clipboard-list"></i><span>Pedidos</span>
             <span v-if="pedidosPendentesCount" class="cx-badge">{{ pedidosPendentesCount }}</span>
           </button>
+          <button class="cx-atalho" :disabled="gerandoPdf" @click="baixarPdf" title="Folha única (A5) com QR code do cardápio online">
+            <i class="fas" :class="gerandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i><span>{{ gerandoPdf ? 'Gerando…' : 'PDF' }}</span>
+          </button>
           <button class="cx-atalho" @click="configModalAberto = true">
-            <i class="fas fa-gear"></i><span>Configurações</span>
+            <i class="fas fa-gear"></i><span>Ajustes</span>
           </button>
         </div>
       </section>
@@ -196,53 +199,8 @@
               </button>
             </div>
 
-<!-- Painel expandido: blocos curtos e rotulados, na ordem em que a pessoa mexe -->
+<!-- Painel expandido: o que mais se mexe primeiro (preço), foto por último -->
             <div v-if="expandido === r.uuid" class="cp-item-painel cx-painel">
-
-              <div class="cx-bloco">
-                <div class="cx-bloco-tit"><i class="fas fa-camera"></i> Foto</div>
-                <div class="cx-foto">
-                  <div class="cx-foto-prev">
-                    <img v-if="itemCfg(r.uuid).foto" :src="itemCfg(r.uuid).foto" alt="">
-                    <span v-else>{{ itemCfg(r.uuid).emoji || '🍫' }}</span>
-                  </div>
-                  <div class="cx-foto-btns">
-                    <label class="cx-btn-sec cx-btn-upload">
-                      <input type="file" accept="image/*" hidden @change="e => onFotoSelecionada(r, e)">
-                      <i class="fas fa-camera"></i> {{ itemCfg(r.uuid).foto ? 'Trocar foto' : 'Adicionar foto' }}
-                    </label>
-                    <button v-if="itemCfg(r.uuid).foto" class="cx-btn-sec cx-btn-perigo" @click="itemCfg(r.uuid).foto = null; salvar()">
-                      <i class="fas fa-trash"></i> Remover
-                    </button>
-                  </div>
-                </div>
-                <details class="cx-saiba">
-                  <summary>Quais fotos funcionam?</summary>
-                  <p>JPG, PNG ou WEBP, qualquer tamanho — é redimensionada e comprimida automaticamente. Fotos de iPhone em HEIC podem não abrir; se der problema, exporte como JPG antes.</p>
-                </details>
-                <label v-if="!itemCfg(r.uuid).foto" class="cp-field cx-emoji-campo">
-                  <span>Sem foto? Escolha um emoji</span>
-                  <input v-model="itemCfg(r.uuid).emoji" maxlength="4" @change="salvar">
-                </label>
-              </div>
-
-              <div class="cx-bloco">
-                <div class="cp-field-cabecalho">
-                  <div class="cx-bloco-tit"><i class="fas fa-align-left"></i> Descrição curta</div>
-                  <span class="cx-contador">{{ (itemCfg(r.uuid).descricao || '').length }}/120</span>
-                </div>
-                <textarea v-model="itemCfg(r.uuid).descricao" maxlength="120" rows="2" class="cx-textarea"
-                  placeholder="Ex: trufa de chocolate belga com recheio de doce de leite"
-                  @change="salvar"></textarea>
-                <div class="cp-field-cabecalho-btns">
-                  <button type="button" class="cp-copiar-btn" @click="abrirCopiarDeOutroItem(r)">
-                    <i class="fas fa-copy"></i> Copiar de outro item
-                  </button>
-                  <button type="button" class="cp-ia-btn" @click="copiarPromptDescricao(r)">
-                    <i class="fas fa-wand-magic-sparkles"></i> Pedir ideia à IA
-                  </button>
-                </div>
-              </div>
 
               <div class="cx-bloco">
                 <label class="cp-field">
@@ -264,9 +222,29 @@
                       class="input input-prefixed" type="text" inputmode="numeric" placeholder="0,00"
                     >
                   </div>
-                  <div class="cx-nota">Esse preço também atualiza o preço de venda sugerido na receita.</div>
+                  <div class="cx-nota">Também atualiza o preço de venda da receita.</div>
                 </label>
               </div>
+
+
+              <div class="cx-bloco">
+                <div class="cp-field-cabecalho">
+                  <div class="cx-bloco-tit"><i class="fas fa-align-left"></i> Descrição curta</div>
+                  <span class="cx-contador">{{ (itemCfg(r.uuid).descricao || '').length }}/120</span>
+                </div>
+                <textarea v-model="itemCfg(r.uuid).descricao" maxlength="120" rows="2" class="cx-textarea"
+                  placeholder="Ex: trufa de chocolate belga com recheio de doce de leite"
+                  @change="salvar"></textarea>
+                <div class="cp-field-cabecalho-btns">
+                  <button type="button" class="cp-copiar-btn" @click="abrirCopiarDeOutroItem(r)">
+                    <i class="fas fa-copy"></i> Copiar de outro item
+                  </button>
+                  <button type="button" class="cp-ia-btn" @click="copiarPromptDescricao(r)">
+                    <i class="fas fa-wand-magic-sparkles"></i> Pedir ideia à IA
+                  </button>
+                </div>
+              </div>
+
 
               <div class="cx-bloco cx-bloco--lista">
                 <label class="cx-linha-switch">
@@ -274,16 +252,37 @@
                   <input type="checkbox" role="switch" class="cx-switch" v-model="itemCfg(r.uuid).destaque" @change="salvar">
                 </label>
                 <label class="cx-linha-switch">
-                  <span class="cx-linha-txt"><strong><i class="fas fa-clock"></i> Sob encomenda</strong><small>Sem entrega na hora: o cliente vê o aviso.</small></span>
+                  <span class="cx-linha-txt"><strong><i class="fas fa-clock"></i> Sob encomenda</strong><small>Fica pedível, com aviso e o prazo das Configurações.</small></span>
                   <input type="checkbox" role="switch" class="cx-switch" v-model="itemCfg(r.uuid).sob_encomenda" @change="salvar">
                 </label>
-                <details v-if="itemCfg(r.uuid).sob_encomenda" class="cx-saiba cx-saiba--dentro">
-                  <summary>Como isso funciona?</summary>
-                  <p>Continua visível e pedível no cardápio, só que com o aviso “Sob encomenda” — o cliente já sabe que precisa esperar. Usa o mesmo prazo e sinal configurados em Configurações → Pedidos e pagamento deste cardápio.</p>
-                </details>
               </div>
 
-              <div class="cx-ordem">
+              <div class="cx-bloco">
+                <div class="cx-bloco-tit"><i class="fas fa-camera"></i> Foto</div>
+                <div class="cx-foto">
+                  <div class="cx-foto-prev">
+                    <img v-if="itemCfg(r.uuid).foto" :src="itemCfg(r.uuid).foto" alt="">
+                    <span v-else>{{ itemCfg(r.uuid).emoji || '🍫' }}</span>
+                  </div>
+                  <div class="cx-foto-btns">
+                    <label class="cx-btn-sec cx-btn-upload">
+                      <input type="file" accept="image/*" hidden @change="e => onFotoSelecionada(r, e)">
+                      <i class="fas fa-camera"></i> {{ itemCfg(r.uuid).foto ? 'Trocar foto' : 'Adicionar foto' }}
+                    </label>
+                    <button v-if="itemCfg(r.uuid).foto" class="cx-btn-sec cx-btn-perigo" @click="itemCfg(r.uuid).foto = null; salvar()">
+                      <i class="fas fa-trash"></i> Remover
+                    </button>
+                  </div>
+                </div>
+                <p class="cx-nota">JPG, PNG ou WEBP (reduzida sozinha). Foto HEIC do iPhone pode falhar: exporte como JPG.</p>
+                <label v-if="!itemCfg(r.uuid).foto" class="cp-field cx-emoji-campo">
+                  <span>Sem foto? Escolha um emoji</span>
+                  <input v-model="itemCfg(r.uuid).emoji" maxlength="4" @change="salvar">
+                </label>
+              </div>
+
+
+<div class="cx-ordem">
                 <span class="cx-ordem-lbl">Posição na lista</span>
                 <div class="cx-ordem-btns">
                   <button type="button" class="cx-btn-sec" @click="mover(r, -1)"><i class="fas fa-arrow-up"></i> Subir</button>
@@ -309,14 +308,14 @@
       </template>
       <div class="cp-modal-config-body">
 
-        <!-- ── Capa e textos ── -->
+        <!-- ── 1. Capa e textos ── -->
         <div class="cx-sec">
-          <button class="cx-sec-cab" :aria-expanded="configAberta" @click="configAberta = !configAberta">
+          <button class="cx-sec-cab" :aria-expanded="secaoConfig === 'capa'" @click="alternarSecaoConfig('capa')">
             <span class="cx-tile"><i class="fas fa-pen"></i></span>
             <span class="cx-sec-txt"><strong>Capa e textos</strong><small>{{ config.nome_cardapio || s.company.nome || 'Meu cardápio' }}</small></span>
-            <i class="fas cx-seta" :class="configAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            <i class="fas cx-seta" :class="secaoConfig === 'capa' ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </button>
-          <div v-if="configAberta" class="cx-sec-corpo">
+          <div v-if="secaoConfig === 'capa'" class="cx-sec-corpo">
             <label class="cp-field">
               <span>Nome do cardápio</span>
               <input v-model="config.nome_cardapio" :placeholder="s.company.nome || 'Meu cardápio'" @change="salvar">
@@ -329,21 +328,21 @@
               <span>Mensagem no rodapé</span>
               <input v-model="config.mensagem_rodape" placeholder="Peça já e encomende o seu! 🍫" @change="salvar">
             </label>
-            <p class="cx-nota">O contato do rodapé é o mesmo texto configurado em Ajustes → dados usados na etiqueta.</p>
+            <p class="cx-nota">O contato do rodapé vem de Ajustes → dados usados na etiqueta.</p>
           </div>
         </div>
 
-        <!-- ── Pedidos e pagamento ── -->
+        <!-- ── 2. Pedidos, entrega e pagamento ── -->
         <div class="cx-sec">
-          <button class="cx-sec-cab" :aria-expanded="politicaAberta" @click="politicaAberta = !politicaAberta">
+          <button class="cx-sec-cab" :aria-expanded="secaoConfig === 'pedidos'" @click="alternarSecaoConfig('pedidos')">
             <span class="cx-tile"><i class="fas fa-clock"></i></span>
             <span class="cx-sec-txt">
               <strong>Pedidos e pagamento</strong>
-              <small>{{ config.antecedencia_dias ? config.antecedencia_dias + ' dia(s) de antecedência' : 'Sem aviso de prazo' }}{{ config.sinal_ativo ? ' · sinal de ' + config.sinal_percentual + '%' : '' }}</small>
+              <small>{{ config.antecedencia_dias ? config.antecedencia_dias + ' dia(s) de antecedência' : 'Sem aviso de prazo' }}{{ config.sinal_ativo ? ' · sinal de ' + config.sinal_percentual + '%' : '' }}{{ cardapioAtivo === 'diaadia' ? ' · entrega R$ ' + (maskMoney(config.taxa_entrega) || '0,00') : '' }}</small>
             </span>
-            <i class="fas cx-seta" :class="politicaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            <i class="fas cx-seta" :class="secaoConfig === 'pedidos' ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </button>
-          <div v-if="politicaAberta" class="cx-sec-corpo">
+          <div v-if="secaoConfig === 'pedidos'" class="cx-sec-corpo">
             <label class="cp-field cp-field--dias">
               <span>Antecedência mínima para encomendas</span>
               <div class="cp-dias-linha">
@@ -352,53 +351,8 @@
               </div>
             </label>
 
-            <div class="cx-bloco--lista">
-              <label class="cx-linha-switch">
-                <span class="cx-linha-txt"><strong>Exigir sinal para confirmar</strong><small>O cliente paga uma parte antes.</small></span>
-                <input type="checkbox" role="switch" class="cx-switch" v-model="config.sinal_ativo" @change="salvar">
-              </label>
-              <label class="cx-linha-switch">
-                <span class="cx-linha-txt"><strong>Pagamento no cardápio</strong><small>Mostra recebimento, pagamento e Pix ao cliente.</small></span>
-                <input type="checkbox" role="switch" class="cx-switch" v-model="config.pagamento_ativo" @change="salvar">
-              </label>
-            </div>
-            <details class="cx-saiba">
-              <summary>E se eu desligar o pagamento?</summary>
-              <p>Desligado, o cliente apenas seleciona os produtos, confere o total e envia o pedido pelo WhatsApp. Não aparecem as etapas de recebimento, pagamento ou Pix.</p>
-            </details>
-
-            <label v-if="config.sinal_ativo && config.pagamento_ativo" class="cp-field cp-field--dias">
-              <span>Porcentagem cobrada como sinal via Pix</span>
-              <div class="cp-dias-linha">
-                <input class="input" type="number" min="1" max="100" v-model.number="config.sinal_percentual" @change="salvar">
-                <span class="cp-dias-sufixo">% do total — o valor do sinal e o código Pix são calculados sozinhos</span>
-              </div>
-            </label>
-
-            <label v-if="config.sinal_ativo && config.pagamento_ativo" class="cp-field">
-              <span>Texto explicando o sinal (aparece no cardápio)</span>
-              <textarea v-model="config.sinal_texto" maxlength="220" rows="3"
-                placeholder="Ex: Encomendas confirmadas mediante pagamento de um sinal de 50%. Após a confirmação, o sinal não é reembolsável, pois é usado para a compra dos insumos da sua encomenda."
-                @change="salvar"></textarea>
-            </label>
-
-            <details class="cx-saiba">
-              <summary>Onde esse aviso aparece? E o Pix?</summary>
-              <p>Esse aviso aparece automaticamente: como uma caixa destacada no cardápio completo (PDF e tela cheia), como um resumo curto no rodapé de cada foto compartilhada, e como uma foto extra só com essas regras no fim do álbum enviado pro WhatsApp.</p>
-              <p v-if="config.pagamento_ativo"><i class="fas fa-credit-card"></i> O botão de Pix no cardápio interativo usa sua chave do tipo telefone — o mesmo número de WhatsApp para receber pedidos, sem cadastro extra. {{ config.sinal_ativo ? 'Com o sinal ativo, ele cobra só a porcentagem definida acima; o restante fica combinado pra entrega.' : 'Sem sinal ativo, ele cobra o valor total do pedido.' }}</p>
-            </details>
-          </div>
-        </div>
-
-        <!-- ── Retirada e entrega (só existe no cardápio Dia a dia) ── -->
-        <div v-if="cardapioAtivo === 'diaadia'" class="cx-sec">
-          <button class="cx-sec-cab" :aria-expanded="entregaAberta" @click="entregaAberta = !entregaAberta">
-            <span class="cx-tile"><i class="fas fa-motorcycle"></i></span>
-            <span class="cx-sec-txt"><strong>Retirada e entrega</strong><small>Taxa de entrega: R$ {{ maskMoney(config.taxa_entrega) || '0,00' }}</small></span>
-            <i class="fas cx-seta" :class="entregaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-          </button>
-          <div v-if="entregaAberta" class="cx-sec-corpo">
-            <label class="cp-field cp-field--dias">
+            <!-- Taxa de entrega: só existe no cardápio Dia a dia -->
+            <label v-if="cardapioAtivo === 'diaadia'" class="cp-field cp-field--dias">
               <span>Taxa de entrega</span>
               <div class="cp-dias-linha">
                 <span class="cp-dias-sufixo">R$</span>
@@ -409,35 +363,60 @@
                   @change="salvar"
                 >
               </div>
+              <small class="cx-nota">Aparece em “Receber em casa”. Com 0, o cliente vê “a combinar”.</small>
             </label>
-            <details class="cx-saiba">
-              <summary>Como a taxa aparece pro cliente?</summary>
-              <p>Esse valor aparece pro cliente quando ele escolhe “Receber em casa” no cardápio interativo. Deixe 0 se ainda não tiver um valor definido — nesse caso o cardápio mostra “a combinar” em vez de cobrar errado.</p>
-            </details>
+
+            <div class="cx-bloco--lista">
+              <label class="cx-linha-switch">
+                <span class="cx-linha-txt"><strong>Pagamento no cardápio</strong><small>Desligado, o cliente só monta o pedido e envia pelo WhatsApp (sem etapa de Pix).</small></span>
+                <input type="checkbox" role="switch" class="cx-switch" v-model="config.pagamento_ativo" @change="salvar">
+              </label>
+              <label class="cx-linha-switch">
+                <span class="cx-linha-txt"><strong>Exigir sinal para confirmar</strong><small>O cliente paga uma parte antes.</small></span>
+                <input type="checkbox" role="switch" class="cx-switch" v-model="config.sinal_ativo" @change="salvar">
+              </label>
+            </div>
+
+            <template v-if="config.sinal_ativo && config.pagamento_ativo">
+              <label class="cp-field cp-field--dias">
+                <span>Porcentagem do sinal (Pix)</span>
+                <div class="cp-dias-linha">
+                  <input class="input" type="number" min="1" max="100" v-model.number="config.sinal_percentual" @change="salvar">
+                  <span class="cp-dias-sufixo">% do total — valor e código Pix saem prontos</span>
+                </div>
+              </label>
+              <label class="cp-field">
+                <span>Texto explicando o sinal</span>
+                <textarea v-model="config.sinal_texto" maxlength="220" rows="3"
+                  placeholder="Ex: Encomendas confirmadas mediante pagamento de um sinal de 50%. Após a confirmação, o sinal não é reembolsável, pois é usado para a compra dos insumos da sua encomenda."
+                  @change="salvar"></textarea>
+              </label>
+              <p class="cx-nota">Esse texto aparece no cardápio (PDF e tela cheia), nas fotos compartilhadas e no fim do álbum do WhatsApp. O Pix usa seu WhatsApp de pedidos como chave.</p>
+            </template>
           </div>
         </div>
 
-        <!-- ── Aparência e comportamento ── -->
+        <!-- ── 3. Exibição ── -->
         <div class="cx-sec">
-          <button class="cx-sec-cab" :aria-expanded="aparenciaAberta" @click="aparenciaAberta = !aparenciaAberta">
+          <button class="cx-sec-cab" :aria-expanded="secaoConfig === 'exibicao'" @click="alternarSecaoConfig('exibicao')">
             <span class="cx-tile"><i class="fas fa-sliders"></i></span>
-            <span class="cx-sec-txt"><strong>Aparência e comportamento</strong><small>Fotos nos itens: {{ config.mostrar_foto_itens !== false ? 'sim' : 'não' }}</small></span>
-            <i class="fas cx-seta" :class="aparenciaAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            <span class="cx-sec-txt"><strong>Exibição</strong><small>Fotos nos itens: {{ config.mostrar_foto_itens !== false ? 'sim' : 'não' }}</small></span>
+            <i class="fas cx-seta" :class="secaoConfig === 'exibicao' ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </button>
-          <div v-if="aparenciaAberta" class="cx-sec-corpo">
+          <div v-if="secaoConfig === 'exibicao'" class="cx-sec-corpo">
             <div class="cx-bloco--lista">
-              <button type="button" class="cx-linha-switch" role="switch" :aria-checked="!!config.abrir_tela_cheia_padrao" @click="config.abrir_tela_cheia_padrao = !config.abrir_tela_cheia_padrao; salvar()">
-                <span class="cx-linha-txt"><strong><i class="fas fa-store"></i> Abrir sempre em tela cheia</strong><small>Ideal pra deixar o celular no balcão. Pra editar, toque no X da tela cheia.</small></span>
-                <span class="cp-switch" :class="{ on: config.abrir_tela_cheia_padrao }"><span class="cp-switch-bola"></span></span>
-              </button>
               <button type="button" class="cx-linha-switch" role="switch" :aria-checked="config.mostrar_foto_itens !== false" @click="config.mostrar_foto_itens = config.mostrar_foto_itens === false; salvar()">
                 <span class="cx-linha-txt"><strong><i class="fas fa-image"></i> Mostrar foto em cada sabor</strong><small>Desligado, só o banner da categoria aparece. As fotos continuam guardadas.</small></span>
                 <span class="cp-switch" :class="{ on: config.mostrar_foto_itens !== false }"><span class="cp-switch-bola"></span></span>
               </button>
+              <button type="button" class="cx-linha-switch" role="switch" :aria-checked="!!config.abrir_tela_cheia_padrao" @click="config.abrir_tela_cheia_padrao = !config.abrir_tela_cheia_padrao; salvar()">
+                <span class="cx-linha-txt"><strong><i class="fas fa-store"></i> Abrir sempre em tela cheia</strong><small>Ideal pra deixar o celular no balcão. Pra editar, toque no X.</small></span>
+                <span class="cp-switch" :class="{ on: config.abrir_tela_cheia_padrao }"><span class="cp-switch-bola"></span></span>
+              </button>
             </div>
 
             <div class="cx-linha-fixa">
-              <span class="cx-linha-txt"><strong><i class="fas fa-thumbtack"></i> Cardápio que abre primeiro</strong><small>Qual já vem selecionado quando você entra aqui.</small></span>
+              <span class="cx-linha-txt"><strong><i class="fas fa-thumbtack"></i> Cardápio que abre primeiro</strong><small>Já vem selecionado ao entrar aqui.</small></span>
               <div class="cp-aba-padrao-grupo">
                 <button
                   v-for="c in CARDAPIOS" :key="c.id"
@@ -446,26 +425,6 @@
                 >{{ c.label }}</button>
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- ── Avançado: PDF ── -->
-        <div class="cx-sec">
-          <button class="cx-sec-cab" :aria-expanded="avancadoAberta" @click="avancadoAberta = !avancadoAberta">
-            <span class="cx-tile"><i class="fas fa-toolbox"></i></span>
-            <span class="cx-sec-txt"><strong>Avançado</strong><small>Resumo em PDF</small></span>
-            <i class="fas cx-seta" :class="avancadoAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-          </button>
-          <div v-if="avancadoAberta" class="cx-sec-corpo">
-            <div class="cx-linha-fixa">
-              <span class="cx-linha-txt"><strong><i class="fas fa-file-pdf"></i> Resumo em PDF</strong><small>Folha única (A5) com QR code pro cardápio online. Para quem prefere ver tudo numa folha só.</small></span>
-              <button class="cx-btn-sec" :disabled="gerandoPdf" @click="baixarPdf">
-                <i class="fas" :class="gerandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i> {{ gerandoPdf ? 'Gerando…' : 'Baixar' }}
-              </button>
-            </div>
-            <p v-if="!urlCardapioPublicado" class="cx-nota">
-              O QR code só aparece se o cardápio online estiver publicado — sem isso, sai só o rodapé de texto. <button type="button" class="cp-link-inline" @click="s.setTab('ajustes')">Configurar publicação</button>
-            </p>
           </div>
         </div>
 
@@ -855,11 +814,9 @@ const cardapioAtivoIndex = computed(() => Math.max(0, CARDAPIOS.findIndex(c => c
 // editado (cada um tem capa/prazo/sinal/link totalmente independentes).
 const cardapioAtivoObj = computed(() => CARDAPIOS.find(c => c.id === cardapioAtivo.value))
 const configModalAberto = ref(false) // "Configurações do cardápio" — capa/rodapé, prazo/sinal, WhatsApp, aparência e avançado
-const configAberta = ref(false)
-const politicaAberta = ref(false)
-const entregaAberta = ref(false)
-const aparenciaAberta = ref(false)
-const avancadoAberta = ref(false)
+// Configurações: só uma seção aberta por vez ('capa' | 'pedidos' | 'exibicao')
+const secaoConfig = ref(null)
+function alternarSecaoConfig(id) { secaoConfig.value = secaoConfig.value === id ? null : id }
 const gerandoPedidoInterativo = ref(false)
 const publicandoLink = ref(false)
 const configPublicacao = ref(null)
@@ -2294,9 +2251,11 @@ async function publicarLinkCardapioInterativo() {
 .cx-nota--solta { padding-top: 2px; }
 
 /* Atalhos */
-.cx-atalhos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cx-atalhos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .cx-atalho { position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 56px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-sm); color: var(--brown-dark); font-family: var(--font); font-size: .88rem; font-weight: 800; cursor: pointer; }
 .cx-atalho:active { background: var(--cream); }
+.cx-atalho:disabled { opacity: .55; }
+.cx-atalho span { font-size: .86rem; }
 .cx-atalho i { font-size: 1.05rem; color: var(--gold-dark); }
 .cx-badge { min-width: 22px; height: 22px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 11px; background: var(--red); color: #fff; font-size: .74rem; font-weight: 800; }
 
