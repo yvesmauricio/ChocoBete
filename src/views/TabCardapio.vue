@@ -75,24 +75,20 @@
               <span v-else-if="linkStatus === 'aguardando'" class="cx-status cx-status--espera"><i class="fas fa-clock"></i> Propagando</span>
               <span v-else-if="linkStatus === 'pronto'" class="cx-status cx-status--ok"><i class="fas fa-circle-check"></i> Atualizado</span>
             </div>
-            <a v-if="urlCardapioPublicado" :href="urlCardapioPublicado" class="cx-link-url" @click.prevent="abrirCardapioPublicado">
-              <span>{{ urlCardapioPublicado.replace('https://', '').replace('http://', '') }}</span>
+            <div class="cx-link-seg" role="tablist" aria-label="Tipo de link">
+              <button v-for="o in opcoesLink" :key="o.id" type="button" role="tab" class="cx-link-seg-btn"
+                :class="{ 'cx-link-seg-btn--on': tipoLink === o.id }" :aria-selected="tipoLink === o.id" @click="tipoLink = o.id">{{ o.label }}</button>
+            </div>
+            <a v-if="urlLinkAtual" :href="urlLinkAtual" class="cx-link-url" @click.prevent="abrirCardapioPublicado">
+              <span>{{ urlLinkAtual.replace('https://', '').replace('http://', '') }}</span>
               <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
+            <p class="cx-link-dica">{{ opcoesLink.find(o => o.id === tipoLink)?.dica }}</p>
             <p v-if="linkStatus === 'aguardando'" class="cx-link-aviso">Publicado! Espere um pouquinho antes de mandar o link ao cliente.</p>
             <p v-else-if="linkStatus === 'pronto'" class="cx-link-aviso cx-link-aviso--ok">Pronto! O link já deve estar atualizado, pode enviar.</p>
             <div class="cx-link-btns">
-              <button class="cx-btn-sec" :disabled="!urlPaginaEscolha" @click="copiarLinkPublicado('escolha')"
-                title="Link geral (bio, status, primeira conversa): o cliente escolhe entre Dia a dia e Festas">
-                <i class="fas fa-copy"></i> Copiar link geral
-              </button>
-              <button class="cx-btn-sec" :disabled="!urlDiretoDe('diaadia')" @click="copiarLinkPublicado('diaadia')"
-                title="Vai direto para o cardápio Dia a dia (use quando o cliente já disse o que quer)">
-                <i class="fas fa-copy"></i> Link Dia a dia
-              </button>
-              <button class="cx-btn-sec" :disabled="!urlDiretoDe('festa')" @click="copiarLinkPublicado('festa')"
-                title="Vai direto para o cardápio de Festas e encomendas">
-                <i class="fas fa-copy"></i> Link Festas
+              <button class="cx-btn-sec" :disabled="!urlLinkAtual" @click="copiarLinkPublicado">
+                <i class="fas fa-copy"></i> Copiar link
               </button>
               <button class="cx-btn-sec" :disabled="publicandoLink || linkStatus === 'aguardando'" @click="publicarLinkCardapioInterativo"
                 title="Atualiza o link que você já divulgou (bio, status) com as mudanças de agora, sem enviar nada a ninguém">
@@ -935,16 +931,18 @@ const urlCardapioPublicado = computed(() => {
   if (!configPublicacao.value?.dominio) return ''
   return urlPublicaFinal({ ...configPublicacao.value, caminho: `public/pedido-${cardapioAtivo.value}.html` })
 })
-// Link geral: página /pedido, onde o cliente escolhe Dia a dia ou Festas.
-const urlPaginaEscolha = computed(() => {
+// Qual link mostrar/copiar: geral (/pedido, cliente escolhe) ou direto.
+const tipoLink = ref('escolha')
+const opcoesLink = [
+  { id: 'escolha',  label: 'Geral',     caminho: 'public/pedido',             dica: 'Para bio, status e primeira conversa: o cliente escolhe entre Dia a dia e Festas.' },
+  { id: 'diaadia',  label: 'Dia a dia', caminho: 'public/pedido-diaadia.html', dica: 'Vai direto ao cardápio do dia a dia. Use quando o cliente já disse o que quer.' },
+  { id: 'festa',    label: 'Festas',    caminho: 'public/pedido-festa.html',   dica: 'Vai direto ao cardápio de festas e encomendas.' },
+]
+const urlLinkAtual = computed(() => {
   if (!configPublicacao.value?.dominio) return ''
-  return urlPublicaFinal({ ...configPublicacao.value, caminho: 'public/pedido' })
+  const o = opcoesLink.find(x => x.id === tipoLink.value) || opcoesLink[0]
+  return urlPublicaFinal({ ...configPublicacao.value, caminho: o.caminho })
 })
-// Link direto de um cardápio específico (diaadia | festa).
-function urlDiretoDe(id) {
-  if (!configPublicacao.value?.dominio) return ''
-  return urlPublicaFinal({ ...configPublicacao.value, caminho: `public/pedido-${id}.html` })
-}
 const publicacaoDisponivel = computed(() => publicacaoConfigurada(configPublicacao.value))
 
 const busca = ref('')
@@ -1652,20 +1650,18 @@ async function compartilharLinkCardapio(url, { title, text } = {}) {
 // botão Voltar do Android fechava tudo. Na mesma janela, o Voltar retorna
 // pra cá; a aba é guardada pra o app reabrir direto no Cardápio.
 function abrirCardapioPublicado() {
-  const url = urlCardapioPublicado.value
+  const url = urlLinkAtual.value
   if (!url) return
   try { sessionStorage.setItem('chocobete:voltarParaAba', s.tab) } catch { /* sem storage: volta pro Painel */ }
   window.location.href = url
 }
 
-async function copiarLinkPublicado(tipo = 'escolha') {
-  const url = tipo === 'escolha' ? urlPaginaEscolha.value : urlDiretoDe(tipo)
+async function copiarLinkPublicado() {
+  const url = urlLinkAtual.value
   if (!url) return
   try {
     await navigator.clipboard.writeText(url)
-    s.notify?.(tipo === 'escolha'
-      ? 'Link geral copiado! O cliente escolhe entre Dia a dia e Festas. Ideal pra bio e primeira conversa.'
-      : 'Link direto copiado! Cole no WhatsApp do cliente.')
+    s.notify?.('Link copiado! Cole no WhatsApp ou na bio do Instagram.')
   } catch {
     s.notify?.('Não consegui copiar sozinho. O link é: ' + url)
   }
@@ -2274,6 +2270,10 @@ async function publicarLinkCardapioInterativo() {
 .cx-link-aviso { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--gold-bg); color: var(--gold-dark); font-size: .84rem; font-weight: 700; line-height: 1.4; }
 .cx-link-aviso--ok { background: var(--green-bg); color: var(--green); }
 .cx-link-btns { display: flex; gap: 8px; }
+.cx-link-seg { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--cream); border: 1px solid var(--border); }
+.cx-link-seg-btn { flex: 1; min-height: 38px; border: 0; border-radius: 10px; background: transparent; color: var(--brown); font-family: var(--font); font-size: .86rem; font-weight: 700; cursor: pointer; }
+.cx-link-seg-btn--on { background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.12); color: var(--brown-dark); }
+.cx-link-dica { margin: 0; font-size: .8rem; line-height: 1.4; color: var(--brown); opacity: .8; }
 .cx-nota { margin: 0; font-size: .8rem; line-height: 1.5; color: var(--muted); }
 .cx-nota--solta { padding-top: 2px; }
 
