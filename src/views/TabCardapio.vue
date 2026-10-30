@@ -75,7 +75,7 @@
               <span v-else-if="linkStatus === 'aguardando'" class="cx-status cx-status--espera"><i class="fas fa-clock"></i> Propagando</span>
               <span v-else-if="linkStatus === 'pronto'" class="cx-status cx-status--ok"><i class="fas fa-circle-check"></i> Atualizado</span>
             </div>
-            <a v-if="urlCardapioPublicado" :href="urlCardapioPublicado" target="_blank" rel="noopener noreferrer" class="cx-link-url">
+            <a v-if="urlCardapioPublicado" :href="urlCardapioPublicado" class="cx-link-url" @click.prevent="abrirCardapioPublicado">
               <span>{{ urlCardapioPublicado.replace('https://', '').replace('http://', '') }}</span>
               <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
@@ -1626,6 +1626,17 @@ async function compartilharLinkCardapio(url, { title, text } = {}) {
   }
 
   return 'falha'
+}
+
+// Abre o cardápio público NA MESMA janela do app (sem target="_blank").
+// Com _blank, o app instalado (PWA) abre uma janela nova sem histórico e o
+// botão Voltar do Android fechava tudo. Na mesma janela, o Voltar retorna
+// pra cá; a aba é guardada pra o app reabrir direto no Cardápio.
+function abrirCardapioPublicado() {
+  const url = urlCardapioPublicado.value
+  if (!url) return
+  try { sessionStorage.setItem('chocobete:voltarParaAba', s.tab) } catch { /* sem storage: volta pro Painel */ }
+  window.location.href = url
 }
 
 async function copiarLinkPublicado() {

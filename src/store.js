@@ -31,7 +31,14 @@ export const useStore = defineStore('choco', () => {
   const confirmarAcao = useConfirm()
 
   // ── UI ─────────────────────────────────────
-  const tab = ref('painel')
+  // Se o usuário saiu pro cardápio público (mesma janela) e voltou pelo botão
+  // Voltar, reabre na aba de onde ele saiu em vez do Painel.
+  let abaInicial = 'painel'
+  try {
+    const salva = sessionStorage.getItem('chocobete:voltarParaAba')
+    if (salva) { abaInicial = salva; sessionStorage.removeItem('chocobete:voltarParaAba') }
+  } catch { /* ignora */ }
+  const tab = ref(abaInicial)
   const loading = ref(false)
   const toast = ref(null)
   // Ponte para abrir a tela de Etiquetas com sabores pré-selecionados (vindo de Produção)
