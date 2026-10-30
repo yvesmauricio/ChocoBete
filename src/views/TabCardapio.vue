@@ -1730,7 +1730,7 @@ async function gerarCardapioInterativo() {
         const { url } = await publicarCardapio({ html, cfgPub, usarServidor, empresaComNumero })
         configPublicacao.value = cfgPub
         configD1.value = cfgD1
-        const urlParaCompartilhar = urlLinkAtual.value || url || linkPublicacao
+        const urlParaCompartilhar = urlLinkAtual.value || url 
         const resultado = await compartilharLinkCardapio(urlParaCompartilhar, {
           title: `Cardápio ${config.nome_cardapio || s.company.nome || 'Cardápio'}`,
           text: `${textoCompartilhamento} ${urlParaCompartilhar}`,
