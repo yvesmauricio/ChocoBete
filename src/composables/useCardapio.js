@@ -252,12 +252,13 @@ const GOOGLE_FONTS_URL_CARDAPIO = 'https://fonts.googleapis.com/css2?family=Cave
 const CSS_CARDAPIO_COMPACTO = `
   @import url('${GOOGLE_FONTS_URL_CARDAPIO}');
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: #FBF5EC; }
+  html, body { background: #fff; }
   .cardapio-compacto {
     --vinho: #5A2F3B; --rose: #B58A94; --rose-claro: #F6E9EC; --creme: #FBF5EC; --cinza: #4A4A4A; --desc: #6b6068; --borda: #EADDE0;
-    --u: 1;
+    --u: 1; --cols: 2;
     font-size: calc(10pt * var(--u));
-    width: 148mm; min-height: 210mm; padding: 11mm 10mm 9mm; background: var(--creme); color: var(--cinza);
+    position: relative; overflow: hidden;
+    width: 148mm; height: 210mm; padding: 12mm 13mm 13mm; background: #fff; color: var(--cinza);
     font-family: 'Plus Jakarta Sans', sans-serif; display: flex; flex-direction: column;
     -webkit-font-smoothing: antialiased;
   }
@@ -273,13 +274,27 @@ const CSS_CARDAPIO_COMPACTO = `
   .cc-subtitulo { font-size: .85em; font-weight: 500; letter-spacing: .22em; text-transform: uppercase; color: var(--cinza); }
 
   /* Itens em 2 colunas que se ajustam sozinhas */
-  .cc-itens { flex: 1; column-count: 2; column-gap: 7mm; }
+  .cc-area { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  .cc-bloco { width: 100%; }
+  .cardapio-compacto[data-estreito="1"] .cc-bloco { width: 76%; }
+  .cc-itens { width: 100%; column-count: var(--cols); column-gap: 7mm; }
+  .cc-categoria--topo { margin: 0 0 2mm; }
+  .cc-canto { position: absolute; width: 21mm; height: 21mm; }
+  .cc-canto svg { width: 100%; height: 100%; display: block; }
+  .cc-canto--tl { top: 3mm; left: 3mm; }
+  .cc-canto--tr { top: 3mm; right: 3mm; transform: scaleX(-1); }
+  .cc-canto--bl { bottom: 3mm; left: 3mm; transform: scaleY(-1); }
+  .cc-canto--br { bottom: 3mm; right: 3mm; transform: scale(-1, -1); }
   .cc-categoria {
     break-after: avoid-column; break-inside: avoid; margin: 3.6mm 0 2mm;
     padding: 1.6mm 3mm; border-radius: 2.2mm; background: var(--rose-claro);
     font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: 1.15em; color: var(--vinho);
   }
+  .cc-categoria-desc { margin-top: .5mm; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 500; font-size: .66em; line-height: 1.35; color: var(--desc); }
   .cc-grupo { break-inside: avoid; }
+  /* modos de encaixe: a = colunas equilibradas, categoria inteira; d = equilibradas, categoria grande pode se dividir; b/c = enche coluna por coluna (sem/com divisão) */
+  .cardapio-compacto[data-modo="b"] .cc-itens, .cardapio-compacto[data-modo="c"] .cc-itens { column-fill: auto; height: 100%; }
+  .cardapio-compacto[data-modo="c"] .cc-grupo, .cardapio-compacto[data-modo="d"] .cc-grupo { break-inside: auto; }
   .cc-grupo:first-child .cc-categoria { margin-top: 0; }
   .cc-item { break-inside: avoid; padding: 1.7mm 0; border-bottom: .25mm solid #F1E6E8; }
   .cc-item-linha1 { display: flex; align-items: baseline; justify-content: space-between; gap: 3mm; }
@@ -293,19 +308,30 @@ const CSS_CARDAPIO_COMPACTO = `
   }
 
   /* Rodapé: QR do cardápio online (ou mensagem + contato) */
-  .cc-rodape { margin-top: 5mm; padding: 3.2mm 4mm; border: .3mm solid var(--rose); border-radius: 3mm; background: #fff; display: flex; align-items: center; gap: 4mm; }
+  .cc-rodape { margin: 5mm 8mm 0; padding: 3.2mm 4mm; border: .3mm solid var(--rose); border-radius: 3mm; background: #fff; display: flex; align-items: center; gap: 4mm; }
   .cc-rodape-qr { width: 21mm; height: 21mm; flex-shrink: 0; }
   .cc-rodape-qr svg { width: 100%; height: 100%; display: block; }
   .cc-rodape-texto { flex: 1; min-width: 0; }
   .cc-rodape-titulo { font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: 1.1em; line-height: 1.2; color: var(--vinho); }
   .cc-rodape-link { font-size: .72em; color: var(--desc); word-break: break-all; margin-top: 1mm; }
-  .cc-rodape-simples { margin-top: 5mm; text-align: center; }
+  .cc-rodape-simples { margin: 5mm 8mm 0; text-align: center; }
   .cc-rodape-simples .msg { font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: 1.1em; color: var(--vinho); }
   .cc-rodape-simples .contato { font-size: .8em; color: var(--desc); margin-top: 1mm; }
 `
 
 // Filete ornamental (o mesmo dos cardápios publicados): linha, losango, linha
 const FIO_ORNAMENTO_SVG = `<svg class="cc-fio" viewBox="0 0 120 10" aria-hidden="true"><path d="M0 5H46M74 5H120" stroke="#B58A94" stroke-width="1" fill="none"/><path d="M60 .5L64.5 5 60 9.5 55.5 5z" fill="#B58A94"/></svg>`
+
+// Arabesco de canto (desenhado só no canto superior esquerdo; os outros 3 são espelhados por CSS)
+const CANTO_ARABESCO_SVG = `<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="#B58A94" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4 4 H66 M4 4 V66" stroke-width="1.4"/>
+  <path d="M10 10 H44 M10 10 V44" stroke-width=".7"/>
+  <path d="M18 18 C18 38 42 38 42 22 C42 12 29 12 29 20 C29 26 36 26 36 21" stroke-width="1.3"/>
+  <path d="M50 4 C55 14 66 15 74 9 M4 50 C14 55 15 66 9 74" stroke-width="1"/>
+  <path d="M60 4 C63 10 70 12 78 8 M4 60 C10 63 12 70 8 78" stroke-width=".7"/>
+  <path d="M22 50 C24 44 30 42 34 46 C30 48 28 52 22 50 Z M50 22 C44 24 42 30 46 34 C48 30 52 28 50 22 Z" stroke-width=".9"/>
+  </g><g fill="#B58A94"><circle cx="4" cy="4" r="2.4"/><circle cx="82" cy="6" r="1.6"/><circle cx="6" cy="82" r="1.6"/><circle cx="50" cy="50" r="1.4"/></g></svg>`
+const CANTOS_HTML = ['tl', 'tr', 'bl', 'br'].map(c => `<div class="cc-canto cc-canto--${c}">${CANTO_ARABESCO_SVG}</div>`).join('')
 
 function renderItemCompacto(item) {
   return `
@@ -318,12 +344,46 @@ function renderItemCompacto(item) {
     </div>`
 }
 
+// ── Descrição em comum da categoria ──
+// Se todos os itens descritos de uma categoria começam com o mesmo trecho (ex.:
+// "Casquinha de chocolate ao leite com recheio de …"), esse trecho vira a descrição
+// da categoria e cada item mostra só o que é particular dele.
+const CONECTORES_DESC = new Set(['com', 'de', 'do', 'da', 'dos', 'das', 'e', 'ao', 'a', 'o', 'em', 'no', 'na', 'recheada', 'recheado', 'recheio', 'recheios', 'coberta', 'coberto', 'cobertura', 'sabor', 'mais', 'por'])
+const normPalavra = (w) => String(w).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.,;:!?]+$/g, '')
+const maiuscula1 = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s
+
+export function separarDescricaoComum(itens) {
+  const descritos = itens.filter(i => String(i.descricao || '').trim())
+  if (descritos.length < 2 || descritos.length < itens.length / 2) return { descricaoCategoria: '', itens }
+  const listas = descritos.map(i => String(i.descricao).trim().split(/\s+/))
+  let comum = 0
+  const minLen = Math.min(...listas.map(l => l.length))
+  while (comum < minLen && listas.every(l => normPalavra(l[comum]) === normPalavra(listas[0][comum]))) comum++
+  while (comum > 0 && CONECTORES_DESC.has(normPalavra(listas[0][comum - 1]))) comum--
+  const prefixo = listas[0].slice(0, comum).join(' ').replace(/[,;:\-–]+$/, '').trim()
+  if (comum < 2 || prefixo.length < 12) return { descricaoCategoria: '', itens }
+  return {
+    descricaoCategoria: maiuscula1(prefixo),
+    itens: itens.map(i => {
+      const palavras = String(i.descricao || '').trim().split(/\s+/).filter(Boolean)
+      if (!palavras.length) return i
+      const resto = palavras.slice(comum).join(' ').replace(/^[,;:\-–]+\s*/, '')
+      return { ...i, descricao: maiuscula1(resto) }
+    }),
+  }
+}
+
+function faixaCategoriaHtml(nome, descricao, extra = '') {
+  return `<div class="cc-categoria ${extra}">${escHtml(nome)}${descricao ? `<div class="cc-categoria-desc">${escHtml(descricao)}</div>` : ''}</div>`
+}
+
 function renderCategoriaCompacta(grupo) {
+  const { descricaoCategoria, itens } = separarDescricaoComum(grupo.itens)
   // Cada categoria é um bloco que não se parte entre colunas (o título nunca fica sem os itens)
   return `
     <div class="cc-grupo">
-      <div class="cc-categoria">${escHtml(grupo.categoria)}</div>
-      ${grupo.itens.map(renderItemCompacto).join('')}
+      ${faixaCategoriaHtml(grupo.categoria, descricaoCategoria)}
+      ${itens.map(renderItemCompacto).join('')}
     </div>`
 }
 
@@ -350,25 +410,74 @@ function cardapioCompactoDocHtml({ config, grupos, empresa, linkOnline }) {
       ${contato ? `<div class="contato">${escHtml(contato)}</div>` : ''}
     </div>`
 
+  // 1 só categoria: a faixa fica em cima, ocupando a largura toda, e os itens se dividem em
+  // colunas iguais logo abaixo (as colunas começam alinhadas). Várias categorias: cada uma
+  // é um bloco dentro das colunas.
+  let conteudoItens
+  if (grupos.length === 1) {
+    const { descricaoCategoria, itens } = separarDescricaoComum(grupos[0].itens)
+    conteudoItens = `${faixaCategoriaHtml(grupos[0].categoria, descricaoCategoria, 'cc-categoria--topo')}
+        <div class="cc-itens">${itens.map(renderItemCompacto).join('')}</div>`
+  } else {
+    conteudoItens = `<div class="cc-itens">${grupos.map(renderCategoriaCompacta).join('')}</div>`
+  }
+
   return `
   <div class="cardapio-compacto">
+    ${CANTOS_HTML}
     <div class="cc-topo">
       <div class="cc-marca">${escHtml(nome)}</div>
       ${FIO_ORNAMENTO_SVG}
       ${config.subtitulo ? `<div class="cc-subtitulo">${escHtml(config.subtitulo)}</div>` : ''}
     </div>
-    <div class="cc-itens">
-      ${grupos.map(renderCategoriaCompacta).join('')}
+    <div class="cc-area">
+      <div class="cc-bloco">
+        ${conteudoItens}
+      </div>
     </div>
     ${rodape}
   </div>`
 }
 
 /**
+ * Escolhe o melhor encaixe pra folha (altura fixa de 210 mm): procura a MAIOR letra
+ * possível e, pra cada tamanho, o arranjo mais bonito — 1 coluna centralizada (só 1
+ * categoria), 2 colunas equilibradas, 2 colunas com categoria dividida, 3 colunas...
+ * Cardápio pequeno cresce um pouco as letras e fica centralizado na folha; cardápio
+ * grande reduz até caber. O rodapé/QR nunca é cortado.
+ */
+function ajustarLayoutCompacto(el, qtdGrupos) {
+  const itensEl = el.querySelector('.cc-itens')
+  const areaEl = el.querySelector('.cc-area')
+  const blocoEl = el.querySelector('.cc-bloco')
+  const estourou = () => itensEl.scrollWidth > itensEl.clientWidth + 2
+    || blocoEl.offsetHeight > areaEl.clientHeight + 2
+    || itensEl.scrollHeight > itensEl.clientHeight + 2
+  const aplicar = (cols, modo, u) => {
+    el.dataset.modo = modo
+    el.dataset.estreito = cols === 1 ? '1' : ''
+    el.style.setProperty('--cols', String(cols))
+    el.style.setProperty('--u', String(u))
+  }
+  for (let u = 1.2; u >= 0.5 - 1e-9; u = Math.round((u - 0.03) * 100) / 100) {
+    const opcoes = []
+    if (qtdGrupos === 1) opcoes.push([1, 'a'])
+    opcoes.push([2, 'a'], [2, 'd'])
+    if (u <= 0.9) opcoes.push([3, 'a'], [3, 'd'])
+    if (u <= 0.8) opcoes.push([2, 'b'], [2, 'c'], [3, 'b'], [3, 'c'])
+    for (const [cols, modo] of opcoes) {
+      aplicar(cols, modo, u)
+      if (!estourou()) return true
+    }
+  }
+  return false
+}
+
+/**
  * Gera o PDF "Resumo": meia folha A4 (A5 retrato, 148×210 mm), 1 página só.
- * Captura em alta resolução (≈300 dpi) pra imprimir nítido. Se tiver itens
- * demais, reduz a escala das letras (até um limite legível) em vez de cortar
- * ou espremer a imagem.
+ * Fundo branco (economiza tinta) com arabescos nos cantos. Captura em alta
+ * resolução pra imprimir nítido. Se tiver itens demais, reduz as letras e, se
+ * preciso, usa 3 colunas — o rodapé com o QR code nunca é cortado.
  */
 export async function gerarPdfCardapioCompacto({ config, grupos, empresa, linkOnline }) {
   const [html2canvas, jsPDF] = await Promise.all([getHtml2Canvas(), getJsPDF()])
@@ -382,22 +491,14 @@ export async function gerarPdfCardapioCompacto({ config, grupos, empresa, linkOn
   await garantirFontesCarregadas()
 
   const el = wrapper.querySelector('.cardapio-compacto')
-  // 210 mm em pixels CSS (96 dpi); se passar, reduz a escala das letras aos poucos
-  const alturaMaxPx = (210 / 25.4) * 96
-  let u = 1
-  while (el.offsetHeight > alturaMaxPx + 1 && u > 0.55) {
-    u = Math.round((u - 0.04) * 100) / 100
-    el.style.setProperty('--u', String(u))
-  }
+  ajustarLayoutCompacto(el, grupos.length)
 
   let canvas
   try {
     canvas = await html2canvas(el, {
-      backgroundColor: '#FBF5EC',
+      backgroundColor: '#ffffff',
       scale: 4, // 148 mm ≈ 559 px × 4 ≈ 2236 px de largura (~380 dpi)
       useCORS: true,
-      width: el.offsetWidth,
-      height: Math.min(el.offsetHeight, Math.ceil(alturaMaxPx)),
     })
   } finally {
     document.body.removeChild(wrapper)
@@ -406,12 +507,8 @@ export async function gerarPdfCardapioCompacto({ config, grupos, empresa, linkOn
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' })
   const larguraPagina = pdf.internal.pageSize.getWidth()   // 148
   const alturaPagina = pdf.internal.pageSize.getHeight()   // 210
-  // Pinta a folha toda de creme (garante que não sobra borda branca) e
-  // encaixa a imagem de cima pra baixo, sem distorcer.
-  pdf.setFillColor(251, 245, 236)
-  pdf.rect(0, 0, larguraPagina, alturaPagina, 'F')
-  const alturaImagem = Math.min(alturaPagina, (canvas.height * larguraPagina) / canvas.width)
-  pdf.addImage(canvas.toDataURL('image/jpeg', 0.97), 'JPEG', 0, 0, larguraPagina, alturaImagem)
+  // A captura já tem exatamente a proporção da folha (148×210 mm): ocupa a página inteira.
+  pdf.addImage(canvas.toDataURL('image/jpeg', 0.97), 'JPEG', 0, 0, larguraPagina, alturaPagina)
 
   const nome = config.nome_cardapio || empresa?.nome || 'cardapio'
   const slug = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
