@@ -46,20 +46,24 @@ export async function onRequestPost({ request, env }) {
   if (!r.ok) return json({ erro: r.erro }, 422)
 
   const texto = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '') || null
+  // telefone: só dígitos, 10 a 13 (DDD + número, com ou sem 55); fora disso guarda vazio em vez de lixo
+  const digitos = String(b.cliente_telefone ?? '').replace(/\D/g, '')
+  const telefone = digitos.length >= 10 && digitos.length <= 13 ? digitos : null
   const extra = { obs: texto(b.obs, 500), endereco: texto(b.endereco, 300) }
-  const ins = await env.DB.prepare(
-    `INSERT OR IGNORE INTO pedidos
-       (uuid, cardapio_id, origem, cliente_nome, cliente_telefone, recebimento,
-        subtotal_centavos, taxa_centavos, total_centavos, sinal_centavos, ip_hash, dados, criado_em, atualizado_em)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .bind(b.pedido_id, cardapioId, 'site', texto(b.cliente_nome, 80), texto(b.cliente_telefone, 20), recebimento,
-          r.subtotal, r.taxa, r.total, r.sinal, ipHash, JSON.stringify(extra), agora, agora).run()
-
-  if (ins.meta.changes > 0) {
-    await env.DB.batch(r.linhas.map(l => env.DB.prepare(
-      `INSERT INTO pedido_itens (pedido_uuid, item_uuid, nome, categoria, preco_centavos, qtd) VALUES (?,?,?,?,?,?)`)
-      .bind(b.pedido_id, l.uuid, l.nome, l.categoria, l.preco_centavos, l.qtd)))
-  }
+  // Pedido e itens entram JUNTOS (uma transação): o app do dono nunca lê um pedido sem itens.
+  // OR IGNORE: se dois envios do mesmo pedido_id chegarem ao mesmo tempo, o segundo não duplica nem falha.
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO pedidos
+         (uuid, cardapio_id, origem, cliente_nome, cliente_telefone, recebimento,
+          subtotal_centavos, taxa_centavos, total_centavos, sinal_centavos, ip_hash, dados, criado_em, atualizado_em)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(b.pedido_id, cardapioId, 'site', texto(b.cliente_nome, 80), telefone, recebimento,
+            r.subtotal, r.taxa, r.total, r.sinal, ipHash, JSON.stringify(extra), agora, agora),
+    ...r.linhas.map(l => env.DB.prepare(
+      `INSERT OR IGNORE INTO pedido_itens (pedido_uuid, item_uuid, nome, categoria, preco_centavos, qtd) VALUES (?,?,?,?,?,?)`)
+      .bind(b.pedido_id, l.uuid, l.nome, l.categoria, l.preco_centavos, l.qtd)),
+  ])
 
   return json({ ok: true, pedido_id: b.pedido_id, subtotal: r.subtotal, taxa: r.taxa, total: r.total, sinal: r.sinal })
 }
