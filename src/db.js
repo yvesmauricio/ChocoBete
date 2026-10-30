@@ -402,6 +402,7 @@ export const CONFIG_CHAVES_DO_APARELHO = [
   'active_timer',     // cronômetro de produção rodando neste aparelho
   'sync_last_change', // quando este aparelho fez a última alteração (desempate no merge)
   'd1_pedidos_cursor', // até onde este aparelho já buscou pedidos do site (servidor D1)
+  'd1_pedidos_apagar', // pedidos do site apagados aqui que o servidor ainda precisa saber
 ]
 
 const ehChaveDoAparelho = (chave) => CONFIG_CHAVES_DO_APARELHO.includes(chave)

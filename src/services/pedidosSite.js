@@ -7,9 +7,10 @@
 // Desligado enquanto não houver chave do servidor salva em Ajustes.
 
 import { configGet, configSet, importarPedidosSite } from '../db.js'
-import { carregarConfigD1, d1Configurado, buscarPedidosD1 } from './d1Publish.js'
+import { carregarConfigD1, d1Configurado, buscarPedidosD1, apagarPedidoD1 } from './d1Publish.js'
 
 export const CHAVE_CURSOR = 'd1_pedidos_cursor'
+export const CHAVE_FILA_APAGAR = 'd1_pedidos_apagar'
 const reais = (centavos) => Math.round(Number(centavos) || 0) / 100
 
 /** Converte um pedido do servidor (centavos) para o formato que a tela de pedidos já entende. */
@@ -43,6 +44,30 @@ export function pedidoSiteParaApp(p, itens) {
   }
 }
 
+/**
+ * Avisa o servidor que o pedido foi apagado aqui. Se estiver sem internet (ou o servidor falhar),
+ * o aviso fica numa fila neste aparelho e é reenviado na próxima verificação. Nunca lança erro.
+ */
+export async function apagarPedidoNoServidor(uuid) {
+  try {
+    const cfg = await carregarConfigD1()
+    if (!d1Configurado(cfg)) return
+    const fila = (await configGet(CHAVE_FILA_APAGAR, [])) || []
+    if (!fila.includes(uuid)) await configSet(CHAVE_FILA_APAGAR, [...fila, uuid])
+    await descarregarFilaApagar(cfg)
+  } catch { /* segue: o aviso fica na fila */ }
+}
+
+async function descarregarFilaApagar(cfg) {
+  const fila = (await configGet(CHAVE_FILA_APAGAR, [])) || []
+  if (!fila.length) return
+  const restantes = []
+  for (const uuid of fila) {
+    try { await apagarPedidoD1(uuid, cfg) } catch { restantes.push(uuid) }
+  }
+  await configSet(CHAVE_FILA_APAGAR, restantes)
+}
+
 let emAndamento = null
 
 /** Busca o que chegou desde a última vez. Seguro de chamar de vários lugares ao mesmo tempo. */
@@ -52,6 +77,7 @@ export function importarPedidosDoSite() {
     const cfg = await carregarConfigD1().catch(() => null)
     if (!d1Configurado(cfg)) return { ativo: false, novos: 0 }
 
+    await descarregarFilaApagar(cfg).catch(() => {}) // primeiro, o que ficou pendente de avisar
     let cursor = Number(await configGet(CHAVE_CURSOR, 0)) || 0
     let novos = 0
     for (let volta = 0; volta < 10; volta++) {

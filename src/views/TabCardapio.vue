@@ -792,7 +792,7 @@ import {
 } from '../composables/useCardapio.js'
 import { publicarArquivoGitHub, carregarConfigPublicacao, publicacaoConfigurada, urlPublicaFinal } from '../services/githubPublish.js'
 import { carregarConfigD1, d1Configurado, publicarCardapioD1 } from '../services/d1Publish.js'
-import { importarPedidosDoSite } from '../services/pedidosSite.js'
+import { importarPedidosDoSite, apagarPedidoNoServidor } from '../services/pedidosSite.js'
 import { salvarPedidoCardapio, listarPedidosCardapio, atualizarStatusPedidoCardapio, excluirPedidoCardapio } from '../db.js'
 import BaseModal from '../components/BaseModal.vue'
 
@@ -1115,6 +1115,7 @@ async function reabrirPedido(pedido) {
 async function removerPedido(pedido) {
   if (!confirm(`Remover o pedido de ${pedido.clienteNome || (pedido.origem === 'site' ? 'site' : 'balcão')}?`)) return
   await excluirPedidoCardapio(pedido.uuid)
+  if (pedido.origem === 'site') apagarPedidoNoServidor(pedido.uuid) // tira do servidor também (com retentativa se estiver sem internet)
   sincronizarDepois(true)
   pedidosSalvos.value = pedidosSalvos.value.filter(p => p.uuid !== pedido.uuid)
 }

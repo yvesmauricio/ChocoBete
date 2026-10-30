@@ -110,3 +110,10 @@ export async function buscarPedidosD1(desde, config) {
   const d = await resp.json()
   return { pedidos: Array.isArray(d.pedidos) ? d.pedidos : [], itens: Array.isArray(d.itens) ? d.itens : [] }
 }
+
+/** Avisa o servidor que o dono apagou um pedido do site. Repetir é seguro. */
+export async function apagarPedidoD1(uuid, config) {
+  const resp = await chamar(`/api/admin/pedidos/${encodeURIComponent(uuid)}`, config, { method: 'DELETE' }, 10000)
+  if (resp.status === 401) throw new Error('Token do servidor inválido. Confira em Ajustes → Sistema.')
+  if (!resp.ok) throw new Error(`Servidor respondeu com erro (HTTP ${resp.status}).`)
+}
