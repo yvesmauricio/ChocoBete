@@ -101,3 +101,12 @@ export async function despublicarCardapioD1(id, config) {
   const resp = await chamar(`/api/admin/cardapio/${encodeURIComponent(id)}`, config, { method: 'DELETE' }, 10000)
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
 }
+
+/** Pedidos novos do site desde `desde` (ms). Retorna { pedidos, itens } como o servidor entrega. */
+export async function buscarPedidosD1(desde, config) {
+  const resp = await chamar(`/api/admin/pedidos?desde=${Number(desde) || 0}`, config, {}, 15000)
+  if (resp.status === 401) throw new Error('Token do servidor inválido. Confira em Ajustes → Sistema.')
+  if (!resp.ok) throw new Error(`Servidor respondeu com erro (HTTP ${resp.status}).`)
+  const d = await resp.json()
+  return { pedidos: Array.isArray(d.pedidos) ? d.pedidos : [], itens: Array.isArray(d.itens) ? d.itens : [] }
+}

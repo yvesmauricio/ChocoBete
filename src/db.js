@@ -372,6 +372,22 @@ export async function excluirPedidoCardapio(uuid) {
   try { await db.cardapio_pedidos.delete(uuid) } catch {}
 }
 
+/** Guarda pedidos que vieram do site (servidor). Só ADICIONA os que ainda não existem aqui:
+ *  nunca sobrescreve um pedido já importado (status, agendamento e edições locais ficam
+ *  intactos). Retorna quantos eram novos. */
+export async function importarPedidosSite(pedidos) {
+  let novos = 0
+  await db.transaction('rw', db.cardapio_pedidos, async () => {
+    for (const p of pedidos) {
+      if (!p?.uuid) continue
+      if (await db.cardapio_pedidos.get(p.uuid)) continue
+      await db.cardapio_pedidos.add(p)
+      novos++
+    }
+  })
+  return novos
+}
+
 // ─── Rotina de Backup Forte ─────────────────────────────────────
 // Chaves da tabela `config` que descrevem O ESTADO DESTE APARELHO (progresso
 // de sincronização, cronômetro rodando) e não dados do negócio. Não entram
@@ -385,6 +401,7 @@ export const CONFIG_CHAVES_DO_APARELHO = [
   'sync_pending',     // há alterações aqui ainda não enviadas
   'active_timer',     // cronômetro de produção rodando neste aparelho
   'sync_last_change', // quando este aparelho fez a última alteração (desempate no merge)
+  'd1_pedidos_cursor', // até onde este aparelho já buscou pedidos do site (servidor D1)
 ]
 
 const ehChaveDoAparelho = (chave) => CONFIG_CHAVES_DO_APARELHO.includes(chave)

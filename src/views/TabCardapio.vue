@@ -623,22 +623,28 @@
           >
             <i class="fas fa-arrow-left"></i><span v-if="!props.standalone">Voltar</span>
           </button>
-          <div class="cp-pedidos-titulo">Pedidos do balcão</div>
-          <div :style="{ width: props.standalone ? '36px' : '70px' }"></div>
+          <div class="cp-pedidos-titulo">Pedidos</div>
+          <button v-if="publicandoNoServidor" class="cp-fs-btn" :class="{ 'cp-girando': buscandoPedidosSite }" title="Buscar pedidos do site" :disabled="buscandoPedidosSite" @click="buscarPedidosDoSiteAgora(true)">
+            <i class="fas fa-rotate"></i>
+          </button>
+          <div v-else :style="{ width: props.standalone ? '36px' : '70px' }"></div>
         </div>
 
         <div class="cp-pedidos-corpo">
           <div v-if="!pedidosSalvos.length" class="cp-pedidos-vazio">
             <i class="fas fa-clipboard-list"></i>
-            <p>Nenhum pedido salvo ainda.<br>Abra a "Tela cheia", monte um pedido junto com o cliente e toque em "Finalizar pedido".</p>
+            <p>Nenhum pedido ainda.<br>Pedidos feitos no site chegam aqui sozinhos. Para vender no balcão, abra a "Tela cheia", monte o pedido com o cliente e toque em "Finalizar pedido".</p>
           </div>
 
           <template v-else>
             <div v-for="pedido in pedidosSalvos" :key="pedido.uuid" class="cp-pedido-card" :class="'is-' + pedido.status">
               <div class="cp-pedido-topo">
                 <div class="cp-pedido-cliente">
-                  <strong>{{ pedido.clienteNome || 'Venda de balcão' }}</strong>
-                  <span class="cp-pedido-data">{{ formatarDataPedido(pedido.criadoEm) }}</span>
+                  <strong>{{ pedido.clienteNome || (pedido.origem === 'site' ? 'Pedido do site' : 'Venda de balcão') }}</strong>
+                  <span class="cp-pedido-data">
+                    {{ formatarDataPedido(pedido.criadoEm) }}
+                    <span v-if="pedido.origem === 'site'" class="cp-pedido-site"><i class="fas fa-globe"></i> Site<template v-if="pedido.codigo"> · nº {{ pedido.codigo }}</template></span>
+                  </span>
                 </div>
                 <span class="cp-pedido-status" :class="'is-' + pedido.status">
                   <i class="fas" :class="{ 'fa-clock': pedido.status === 'pendente', 'fa-calendar-check': pedido.status === 'agendado', 'fa-circle-check': pedido.status === 'entregue' }"></i>
@@ -649,6 +655,10 @@
               <div class="cp-pedido-itens">
                 <div v-for="item in pedido.itens" :key="item.nome">{{ item.qtd }}x {{ item.nome }}</div>
                 <div v-if="pedido.entregaValor">Entrega: {{ R$(pedido.entregaValor) }}</div>
+                <div v-if="pedido.origem === 'site' && pedido.clienteTelefone" class="cp-pedido-extra"><i class="fab fa-whatsapp"></i> {{ telefoneBonito(pedido.clienteTelefone) }}</div>
+                <div v-if="pedido.origem === 'site' && pedido.recebimento === 'entrega'" class="cp-pedido-extra"><i class="fas fa-location-dot"></i> Entrega<template v-if="pedido.endereco">: {{ pedido.endereco }}</template></div>
+                <div v-else-if="pedido.origem === 'site'" class="cp-pedido-extra"><i class="fas fa-store"></i> Retirada</div>
+                <div v-if="pedido.obs" class="cp-pedido-extra"><i class="fas fa-comment"></i> {{ pedido.obs }}</div>
               </div>
 
               <div class="cp-pedido-pagamento">
@@ -782,6 +792,7 @@ import {
 } from '../composables/useCardapio.js'
 import { publicarArquivoGitHub, carregarConfigPublicacao, publicacaoConfigurada, urlPublicaFinal } from '../services/githubPublish.js'
 import { carregarConfigD1, d1Configurado, publicarCardapioD1 } from '../services/d1Publish.js'
+import { importarPedidosDoSite } from '../services/pedidosSite.js'
 import { salvarPedidoCardapio, listarPedidosCardapio, atualizarStatusPedidoCardapio, excluirPedidoCardapio } from '../db.js'
 import BaseModal from '../components/BaseModal.vue'
 
@@ -969,7 +980,7 @@ onMounted(async () => {
   if (config.abrir_tela_cheia_padrao && (props.standalone || s.tab === 'cardapio') && !props.forcarEdicao && !props.abrirPedidos) {
     telaCheiaAberta.value = true
   }
-  if (props.abrirPedidos) pedidosPainelAberto.value = true
+  if (props.abrirPedidos) { pedidosPainelAberto.value = true; buscarPedidosDoSiteAgora() }
 })
 
 // ── Pedidos do balcão ───────────────────────────────────────────────────
@@ -1000,9 +1011,33 @@ async function onMensagemJanela(event) {
 window.addEventListener('message', onMensagemJanela)
 onUnmounted(() => window.removeEventListener('message', onMensagemJanela))
 
+// Pedidos do site: chegam sozinhos (monitor no App.vue); aqui só recarregamos a lista quando isso acontece
+// e oferecemos o botão de atualizar na hora.
+const buscandoPedidosSite = ref(false)
+async function buscarPedidosDoSiteAgora(avisar = false) {
+  if (buscandoPedidosSite.value) return
+  buscandoPedidosSite.value = true
+  try {
+    const r = await importarPedidosDoSite()
+    if (r.novos > 0) {
+      await carregarPedidosSalvos()
+      if (avisar) s.notify?.(r.novos === 1 ? '1 pedido novo do site.' : `${r.novos} pedidos novos do site.`, 'success')
+      sincronizarDepois(true)
+    } else if (avisar) {
+      s.notify?.(r.erro ? `Não consegui buscar agora: ${r.erro}` : r.ativo ? 'Nenhum pedido novo do site.' : 'Ligue o servidor em Ajustes para receber pedidos do site.')
+    }
+  } finally {
+    buscandoPedidosSite.value = false
+  }
+}
+const aoChegarPedidosSite = () => carregarPedidosSalvos()
+window.addEventListener('pedidos-site:novos', aoChegarPedidosSite)
+onUnmounted(() => window.removeEventListener('pedidos-site:novos', aoChegarPedidosSite))
+
 async function abrirPainelPedidos() {
   pedidosPainelAberto.value = true
   await carregarPedidosSalvos()
+  buscarPedidosDoSiteAgora() // em segundo plano: mostra o que já tem e traz o que chegou
 }
 
 // Se chegou aqui direto pelo atalho "Pedidos" (dashboard da Bete), "Voltar"
@@ -1078,7 +1113,7 @@ async function reabrirPedido(pedido) {
 }
 
 async function removerPedido(pedido) {
-  if (!confirm(`Remover o pedido de ${pedido.clienteNome || 'balcão'}?`)) return
+  if (!confirm(`Remover o pedido de ${pedido.clienteNome || (pedido.origem === 'site' ? 'site' : 'balcão')}?`)) return
   await excluirPedidoCardapio(pedido.uuid)
   sincronizarDepois(true)
   pedidosSalvos.value = pedidosSalvos.value.filter(p => p.uuid !== pedido.uuid)
@@ -1104,6 +1139,15 @@ function formatarDataAgendada(dataStr) {
   const d = new Date(ano, (mes || 1) - 1, dia || 1)
   if (Number.isNaN(d.getTime())) return ''
   return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })
+}
+
+// 21999430023 → (21) 99943-0023 (aceita com 55 na frente)
+function telefoneBonito(t) {
+  let d = String(t || '').replace(/\D/g, '')
+  if (d.length > 11 && d.startsWith('55')) d = d.slice(2)
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return String(t || '')
 }
 
 function linkWhatsAppCliente(pedido) {
@@ -2171,6 +2215,12 @@ async function publicarLinkCardapioInterativo() {
 .cp-pedido-cliente { display: flex; flex-direction: column; }
 .cp-pedido-cliente strong { font-size: 13.5px; color: var(--brown-dark); }
 .cp-pedido-data { font-size: 10.5px; color: var(--muted); }
+.cp-pedido-site { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--cream); color: var(--brown-dark); font-weight: 700; }
+.cp-pedido-site i { font-size: 9px; }
+.cp-pedido-extra { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.cp-pedido-extra i { width: 14px; text-align: center; }
+.cp-girando i { animation: cp-giro 1s linear infinite; }
+@keyframes cp-giro { to { transform: rotate(360deg); } }
 .cp-pedido-status {
   display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700;
   padding: 4px 9px; border-radius: 999px; white-space: nowrap; flex-shrink: 0;
