@@ -3,17 +3,22 @@
 import { json, tokenValido } from '../../_lib/util.js'
 
 const DIAS_ATE_REMOVER = 30
+const CHANCE_FAXINA = 0.02
 
 export async function onRequestGet({ request, env }) {
   if (!tokenValido(request, env)) return json({ erro: 'Não autorizado' }, 401)
   const desde = Number(new URL(request.url).searchParams.get('desde')) || 0
 
-  // Faxina: aproveita a chamada do app (não há agendador no Pages). Itens primeiro, depois o pedido.
-  const limite = Date.now() - DIAS_ATE_REMOVER * 86_400_000
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM pedido_itens WHERE pedido_uuid IN (SELECT uuid FROM pedidos WHERE apagado_em IS NOT NULL AND apagado_em < ?)').bind(limite),
-    env.DB.prepare('DELETE FROM pedidos WHERE apagado_em IS NOT NULL AND apagado_em < ?').bind(limite),
-  ])
+  // Faxina: o app chama esta rota a cada minuto e o Pages não tem agendador, então ela roda só em
+  // ~2% das chamadas (apagar de vez um pedido com 30 dias não tem pressa) e com índice em
+  // `apagado_em` (migração 0002). Itens primeiro, depois o pedido.
+  if (Math.random() < CHANCE_FAXINA) {
+    const limite = Date.now() - DIAS_ATE_REMOVER * 86_400_000
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM pedido_itens WHERE pedido_uuid IN (SELECT uuid FROM pedidos WHERE apagado_em IS NOT NULL AND apagado_em < ?)').bind(limite),
+      env.DB.prepare('DELETE FROM pedidos WHERE apagado_em IS NOT NULL AND apagado_em < ?').bind(limite),
+    ])
+  }
 
   const { results: pedidos } = await env.DB.prepare(
     `SELECT uuid, cardapio_id, origem, cliente_nome, cliente_telefone, recebimento, subtotal_centavos, taxa_centavos,

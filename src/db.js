@@ -403,6 +403,10 @@ export const CONFIG_CHAVES_DO_APARELHO = [
   'sync_last_change', // quando este aparelho fez a última alteração (desempate no merge)
   'd1_pedidos_cursor', // até onde este aparelho já buscou pedidos do site (servidor D1)
   'd1_pedidos_apagar', // pedidos do site apagados aqui que o servidor ainda precisa saber
+  // Credenciais: valem só neste aparelho. Não podem viajar no backup (Drive/arquivo local) nem
+  // ser trocadas por um backup restaurado.
+  'd1_publish_config',     // chave de administrador do servidor do cardápio
+  'github_publish_config', // token do GitHub (publicação antiga do cardápio)
 ]
 
 const ehChaveDoAparelho = (chave) => CONFIG_CHAVES_DO_APARELHO.includes(chave)
