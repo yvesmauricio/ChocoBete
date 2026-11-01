@@ -44,12 +44,19 @@ async function chamar(caminho, config, opcoes = {}, ms = 20000) {
   }
 }
 
-/** Confere se o servidor responde e se o token vale. Lança erro com mensagem legível se não. */
+/** Confere se o servidor responde, se o token vale e se o banco e as tabelas estão ok (rota /api/ping).
+ *  Lança erro com mensagem legível se não. Retorna o diagnóstico do servidor. */
 export async function testarConexaoD1(config) {
-  const resp = await chamar(`/api/admin/pedidos?desde=${Date.now()}`, config, {}, 10000)
+  const resp = await chamar('/api/ping', config, {}, 10000)
   if (resp.status === 401) throw new Error('Token não aceito pelo servidor. Confira se é o mesmo do ADMIN_TOKEN.')
+  const corpo = await resp.json().catch(() => null)
+  if (resp.status === 404) throw new Error('O servidor ainda não tem a rota de teste. Publique a versão nova e tente de novo.')
+  if (corpo?.banco && corpo.banco.ok === false) {
+    const falta = corpo.banco.tabelas_faltando?.length ? ` Faltam tabelas: ${corpo.banco.tabelas_faltando.join(', ')} (rode as migrações).` : ''
+    throw new Error(`O servidor respondeu, mas o banco não está pronto.${falta}`)
+  }
   if (!resp.ok) throw new Error(`O servidor respondeu com erro (HTTP ${resp.status}).`)
-  return true
+  return corpo || true
 }
 
 /** Dados que o SERVIDOR precisa conhecer (o resto fica só no HTML). Valores em centavos. */
