@@ -15,7 +15,7 @@
        dependendo da internet — se não tivesse rede nem cache, travava a
        1ª renderização do app inteiro esperando. Removido. -->
   <!-- Fonte do app carregada sem travar a 1ª renderização (mesmo motivo do
-       cardápio): um <link rel="stylesheet"> comum aqui seguraria a tela em
+       cardápio):: um <link rel="stylesheet"> comum aqui seguraria a tela em
        branco até a fonte responder — se estiver sem rede e sem cache
        pronto, trava o app inteiro. O truque media="print" faz o navegador
        não esperar por isso pra pintar a tela; o onload troca pra
