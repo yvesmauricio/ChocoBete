@@ -1478,6 +1478,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     var COM_ESCOLHA_RECEBIMENTO = ${JSON.stringify(comEscolhaRecebimento)};
     var TAXA_ENTREGA = ${JSON.stringify(taxaEntrega)};
     var API_PEDIDO = ${JSON.stringify(apiPedido && !modoBalcao ? apiPedido : '')};
+    var TURNSTILE_SITEKEY = '%%TURNSTILE_SITEKEY%%';
 
     // ── "ler mais" só aparece quando a descrição realmente estoura 2 linhas —
     // uma descrição curta (1 linha) não ganha esse link à toa. ──
@@ -2196,6 +2197,43 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       if (!e) return '';
       return [e.rua, e.numero, e.complemento, e.bairro, e.referencia].filter(Boolean).join(', ');
     }
+    // Anti-robô (Cloudflare Turnstile). Só liga se o servidor trocou o marcador pela chave pública.
+    // Modo 'interaction-only': o cliente normalmente não vê nada. Se falhar, o pedido segue pelo WhatsApp.
+    var tsWidget = null, tsToken = '';
+    function iniciarTurnstile() {
+      if (!API_PEDIDO || MODO_BALCAO || !/^[0-9A-Za-z_-]{10,}$/.test(TURNSTILE_SITEKEY)) return;
+      window.__tsPronto = function () {
+        try {
+          var box = document.createElement('div');
+          box.style.cssText = 'position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:99999';
+          document.body.appendChild(box);
+          tsWidget = window.turnstile.render(box, {
+            sitekey: TURNSTILE_SITEKEY,
+            appearance: 'interaction-only',
+            callback: function (t) { tsToken = t; },
+            'expired-callback': function () { tsToken = ''; },
+            'error-callback': function () { tsToken = ''; }
+          });
+        } catch (e) {}
+      };
+      var s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=__tsPronto';
+      s.async = true; s.defer = true;
+      document.head.appendChild(s);
+    }
+    function comTokenTurnstile(cb) {
+      if (!tsWidget || tsToken) { cb(tsToken); return; }
+      var n = 0, iv = setInterval(function () {
+        n++;
+        if (tsToken || n >= 40) { clearInterval(iv); cb(tsToken); }
+      }, 100);
+    }
+    function renovarTurnstile() {
+      tsToken = '';
+      try { if (tsWidget !== null) window.turnstile.reset(tsWidget); } catch (e) {}
+    }
+    if (document.body) iniciarTurnstile(); else document.addEventListener('DOMContentLoaded', iniciarTurnstile);
+
     function confirmarEnvio() {
       if (!ultimoResumo) return;
       if (!API_PEDIDO || MODO_BALCAO || typeof fetch !== 'function') { confirmarEnvioInterno(); return; }
@@ -2227,6 +2265,10 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       function seguir() { if (terminou) return; terminou = true; confirmarEnvioInterno(); }
       var timer = setTimeout(seguir, 8000);
 
+      comTokenTurnstile(function (token) {
+      if (terminou) return;
+      if (token) corpo.turnstile = token;
+      renovarTurnstile();
       fetch(API_PEDIDO, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
         .then(function (r) { return r.json().then(function (d) { return { status: r.status, dados: d }; }); })
         .then(function (res) {
@@ -2254,6 +2296,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
           seguir(); // 429, erro do servidor etc.: segue pelo WhatsApp como sempre foi
         })
         .catch(function () { if (!terminou) { clearTimeout(timer); seguir(); } });
+      });
     }
 
     // ── Modo balcão: em vez de abrir o WhatsApp (não faz sentido quando é

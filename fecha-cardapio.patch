@@ -1,0 +1,208 @@
+diff --git a/functions/_lib/avisar.js b/functions/_lib/avisar.js
+new file mode 100644
+index 0000000..bfd96ea
+--- /dev/null
++++ b/functions/_lib/avisar.js
+@@ -0,0 +1,32 @@
++// Aviso de pedido novo por Telegram. Nunca atrapalha o pedido: qualquer falha é engolida.
++// Precisa dos segredos TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID; sem eles não faz nada.
++const brl = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
++
++export function montarAviso({ pedidoId, cardapioId, nome, telefone, recebimento, total, sinal, linhas }) {
++  const itens = linhas.map(l => `${l.qtd}x ${l.nome}`).join('\n')
++  return [
++    `🍫 Novo pedido nº ${String(pedidoId).slice(-6).toUpperCase()} (${cardapioId})`,
++    nome ? `Cliente: ${nome}` : null,
++    telefone ? `WhatsApp: ${telefone}` : null,
++    `Recebimento: ${recebimento}`,
++    '',
++    itens,
++    '',
++    `Total: ${brl(total)}` + (sinal ? ` · Sinal: ${brl(sinal)}` : ''),
++  ].filter(x => x !== null).join('\n')
++}
++
++export async function avisarTelegram(env, dados, { fetchFn = fetch, timeoutMs = 5000 } = {}) {
++  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return false
++  const ctl = new AbortController()
++  const timer = setTimeout(() => ctl.abort(), timeoutMs)
++  try {
++    const r = await fetchFn(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
++      method: 'POST',
++      headers: { 'content-type': 'application/json' },
++      body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: montarAviso(dados) }),
++      signal: ctl.signal,
++    })
++    return r.ok
++  } catch { return false } finally { clearTimeout(timer) }
++}
+diff --git a/functions/_lib/servir.js b/functions/_lib/servir.js
+index abff477..ed5920e 100644
+--- a/functions/_lib/servir.js
++++ b/functions/_lib/servir.js
+@@ -4,7 +4,9 @@ export async function servirCardapio(id, { env, next }) {
+   let row = null
+   try { row = await env.DB.prepare('SELECT html FROM cardapios WHERE id = ?').bind(id).first() } catch { /* D1 fora do ar: usa o estático */ }
+   if (!row?.html) return next()
+-  return new Response(row.html, { headers: {
++  // Chave PÚBLICA do Turnstile (variável TURNSTILE_SITE_KEY): entra na página na hora de servir, sem republicar.
++  const html = row.html.replace('%%TURNSTILE_SITEKEY%%', env.TURNSTILE_SITE_KEY || '')
++  return new Response(html, { headers: {
+     'content-type': 'text/html; charset=utf-8',
+     'cache-control': 'no-cache, must-revalidate',   // mesma regra do seu _headers atual
+     'x-content-type-options': 'nosniff',
+diff --git a/functions/_lib/turnstile.js b/functions/_lib/turnstile.js
+new file mode 100644
+index 0000000..454ec3f
+--- /dev/null
++++ b/functions/_lib/turnstile.js
+@@ -0,0 +1,25 @@
++// Verificação do Cloudflare Turnstile (anti-robô) para pedidos do site.
++// - Sem TURNSTILE_SECRET configurado: não verifica (nada muda para os clientes).
++// - Com o segredo: pedido sem token válido é recusado (403). O cliente segue pelo WhatsApp como sempre.
++// - Se o serviço de verificação da Cloudflare estiver fora do ar/lento: deixa passar (os limites por IP continuam valendo),
++//   para o pedido nunca depender de um terceiro.
++const URL_VERIFICACAO = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
++
++export async function verificarTurnstile(token, ip, env, { timeoutMs = 4000, fetchFn = fetch } = {}) {
++  if (!env.TURNSTILE_SECRET) return { ok: true, pulado: true }
++  if (typeof token !== 'string' || token.length < 10 || token.length > 2048) return { ok: false, motivo: 'sem-token' }
++  const ctl = new AbortController()
++  const timer = setTimeout(() => ctl.abort(), timeoutMs)
++  try {
++    const form = new URLSearchParams({ secret: env.TURNSTILE_SECRET, response: token })
++    if (ip) form.set('remoteip', ip)
++    const r = await fetchFn(URL_VERIFICACAO, { method: 'POST', body: form, signal: ctl.signal })
++    if (!r.ok) return { ok: true, indisponivel: true }
++    const d = await r.json()
++    return d.success === true ? { ok: true } : { ok: false, motivo: (d['error-codes'] || []).join(',') || 'recusado' }
++  } catch {
++    return { ok: true, indisponivel: true }
++  } finally {
++    clearTimeout(timer)
++  }
++}
+diff --git a/functions/api/pedido.js b/functions/api/pedido.js
+index f404b0d..ece2467 100644
+--- a/functions/api/pedido.js
++++ b/functions/api/pedido.js
+@@ -1,11 +1,13 @@
+ // POST /api/pedido — público. Recebe SÓ ids e quantidades; o servidor decide o preço.
+ import { calcularPedido } from '../_lib/preco.js'
+ import { json, uuidOk, mesmaOrigem, lerJson, hashIp } from '../_lib/util.js'
++import { verificarTurnstile } from '../_lib/turnstile.js'
++import { avisarTelegram } from '../_lib/avisar.js'
+ 
+ const LIMITE_POR_IP_10MIN = 6
+ const LIMITE_GLOBAL_HORA = 300
+ 
+-export async function onRequestPost({ request, env }) {
++export async function onRequestPost({ request, env, waitUntil }) {
+   if (!mesmaOrigem(request)) return json({ erro: 'Origem não permitida' }, 403)
+ 
+   let b
+@@ -27,6 +29,10 @@ export async function onRequestPost({ request, env }) {
+   if (ja) return json({ ok: true, repetido: true, pedido_id: b.pedido_id, subtotal: ja.subtotal_centavos,
+                         taxa: ja.taxa_centavos, total: ja.total_centavos, sinal: ja.sinal_centavos })
+ 
++  // Anti-robô (só se TURNSTILE_SECRET estiver configurado). Depois do reenvio idempotente: repetir o mesmo pedido não pede token novo.
++  const ts = await verificarTurnstile(b.turnstile, request.headers.get('cf-connecting-ip'), env)
++  if (!ts.ok) return json({ erro: 'Não foi possível validar o acesso. Envie pelo WhatsApp mesmo.' }, 403)
++
+   // Limite de spam: por IP (anônimo) e global
+   const [porIp, global] = await Promise.all([
+     env.DB.prepare('SELECT COUNT(*) n FROM pedidos WHERE ip_hash = ? AND criado_em > ?').bind(ipHash, agora - 600_000).first(),
+@@ -65,5 +71,10 @@ export async function onRequestPost({ request, env }) {
+       .bind(b.pedido_id, l.uuid, l.nome, l.categoria, l.preco_centavos, l.qtd)),
+   ])
+ 
++  // Aviso por Telegram em segundo plano: não atrasa nem derruba o pedido.
++  const aviso = avisarTelegram(env, { pedidoId: b.pedido_id, cardapioId, nome: texto(b.cliente_nome, 80), telefone,
++    recebimento, total: r.total, sinal: r.sinal, linhas: r.linhas })
++  if (typeof waitUntil === 'function') waitUntil(aviso)
++
+   return json({ ok: true, pedido_id: b.pedido_id, subtotal: r.subtotal, taxa: r.taxa, total: r.total, sinal: r.sinal })
+ }
+diff --git a/public/_redirects b/public/_redirects
+new file mode 100644
+index 0000000..887a3f6
+--- /dev/null
++++ b/public/_redirects
+@@ -0,0 +1,2 @@
++/pedido-diaadia.html  /pedido-diaadia  301
++/pedido-festa.html    /pedido-festa    301
+diff --git a/src/composables/useCardapio.js b/src/composables/useCardapio.js
+index 371dfc2..7e146c7 100644
+--- a/src/composables/useCardapio.js
++++ b/src/composables/useCardapio.js
+@@ -1478,6 +1478,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao
+     var COM_ESCOLHA_RECEBIMENTO = ${JSON.stringify(comEscolhaRecebimento)};
+     var TAXA_ENTREGA = ${JSON.stringify(taxaEntrega)};
+     var API_PEDIDO = ${JSON.stringify(apiPedido && !modoBalcao ? apiPedido : '')};
++    var TURNSTILE_SITEKEY = '%%TURNSTILE_SITEKEY%%';
+ 
+     // ── "ler mais" só aparece quando a descrição realmente estoura 2 linhas —
+     // uma descrição curta (1 linha) não ganha esse link à toa. ──
+@@ -2196,6 +2197,43 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao
+       if (!e) return '';
+       return [e.rua, e.numero, e.complemento, e.bairro, e.referencia].filter(Boolean).join(', ');
+     }
++    // Anti-robô (Cloudflare Turnstile). Só liga se o servidor trocou o marcador pela chave pública.
++    // Modo 'interaction-only': o cliente normalmente não vê nada. Se falhar, o pedido segue pelo WhatsApp.
++    var tsWidget = null, tsToken = '';
++    function iniciarTurnstile() {
++      if (!API_PEDIDO || MODO_BALCAO || !/^[0-9A-Za-z_-]{10,}$/.test(TURNSTILE_SITEKEY)) return;
++      window.__tsPronto = function () {
++        try {
++          var box = document.createElement('div');
++          box.style.cssText = 'position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:99999';
++          document.body.appendChild(box);
++          tsWidget = window.turnstile.render(box, {
++            sitekey: TURNSTILE_SITEKEY,
++            appearance: 'interaction-only',
++            callback: function (t) { tsToken = t; },
++            'expired-callback': function () { tsToken = ''; },
++            'error-callback': function () { tsToken = ''; }
++          });
++        } catch (e) {}
++      };
++      var s = document.createElement('script');
++      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=__tsPronto';
++      s.async = true; s.defer = true;
++      document.head.appendChild(s);
++    }
++    function comTokenTurnstile(cb) {
++      if (!tsWidget || tsToken) { cb(tsToken); return; }
++      var n = 0, iv = setInterval(function () {
++        n++;
++        if (tsToken || n >= 40) { clearInterval(iv); cb(tsToken); }
++      }, 100);
++    }
++    function renovarTurnstile() {
++      tsToken = '';
++      try { if (tsWidget !== null) window.turnstile.reset(tsWidget); } catch (e) {}
++    }
++    if (document.body) iniciarTurnstile(); else document.addEventListener('DOMContentLoaded', iniciarTurnstile);
++
+     function confirmarEnvio() {
+       if (!ultimoResumo) return;
+       if (!API_PEDIDO || MODO_BALCAO || typeof fetch !== 'function') { confirmarEnvioInterno(); return; }
+@@ -2227,6 +2265,10 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao
+       function seguir() { if (terminou) return; terminou = true; confirmarEnvioInterno(); }
+       var timer = setTimeout(seguir, 8000);
+ 
++      comTokenTurnstile(function (token) {
++      if (terminou) return;
++      if (token) corpo.turnstile = token;
++      renovarTurnstile();
+       fetch(API_PEDIDO, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
+         .then(function (r) { return r.json().then(function (d) { return { status: r.status, dados: d }; }); })
+         .then(function (res) {
+@@ -2254,6 +2296,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao
+           seguir(); // 429, erro do servidor etc.: segue pelo WhatsApp como sempre foi
+         })
+         .catch(function () { if (!terminou) { clearTimeout(timer); seguir(); } });
++      });
+     }
+ 
+     // ── Modo balcão: em vez de abrir o WhatsApp (não faz sentido quando é

@@ -1,11 +1,13 @@
 // POST /api/pedido — público. Recebe SÓ ids e quantidades; o servidor decide o preço.
 import { calcularPedido } from '../_lib/preco.js'
 import { json, uuidOk, mesmaOrigem, lerJson, hashIp } from '../_lib/util.js'
+import { verificarTurnstile } from '../_lib/turnstile.js'
+import { avisarTelegram } from '../_lib/avisar.js'
 
 const LIMITE_POR_IP_10MIN = 6
 const LIMITE_GLOBAL_HORA = 300
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   if (!mesmaOrigem(request)) return json({ erro: 'Origem não permitida' }, 403)
 
   let b
@@ -26,6 +28,10 @@ export async function onRequestPost({ request, env }) {
     .bind(b.pedido_id).first()
   if (ja) return json({ ok: true, repetido: true, pedido_id: b.pedido_id, subtotal: ja.subtotal_centavos,
                         taxa: ja.taxa_centavos, total: ja.total_centavos, sinal: ja.sinal_centavos })
+
+  // Anti-robô (só se TURNSTILE_SECRET estiver configurado). Depois do reenvio idempotente: repetir o mesmo pedido não pede token novo.
+  const ts = await verificarTurnstile(b.turnstile, request.headers.get('cf-connecting-ip'), env)
+  if (!ts.ok) return json({ erro: 'Não foi possível validar o acesso. Envie pelo WhatsApp mesmo.' }, 403)
 
   // Limite de spam: por IP (anônimo) e global
   const [porIp, global] = await Promise.all([
@@ -64,6 +70,11 @@ export async function onRequestPost({ request, env }) {
       `INSERT OR IGNORE INTO pedido_itens (pedido_uuid, item_uuid, nome, categoria, preco_centavos, qtd) VALUES (?,?,?,?,?,?)`)
       .bind(b.pedido_id, l.uuid, l.nome, l.categoria, l.preco_centavos, l.qtd)),
   ])
+
+  // Aviso por Telegram em segundo plano: não atrasa nem derruba o pedido.
+  const aviso = avisarTelegram(env, { pedidoId: b.pedido_id, cardapioId, nome: texto(b.cliente_nome, 80), telefone,
+    recebimento, total: r.total, sinal: r.sinal, linhas: r.linhas })
+  if (typeof waitUntil === 'function') waitUntil(aviso)
 
   return json({ ok: true, pedido_id: b.pedido_id, subtotal: r.subtotal, taxa: r.taxa, total: r.total, sinal: r.sinal })
 }
