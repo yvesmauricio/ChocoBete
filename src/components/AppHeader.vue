@@ -17,12 +17,15 @@
              o envio não é automático a cada alteração: o app fica com
              dados pendentes até alguém tocar aqui, então precisa ser bem
              visível quando isso acontece. -->
+        <!-- Sempre visível quando o Drive está conectado:
+             verde = salvo · vermelho = precisa salvar/falhou · laranja = salvando -->
         <button
-          v-if="s.googleDriveConfigured && syncEstado !== 'idle'"
+          v-if="s.googleDriveConfigured"
           class="hdr-btn hdr-btn-sync"
           :class="`hdr-btn-sync--${syncEstado}`"
           :disabled="!syncClicavel"
           :title="syncTitulo"
+          :aria-label="syncTitulo"
           @click="onClickSync"
         >
           <i class="fas" :class="syncIcone"></i>
@@ -44,39 +47,16 @@
 </template>
 
 <script setup>
-import { inject, computed } from 'vue'
+import { inject } from 'vue'
 import { useStore } from '../store.js'
-import { useConfirm } from '../composables/useConfirm.js'
+import { useSyncIndicador } from '../composables/useSyncIndicador.js'
 
 const s = useStore()
 const trocarPerfil = inject('trocarPerfil', () => {})
-const confirmar = useConfirm()
 
-// Esse perfil (Admin) não sincroniza sozinho a cada alteração — diferente
-// do perfil da Bete. Por isso o botão precisa continuar clicável também
-// no estado "pendente" (alterações aguardando envio), não só quando dá erro.
-const syncEstado = computed(() => {
-  if (s.syncStatus === 'error' || s.syncStatus === 'conflict') return 'error'
-  if (s.syncStatus === 'syncing' || s.hasLocalChanges) return 'syncing'
-  if (s.syncStatus === 'ok') return 'ok'
-  return 'idle'
-})
-const temAlteracoesPendentes = computed(() => s.hasLocalChanges && s.syncStatus !== 'syncing')
-const syncClicavel = computed(() => s.syncStatus === 'error' || s.syncStatus === 'conflict' || temAlteracoesPendentes.value)
-const syncTitulo = computed(() => {
-  if (s.syncStatus === 'conflict') return 'Outro aparelho também alterou os dados — toque para escolher qual versão manter'
-  if (s.syncStatus === 'error') return 'Falha ao salvar no Drive — toque para tentar de novo'
-  if (s.syncStatus === 'syncing') return 'Salvando no Drive…'
-  if (s.hasLocalChanges) return 'Há alterações que ainda não foram enviadas ao Drive — toque para enviar agora'
-  if (s.syncStatus === 'ok') return 'Salvo no Drive'
-  return ''
-})
-const syncIcone = computed(() => ({
-  syncing: 'fa-cloud-arrow-up fa-beat-fade',
-  ok: 'fa-cloud-arrow-up',
-  error: 'fa-triangle-exclamation',
-  idle: 'fa-cloud-arrow-up'
-}[syncEstado.value]))
+// Esse perfil (Admin) não sincroniza sozinho a cada alteração — por isso o
+// botão é clicável nos estados "precisa salvar" (pendente) e "erro".
+const { estado: syncEstado, clicavel: syncClicavel, titulo: syncTitulo, icone: syncIcone } = useSyncIndicador(s)
 
 async function onClickSync() {
   if (!syncClicavel.value) return

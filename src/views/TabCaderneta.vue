@@ -11,10 +11,10 @@
           <p class="cd-data">{{ dataBR }}</p>
         </div>
         <div class="cd-hdr-btns">
-          <!-- Sync com o Google Drive: nuvem verde = salvo, amarela = salvando/pendente,
-               vermelha = falhou (toque para tentar de novo) -->
+          <!-- Sync com o Google Drive: verde = salvo, laranja = salvando,
+               vermelho = precisa salvar / falhou (toque para enviar) -->
           <button
-            v-if="s.googleDriveConfigured && syncEstado !== 'idle'"
+            v-if="s.googleDriveConfigured"
             class="cd-icbtn cd-sync"
             :class="`cd-sync--${syncEstado}`"
             :disabled="!syncClicavel"
@@ -1618,6 +1618,7 @@ import {
 } from '../composables/useCaderneta.js'
 import { useStore } from '../store.js'
 import { useConfirm } from '../composables/useConfirm.js'
+import { useSyncIndicador } from '../composables/useSyncIndicador.js'
 import {
   carregarConfigCardapio, montarItensCardapio, agruparPorCategoria,
   extrairTelefoneDeTexto, numeroWhatsAppFormatado, compartilharArquivo
@@ -1934,28 +1935,7 @@ const clientesArquivados = ref([])
 const mostrarArquivadas = ref(false)
 // ── Botão de sync com o Drive (mesma lógica do cabeçalho do outro perfil) ──
 const confirmar = useConfirm()
-const syncEstado = computed(() => {
-  if (s.syncStatus === 'error' || s.syncStatus === 'conflict') return 'error'
-  if (s.syncStatus === 'syncing' || s.hasLocalChanges) return 'syncing'
-  if (s.syncStatus === 'ok') return 'ok'
-  return 'idle'
-})
-const temAlteracoesPendentes = computed(() => s.hasLocalChanges && s.syncStatus !== 'syncing')
-const syncClicavel = computed(() => s.syncStatus === 'error' || s.syncStatus === 'conflict' || temAlteracoesPendentes.value)
-const syncTitulo = computed(() => {
-  if (s.syncStatus === 'conflict') return 'Outro aparelho também alterou os dados — toque para escolher qual versão manter'
-  if (s.syncStatus === 'error') return 'Falha ao salvar no Drive — toque para tentar de novo'
-  if (s.syncStatus === 'syncing') return 'Salvando no Drive…'
-  if (s.hasLocalChanges) return 'Há alterações que ainda não foram enviadas ao Drive — toque para enviar agora'
-  if (s.syncStatus === 'ok') return 'Salvo no Drive'
-  return ''
-})
-const syncIcone = computed(() => ({
-  syncing: 'fa-cloud-arrow-up fa-beat-fade',
-  ok: 'fa-cloud-arrow-up',
-  error: 'fa-triangle-exclamation',
-  idle: 'fa-cloud-arrow-up',
-}[syncEstado.value]))
+const { estado: syncEstado, clicavel: syncClicavel, titulo: syncTitulo, icone: syncIcone } = useSyncIndicador(s)
 
 async function onClickSync() {
   if (!syncClicavel.value) return
@@ -5288,8 +5268,9 @@ onMounted(async () => {
 .cd-icbtn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 14px; background: var(--cream); color: var(--brown-mid); font-size: 1.05rem; cursor: pointer; padding: 0; transition: background var(--t); }
 .cd-icbtn:active { background: var(--cream-deep); }
 .cd-icbtn:focus-visible, .cd-atalho:focus-visible, .cd-acao:focus-visible, .cd-cob:focus-visible, .cd-pix-copiar:focus-visible, .cd-aviso:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 2px; }
-.cd-sync--ok { color: var(--green); background: var(--green-bg); }
-.cd-sync--syncing { background: var(--gold-bg); color: var(--gold-dark); }
+.cd-sync--saved { color: var(--green); background: var(--green-bg); }
+.cd-sync--syncing { background: var(--orange-bg); color: var(--orange); }
+.cd-sync--pending { background: var(--red); color: #fff; animation: syncPulso 1.6s ease-in-out infinite; }
 .cd-sync--error { background: var(--red); color: #fff; }
 .cd-sync:disabled { opacity: .9; cursor: default; }
 .cd-sync:not(:disabled) { cursor: pointer; }
