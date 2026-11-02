@@ -2560,16 +2560,18 @@ async function salvarFiado(ignorarRepetida = false) {
     return
   }
   avisoDuplicado.value = null
-  // Mesmo cliente + mesma data da compra + mesmo valor → pergunta uma vez
-  // (pode ser compra repetida de verdade, por isso não bloqueia).
-  if (ignorarRepetida !== true) {
-    await carregarComprasCliente()
-    const igual = comprasCliente.value.find(f =>
-      f.dataVenda === dataVenda.value && Math.abs(Number(f.total) - totalLancar.value) < 0.005)
-    if (igual) { avisoDuplicado.value = igual; return }
-  }
+  // Trava ligada ANTES da conferência (que é assíncrona): senão um toque duplo
+  // passa pelos dois lados da checagem e grava a venda duas vezes.
   salvandoFiado.value = true
   try {
+    // Mesmo cliente + mesma data da compra + mesmo valor → pergunta uma vez
+    // (pode ser compra repetida de verdade, por isso não bloqueia).
+    if (ignorarRepetida !== true) {
+      await carregarComprasCliente()
+      const igual = comprasCliente.value.find(f =>
+        f.dataVenda === dataVenda.value && Math.abs(Number(f.total) - totalLancar.value) < 0.005)
+      if (igual) { avisoDuplicado.value = igual; return }
+    }
     const itens = categoriasVenda.value
       .filter(c => qtds[c.id] > 0)
       .map(c => ({ id: c.id, nome: c.nome, emoji: c.emoji, qty: qtds[c.id], preco: c.preco, subtotal: qtds[c.id] * c.preco }))
