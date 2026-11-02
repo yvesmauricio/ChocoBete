@@ -88,7 +88,7 @@
             </div>
             <p class="cx-nota">Mudou preço ou item? Toque em <strong>Atualizar link</strong> para quem já tem o link (bio, status) ver a versão nova.</p>
           </div>
-          <p v-else class="cx-nota cx-nota--solta">Para enviar um <strong>link</strong> em vez de um arquivo, configure a publicação em <button type="button" class="cp-link-inline" @click="s.setTab('ajustes')">Ajustes → Sistema</button>.</p>
+          <p v-else class="cx-nota cx-nota--solta">Para enviar um <strong>link</strong> em vez de um arquivo, ligue o servidor do cardápio em <button type="button" class="cp-link-inline" @click="s.setTab('ajustes')">Ajustes → Sistema</button>.</p>
         </div>
 
         <div class="cx-atalhos">

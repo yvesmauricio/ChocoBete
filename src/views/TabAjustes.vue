@@ -728,40 +728,7 @@
             </div>
           </article>
 
-          <!-- Publicação do Cardápio Interativo (GitHub + Cloudflare) -->
-          <details class="aj-card aj-colapso">
-            <summary class="aj-row">
-              <div class="aj-tile"><i class="fab fa-github"></i></div>
-              <div class="aj-row-txt">
-                <div class="aj-row-cabeca">
-                  <div class="aj-row-titulo">Link do Cardápio Interativo</div>
-                  <span class="aj-pill aj-pill--off">Avançado</span>
-                </div>
-                <div class="aj-row-sub">Publica o cardápio num link fixo, em vez de enviar o arquivo .html.</div>
-              </div>
-            </summary>
-            <div class="aj-form">
-              <div class="fg">
-                <label class="label" for="aj-token">Token do GitHub</label>
-                <input id="aj-token" v-model="pub.token" class="input" type="password" placeholder="github_pat_..." autocomplete="off" />
-                <span class="aj-nota">Use um token “fine-grained” com permissão só de Contents: Read/Write.</span>
-              </div>
-              <p v-if="pub.owner && pub.repo" class="aj-nota">
-                Publicando em <strong>{{ pub.owner }}/{{ pub.repo }}</strong> (branch <strong>{{ pub.branch }}</strong>)
-                → <strong>{{ pub.dominio || 'domínio não definido' }}</strong>.
-                Para mudar, edite o <code>.env</code> e gere um novo build.
-              </p>
-              <p v-else class="aj-nota aj-nota--erro">
-                Repositório e domínio não estão configurados no <code>.env</code> (VITE_GH_OWNER, VITE_GH_REPO,
-                VITE_GH_BRANCH, VITE_GH_DOMINIO). Preencha e gere um novo build antes de publicar.
-              </p>
-              <button class="btn btn-secondary" @click="salvarPublicacao">
-                <i class="fas fa-floppy-disk"></i> Salvar configuração
-              </button>
-            </div>
-          </details>
-
-          <!-- Publicação no servidor (Cloudflare D1): substitui o token do GitHub -->
+          <!-- Publicação no servidor (Cloudflare D1) -->
           <details class="aj-card aj-colapso">
             <summary class="aj-row">
               <div class="aj-tile"><i class="fas fa-server"></i></div>
@@ -930,8 +897,8 @@ const modulosYves = [
 // ── Publicação do Cardápio Interativo ──
 // owner/repo/branch/dominio agora só vêm do .env (não são mais editáveis nem
 // persistidos aqui) — só o token continua sendo digitado e salvo no app.
-const pub = reactive({ token: '', owner: '', repo: '', branch: 'main', caminho: 'public/pedido.html', dominio: '' })
-carregarConfigPublicacao().then(cfg => Object.assign(pub, cfg))
+// O token do GitHub não é mais usado: apaga o que tiver ficado salvo neste aparelho (revogue-o também no GitHub).
+carregarConfigPublicacao().then(cfg => (cfg.token ? salvarConfigPublicacao({ ...cfg, token: '' }) : null)).catch(() => {})
 
 // ── Versão e atualização do app ──
 const commitCurto = (versaoInstalada.commit || '').slice(0, 7)
@@ -1032,21 +999,6 @@ async function salvarServidor() {
   } finally {
     d1Testando.value = false
   }
-}
-
-async function salvarPublicacao() {
-  // Salva o token normalmente, mas owner/repo/branch/dominio são sempre
-  // sobrescritos pelo valor atual do .env antes de gravar — assim uma
-  // configuração salva antigamente (na versão com os campos editáveis)
-  // nunca fica "presa" no IndexedDB por baixo do valor do .env.
-  await salvarConfigPublicacao({
-    ...pub,
-    owner: import.meta.env.VITE_GH_OWNER || '',
-    repo: import.meta.env.VITE_GH_REPO || '',
-    branch: import.meta.env.VITE_GH_BRANCH || 'main',
-    dominio: import.meta.env.VITE_GH_DOMINIO || '',
-  })
-  s.notify('Configuração de publicação salva!')
 }
 
 // 🔄 Sincroniza o formulário local quando os dados são carregados do banco (Store Init)
