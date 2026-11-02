@@ -65,7 +65,7 @@
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{-webkit-text-size-adjust:100%;height:100%;font-size:16px}
+html{-webkit-text-size-adjust:100%;height:100%;font-size:16px;overscroll-behavior:none}
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;height:100%;overscroll-behavior:none;font-size:1rem;line-height:1.5}
 input,select,textarea{font-size:16px !important;font-family:var(--font)}
 button{cursor:pointer;font-family:var(--font);touch-action:manipulation}

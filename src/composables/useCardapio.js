@@ -654,6 +654,8 @@ const CSS_PEDIDO = `
     --borda: #EADDE0;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  /* Dentro da tela cheia (iframe): puxar pra baixo no topo não pode "vazar" pro app e recarregar a página (voltaria à seleção de perfil). */
+  html, body { overscroll-behavior-y: contain; }
   html, body { background: #FBF5EC; color: var(--marrom); font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
   body { padding-bottom: 140px; }
   /* ── Capa: faixa de chocolate com a marca centralizada, filete dourado embaixo ── */
@@ -1150,7 +1152,6 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
         <span class="categoria-capa-info">
           <span class="categoria-titulo-texto">${escHtml(g.categoria)}</span>
           <span class="categoria-meta">
-            <span class="categoria-contagem">${g.itens.length} ${g.itens.length === 1 ? 'item' : 'itens'}</span>
             <span class="categoria-selecionados" id="ip-cat-selecionados-${catIdx}"></span>
             ${precoUnico}
             ${selo}

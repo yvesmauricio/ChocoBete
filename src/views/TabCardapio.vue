@@ -2164,6 +2164,7 @@ async function publicarLinkCardapioInterativo() {
   opacity: .6; transition: opacity .22s;
 }
 .cp-fs-switch-btn.active { opacity: 1; }
+.cp-fullscreen { overscroll-behavior: none; }
 .cp-fullscreen-iframe { flex: 1; width: 100%; border: none; background: var(--bg); }
 
 .cp-badge {
