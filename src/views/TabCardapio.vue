@@ -144,6 +144,12 @@
       <div v-else class="cp-grupos">
         <div v-for="grupo in gruposFiltrados" :key="grupo.categoria" class="cp-grupo">
           <div class="cp-grupo-cabecalho">
+            <label class="cp-grupo-capa" :class="{ vazio: !config.categorias_img?.[grupo.categoria] }" :title="config.categorias_img?.[grupo.categoria] ? 'Trocar imagem da categoria' : 'Adicionar imagem da categoria'">
+              <input type="file" accept="image/*" hidden @change="e => onImagemCategoria(grupo, e)">
+              <img v-if="imagemDaCategoria(grupo)" :src="imagemDaCategoria(grupo)" alt="">
+              <i v-else class="fas fa-image"></i>
+              <span class="cp-grupo-capa-cam"><i class="fas fa-camera"></i></span>
+            </label>
             <div class="cp-grupo-titulo-bloco">
               <div class="cp-grupo-titulo">{{ grupo.categoria }}</div>
               <div v-if="categoriaTemMinimo(grupo.categoria) || grupoEstado(grupo) !== 'ativa'" class="cp-grupo-tags">
@@ -159,7 +165,7 @@
               </div>
             </div>
             <div class="cp-grupo-cabecalho-acoes">
-              <button type="button" class="cp-grupo-opcoes-btn" @click="abrirOpcoesGrupo(grupo)" title="Opções da categoria (mínimo e preço em massa)">
+              <button type="button" class="cp-grupo-opcoes-btn" @click="abrirOpcoesGrupo(grupo)" title="Opções da categoria (nome, imagem, mínimo e preço em massa)">
                 <i class="fas fa-ellipsis-vertical"></i>
               </button>
               <button type="button" class="cp-switch-btn" @click="alternarGrupo(grupo)" :title="grupoEstadoLabel(grupo)">
@@ -2276,6 +2282,11 @@ async function publicarLinkCardapioInterativo() {
 .cp-capa-previa-vazio { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: rgba(255,255,255,.55); font-size: 12px; font-weight: 700; }
 .cp-capa-previa-vazio i { font-size: 22px; }
 .cp-capa-previa-titulo { position: absolute; left: 14px; bottom: 12px; z-index: 1; color: #fff; font-weight: 800; font-size: 17px; text-transform: uppercase; letter-spacing: .06em; text-shadow: 0 2px 6px rgba(0,0,0,.4); }
+/* Miniatura da imagem da categoria no cabeçalho — toque pra escolher/trocar */
+.cp-grupo-capa { position: relative; flex: 0 0 auto; width: 46px; height: 46px; border-radius: 12px; overflow: hidden; cursor: pointer; display: flex; align-items: center; justify-content: center; background: var(--gold-bg); border: 1px solid var(--gold-light); color: var(--gold-dark, #a8741a); margin-right: 10px; }
+.cp-grupo-capa img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cp-grupo-capa.vazio { border-style: dashed; }
+.cp-grupo-capa-cam { position: absolute; right: 2px; bottom: 2px; width: 17px; height: 17px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 9px; display: flex; align-items: center; justify-content: center; }
 .cp-capa-acoes { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .cp-capa-btn { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
 

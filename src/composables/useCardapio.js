@@ -1017,6 +1017,18 @@ const CSS_PEDIDO = `
   .categoria-chevron { color: var(--terracota); background: #fff; border: 1px solid var(--terracota-claro); }
   .categoria-titulo .categoria-selo-minimo,
   .categoria-titulo .categoria-preco-unico { background: #fff; border: 1px solid var(--terracota-claro); color: var(--terracota); font-size: 12px; font-weight: 500; padding: 2px 10px; }
+  /* Barra de categoria COM imagem configurada: a foto volta, com véu escuro e texto claro.
+     Sem imagem, continua a barra clara do tema leve. */
+  .categoria-titulo.tem-capa { background: #3d1f07; color: #fff; min-height: 92px; align-items: flex-end; }
+  .categoria-titulo.tem-capa .categoria-capa-img { display: block; }
+  .categoria-titulo.tem-capa .categoria-capa-veu { display: block; background: linear-gradient(90deg, rgba(20,10,3,.82) 0%, rgba(20,10,3,.55) 55%, rgba(20,10,3,.22) 100%); }
+  .categoria-titulo.tem-capa .categoria-capa-info { padding: 16px 60px 14px 16px; flex-direction: column; align-items: flex-start; gap: 8px; }
+  .categoria-titulo.tem-capa .categoria-titulo-texto { color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+  .categoria-titulo.tem-capa .categoria-contagem { color: #fff; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); }
+  .categoria-titulo.tem-capa .categoria-selecionados { background: #f0c25e; color: #3d1f07; }
+  .categoria-titulo.tem-capa .categoria-chevron { color: #fff; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.45); }
+  .categoria-titulo.tem-capa .categoria-selo-minimo { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); color: #fff; }
+  .categoria-titulo.tem-capa .categoria-preco-unico { background: #f0c25e; border: none; color: #3d1f07; font-weight: 800; }
   .ip-cat-nav { background: rgba(251,245,236,.94); }
   .ip-cat-chip { border: 1px solid var(--terracota-claro); font-weight: 500; color: var(--terracota); }
   .ip-cat-chip.ativo { color: #fff; }
@@ -1130,7 +1142,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     const capaImg = config?.categorias_img?.[g.categoria] || g.itens.find(it => it.foto)?.foto || ''
     return `
     <div class="categoria-bloco${catIdx === 0 ? ' aberta' : ''}" id="ip-cat-${catIdx}">
-      <button type="button" class="categoria-titulo" onclick="toggleCategoria(${catIdx})">
+      <button type="button" class="categoria-titulo${capaImg ? ' tem-capa' : ''}" onclick="toggleCategoria(${catIdx})">
         ${capaImg
           ? `<img class="categoria-capa-img" src="${capaImg}" alt="">`
           : `<span class="categoria-capa-fundo"><span>${escHtml(g.itens[0]?.emoji || '🍫')}</span></span>`}
