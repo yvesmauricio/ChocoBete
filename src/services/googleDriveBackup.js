@@ -38,6 +38,17 @@ let tokenClientPrompt = null   // para login explícito com popup
 let accessToken = null
 let tokenExpiresAt = 0         // timestamp ms
 let silentPending = false      // evita chamadas silenciosas simultâneas
+let aguardandoToken = false    // um salvamento ficou sem token e espera a renovação
+let renovandoPorToque = false  // já existe uma renovação disparada por toque em andamento
+let ultimaTentativaToque = 0   // quando o último toque disparou uma renovação
+let pausaRenovacaoAte = 0      // depois de uma falha, não insiste por um tempo
+
+// Renovação por toque: o Google só deixa abrir a janela de renovação a partir de uma ação do
+// usuário. Então renovamos NO TOQUE (um clique em qualquer lugar do app) quando o acesso já
+// venceu ou está para vencer, em vez de tentar sozinhos (o navegador bloqueia).
+const RENOVAR_COM_ATE_MS = 5 * 60_000     // renova no toque se faltarem menos de 5 min
+const INTERVALO_ENTRE_TENTATIVAS_MS = 2 * 60_000
+const PAUSA_APOS_FALHA_MS = 10 * 60_000
 
 // ── Persistência do token ─────────────────────────────────────────────────
 
@@ -69,6 +80,24 @@ function loadTokenCache() {
 
 function clearTokenCache() {
   localStorage.removeItem(TOKEN_CACHE_KEY)
+}
+
+// ── Conta conhecida ───────────────────────────────────────────────────────
+
+/** Acrescenta `login_hint` (o e-mail da conta já conectada). Com ele o Google não precisa
+ *  adivinhar entre várias contas logadas nem mostrar a escolha de conta. */
+function comDicaDeConta(opcoes) {
+  const email = lerContaGoogleEmCache()?.email
+  return email ? { ...opcoes, login_hint: email } : opcoes
+}
+
+/** Chamado sempre que um token novo é obtido. Se algum salvamento tinha ficado esperando,
+ *  avisa o app para sincronizar de novo agora. */
+function aoObterToken() {
+  pausaRenovacaoAte = 0
+  if (!aguardandoToken) return
+  aguardandoToken = false
+  try { window.dispatchEvent(new CustomEvent('google-drive:token-renovado')) } catch {}
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -161,11 +190,12 @@ async function getTokenSilently() {
         accessToken = response.access_token
         tokenExpiresAt = Date.now() + (response.expires_in ?? 3500) * 1000
         saveTokenCache(accessToken, response.expires_in ?? 3500)
+        aoObterToken()
         resolve(accessToken)
       }
 
       try {
-        tokenClientSilent.requestAccessToken({ prompt: '' })
+        tokenClientSilent.requestAccessToken(comDicaDeConta({ prompt: '' }))
       } catch {
         clearTimeout(timeout)
         resolve(null)
@@ -205,11 +235,15 @@ async function getTokenWithPrompt() {
       tokenExpiresAt = Date.now() + (response.expires_in ?? 3500) * 1000
       saveTokenCache(accessToken, response.expires_in ?? 3500)
       setConnected(true)
+      aoObterToken()
       resolve(accessToken)
     }
 
     try {
-      tokenClientPrompt.requestAccessToken({ prompt: 'select_account' })
+      // Conta já conhecida (reconexão): vai direto, sem a tela de escolher conta.
+      // Primeira conexão, ou depois de Desconectar: pergunta qual conta.
+      const contaConhecida = !!lerContaGoogleEmCache()?.email
+      tokenClientPrompt.requestAccessToken(comDicaDeConta({ prompt: contaConhecida ? '' : 'select_account' }))
     } catch (e) {
       clearTimeout(timeout)
       reject(new Error('Nao foi possivel autenticar no Google'))
@@ -260,6 +294,7 @@ async function driveFetch(url, options = {}, retry = true) {
   const token = await getTokenAuto()
 
   if (!token) {
+    aguardandoToken = true
     throw new Error('TOKEN_NEEDED')
   }
 
@@ -280,6 +315,7 @@ async function driveFetch(url, options = {}, retry = true) {
     if (newToken) {
       return driveFetch(url, options, false)
     }
+    aguardandoToken = true
     throw new Error('TOKEN_NEEDED')
   }
 
@@ -525,6 +561,41 @@ export async function desconectarGoogleDriveBackup() {
   if (token && window.google?.accounts?.oauth2?.revoke) {
     await new Promise(resolve => window.google.accounts.oauth2.revoke(token, resolve))
   }
+}
+
+function msRestantesDoToken() {
+  if (accessToken && tokenExpiresAt) return tokenExpiresAt - Date.now()
+  const cache = loadTokenCache()
+  return cache ? cache.exp - Date.now() : 0
+}
+
+function aoToqueRenovar() {
+  if (!isGoogleDriveBackupConnected() || silentPending || renovandoPorToque) return
+  if (!navigator.onLine) return
+  const agora = Date.now()
+  if (agora < pausaRenovacaoAte || agora - ultimaTentativaToque < INTERVALO_ENTRE_TENTATIVAS_MS) return
+  if (!aguardandoToken && msRestantesDoToken() > RENOVAR_COM_ATE_MS) return // ainda tem validade de sobra
+  ultimaTentativaToque = agora
+  renovandoPorToque = true
+  // Estamos DENTRO de um toque do usuário: o navegador permite a janela do Google, que com a
+  // conta já conhecida abre e fecha sozinha em instantes.
+  getTokenSilently()
+    .then(token => { if (!token) pausaRenovacaoAte = Date.now() + PAUSA_APOS_FALHA_MS })
+    .catch(() => { pausaRenovacaoAte = Date.now() + PAUSA_APOS_FALHA_MS })
+    .finally(() => { renovandoPorToque = false })
+}
+
+/**
+ * Liga a renovação por toque (chame uma vez, no App.vue). Retorna uma função que desliga.
+ * Quando a renovação dá certo depois de um salvamento ter ficado sem acesso, dispara o evento
+ * 'google-drive:token-renovado' para o app sincronizar na hora.
+ */
+export function iniciarRenovacaoPorToque() {
+  if (!isBrowser() || !GOOGLE_CLIENT_ID) return () => {}
+  // Já deixa o script do Google carregado: o primeiro toque não perde tempo esperando por ele.
+  if (isGoogleDriveBackupConnected()) loadGoogleIdentityScript().catch(() => {})
+  document.addEventListener('click', aoToqueRenovar, true)
+  return () => document.removeEventListener('click', aoToqueRenovar, true)
 }
 
 /**
