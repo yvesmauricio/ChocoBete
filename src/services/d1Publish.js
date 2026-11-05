@@ -44,23 +44,16 @@ async function chamar(caminho, config, opcoes = {}, ms = 20000) {
   }
 }
 
-/** Confere se o servidor responde, se o token vale e se o banco e as tabelas estão ok (rota /api/ping).
- *  Lança erro com mensagem legível se não. Retorna o diagnóstico do servidor. */
+/** Confere se o servidor responde e se o token vale. Lança erro com mensagem legível se não. */
 export async function testarConexaoD1(config) {
-  const resp = await chamar('/api/ping', config, {}, 10000)
+  const resp = await chamar(`/api/admin/pedidos?desde=${Date.now()}`, config, {}, 10000)
   if (resp.status === 401) throw new Error('Token não aceito pelo servidor. Confira se é o mesmo do ADMIN_TOKEN.')
-  const corpo = await resp.json().catch(() => null)
-  if (resp.status === 404) throw new Error('O servidor ainda não tem a rota de teste. Publique a versão nova e tente de novo.')
-  if (corpo?.banco && corpo.banco.ok === false) {
-    const falta = corpo.banco.tabelas_faltando?.length ? ` Faltam tabelas: ${corpo.banco.tabelas_faltando.join(', ')} (rode as migrações).` : ''
-    throw new Error(`O servidor respondeu, mas o banco não está pronto.${falta}`)
-  }
   if (!resp.ok) throw new Error(`O servidor respondeu com erro (HTTP ${resp.status}).`)
-  return corpo || true
+  return true
 }
 
 /** Dados que o SERVIDOR precisa conhecer (o resto fica só no HTML). Valores em centavos. */
-export function montarConfigServidor(config, grupos, cardapioId) {
+export function montarConfigServidor(config, grupos, cardapioId, pix = null) {
   const minimos = {}
   for (const g of grupos) {
     const m = config?.categorias_min?.[g.categoria]
@@ -73,6 +66,8 @@ export function montarConfigServidor(config, grupos, cardapioId) {
     sinal_percentual: Number(config?.sinal_percentual || 0),
     taxa_entrega_centavos: cardapioId === 'diaadia' ? Math.round(Number(config?.taxa_entrega || 0) * 100) : 0,
     minimos,
+    // Pix da loja (público por natureza): o servidor gera o código com o valor certo de cada pedido
+    pix: pix && pix.chave ? { chave: String(pix.chave), nome: String(pix.nome || ''), cidade: String(pix.cidade || '') } : null,
   }
 }
 
@@ -90,12 +85,12 @@ export function montarItensServidor(grupos) {
 }
 
 /** Publica o HTML + preços no servidor. Retorna { publicadoEm }. */
-export async function publicarCardapioD1({ id, html, config, grupos }) {
+export async function publicarCardapioD1({ id, html, config, grupos, pix = null }) {
   const cfg = await carregarConfigD1()
   if (!d1Configurado(cfg)) throw new Error('Publicação no servidor não configurada (Ajustes → Sistema).')
   const resp = await chamar(`/api/admin/cardapio/${encodeURIComponent(id)}`, cfg, {
     method: 'PUT',
-    body: JSON.stringify({ html, config: montarConfigServidor(config, grupos, id), itens: montarItensServidor(grupos) }),
+    body: JSON.stringify({ html, config: montarConfigServidor(config, grupos, id, pix), itens: montarItensServidor(grupos) }),
   })
   const corpo = await resp.json().catch(() => null)
   if (resp.status === 401) throw new Error('Token do servidor inválido. Confira em Ajustes → Sistema.')

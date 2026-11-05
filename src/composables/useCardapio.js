@@ -654,8 +654,6 @@ const CSS_PEDIDO = `
     --borda: #EADDE0;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  /* Dentro da tela cheia (iframe): puxar pra baixo no topo não pode "vazar" pro app e recarregar a página (voltaria à seleção de perfil). */
-  html, body { overscroll-behavior-y: contain; }
   html, body { background: #FBF5EC; color: var(--marrom); font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
   body { padding-bottom: 140px; }
   /* ── Capa: faixa de chocolate com a marca centralizada, filete dourado embaixo ── */
@@ -1019,18 +1017,6 @@ const CSS_PEDIDO = `
   .categoria-chevron { color: var(--terracota); background: #fff; border: 1px solid var(--terracota-claro); }
   .categoria-titulo .categoria-selo-minimo,
   .categoria-titulo .categoria-preco-unico { background: #fff; border: 1px solid var(--terracota-claro); color: var(--terracota); font-size: 12px; font-weight: 500; padding: 2px 10px; }
-  /* Barra de categoria COM imagem configurada: a foto volta, com véu escuro e texto claro.
-     Sem imagem, continua a barra clara do tema leve. */
-  .categoria-titulo.tem-capa { background: #3d1f07; color: #fff; min-height: 92px; align-items: flex-end; }
-  .categoria-titulo.tem-capa .categoria-capa-img { display: block; }
-  .categoria-titulo.tem-capa .categoria-capa-veu { display: block; background: linear-gradient(90deg, rgba(20,10,3,.82) 0%, rgba(20,10,3,.55) 55%, rgba(20,10,3,.22) 100%); }
-  .categoria-titulo.tem-capa .categoria-capa-info { padding: 16px 60px 14px 16px; flex-direction: column; align-items: flex-start; gap: 8px; }
-  .categoria-titulo.tem-capa .categoria-titulo-texto { color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
-  .categoria-titulo.tem-capa .categoria-contagem { color: #fff; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); }
-  .categoria-titulo.tem-capa .categoria-selecionados { background: #f0c25e; color: #3d1f07; }
-  .categoria-titulo.tem-capa .categoria-chevron { color: #fff; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.45); }
-  .categoria-titulo.tem-capa .categoria-selo-minimo { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); color: #fff; }
-  .categoria-titulo.tem-capa .categoria-preco-unico { background: #f0c25e; border: none; color: #3d1f07; font-weight: 800; }
   .ip-cat-nav { background: rgba(251,245,236,.94); }
   .ip-cat-chip { border: 1px solid var(--terracota-claro); font-weight: 500; color: var(--terracota); }
   .ip-cat-chip.ativo { color: #fff; }
@@ -1041,6 +1027,19 @@ const CSS_PEDIDO = `
   .item-selo-encomenda { background: #fff; color: var(--terracota-desc); border: 1px solid var(--borda); }
   .ip-btn-enviar { border-radius: 14px; font-weight: 600; }
 `
+
+/**
+ * Dados do Pix (chave, nome do recebedor, cidade) exatamente como a página os usa. O app manda
+ * isto para o servidor ao publicar, e é o servidor quem gera o código Pix com o valor certo.
+ */
+export function dadosPixDoCardapio({ config, empresa }) {
+  const nome = config?.nome_cardapio || empresa?.nome || 'Cardápio'
+  return {
+    chave: chavePixDoWhatsapp(empresa?.whatsapp_pedidos),
+    nome: limparTextoPix(nome, 25, 'LOJA'),
+    cidade: limparTextoPix(empresa?.municipio, 15, 'BRASIL'),
+  }
+}
 
 /**
  * Gera o HTML autossuficiente do cardápio interativo: o cliente ajusta as
@@ -1082,16 +1081,319 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
   const novoFluxoAtivo = (cardapioId === 'diaadia' || cardapioId === 'festa') && !modoBalcao && pagamentoAtivo
   const comEscolhaRecebimento = novoFluxoAtivo && cardapioId === 'diaadia'
   const taxaEntrega = cardapioId === 'diaadia' ? Number(config.taxa_entrega || 0) : 0
-  const textoBotaoRevisar = novoFluxoAtivo ? 'Revisar pedido' : 'Confirmar pedido'
-  // Contato do cliente: só nas páginas publicadas no servidor (apiPedido). É o que permite à loja
-  // chamar a pessoa no WhatsApp pra combinar entrega/retirada a partir do pedido registrado.
-  const blocoContatoSite = (!modoBalcao && apiPedido) ? `
-          <div class="ip-modal-cliente">
-            <div class="ip-modal-cliente-hint">Pra combinar a entrega ou a retirada, precisamos do seu contato.</div>
-            <label class="ip-modal-cliente-campo"><span>Seu nome</span><input id="ip-site-nome" type="text" placeholder="Nome" autocomplete="name"></label>
-            <label class="ip-modal-cliente-campo"><span>Seu WhatsApp</span><input id="ip-site-telefone" type="tel" inputmode="tel" placeholder="(21) 99999-9999" autocomplete="tel"></label>
-            <div id="ip-site-erro" class="ip-endereco-erro" style="display:none;"></div>
-          </div>` : ''
+  // Modo rápido: páginas publicadas no servidor (apiPedido) e que não são o balcão.
+  const modoRapido = !!apiPedido && !modoBalcao
+  const comEscolhaRapido = cardapioId === 'diaadia'
+  const textoBotaoRevisar = modoRapido ? 'Finalizar pedido' : (novoFluxoAtivo ? 'Revisar pedido' : 'Confirmar pedido')
+  const blocoHtmlRapido = modoRapido ? `  <div id="ip-r-overlay" class="ip-modal-overlay" style="display:none;" onclick="if (event.target === this) fecharPedidoRapido()">
+    <div class="ip-modal-card">
+      <div id="ip-r-form">
+        <div class="ip-modal-titulo">Finalizar pedido</div>
+        <div id="ip-r-itens" class="ip-modal-itens"></div>
+        <div id="ip-r-linha-entrega" class="ip-modal-total ip-modal-total--sub" style="display:none;"><span>Entrega</span><strong id="ip-r-entrega">R$ 0,00</strong></div>
+        <div class="ip-modal-total"><span>Total</span><strong id="ip-r-total">R$ 0,00</strong></div>
+        ${comEscolhaRapido ? `<div class="ip-r-chips" id="ip-r-chips">
+          <button type="button" class="ip-r-chip ip-r-chip--ativo" id="ip-r-chip-entrega" onclick="rapidoEscolher('entrega')">🛵 Receber em casa</button>
+          <button type="button" class="ip-r-chip" id="ip-r-chip-retirada" onclick="rapidoEscolher('retirada')">📦 Retirar</button>
+        </div>` : ''}
+        <div class="ip-modal-cliente">
+          <label class="ip-modal-cliente-campo"><span>Seu nome</span><input id="ip-r-nome" type="text" placeholder="Nome" autocomplete="name"></label>
+          <label class="ip-modal-cliente-campo"><span>Seu WhatsApp</span><input id="ip-r-telefone" type="tel" inputmode="tel" placeholder="(21) 99999-9999" autocomplete="tel"></label>
+          <div id="ip-r-end-box" class="ip-modal-cliente" style="margin-top:0;">
+            <label class="ip-modal-cliente-campo"><span>Endereço</span><input id="ip-r-endereco" type="text" placeholder="Rua, número e bairro" autocomplete="street-address"></label>
+            <label class="ip-modal-cliente-campo"><span>Complemento ou ponto de referência (opcional)</span><input id="ip-r-complemento" type="text" placeholder="Apto, bloco, perto de..." autocomplete="off"></label>
+          </div>
+        </div>
+        <div id="ip-r-erro" class="ip-endereco-erro" style="display:none;"></div>
+        <div class="ip-modal-acoes">
+          <button type="button" id="ip-r-enviar" class="ip-modal-btn ip-modal-btn--confirmar" onclick="enviarPedidoRapido()">Enviar pedido</button>
+        </div>
+        <div id="ip-r-alt" class="ip-r-alt" style="display:none;">
+          <button type="button" class="ip-modal-btn ip-modal-btn--voltar" style="width:100%;" onclick="rapidoWhatsAppAlternativo()">Enviar pelo WhatsApp</button>
+        </div>
+        <div id="ip-r-nota" class="ip-r-nota"></div>
+        <details id="ip-r-politica" class="ip-r-politica" style="display:none;"><summary>Política de pedidos</summary><div id="ip-r-politica-texto"></div></details>
+        <button type="button" class="ip-r-voltar" onclick="fecharPedidoRapido()">Voltar e ajustar os itens</button>
+        <div class="ip-r-priv">Usamos seu nome, WhatsApp e endereço só para entregar este pedido.</div>
+      </div>
+      <div id="ip-r-ok" class="ip-modal-sucesso">
+        <div class="ip-modal-sucesso-check">✅</div>
+        <div class="ip-modal-sucesso-texto">Pedido enviado!</div>
+        <div id="ip-r-ok-codigo" class="ip-r-ok-codigo"></div>
+        <div id="ip-r-ok-sub" class="ip-modal-sucesso-sub"></div>
+        <div id="ip-r-ok-total" class="ip-r-ok-total"></div>
+        <details id="ip-r-pix" class="ip-r-pixdet" style="display:none;">
+          <summary id="ip-r-pix-titulo">Quer adiantar pelo Pix?</summary>
+          <div class="ip-modal-pix">
+            <div class="ip-modal-pix-linha"><span>Valor do Pix</span><strong id="ip-r-pix-valor">R$ 0,00</strong></div>
+            <textarea id="ip-r-pix-codigo" class="ip-modal-pix-codigo" readonly style="display:none;"></textarea>
+            <button type="button" id="ip-r-pix-btn" class="ip-modal-btn ip-modal-btn--pix" onclick="copiarPixRapido()">📋 Copiar código Pix</button>
+            <div class="ip-modal-pix-dica">Cole no app do seu banco, em Pix copia e cola.</div>
+          </div>
+        </details>
+        <a id="ip-r-whats" class="ip-modal-btn ip-modal-btn--confirmar ip-r-whats" href="#" target="_blank" rel="noopener" style="display:none;">Falar no WhatsApp</a>
+        <button type="button" class="ip-r-voltar" onclick="fecharPedidoRapido()">Fechar</button>
+      </div>
+    </div>
+  </div>` : ''
+  const blocoCssRapido = modoRapido ? `  .ip-r-item { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--borda); font-size: 14px; color: var(--marrom); }
+  .ip-r-item b { font-weight: 700; white-space: nowrap; }
+  .ip-r-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .ip-r-chip { border: 1.5px solid var(--borda); background: #fff; border-radius: 14px; padding: 13px 8px; font-weight: 700; font-size: 14px; color: var(--marrom); }
+  .ip-r-chip--ativo { border-color: var(--terracota); background: var(--creme-fundo); color: var(--terracota-escuro); }
+  .ip-r-voltar { display: block; width: 100%; margin-top: 6px; background: none; border: none; padding: 12px; font-size: 13.5px; color: var(--terracota); font-weight: 700; }
+  .ip-r-nota { font-size: 13px; color: var(--marrom-medio); text-align: center; margin-top: 10px; line-height: 1.45; }
+  .ip-r-priv { font-size: 11px; color: var(--terracota-desc); text-align: center; margin-top: 4px; }
+  .ip-r-politica { margin-top: 12px; font-size: 12.5px; color: var(--marrom-medio); }
+  .ip-r-politica summary { cursor: pointer; font-weight: 700; }
+  .ip-r-politica div { margin-top: 6px; white-space: pre-line; line-height: 1.5; }
+  .ip-r-alt { margin-top: 10px; }
+  .ip-r-ok-codigo { margin-top: 8px; font-size: 13px; font-weight: 800; letter-spacing: .6px; color: var(--terracota-escuro); background: var(--creme-fundo); border-radius: 999px; padding: 5px 14px; }
+  .ip-r-ok-total { margin-top: 10px; font-size: 15px; font-weight: 700; color: var(--marrom); }
+  .ip-r-pixdet { width: 100%; margin-top: 16px; text-align: left; }
+  .ip-r-pixdet > summary { cursor: pointer; font-weight: 800; color: var(--terracota); font-size: 14.5px; text-align: center; padding: 6px; }
+  .ip-r-whats { display: block; width: 100%; margin-top: 14px; text-align: center; text-decoration: none; box-sizing: border-box; background: #178a45; color: #fff; }
+  #ip-r-enviar:disabled { opacity: .6; }` : ''
+  const blocoJsRapido = modoRapido ? `var R_COM_ESCOLHA = ${JSON.stringify(comEscolhaRapido)};
+    // ═══════════════════════════════════════════════════════════════════
+    // PEDIDO RÁPIDO — só nas páginas publicadas no servidor (API_PEDIDO).
+    // Jornada curta: escolhe os itens → "Finalizar pedido" → nome, WhatsApp
+    // e endereço → "Enviar pedido". O pedido vai direto para o servidor (e
+    // chega no app da loja); WhatsApp e Pix viram opcionais na confirmação.
+    // O servidor confere o total antes de gravar e devolve o Pix com o valor certo.
+    // ═══════════════════════════════════════════════════════════════════
+    var RAPIDO = { id: null, assinatura: '', recebimento: 'entrega', enviando: false, concluido: false, dados: null };
+    function rEl(id) { return document.getElementById(id); }
+    function rEsc(t) { return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function rCent(v) { return Math.round(Number(v) * 100); }
+    function rBRL(c) { return fmtBRL(c / 100); }
+    function rDigitos(t) { return String(t || '').replace(/\\D/g, ''); }
+    // 21999430023 → (21) 99943-0023 (aceita o 55 na frente)
+    function rFormatarTel(t) {
+      var d = rDigitos(t);
+      if (d.length > 11 && d.slice(0, 2) === '55') d = d.slice(2);
+      if (d.length === 11) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7);
+      if (d.length === 10) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6);
+      return String(t || '');
+    }
+    function rNovoId() {
+      var alfabeto = 'abcdefghjkmnpqrstuvwxyz23456789', id = 'p', i;
+      try {
+        var buf = new Uint8Array(14);
+        crypto.getRandomValues(buf);
+        for (i = 0; i < buf.length; i++) id += alfabeto.charAt(buf[i] % alfabeto.length);
+      } catch (e) {
+        for (i = 0; i < 14; i++) id += alfabeto.charAt(Math.floor(Math.random() * alfabeto.length));
+      }
+      return id;
+    }
+    function rLinhas() {
+      var r = [];
+      for (var i = 0; i < ITENS.length; i++) {
+        if (qtds[i] > 0) r.push({ uuid: ITENS[i].uuid, nome: ITENS[i].nome, preco: ITENS[i].preco, qtd: qtds[i] });
+      }
+      return r;
+    }
+    function rTotais() {
+      var ls = rLinhas(), sub = 0;
+      for (var i = 0; i < ls.length; i++) sub += rCent(ls[i].preco) * ls[i].qtd;
+      var taxa = (CARDAPIO_ID === 'diaadia' && RAPIDO.recebimento === 'entrega') ? rCent(TAXA_ENTREGA) : 0;
+      return { sub: sub, taxa: taxa, total: sub + taxa };
+    }
+    function rAtualizar() {
+      var t = rTotais(), entrega = RAPIDO.recebimento === 'entrega';
+      rEl('ip-r-linha-entrega').style.display = t.taxa > 0 ? 'flex' : 'none';
+      rEl('ip-r-entrega').textContent = rBRL(t.taxa);
+      rEl('ip-r-total').textContent = rBRL(t.total);
+      rEl('ip-r-end-box').style.display = entrega ? 'flex' : 'none';
+      if (R_COM_ESCOLHA) {
+        rEl('ip-r-chip-entrega').classList.toggle('ip-r-chip--ativo', entrega);
+        rEl('ip-r-chip-retirada').classList.toggle('ip-r-chip--ativo', !entrega);
+      }
+      if (!RAPIDO.enviando) rEl('ip-r-enviar').textContent = 'Enviar pedido · ' + rBRL(t.total);
+      var nota;
+      if (CARDAPIO_ID === 'festa') {
+        nota = (SINAL_ATIVO && SINAL_FRACAO > 0 && SINAL_FRACAO < 1)
+          ? 'Para reservar a data é preciso um sinal de ' + rBRL(Math.round(t.total * SINAL_FRACAO)) + '. Você recebe o Pix na próxima tela.'
+          : 'Depois de enviar, entro em contato pelo WhatsApp para combinar os detalhes.';
+      } else {
+        nota = 'Você paga na ' + (entrega ? 'entrega' : 'retirada') + '.' + ((PAGAMENTO_ATIVO && CHAVE_PIX) ? ' Se preferir, dá para adiantar pelo Pix na próxima tela.' : '');
+      }
+      rEl('ip-r-nota').textContent = nota;
+    }
+    function rapidoEscolher(valor) {
+      RAPIDO.recebimento = valor === 'retirada' ? 'retirada' : 'entrega';
+      rAtualizar();
+    }
+    function abrirPedidoRapido() {
+      var ls = rLinhas();
+      if (!ls.length || pendenciasMinimo().length) return;
+      RAPIDO.recebimento = 'entrega';
+      RAPIDO.concluido = false;
+      rEl('ip-r-itens').innerHTML = ls.map(function (l) {
+        return '<div class="ip-r-item"><span>' + l.qtd + '× ' + rEsc(l.nome) + '</span><b>' + rBRL(rCent(l.preco) * l.qtd) + '</b></div>';
+      }).join('');
+      try {
+        var salvo = JSON.parse(localStorage.getItem('cb_cliente') || 'null');
+        if (salvo) {
+          if (!rEl('ip-r-nome').value) rEl('ip-r-nome').value = salvo.nome || '';
+          if (!rEl('ip-r-telefone').value) rEl('ip-r-telefone').value = rFormatarTel(salvo.telefone);
+          if (!rEl('ip-r-endereco').value) rEl('ip-r-endereco').value = salvo.endereco || '';
+          if (!rEl('ip-r-complemento').value) rEl('ip-r-complemento').value = salvo.complemento || '';
+        }
+      } catch (e) {}
+      var pol = rEl('ip-r-politica');
+      if (POLITICA_TEXTO) { rEl('ip-r-politica-texto').textContent = POLITICA_TEXTO; pol.style.display = 'block'; } else { pol.style.display = 'none'; }
+      rEl('ip-r-erro').style.display = 'none';
+      rEl('ip-r-alt').style.display = 'none';
+      rEl('ip-r-form').style.display = 'block';
+      rEl('ip-r-ok').style.display = 'none';
+      rAtualizar();
+      rEl('ip-r-overlay').style.display = 'flex';
+    }
+    abrirConfirmacao = function () { abrirPedidoRapido(); };
+
+    function rPost(corpo, cb) {
+      var feito = false;
+      var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+      var timer = setTimeout(function () {
+        if (feito) return;
+        feito = true;
+        if (ctrl) ctrl.abort();
+        cb(new Error('tempo'));
+      }, 15000);
+      fetch(API_PEDIDO, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo), signal: ctrl ? ctrl.signal : undefined })
+        .then(function (r) { return r.json().then(function (d) { return { status: r.status, dados: d }; }, function () { return { status: r.status, dados: {} }; }); })
+        .then(function (res) { if (feito) return; feito = true; clearTimeout(timer); cb(null, res.status, res.dados || {}); })
+        .catch(function (e) { if (feito) return; feito = true; clearTimeout(timer); cb(e); });
+    }
+    function rEnviando(sim) {
+      RAPIDO.enviando = !!sim;
+      rEl('ip-r-enviar').disabled = !!sim;
+      if (sim) rEl('ip-r-enviar').textContent = 'Enviando…'; else rAtualizar();
+    }
+    function enviarPedidoRapido() {
+      if (RAPIDO.enviando) return;
+      var ls = rLinhas();
+      if (!ls.length) return;
+      var entrega = RAPIDO.recebimento === 'entrega';
+      var nomeEl = rEl('ip-r-nome'), telEl = rEl('ip-r-telefone'), endEl = rEl('ip-r-endereco');
+      var nome = nomeEl.value.trim(), tel = rDigitos(telEl.value), end = endEl.value.trim(), comp = rEl('ip-r-complemento').value.trim();
+      var nomeOk = nome.length >= 2, telOk = tel.length >= 10 && tel.length <= 13, endOk = !entrega || end.length >= 5;
+      nomeEl.classList.toggle('ip-input-erro', !nomeOk);
+      telEl.classList.toggle('ip-input-erro', !telOk);
+      endEl.classList.toggle('ip-input-erro', !endOk);
+      var erro = rEl('ip-r-erro');
+      if (!nomeOk || !telOk || !endOk) {
+        erro.textContent = !nomeOk ? 'Informe seu nome.' : (!telOk ? 'Informe seu WhatsApp com DDD. Ex.: (21) 99999-9999' : 'Informe o endereço da entrega (rua, número e bairro).');
+        erro.style.display = 'block';
+        (!nomeOk ? nomeEl : (!telOk ? telEl : endEl)).focus();
+        return;
+      }
+      erro.style.display = 'none';
+      rEl('ip-r-alt').style.display = 'none';
+      try { localStorage.setItem('cb_cliente', JSON.stringify({ nome: nome, telefone: tel, endereco: end, complemento: comp })); } catch (e) {}
+
+      var itensApi = ls.map(function (l) { return { uuid: l.uuid, qtd: l.qtd }; });
+      var assinatura = JSON.stringify([itensApi, RAPIDO.recebimento]);
+      // Reenviar o MESMO pedido reaproveita o id (o servidor não duplica); pedido diferente ganha id novo.
+      if (!RAPIDO.id || assinatura !== RAPIDO.assinatura) { RAPIDO.id = rNovoId(); RAPIDO.assinatura = assinatura; }
+      var enderecoTxt = entrega ? (end + (comp ? ' — ' + comp : '')) : '';
+      RAPIDO.dados = { nome: nome, tel: tel, end: enderecoTxt };
+      var corpo = {
+        cardapio_id: CARDAPIO_ID, pedido_id: RAPIDO.id, itens: itensApi, recebimento: RAPIDO.recebimento,
+        cliente_nome: nome, cliente_telefone: tel, endereco: enderecoTxt, total_visto: rTotais().total
+      };
+      rEnviando(true);
+      rPost(corpo, function (err, status, d) {
+        rEnviando(false);
+        if (!err && status === 200 && d.ok) { rSucesso(d); return; }
+        if (!err && status === 409) {
+          alert('Os preços foram atualizados. A página vai recarregar para você conferir de novo.');
+          location.reload();
+          return;
+        }
+        if (!err && status === 422) {
+          alert(d.erro || 'Não foi possível confirmar o pedido. A página vai recarregar.');
+          location.reload();
+          return;
+        }
+        erro.textContent = 'Não consegui enviar agora. Toque em "Enviar pedido" para tentar de novo' + (NUMERO ? ' ou envie pelo WhatsApp.' : '.');
+        erro.style.display = 'block';
+        if (NUMERO) rEl('ip-r-alt').style.display = 'block';
+      });
+    }
+    function rSucesso(d) {
+      RAPIDO.concluido = true;
+      var entrega = RAPIDO.recebimento === 'entrega';
+      var parcial = d.sinal < d.total;
+      var sinalObrigatorio = CARDAPIO_ID === 'festa' && parcial && !!d.pix;
+      rEl('ip-r-form').style.display = 'none';
+      rEl('ip-r-ok').style.display = 'flex';
+      rEl('ip-r-ok-codigo').textContent = 'Pedido nº ' + d.codigo;
+      var sub;
+      if (CARDAPIO_ID === 'festa') {
+        sub = parcial ? 'Recebi seu pedido! Para reservar a data, envie o sinal pelo Pix abaixo e depois me mande o comprovante.'
+                      : 'Recebi seu pedido! Vou entrar em contato pelo WhatsApp para combinar os detalhes.';
+      } else {
+        sub = entrega ? 'Recebi seu pedido! Vou levar tudo pronto e a gente acerta o pagamento na entrega.'
+                      : 'Recebi seu pedido! Te aviso pelo WhatsApp quando estiver pronto para retirar.';
+      }
+      rEl('ip-r-ok-sub').textContent = sub;
+      rEl('ip-r-ok-total').textContent = 'Total: ' + rBRL(d.total) + (parcial ? ' · Sinal: ' + rBRL(d.sinal) : '');
+      var pixBox = rEl('ip-r-pix');
+      if (PAGAMENTO_ATIVO && d.pix && d.pix.payload) {
+        pixBox.style.display = 'block';
+        rEl('ip-r-pix-valor').textContent = rBRL(d.pix.valor);
+        rEl('ip-r-pix-codigo').value = d.pix.payload;
+        rEl('ip-r-pix-titulo').textContent = sinalObrigatorio ? 'Pagar o sinal pelo Pix' : 'Quer adiantar pelo Pix? (opcional)';
+        if (sinalObrigatorio) pixBox.setAttribute('open', ''); else pixBox.removeAttribute('open');
+      } else {
+        pixBox.style.display = 'none';
+      }
+      var w = rEl('ip-r-whats');
+      if (NUMERO) {
+        var msg = sinalObrigatorio ? 'Oi! Segue o comprovante do sinal do pedido nº ' + d.codigo + '.' : 'Oi! Fiz o pedido nº ' + d.codigo + ' pelo site.';
+        w.href = 'https://wa.me/' + NUMERO + '?text=' + encodeURIComponent(msg);
+        w.textContent = sinalObrigatorio ? 'Enviar comprovante pelo WhatsApp' : 'Falar no WhatsApp (opcional)';
+        w.style.display = 'block';
+      } else {
+        w.style.display = 'none';
+      }
+      var card = rEl('ip-r-overlay').querySelector('.ip-modal-card');
+      if (card) card.scrollTop = 0;
+    }
+    function copiarPixRapido() {
+      var campo = rEl('ip-r-pix-codigo'), btn = rEl('ip-r-pix-btn');
+      var marcar = function () {
+        btn.textContent = '✅ Código copiado!';
+        setTimeout(function () { btn.textContent = '📋 Copiar código Pix'; }, 2500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(campo.value).then(marcar).catch(function () { campo.style.display = 'block'; campo.select(); document.execCommand('copy'); marcar(); });
+      } else {
+        campo.style.display = 'block'; campo.select(); document.execCommand('copy'); marcar();
+      }
+    }
+    // Plano B se o servidor não responder: a mesma mensagem de sempre, direto pro WhatsApp da loja.
+    function rapidoWhatsAppAlternativo() {
+      var ls = rLinhas(), t = rTotais(), entrega = RAPIDO.recebimento === 'entrega';
+      var linhas = ls.map(function (l) { return '• ' + l.qtd + 'x ' + l.nome + ' — ' + rBRL(rCent(l.preco) * l.qtd); });
+      var msg = 'Olá! Quero fazer um pedido:\\n\\n' + linhas.join('\\n') + '\\n\\nTotal: ' + rBRL(t.total) + (t.taxa ? ' (com entrega de ' + rBRL(t.taxa) + ')' : '');
+      msg += entrega ? '\\n\\nEntrega: ' + rEl('ip-r-endereco').value.trim() : '\\n\\nRetirada';
+      msg += '\\nNome: ' + rEl('ip-r-nome').value.trim() + '\\nWhatsApp: ' + rEl('ip-r-telefone').value.trim();
+      window.location.href = 'https://wa.me/' + NUMERO + '?text=' + encodeURIComponent(msg);
+    }
+    function fecharPedidoRapido() {
+      if (RAPIDO.enviando) return;
+      if (RAPIDO.concluido) {
+        for (var i = 0; i < qtds.length; i++) qtds[i] = 0;
+        sincronizarQtdUI();
+        atualizarResumo();
+        RAPIDO.concluido = false; RAPIDO.id = null; RAPIDO.assinatura = '';
+      }
+      rEl('ip-r-overlay').style.display = 'none';
+    }` : ''
 
   const dadosJs = itensGlobais.map(i => ({ uuid: i.uuid, nome: i.nome, preco: apiPedido ? Math.round(Number(i.preco || 0) * 100) / 100 : Number(i.preco || 0), categoria: i.categoria }))
   const dadosJsonSeguro = JSON.stringify(dadosJs).replace(/</g, '\\u003c')
@@ -1144,7 +1446,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     const capaImg = config?.categorias_img?.[g.categoria] || g.itens.find(it => it.foto)?.foto || ''
     return `
     <div class="categoria-bloco${catIdx === 0 ? ' aberta' : ''}" id="ip-cat-${catIdx}">
-      <button type="button" class="categoria-titulo${capaImg ? ' tem-capa' : ''}" onclick="toggleCategoria(${catIdx})">
+      <button type="button" class="categoria-titulo" onclick="toggleCategoria(${catIdx})">
         ${capaImg
           ? `<img class="categoria-capa-img" src="${capaImg}" alt="">`
           : `<span class="categoria-capa-fundo"><span>${escHtml(g.itens[0]?.emoji || '🍫')}</span></span>`}
@@ -1152,6 +1454,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
         <span class="categoria-capa-info">
           <span class="categoria-titulo-texto">${escHtml(g.categoria)}</span>
           <span class="categoria-meta">
+            <span class="categoria-contagem">${g.itens.length} ${g.itens.length === 1 ? 'item' : 'itens'}</span>
             <span class="categoria-selecionados" id="ip-cat-selecionados-${catIdx}"></span>
             ${precoUnico}
             ${selo}
@@ -1218,6 +1521,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="${GOOGLE_FONTS_URL}" media="print" onload="this.media='all'">
 <style>${CSS_PEDIDO}</style>
+${modoRapido ? `<style>${blocoCssRapido}</style>` : ''}
 </head>
 <body>
   ${!modoBalcao ? `
@@ -1354,7 +1658,6 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
             <div class="ip-modal-pagamento-posterior-sub">Sem Pix agora — combine o pagamento direto com a gente na retirada.</div>
           </div>
           <div id="ip-modal-politica" class="ip-modal-politica" style="display:none;"></div>
-          ${blocoContatoSite}
 
           <div class="ip-modal-acoes">
             <button type="button" class="ip-modal-btn ip-modal-btn--voltar" onclick="fecharConfirmacao()">Voltar e editar</button>
@@ -1422,7 +1725,6 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
             <input id="ip-cliente-telefone" type="tel" placeholder="(21) 99999-9999 (opcional)" autocomplete="off">
           </label>
         </div>` : ''}
-        ${blocoContatoSite}
         <div class="ip-modal-acoes">
           <button type="button" class="ip-modal-btn ip-modal-btn--voltar" onclick="fecharConfirmacao()">Voltar e editar</button>
           ${modoBalcao
@@ -1461,6 +1763,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     </div>
   </div>` : ''}
 
+  ${blocoHtmlRapido}
   <div id="ip-foto-overlay" class="ip-foto-overlay" style="display:none;" onclick="if (event.target === this) fecharFotoItem()">
     <div class="ip-foto-card">
       <button type="button" class="ip-foto-fechar" onclick="fecharFotoItem()">✕</button>
@@ -1491,7 +1794,6 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     var COM_ESCOLHA_RECEBIMENTO = ${JSON.stringify(comEscolhaRecebimento)};
     var TAXA_ENTREGA = ${JSON.stringify(taxaEntrega)};
     var API_PEDIDO = ${JSON.stringify(apiPedido && !modoBalcao ? apiPedido : '')};
-    var TURNSTILE_SITEKEY = '%%TURNSTILE_SITEKEY%%';
 
     // ── "ler mais" só aparece quando a descrição realmente estoura 2 linhas —
     // uma descrição curta (1 linha) não ganha esse link à toa. ──
@@ -1782,7 +2084,6 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       var elInstrucaoAbrir = document.getElementById('ip-modal-instrucao');
       if (elInstrucaoAbrir) elInstrucaoAbrir.style.display = 'none';
       document.getElementById('ip-modal-overlay').style.display = 'flex';
-      preencherContatoSite();
     }
     function fecharConfirmacao() {
       document.getElementById('ip-modal-overlay').style.display = 'none';
@@ -1848,8 +2149,6 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       }
       erroEl.style.display = 'none';
       pedidoEndereco = campos;
-      var nomeSiteEl = document.getElementById('ip-site-nome');
-      if (nomeSiteEl && !nomeSiteEl.value) nomeSiteEl.value = campos.nome; // não pede o nome duas vezes
       pedidoPagamento = 'pix'; // entrega sempre paga por Pix — não existe "entrega + pagar depois"
       montarRevisao();
       mostrarEtapa('revisao');
@@ -1985,7 +2284,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       ultimoResumo.totalGeral = totalGeral;
     }
 
-    function confirmarEnvioInterno() {
+    function confirmarEnvio() {
       if (!ultimoResumo) return;
       var temEntrega = ultimoResumo.recebimento === 'entrega';
       var msg = 'Olá! Gostaria de fazer o seguinte pedido:\\n\\n' + ultimoResumo.linhas.join('\\n');
@@ -2012,8 +2311,6 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
         }
       }
       if (POLITICA_TEXTO) msg += '\\n\\n' + POLITICA_TEXTO;
-      if (CODIGO_PEDIDO) msg += '\\n\\nPedido nº ' + CODIGO_PEDIDO;
-      if (CONTATO_SITE && CONTATO_SITE.nome) msg += '\\nCliente: ' + CONTATO_SITE.nome;
 
       var linkWhats = 'https://wa.me/' + NUMERO + '?text=' + encodeURIComponent(msg);
       document.getElementById('ip-modal-instrucao').style.display = 'none';
@@ -2167,7 +2464,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       var elConteudo = document.getElementById('ip-modal-conteudo');
       if (elConteudo) elConteudo.style.display = 'block';
     }
-    function confirmarEnvioInterno() {
+    function confirmarEnvio() {
       if (!ultimoResumo) return;
       var msg = 'Olá! Gostaria de fazer o seguinte pedido:\\n\\n' + ultimoResumo.linhas.join('\\n') + '\\n\\nTotal: ' + fmtBRL(ultimoResumo.total);
       if (ultimoResumo.valorPix) {
@@ -2176,8 +2473,6 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
           : '\\n\\n💳 Vou pagar via Pix: ' + fmtBRL(ultimoResumo.valorPix) + ' (mando o comprovante aqui)';
       }
       if (POLITICA_TEXTO) msg += '\\n\\n' + POLITICA_TEXTO;
-      if (CODIGO_PEDIDO) msg += '\\n\\nPedido nº ' + CODIGO_PEDIDO;
-      if (CONTATO_SITE && CONTATO_SITE.nome) msg += '\\nCliente: ' + CONTATO_SITE.nome;
       // Marca que um pedido ficou "pendente de confirmação" — se a pessoa
       // voltar pro navegador (por não ter conseguido enviar, ou por engano),
       // a gente pergunta e oferece reabrir o WhatsApp. Ver checarRetornoPedido().
@@ -2186,132 +2481,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     }
     `}
 
-    // ═══════════════════════════════════════════════════════════════════
-    // Registro do pedido no servidor (D1). Só roda se o cardápio foi
-    // publicado com API (API_PEDIDO preenchido) e não é modo balcão.
-    // O servidor recalcula o total com os preços DELE; se não bater com o
-    // que a página mostrou, o pedido não segue. Se o servidor estiver fora
-    // do ar ou lento, o pedido segue pelo WhatsApp exatamente como antes.
-    // ═══════════════════════════════════════════════════════════════════
-    var CODIGO_PEDIDO = '';
-    var ultimoRegistro = null;
-    function novoPedidoId() {
-      var alfabeto = 'abcdefghjkmnpqrstuvwxyz23456789', id = 'p', i;
-      try {
-        var buf = new Uint8Array(14);
-        crypto.getRandomValues(buf);
-        for (i = 0; i < buf.length; i++) id += alfabeto.charAt(buf[i] % alfabeto.length);
-      } catch (e) {
-        for (i = 0; i < 14; i++) id += alfabeto.charAt(Math.floor(Math.random() * alfabeto.length));
-      }
-      return id;
-    }
-    function enderecoParaTexto(e) {
-      if (!e) return '';
-      return [e.rua, e.numero, e.complemento, e.bairro, e.referencia].filter(Boolean).join(', ');
-    }
-    // Anti-robô (Cloudflare Turnstile). Só liga se o servidor trocou o marcador pela chave pública.
-    // Modo 'interaction-only': o cliente normalmente não vê nada. Se falhar, o pedido segue pelo WhatsApp.
-    var tsWidget = null, tsToken = '';
-    function iniciarTurnstile() {
-      if (!API_PEDIDO || MODO_BALCAO || !/^[0-9A-Za-z_-]{10,}$/.test(TURNSTILE_SITEKEY)) return;
-      window.__tsPronto = function () {
-        try {
-          var box = document.createElement('div');
-          box.style.cssText = 'position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:99999';
-          document.body.appendChild(box);
-          tsWidget = window.turnstile.render(box, {
-            sitekey: TURNSTILE_SITEKEY,
-            appearance: 'interaction-only',
-            callback: function (t) { tsToken = t; },
-            'expired-callback': function () { tsToken = ''; },
-            'error-callback': function () { tsToken = ''; }
-          });
-        } catch (e) {}
-      };
-      var s = document.createElement('script');
-      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=__tsPronto';
-      s.async = true; s.defer = true;
-      document.head.appendChild(s);
-    }
-    function comTokenTurnstile(cb) {
-      if (!tsWidget || tsToken) { cb(tsToken); return; }
-      var n = 0, iv = setInterval(function () {
-        n++;
-        if (tsToken || n >= 40) { clearInterval(iv); cb(tsToken); }
-      }, 100);
-    }
-    function renovarTurnstile() {
-      tsToken = '';
-      try { if (tsWidget !== null) window.turnstile.reset(tsWidget); } catch (e) {}
-    }
-    if (document.body) iniciarTurnstile(); else document.addEventListener('DOMContentLoaded', iniciarTurnstile);
-
-    function confirmarEnvio() {
-      if (!ultimoResumo) return;
-      if (!API_PEDIDO || MODO_BALCAO || typeof fetch !== 'function') { confirmarEnvioInterno(); return; }
-
-      var linhasApi = [];
-      for (var i = 0; i < ITENS.length; i++) {
-        if (qtds[i] > 0 && ITENS[i].uuid) linhasApi.push({ uuid: ITENS[i].uuid, qtd: qtds[i] });
-      }
-      if (!linhasApi.length) { confirmarEnvioInterno(); return; }
-
-      var recebimentoApi = ultimoResumo.recebimento === 'entrega' ? 'entrega' : 'retirada';
-      // Mesmo pedido reenviado (ex.: "abrir de novo") reaproveita o id; pedido diferente ganha id novo.
-      var assinatura = JSON.stringify([linhasApi, recebimentoApi]);
-      if (!ultimoRegistro || ultimoRegistro.assinatura !== assinatura) {
-        ultimoRegistro = { assinatura: assinatura, id: novoPedidoId() };
-      }
-      var end = ultimoResumo.endereco || null;
-      var corpo = {
-        cardapio_id: CARDAPIO_ID,
-        pedido_id: ultimoRegistro.id,
-        itens: linhasApi,
-        recebimento: recebimentoApi,
-        cliente_nome: CONTATO_SITE ? CONTATO_SITE.nome : (end ? end.nome : ''),
-        cliente_telefone: CONTATO_SITE ? CONTATO_SITE.telefone : '',
-        endereco: enderecoParaTexto(end)
-      };
-
-      var terminou = false;
-      function seguir() { if (terminou) return; terminou = true; confirmarEnvioInterno(); }
-      var timer = setTimeout(seguir, 8000);
-
-      comTokenTurnstile(function (token) {
-      if (terminou) return;
-      if (token) corpo.turnstile = token;
-      renovarTurnstile();
-      fetch(API_PEDIDO, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
-        .then(function (r) { return r.json().then(function (d) { return { status: r.status, dados: d }; }); })
-        .then(function (res) {
-          if (terminou) return;
-          clearTimeout(timer);
-          var d = res.dados || {};
-          if (res.status === 200 && d.ok) {
-            var totalLocal = Math.round((ultimoResumo.totalGeral != null ? ultimoResumo.totalGeral : ultimoResumo.total) * 100);
-            if (d.total !== totalLocal) {
-              terminou = true;
-              alert('Os valores deste pedido foram atualizados. A página vai recarregar para você conferir de novo.');
-              location.reload();
-              return;
-            }
-            CODIGO_PEDIDO = String(ultimoRegistro.id).slice(-6).toUpperCase();
-            seguir();
-            return;
-          }
-          if (res.status === 422) {
-            terminou = true;
-            alert(d.erro || 'Não foi possível confirmar o pedido. A página vai recarregar.');
-            location.reload();
-            return;
-          }
-          seguir(); // 429, erro do servidor etc.: segue pelo WhatsApp como sempre foi
-        })
-        .catch(function () { if (!terminou) { clearTimeout(timer); seguir(); } });
-      });
-    }
-
+    ${blocoJsRapido}
     // ── Modo balcão: em vez de abrir o WhatsApp (não faz sentido quando é
     // você segurando o celular na frente do cliente), salva o pedido — com
     // nome e telefone do cliente pra contato depois — e manda pro app
@@ -2367,42 +2537,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     // botão de enviar dentro do próprio WhatsApp. Isso não garante o envio
     // — nenhum site consegue apertar esse botão pelo cliente, é uma trava
     // anti-spam do próprio WhatsApp — mas reduz muito quem esquece.
-    // ── Contato do cliente (só quando a página foi publicada com API) ──
-    var CONTATO_SITE = null;
-    function validarContatoSite() {
-      var nomeEl = document.getElementById('ip-site-nome');
-      var telEl = document.getElementById('ip-site-telefone');
-      if (!API_PEDIDO || !nomeEl || !telEl) return true; // páginas antigas: nada muda
-      var nome = nomeEl.value.trim();
-      var telefone = telEl.value.replace(/\\D/g, '');
-      var nomeOk = nome.length >= 2;
-      var telOk = telefone.length >= 10 && telefone.length <= 13;
-      nomeEl.classList.toggle('ip-input-erro', !nomeOk);
-      telEl.classList.toggle('ip-input-erro', !telOk);
-      var erroEl = document.getElementById('ip-site-erro');
-      if (!nomeOk || !telOk) {
-        erroEl.textContent = !nomeOk ? 'Informe seu nome.' : 'Informe seu WhatsApp com DDD. Ex.: (21) 99999-9999';
-        erroEl.style.display = 'block';
-        (nomeOk ? telEl : nomeEl).focus();
-        return false;
-      }
-      erroEl.style.display = 'none';
-      CONTATO_SITE = { nome: nome, telefone: telefone };
-      try { localStorage.setItem('cb_cliente', JSON.stringify(CONTATO_SITE)); } catch (e) {}
-      return true;
-    }
-    function preencherContatoSite() {
-      var nomeEl = document.getElementById('ip-site-nome');
-      var telEl = document.getElementById('ip-site-telefone');
-      if (!nomeEl || !telEl) return;
-      try {
-        var salvo = JSON.parse(localStorage.getItem('cb_cliente') || 'null');
-        if (salvo && !nomeEl.value) nomeEl.value = salvo.nome || '';
-        if (salvo && !telEl.value) telEl.value = salvo.telefone || '';
-      } catch (e) {}
-    }
     function mostrarInstrucaoEnvio() {
-      if (!validarContatoSite()) return;
       var elConteudo = document.getElementById('ip-modal-conteudo');
       var elInstrucao = document.getElementById('ip-modal-instrucao');
       if (elConteudo) elConteudo.style.display = 'none';

@@ -65,16 +65,4 @@ CREATE TABLE pedido_itens (
   PRIMARY KEY (pedido_uuid, item_uuid)
 );
 
--- Resto do app (receitas, produtos, financeiro, caderneta...) entra aqui na fase de sync,
--- como JSON, sem criar uma tabela D1 para cada tabela do Dexie.
-CREATE TABLE registros (
-  tabela        TEXT NOT NULL,
-  uuid          TEXT NOT NULL,
-  dados         TEXT NOT NULL,
-  atualizado_em INTEGER NOT NULL,
-  apagado_em    INTEGER,
-  PRIMARY KEY (tabela, uuid)
-);
-CREATE INDEX idx_registros_sync ON registros(atualizado_em);
-
 INSERT INTO cardapios (id, atualizado_em) VALUES ('diaadia', 0), ('festa', 0);

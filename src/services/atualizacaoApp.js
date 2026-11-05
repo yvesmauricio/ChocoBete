@@ -5,7 +5,7 @@
 //   quem decide o momento é o usuário (evita perder algo não salvo).
 import { ref } from 'vue'
 import { registerSW } from 'virtual:pwa-register'
-import { versaoInstalada, buscarVersaoPublicada } from './versaoApp.js'
+import { versaoInstalada, consultarVersaoPublicada, descreverFalhaVersao } from './versaoApp.js'
 
 export const novaVersao = ref(false)   // há versão nova pronta pra aplicar?
 export const aviso = ref(true)         // o aviso está visível? (o "Depois" apenas esconde)
@@ -62,7 +62,8 @@ const esperar = (ms) => new Promise(r => setTimeout(r, ms))
  */
 export async function buscarAtualizacaoAgora() {
   if (!navigator.onLine) return { estado: 'offline', publicada: null }
-  const publicada = await buscarVersaoPublicada()
+  const consulta = await consultarVersaoPublicada()
+  const publicada = consulta.ok ? consulta.dados : null
   if (registro) {
     try { await registro.update() } catch { /* sem rede no meio do caminho: segue com o que há */ }
     for (let i = 0; i < 40 && !novaVersao.value; i++) {
@@ -72,7 +73,7 @@ export async function buscarAtualizacaoAgora() {
     await esperar(300) // dá tempo do aviso "nova versão pronta" chegar
   }
   if (novaVersao.value) return { estado: 'nova', publicada }
-  if (!publicada) return { estado: 'erro', publicada: null }
+  if (!publicada) return { estado: 'erro', publicada: null, motivo: consulta.motivo, status: consulta.status }
   const diferente = publicada.commit && versaoInstalada.commit && publicada.commit !== versaoInstalada.commit
   return { estado: diferente ? 'diferente' : 'atualizado', publicada }
 }
@@ -85,8 +86,8 @@ export async function buscarAtualizacaoAgora() {
  */
 export async function forcarAtualizacaoCompleta() {
   if (!navigator.onLine) throw new Error('Precisa de internet para forçar a atualização.')
-  const publicada = await buscarVersaoPublicada()
-  if (!publicada) throw new Error('Não consegui falar com o servidor agora. Tente de novo com internet.')
+  const consulta = await consultarVersaoPublicada()
+  if (!consulta.ok) throw new Error(descreverFalhaVersao(consulta.motivo, consulta.status))
   const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? []
   await Promise.all(regs.map(r => r.unregister()))
   if (typeof caches !== 'undefined') {
