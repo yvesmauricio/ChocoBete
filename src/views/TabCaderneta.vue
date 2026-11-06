@@ -11,10 +11,10 @@
           <p class="cd-data">{{ dataBR }}</p>
         </div>
         <div class="cd-hdr-btns">
-          <!-- Sync com o Google Drive: verde = salvo, laranja = salvando,
-               vermelho = precisa salvar / falhou (toque para enviar) -->
+          <!-- Sync com o Google Drive: nuvem verde = salvo, amarela = salvando/pendente,
+               vermelha = falhou (toque para tentar de novo) -->
           <button
-            v-if="s.googleDriveConfigured"
+            v-if="s.googleDriveConfigured && syncEstado !== 'idle'"
             class="cd-icbtn cd-sync"
             :class="`cd-sync--${syncEstado}`"
             :disabled="!syncClicavel"
@@ -353,8 +353,8 @@
           </div>
 
           <div class="cad-nv-cats">
-            <template v-for="c in categoriasVenda" :key="c.id">
             <div
+              v-for="c in categoriasVenda" :key="c.id"
               class="cad-nv-cat" :class="{ ativo: qtds[c.id] > 0 }"
             >
               <div class="cad-nv-cat-emoji">{{ c.emoji }}</div>
@@ -377,44 +377,6 @@
                 <button class="cad-stepper-btn" @click="inc(c)" :aria-label="`Adicionar ${c.nome}`">+</button>
               </div>
             </div>
-
-            <!-- Mesma categoria vendida por outro preço: cada valor vira uma linha -->
-            <div v-for="l in extrasDa(c.id)" :key="l.id" class="cad-nv-cat cad-nv-cat--extra" :class="{ ativo: qtds[l.id] > 0 }">
-              <div class="cad-nv-cat-info">
-                <div class="cad-nv-cat-nome">{{ l.emoji }} {{ l.nome }} a R$ {{ fmt(l.preco) }}</div>
-                <div class="cad-nv-cat-subtotal">{{ qtds[l.id] }} × R$ {{ fmt(l.preco) }} = R$ {{ fmt(qtds[l.id] * l.preco) }}</div>
-              </div>
-              <div class="cad-stepper cad-stepper--linha">
-                <button class="cad-stepper-btn" @click="decExtra(l)" :aria-label="`Remover ${l.nome} a ${fmt(l.preco)}`">−</button>
-                <div class="cad-stepper-qty">{{ qtds[l.id] || 0 }}</div>
-                <button class="cad-stepper-btn" @click="incExtra(l)" :aria-label="`Adicionar ${l.nome} a ${fmt(l.preco)}`">+</button>
-              </div>
-            </div>
-
-            <button v-if="c.preco > 0" type="button" class="cad-nv-outro-btn" @click="abrirExtra(c)">
-              <i class="fas" :class="extraAberto === c.id ? 'fa-chevron-up' : 'fa-plus'"></i>
-              {{ c.nome }} por outro valor
-            </button>
-            <div v-if="extraAberto === c.id" class="cad-nv-outro-painel">
-              <div v-if="(extrasSalvos[c.id] || []).length" class="cad-nv-outro-sub">Toque no valor para somar 1:</div>
-              <div v-if="(extrasSalvos[c.id] || []).length" class="cad-chip-row" style="justify-content:flex-start">
-                <button v-for="v in extrasSalvos[c.id]" :key="v" type="button" class="chip" @click="adicionarExtra(c, v)">R$ {{ fmt(v) }}</button>
-              </div>
-              <div class="cad-nv-outro-sub">Ou digite outro valor:</div>
-              <div class="cad-nv-outro-linha">
-                <div class="cad-nv-preco-campo">
-                  <span>R$</span>
-                  <input type="text" inputmode="numeric" placeholder="0,00" :value="extraDigitado"
-                    @input="extraDigitado = fmtMoedaCampoDigitos($event)"
-                    @keyup.enter="adicionarExtraDigitado(c)">
-                </div>
-                <button type="button" class="cad-btn-primary cad-nv-outro-add" @click="adicionarExtraDigitado(c)">Adicionar</button>
-              </div>
-              <label class="cad-nv-outro-guardar">
-                <input type="checkbox" v-model="extraGuardar"> Guardar este valor para a próxima vez
-              </label>
-            </div>
-            </template>
           </div>
 
           <DescontoCampo v-model:valor="descontoRaw" v-model:motivo="descontoMotivo" />
@@ -808,31 +770,18 @@
       <div v-if="modalPrecos" class="cad-modal-overlay cad-modal-overlay--top" @click.self="modalPrecos=false">
         <div class="cad-modal-sheet">
           <div class="cad-modal-header"><div class="cad-modal-titulo"><i class="fas fa-tag"></i> Preço de cada categoria</div><button class="cad-btn-fechar" @click="modalPrecos=false"><i class="fas fa-xmark"></i></button></div>
-          <p class="cad-nv-precos-dica">O preço de cima é o padrão e vale pra todos os sabores. Se você também vende a categoria por outros valores, cadastre embaixo — eles viram atalhos na hora de lançar a venda.</p>
-          <div v-for="c in categoriasVenda" :key="c.id" class="cad-nv-preco-bloco">
-            <div class="cad-nv-preco-linha">
-              <span class="cad-nv-preco-emoji">{{ c.emoji }}</span>
-              <span class="cad-nv-preco-nome">{{ c.nome }}</span>
-              <div class="cad-nv-preco-campo">
-                <span>R$</span>
-                <input
-                  :id="`preco-${c.id}`"
-                  type="text" inputmode="numeric" placeholder="0,00"
-                  :value="formPrecos[c.id]"
-                  @input="onInputPreco(c.id, $event)"
-                >
-              </div>
-            </div>
-            <div class="cad-nv-extras-linha">
-              <span class="cad-nv-extras-rot">Outros valores:</span>
-              <button v-for="v in (extrasSalvos[c.id] || [])" :key="v" type="button" class="chip ativo cad-nv-extra-chip" @click="removerAtalhoExtra(c.id, v)" :title="`Tirar R$ ${fmt(v)}`">
-                R$ {{ fmt(v) }} <i class="fas fa-xmark"></i>
-              </button>
-              <div class="cad-nv-extra-novo">
-                <input type="text" inputmode="numeric" placeholder="+ valor" :value="extraNovo[c.id]"
-                  @input="extraNovo[c.id] = fmtMoedaCampoDigitos($event)"
-                  @keyup.enter="adicionarAtalhoExtra(c)" @blur="adicionarAtalhoExtra(c)">
-              </div>
+          <p class="cad-nv-precos-dica">O mesmo preço vale pra todos os sabores da categoria.</p>
+          <div v-for="c in categoriasVenda" :key="c.id" class="cad-nv-preco-linha">
+            <span class="cad-nv-preco-emoji">{{ c.emoji }}</span>
+            <span class="cad-nv-preco-nome">{{ c.nome }}</span>
+            <div class="cad-nv-preco-campo">
+              <span>R$</span>
+              <input
+                :id="`preco-${c.id}`"
+                type="text" inputmode="numeric" placeholder="0,00"
+                :value="formPrecos[c.id]"
+                @input="onInputPreco(c.id, $event)"
+              >
             </div>
           </div>
           <button class="cad-btn-primary" @click="salvarPrecos_"><i class="fas fa-check"></i> Salvar preços</button>
@@ -1512,21 +1461,6 @@
                   </div>
                 </div>
               </div>
-
-              <div class="cad-nv-outro-painel" style="margin-left:0">
-                <div class="cad-nv-outro-sub">Vendeu por outro valor? Escolha o produto e o preço:</div>
-                <div class="cad-nv-outro-linha">
-                  <select class="cad-nv-outro-select" v-model="editarExtraCat">
-                    <option v-for="c in categoriasVenda" :key="c.id" :value="c.id">{{ c.emoji }} {{ c.nome }}</option>
-                  </select>
-                  <div class="cad-nv-preco-campo">
-                    <span>R$</span>
-                    <input type="text" inputmode="numeric" placeholder="0,00" :value="editarExtraValor"
-                      @input="editarExtraValor = fmtMoedaCampoDigitos($event)" @keyup.enter="adicionarExtraEditar">
-                  </div>
-                </div>
-                <button type="button" class="cad-btn-primary" style="margin:0" @click="adicionarExtraEditar"><i class="fas fa-plus"></i> Adicionar</button>
-              </div>
             </template>
 
             <DescontoCampo v-if="modoDetalhadoEditar" v-model:valor="descontoEditarRaw" v-model:motivo="descontoEditarMotivo" />
@@ -1611,14 +1545,13 @@ import {
   salvarFiado as dbSalvarFiado, atualizarFiado, excluirFiado as dbExcluirFiado,
   getStats,
   getTaxas, salvarTaxas,
-  getPrecosCategorias, salvarPrecosCategorias, getPrecosExtras, salvarPrecosExtras,
+  getPrecosCategorias, salvarPrecosCategorias,
   aplicarPagamento, receberParcialCliente, estornarPagamento,
   fmt, fmtBR, fmtHora, iniciais, normalizar, resumoItens,
   hoje, horaAtual
 } from '../composables/useCaderneta.js'
 import { useStore } from '../store.js'
 import { useConfirm } from '../composables/useConfirm.js'
-import { useSyncIndicador } from '../composables/useSyncIndicador.js'
 import {
   carregarConfigCardapio, montarItensCardapio, agruparPorCategoria,
   extrairTelefoneDeTexto, numeroWhatsAppFormatado, compartilharArquivo
@@ -1935,7 +1868,28 @@ const clientesArquivados = ref([])
 const mostrarArquivadas = ref(false)
 // ── Botão de sync com o Drive (mesma lógica do cabeçalho do outro perfil) ──
 const confirmar = useConfirm()
-const { estado: syncEstado, clicavel: syncClicavel, titulo: syncTitulo, icone: syncIcone } = useSyncIndicador(s)
+const syncEstado = computed(() => {
+  if (s.syncStatus === 'error' || s.syncStatus === 'conflict') return 'error'
+  if (s.syncStatus === 'syncing' || s.hasLocalChanges) return 'syncing'
+  if (s.syncStatus === 'ok') return 'ok'
+  return 'idle'
+})
+const temAlteracoesPendentes = computed(() => s.hasLocalChanges && s.syncStatus !== 'syncing')
+const syncClicavel = computed(() => s.syncStatus === 'error' || s.syncStatus === 'conflict' || temAlteracoesPendentes.value)
+const syncTitulo = computed(() => {
+  if (s.syncStatus === 'conflict') return 'Outro aparelho também alterou os dados — toque para escolher qual versão manter'
+  if (s.syncStatus === 'error') return 'Falha ao salvar no Drive — toque para tentar de novo'
+  if (s.syncStatus === 'syncing') return 'Salvando no Drive…'
+  if (s.hasLocalChanges) return 'Há alterações que ainda não foram enviadas ao Drive — toque para enviar agora'
+  if (s.syncStatus === 'ok') return 'Salvo no Drive'
+  return ''
+})
+const syncIcone = computed(() => ({
+  syncing: 'fa-cloud-arrow-up fa-beat-fade',
+  ok: 'fa-cloud-arrow-up',
+  error: 'fa-triangle-exclamation',
+  idle: 'fa-cloud-arrow-up',
+}[syncEstado.value]))
 
 async function onClickSync() {
   if (!syncClicavel.value) return
@@ -2402,16 +2356,6 @@ const CATEGORIAS_VENDA = [
 const clienteAtual  = ref(null)
 const categoriasVenda = ref(CATEGORIAS_VENDA.map(c => ({ id: c.id, nome: c.nome, emoji: c.emoji, preco: 0 })))
 const qtds          = reactive({})
-// Outros valores: linhas extras de uma categoria vendida por outro preço (ex.: Trufa a R$ 8,00).
-// Cada linha tem id próprio (cat-trufa@800) e guarda o preço dela.
-const linhasExtras  = ref([])
-const extrasSalvos  = ref({})      // { 'cat-trufa': [5, 8] } — atalhos guardados
-const extraAberto   = ref(null)    // categoria com o painel "outro valor" aberto
-const extraDigitado = ref('')
-const extraGuardar  = ref(true)
-const idExtra   = (catId, preco) => `${catId}@${Math.round(centavos(preco) * 100)}`
-const nomeExtra = (nome, preco) => `${nome} (R$ ${fmt(preco)})`
-const extrasDa  = (catId) => linhasExtras.value.filter(l => l.catId === catId)
 const dataVenda     = ref(new Date().toLocaleDateString('sv'))
 const horaVenda     = ref(new Date().toTimeString().slice(0, 5))
 const dataVenc      = ref('')
@@ -2478,19 +2422,9 @@ const moedaParaNumero = (txt) => parseFloat(String(txt || '').replace(/[^\d,]/g,
 const fmtMoedaCampo   = (n) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(n)
 // Desconto gravado numa venda (0 nas vendas antigas, que não têm o campo).
 const descontoDe = (f) => centavos(Number(f?.desconto) || 0)
-// Máscara de campo de valor: digita 800 e aparece 8,00 (mesmo jeito do campo de preços).
-function fmtMoedaCampoDigitos(e) {
-  const digitos = e.target.value.replace(/\D/g, '')
-  const txt = digitos ? fmtMoedaCampo(Number(digitos) / 100) : ''
-  e.target.value = txt
-  return txt
-}
 
 const brutoLancar = computed(() =>
-  centavos(
-    categoriasVenda.value.reduce((soma, c) => soma + (qtds[c.id] || 0) * c.preco, 0) +
-    linhasExtras.value.reduce((soma, l) => soma + (qtds[l.id] || 0) * l.preco, 0)
-  )
+  centavos(categoriasVenda.value.reduce((soma, c) => soma + (qtds[c.id] || 0) * c.preco, 0))
 )
 const descontoLancar = computed(() => Math.min(centavos(moedaParaNumero(descontoRaw.value)), brutoLancar.value))
 const totalLancar = computed(() => centavos(brutoLancar.value - descontoLancar.value))
@@ -2532,16 +2466,10 @@ async function carregarCategoriasVenda() {
     lista.push({ id: c.id, nome: c.nome, emoji: c.emoji, preco })
   }
   categoriasVenda.value = lista
-  try { extrasSalvos.value = await getPrecosExtras() } catch { extrasSalvos.value = {} }
 }
 
 async function iniciarLancar() {
   CATEGORIAS_VENDA.forEach(c => { qtds[c.id] = 0 })
-  linhasExtras.value.forEach(l => { delete qtds[l.id] })
-  linhasExtras.value = []
-  extraAberto.value = null
-  extraDigitado.value = ''
-  extraGuardar.value = true
   dataVenda.value = new Date().toLocaleDateString('sv')
   horaVenda.value = new Date().toTimeString().slice(0, 5)
   dataVenc.value  = ''
@@ -2564,52 +2492,6 @@ function inc(c) {
 }
 function dec(c) { if (qtds[c.id] > 0) qtds[c.id]-- }
 
-// ── Outros valores (mesma categoria, preço diferente) ──────
-function abrirExtra(c) {
-  extraAberto.value = extraAberto.value === c.id ? null : c.id
-  extraDigitado.value = ''
-  extraGuardar.value = true
-}
-// Soma 1 unidade da categoria `c` a um preço específico. Se o preço é igual ao padrão,
-// cai na linha normal; senão cria (ou reaproveita) a linha daquele valor.
-function adicionarExtra(c, preco) {
-  preco = centavos(Number(preco) || 0)
-  if (!(preco > 0)) return
-  if (Math.abs(preco - c.preco) < 0.005) { qtds[c.id] = (qtds[c.id] || 0) + 1; return }
-  const id = idExtra(c.id, preco)
-  if (!linhasExtras.value.some(l => l.id === id)) {
-    linhasExtras.value.push({ id, catId: c.id, nome: c.nome, emoji: c.emoji, preco })
-    linhasExtras.value.sort((a, b) => a.preco - b.preco)
-  }
-  qtds[id] = (qtds[id] || 0) + 1
-}
-async function adicionarExtraDigitado(c) {
-  const v = moedaParaNumero(extraDigitado.value)
-  if (!(v > 0)) { s.notify('Digite o valor, por exemplo 8,00', 'warning'); return }
-  adicionarExtra(c, v)
-  if (extraGuardar.value) await guardarAtalhoExtra(c.id, v)
-  extraDigitado.value = ''
-  extraAberto.value = null
-}
-async function guardarAtalhoExtra(catId, preco) {
-  preco = centavos(preco)
-  const cat = categoriasVenda.value.find(c => c.id === catId)
-  if (cat && Math.abs(preco - cat.preco) < 0.005) return
-  const atuais = (extrasSalvos.value[catId] || []).map(Number)
-  if (atuais.some(v => Math.abs(v - preco) < 0.005)) return
-  const novos = { ...extrasSalvos.value, [catId]: [...atuais, preco].sort((a, b) => a - b).slice(-6) }
-  extrasSalvos.value = novos
-  await salvarPrecosExtras(novos)
-  s.syncImediato()
-}
-function incExtra(l) { qtds[l.id] = (qtds[l.id] || 0) + 1 }
-function decExtra(l) {
-  if ((qtds[l.id] || 0) > 1) { qtds[l.id]--; return }
-  // chegou a zero: a linha some (é só um valor avulso desta venda)
-  delete qtds[l.id]
-  linhasExtras.value = linhasExtras.value.filter(x => x.id !== l.id)
-}
-
 // ── Preços das categorias (modal) ─────────────────────────
 const modalPrecos = ref(false)
 const formPrecos  = reactive({})
@@ -2630,21 +2512,6 @@ function onInputPreco(id, e) {
   e.target.value = formPrecos[id]
 }
 
-// Atalhos de "outros valores" dentro do modal de Preços
-const extraNovo = reactive({})
-async function adicionarAtalhoExtra(c) {
-  const v = moedaParaNumero(extraNovo[c.id])
-  if (!(v > 0)) return
-  await guardarAtalhoExtra(c.id, v)
-  extraNovo[c.id] = ''
-}
-async function removerAtalhoExtra(catId, preco) {
-  const novos = { ...extrasSalvos.value, [catId]: (extrasSalvos.value[catId] || []).filter(v => Math.abs(v - preco) >= 0.005) }
-  extrasSalvos.value = novos
-  await salvarPrecosExtras(novos)
-  s.syncImediato()
-}
-
 async function salvarPrecos_() {
   const precos = {}
   for (const c of categoriasVenda.value) {
@@ -2661,15 +2528,13 @@ async function salvarPrecos_() {
 function calcChipDate(id, base) {
   let d = new Date(base)
   if (id === '5dia') {
-    // Vai pro dia 1 ANTES de avançar o mês: se a venda foi no dia 29/30/31, somar o mês direto
-    // estourava pro mês seguinte ao seguinte (ex.: 31/10 virava dezembro em vez de novembro).
-    d.setDate(1); d.setMonth(d.getMonth() + 1)
+    d.setMonth(d.getMonth() + 1); d.setDate(1)
     let uteis = 0
     while (uteis < 5) { const dia = d.getDay(); if (dia !== 0 && dia !== 6) uteis++; if (uteis < 5) d.setDate(d.getDate() + 1) }
   } else if (id === '15') {
-    d.setDate(15); if (d <= base) { d.setDate(1); d.setMonth(d.getMonth() + 1); d.setDate(15) }
+    d.setDate(15); if (d <= base) d.setMonth(d.getMonth() + 1)
   } else if (id === 'fim') {
-    d.setDate(1); d.setMonth(d.getMonth() + 1); d.setDate(0)   // último dia do mês da venda
+    d.setMonth(d.getMonth() + 1); d.setDate(0)
   }
   return d.toLocaleDateString('sv')
 }
@@ -2695,26 +2560,19 @@ async function salvarFiado(ignorarRepetida = false) {
     return
   }
   avisoDuplicado.value = null
-  // Trava ligada ANTES da conferência (que é assíncrona): senão um toque duplo
-  // passa pelos dois lados da checagem e grava a venda duas vezes.
+  // Mesmo cliente + mesma data da compra + mesmo valor → pergunta uma vez
+  // (pode ser compra repetida de verdade, por isso não bloqueia).
+  if (ignorarRepetida !== true) {
+    await carregarComprasCliente()
+    const igual = comprasCliente.value.find(f =>
+      f.dataVenda === dataVenda.value && Math.abs(Number(f.total) - totalLancar.value) < 0.005)
+    if (igual) { avisoDuplicado.value = igual; return }
+  }
   salvandoFiado.value = true
   try {
-    // Mesmo cliente + mesma data da compra + mesmo valor → pergunta uma vez
-    // (pode ser compra repetida de verdade, por isso não bloqueia).
-    if (ignorarRepetida !== true) {
-      await carregarComprasCliente()
-      const igual = comprasCliente.value.find(f =>
-        f.dataVenda === dataVenda.value && Math.abs(Number(f.total) - totalLancar.value) < 0.005)
-      if (igual) { avisoDuplicado.value = igual; return }
-    }
-    // Cada categoria sai na ordem fixa; os outros valores dela vêm logo depois, do menor pro maior.
-    const itens = categoriasVenda.value.flatMap(c => {
-      const linhas = []
-      if (qtds[c.id] > 0) linhas.push({ id: c.id, nome: c.nome, emoji: c.emoji, qty: qtds[c.id], preco: c.preco, subtotal: centavos(qtds[c.id] * c.preco) })
-      extrasDa(c.id).filter(l => qtds[l.id] > 0).forEach(l =>
-        linhas.push({ id: l.id, nome: nomeExtra(l.nome, l.preco), emoji: l.emoji, qty: qtds[l.id], preco: l.preco, subtotal: centavos(qtds[l.id] * l.preco) }))
-      return linhas
-    })
+    const itens = categoriasVenda.value
+      .filter(c => qtds[c.id] > 0)
+      .map(c => ({ id: c.id, nome: c.nome, emoji: c.emoji, qty: qtds[c.id], preco: c.preco, subtotal: qtds[c.id] * c.preco }))
     // Nome da loja lido do cadastro na hora de gravar (nunca de uma cópia que pode estar velha).
     const nomeLojaVigente = (await getNomesLojas())[lojaAtual.value.id] || lojaAtual.value.nome
     const fiado = {
@@ -3506,16 +3364,9 @@ function abrirEditarVenc(f) {
 }
 function setChipEditar(id) {
   chipEditarAtivo.value = id
-  // Conta a partir da DATA DA VENDA (não de hoje): editar/lançar depois da virada do mês
-  // não pode empurrar o vencimento pro mês seguinte.
-  const dataBase = fiadoEditar.value ? fiadoEditarData.value : fiadoEditarVenc.value?.dataVenda
-  const base = dataBase ? new Date(dataBase + 'T12:00:00') : new Date()
+  const base = new Date()
   dataVencEditar.value = calcChipDate(id, base)
 }
-// Mudou a data da venda na edição com um prazo já escolhido: recalcula.
-watch(fiadoEditarData, () => {
-  if (fiadoEditar.value && chipEditarAtivo.value) setChipEditar(chipEditarAtivo.value)
-})
 async function salvarVencimento() {
   if (!fiadoEditarVenc.value || !dataVencEditar.value) return
   await atualizarFiado(fiadoEditarVenc.value.id, { dataVenc: dataVencEditar.value })
@@ -3565,23 +3416,15 @@ async function abrirEditarFiado(f) {
   // linhas extras, pra não se perder nada ao editar.
   await carregarCategoriasVenda()
   const itensAtuais = f.itens || []
-  const ehExtra = (i) => String(i.id).includes('@') && categoriasVenda.value.some(c => String(i.id).startsWith(c.id + '@'))
-  const doCat = categoriasVenda.value.flatMap(c => {
+  const doCat = categoriasVenda.value.map(c => {
     const item = itensAtuais.find(i => i.id === c.id)
     // Mantém o preço gravado na venda; só usa o preço atual se o item é novo.
-    const linha = { id: c.id, nome: c.nome, emoji: c.emoji, categoria: 'Categorias', preco: item ? Number(item.preco || c.preco) : c.preco }
-    // Outros valores da mesma categoria ficam logo abaixo dela.
-    const extras = itensAtuais
-      .filter(i => String(i.id).startsWith(c.id + '@'))
-      .map(i => ({ id: i.id, nome: i.nome, emoji: i.emoji || c.emoji, categoria: 'Categorias', preco: Number(i.preco || 0) }))
-    return [linha, ...extras]
+    return { id: c.id, nome: c.nome, emoji: c.emoji, categoria: 'Categorias', preco: item ? Number(item.preco || c.preco) : c.preco }
   })
   const antigos = itensAtuais
-    .filter(i => !categoriasVenda.value.some(c => c.id === i.id) && !ehExtra(i))
+    .filter(i => !categoriasVenda.value.some(c => c.id === i.id))
     .map(i => ({ id: i.id, nome: i.nome, emoji: i.emoji || '📦', categoria: 'Itens anteriores', preco: Number(i.preco || 0) }))
   produtosEditar.value = [...doCat, ...antigos]
-  editarExtraCat.value = categoriasVenda.value[0]?.id || ''
-  editarExtraValor.value = ''
   produtosEditar.value.forEach(p => {
     const item = itensAtuais.find(i => i.id === p.id)
     qtdsEditar[p.id] = item ? (item.qty ?? item.qtd ?? 0) : 0
@@ -3597,25 +3440,6 @@ async function abrirEditarFiado(f) {
     rawValorLivreEditar.value = ''
     notaLivreEditar.value = ''
   }
-}
-// Adicionar uma categoria por outro valor dentro da edição
-const editarExtraCat   = ref('')
-const editarExtraValor = ref('')
-function adicionarExtraEditar() {
-  const c = categoriasVenda.value.find(x => x.id === (editarExtraCat.value || categoriasVenda.value[0]?.id))
-  const preco = centavos(moedaParaNumero(editarExtraValor.value))
-  if (!c || !(preco > 0)) { s.notify('Escolha a categoria e digite o valor, por exemplo 8,00', 'warning'); return }
-  const padrao = produtosEditar.value.find(p => p.id === c.id)
-  if (padrao && Math.abs(padrao.preco - preco) < 0.005) { qtdsEditar[c.id] = (qtdsEditar[c.id] || 0) + 1 }
-  else {
-    const id = idExtra(c.id, preco)
-    if (!produtosEditar.value.some(p => p.id === id)) {
-      const pos = produtosEditar.value.reduce((ult, p, idx) => (p.id === c.id || String(p.id).startsWith(c.id + '@')) ? idx : ult, -1)
-      produtosEditar.value.splice(pos + 1, 0, { id, nome: nomeExtra(c.nome, preco), emoji: c.emoji, categoria: 'Categorias', preco })
-    }
-    qtdsEditar[id] = (qtdsEditar[id] || 0) + 1
-  }
-  editarExtraValor.value = ''
 }
 function incEditar(p) { qtdsEditar[p.id] = (qtdsEditar[p.id] || 0) + 1 }
 function decEditar(p) { if (qtdsEditar[p.id] > 0) qtdsEditar[p.id]-- }
@@ -4987,41 +4811,7 @@ onMounted(async () => {
 .cad-nv-cat .cad-stepper-btn { width: 44px; height: 44px; font-size: 22px; }
 .cad-nv-cat .cad-stepper-qty { min-width: 30px; font-size: 18px; }
 
-/* Outros valores (mesma categoria, outro preço) */
-.cad-nv-cat--extra { margin-left: 22px; padding: 10px 10px 10px 14px; border-style: dashed; }
-.cad-nv-cat--extra .cad-nv-cat-nome { font-size: 15px; }
-.cad-nv-outro-btn {
-  align-self: flex-start; margin: -4px 0 0 4px; padding: 6px 10px; border: 0; background: none; cursor: pointer;
-  font-family: var(--font); font-size: 13px; font-weight: 800; color: var(--brown-mid);
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.cad-nv-outro-btn:active { opacity: .6; }
-.cad-nv-outro-painel {
-  margin: -2px 0 4px 22px; padding: 12px; background: var(--cream);
-  border: 1.5px solid var(--border); border-radius: var(--r-md);
-  display: flex; flex-direction: column; gap: 8px;
-}
-.cad-nv-outro-sub { font-size: 12.5px; font-weight: 700; color: var(--muted); }
-.cad-nv-outro-linha { display: flex; gap: 10px; align-items: center; }
-.cad-nv-outro-linha .cad-nv-preco-campo { width: 140px; background: var(--surface); }
-.cad-nv-outro-add { flex: 1; margin: 0; }
-.cad-nv-outro-select {
-  flex: 1; min-width: 0; height: 46px; padding: 0 10px; border: 1.5px solid var(--border); border-radius: var(--r-sm);
-  background: var(--surface); font-family: var(--font); font-size: 15px; font-weight: 800; color: var(--brown-dark);
-}
-.cad-nv-outro-guardar { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--brown-mid); }
-
 /* Modal de preços */
-.cad-nv-preco-bloco { border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 4px; }
-.cad-nv-preco-bloco .cad-nv-preco-linha { border-bottom: 0; padding-bottom: 4px; }
-.cad-nv-extras-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 0 4px 40px; }
-.cad-nv-extras-rot { font-size: 12px; font-weight: 700; color: var(--muted); }
-.cad-nv-extra-chip i { font-size: 10px; margin-left: 4px; opacity: .7; }
-.cad-nv-extra-novo input {
-  width: 84px; height: 34px; padding: 0 10px; border: 1.5px dashed var(--border); border-radius: 999px;
-  background: transparent; font-family: var(--mono); font-size: 14px; font-weight: 800; color: var(--brown-dark); text-align: center; outline: none;
-}
-.cad-nv-extra-novo input:focus { border-style: solid; border-color: var(--brown); }
 .cad-nv-precos-dica { font-size: 13px; color: var(--muted); margin: -4px 0 12px; line-height: 1.4; }
 .cad-nv-preco-linha {
   display: flex; align-items: center; gap: 10px; padding: 8px 0;
@@ -5268,9 +5058,8 @@ onMounted(async () => {
 .cd-icbtn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 14px; background: var(--cream); color: var(--brown-mid); font-size: 1.05rem; cursor: pointer; padding: 0; transition: background var(--t); }
 .cd-icbtn:active { background: var(--cream-deep); }
 .cd-icbtn:focus-visible, .cd-atalho:focus-visible, .cd-acao:focus-visible, .cd-cob:focus-visible, .cd-pix-copiar:focus-visible, .cd-aviso:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 2px; }
-.cd-sync--saved { color: var(--green); background: var(--green-bg); }
-.cd-sync--syncing { background: var(--orange-bg); color: var(--orange); }
-.cd-sync--pending { background: var(--red); color: #fff; animation: syncPulso 1.6s ease-in-out infinite; }
+.cd-sync--ok { color: var(--green); background: var(--green-bg); }
+.cd-sync--syncing { background: var(--gold-bg); color: var(--gold-dark); }
 .cd-sync--error { background: var(--red); color: #fff; }
 .cd-sync:disabled { opacity: .9; cursor: default; }
 .cd-sync:not(:disabled) { cursor: pointer; }

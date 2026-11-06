@@ -1578,7 +1578,7 @@ async function zerarDados() {
 .aj-logo img { width: 100%; height: 100%; object-fit: contain; }
 .aj-logo--vazio { color: var(--gold-dark); font-size: 1.6rem; }
 
-/* Campod com prefixo (R$) igual aos demais campos */
+/* Campo com prefixo (R$) igual aos demais campos */
 .input-with-prefix { border: 1.5px solid var(--border); border-radius: var(--r-sm); }
 .input-with-prefix:focus-within { border-color: var(--brown-mid); box-shadow: 0 0 0 3px rgba(122, 69, 32, .12); }
 .input-with-prefix .input { height: 48px; min-height: 48px; box-shadow: none !important; }

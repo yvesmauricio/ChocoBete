@@ -70,7 +70,7 @@
           </div>
 
           <!-- ════════════════ PASSO 2 — POSIÇÃO NA FOLHA ════════════════ -->
-          <div v-if="passoAtual === 2 && !folhaCheiaSelecionada" class="etq-passo">
+          <div v-if="passoAtual === 2 && !folhaCheiaSelecionada" class="etq-passo etq-passo--folha">
             <p class="hint mb-12">Diga ao sistema onde, na folha física, as próximas etiquetas devem ser impressas.</p>
 
             <!-- Seletor de modo: cartões grandes, fácil de tocar -->
@@ -97,6 +97,16 @@
             </div>
 
             <p v-if="modoManual" class="hint mb-8 mt-16">Marque exatamente {{ totalEtiquetasSelecionadas }} posição{{ totalEtiquetasSelecionadas > 1 ? 'ões' : '' }} na folha. As etiquetas da sua lista são distribuídas na ordem em que você for marcando.</p>
+
+            <!-- Resumo dos sabores escolhidos (só no layout de desktop, ao lado da folha) -->
+            <div class="etq-sabores-resumo">
+              <div class="etq-sabores-resumo-tit"><i class="fas fa-tags"></i> Etiquetas escolhidas</div>
+              <div v-for="r in receitasParaEtiqueta.filter(x => etqQtds[x._textoSabor] > 0)" :key="r._textoSabor" class="etq-sabores-resumo-item">
+                <span class="etq-sabores-resumo-nome">{{ r._textoSabor }}</span>
+                <span class="etq-sabores-resumo-qtd">{{ etqQtds[r._textoSabor] }}</span>
+              </div>
+              <div class="etq-sabores-resumo-total"><span>Total</span><strong>{{ totalEtiquetasSelecionadas }}</strong></div>
+            </div>
 
             <!-- Preview da folha -->
             <div class="etq-preview-wrap">
@@ -146,7 +156,7 @@
             <!-- Texto de contato -->
             <div class="fg mb-16">
               <label class="label">Texto de contato na etiqueta</label>
-              <input v-model="company.contato_etiqueta" class="input" placeholder="Ex: Bete (21) 9 9943-0023" />
+              <input v-model="company.contato_etiqueta" class="input" placeholder="Ex: Doces da Ana (21) 9 9999-0000" />
               <p class="hint">Aparece embaixo do sabor em cada etiqueta. Se vazio, usa o contato da empresa.</p>
             </div>
 
@@ -162,30 +172,29 @@
               </div>
             </div>
 
-            <button class="btn btn-primary btn-full mt-16" :disabled="!podeGerar" @click="gerarEtiquetasAvulsas">
-              <i class="fas fa-file-word"></i> Gerar .docx
-            </button>
-
-          </div>
-
-          <!-- ── Navegação entre passos ── -->
-          <div class="etq-passo-nav">
-            <button v-if="passoAtual > 1" class="btn btn-secondary" @click="passoAtual--">
-              <i class="fas fa-arrow-left"></i> Voltar
-            </button>
-            <button v-if="passoAtual < 3" class="btn btn-primary" :disabled="!podeAvancar" @click="avancarPasso">
-              Continuar <i class="fas fa-arrow-right"></i>
-            </button>
           </div>
 
         </div>
       </div>
     </div>
+
+    <!-- ── Navegação entre passos — fixa no rodapé, sempre visível ── -->
+    <div class="etq-passo-nav">
+      <button v-if="passoAtual > 1" class="btn btn-secondary" @click="passoAtual--">
+        <i class="fas fa-arrow-left"></i> Voltar
+      </button>
+      <button v-if="passoAtual < 3" class="btn btn-primary" :disabled="!podeAvancar" @click="avancarPasso">
+        Continuar <i class="fas fa-arrow-right"></i>
+      </button>
+      <button v-if="passoAtual === 3" class="btn btn-primary" :disabled="!podeGerar" @click="gerarEtiquetasAvulsas">
+        <i class="fas fa-file-word"></i> Gerar .docx
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed } from 'vue'
+import { ref, reactive, watch, computed, onMounted } from 'vue'
 import { useStore } from '../store.js'
 import { textoEtiquetaReceita } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
@@ -287,8 +296,8 @@ const receitasParaEtiqueta = computed(() => {
 })
 
 // ── Pré-seleção vinda de Produção (botão "Etiqueta" num lote/produção) ──
-// As abas usam v-show (ficam sempre montadas), então onMounted só dispararia
-// na primeira renderização do app. Por isso observamos a mudança do sinal.
+// Depois de montada, a aba fica viva (v-show): por isso também observamos a
+// mudança do sinal, e não só o onMounted.
 function aplicarPreSelecao(preSelecao) {
   if (!preSelecao || !preSelecao.length) return
 
@@ -312,9 +321,15 @@ function aplicarPreSelecao(preSelecao) {
   }
 }
 
+// A aba agora é montada sob demanda: ao vir de Produção, o sinal já está
+// preenchido quando esta tela monta. Aplicamos em onMounted (e não com
+// `immediate`) porque aplicarPreSelecao usa computeds declarados mais abaixo.
 watch(() => s.etiquetasPreSelecao, (val) => {
   if (val && val.length) aplicarPreSelecao(val)
-}, { immediate: true })
+})
+onMounted(() => {
+  if (s.etiquetasPreSelecao?.length) aplicarPreSelecao(s.etiquetasPreSelecao)
+})
 
 const totalEtiquetasSelecionadas = computed(() =>
   Object.values(etqQtds).reduce((acc, q) => acc + (Number(q) || 0), 0)
@@ -428,7 +443,7 @@ function resetarWizard() {
 }
 
 async function gerarEtiquetasAvulsas() {
-  const contato = company.contato_etiqueta?.trim() || 'Bete 9 9943-0023'
+  const contato = company.contato_etiqueta?.trim() || [company.nome, company.whatsapp_pedidos].filter(Boolean).join(' ').trim()
 
   // ── Modo manual: gera a partir das posições marcadas no preview ──
   if (modoManual.value) {
@@ -492,7 +507,7 @@ async function gerarEtiquetasAvulsas() {
 </script>
 
 <style scoped>
-.tab-etiquetas { padding-bottom: 120px; background: var(--bg); }
+.tab-etiquetas { padding-bottom: 100px; background: var(--bg); }
 .etq-content { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 
 /* ── Indicador de etapas ── */
@@ -518,7 +533,22 @@ async function gerarEtiquetasAvulsas() {
 .etq-step.ativo .etq-step-label { color: var(--brown-dark); }
 
 .etq-passo { display: flex; flex-direction: column; }
-.etq-passo-nav { display: flex; justify-content: space-between; gap: 8px; margin-top: 20px; }
+
+/* Barra fixa no rodapé: Voltar/Continuar sempre visíveis, sem exigir
+   rolagem até o fim da tela. Fica acima da AppNav inferior (~64px) e
+   respeita a mesma largura/centralização do "shell" do app. */
+.etq-passo-nav {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  max-width: 480px; margin: 0 auto;
+  display: flex; justify-content: space-between; gap: 8px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 18px rgba(61,31,7,.08);
+  z-index: calc(var(--z-header) + 1);
+}
 .etq-passo-nav .btn { flex: 1; }
 .btn-full { width: 100%; }
 

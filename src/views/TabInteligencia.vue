@@ -269,16 +269,6 @@
               </div>
               <i class="fas fa-chevron-right" style="color:var(--muted);font-size:.72rem;flex-shrink:0"></i>
             </button>
-            <button class="ia-btn-int" @click="modalPlano = true">
-              <div class="ia-btn-ico-int" style="background:#FAEEDA;color:#854F0B">
-                <i class="fas fa-file-invoice-dollar"></i>
-              </div>
-              <div class="ia-btn-body-int">
-                <div class="ia-btn-titulo-int">Plano de investimento</div>
-                <div class="ia-btn-sub-int">Pix MEI e Sebrae: relatório com seus dados</div>
-              </div>
-              <i class="fas fa-chevron-right" style="color:var(--muted);font-size:.72rem;flex-shrink:0"></i>
-            </button>
           </div>
           <div class="ia-hint-int">
             <i class="fas fa-info-circle"></i>
@@ -307,8 +297,6 @@
           </div>
         </div>
       </BaseModal>
-
-      <PlanoInvestimentoModal v-if="modalPlano" @close="modalPlano = false" />
     </section>
   </div>
 </template>
@@ -318,7 +306,6 @@ import { useStore } from '../store.js'
 import { R$, maskMoney, parseMoney, getMesRef } from '../utils.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import BaseModal from '../components/BaseModal.vue'
-import PlanoInvestimentoModal from '../components/PlanoInvestimentoModal.vue'
 import {
   analisarProduto,
   aprenderComVendas,
@@ -768,7 +755,6 @@ async function atualizarPreco() {
 
   // ── Seletor de IA ─────────────────────────────────────────────────────────
   const modalIA = ref(false)
-  const modalPlano = ref(false)
   const promptGerado = ref('')
   const listaAIs = [
     { id: 'gemini',   nome: 'Gemini',   icon: 'fas fa-wand-magic-sparkles', url: p => `https://gemini.google.com/app?q=${encodeURIComponent(p)}` },

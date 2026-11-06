@@ -81,8 +81,7 @@
                   <div class="lote-meta">
                     <!-- Status / tempo -->
                     <span v-if="s.timer.activeLoteId === grupo.id" class="lbadge lbadge-running">
-                      <i class="fas fa-stopwatch" :class="{ 'fa-beat-fade': s.timer.isRunning }"></i>
-                      {{ s.timer.isRunning ? 'Produzindo' : 'Pausado' }} · <span class="lbadge-tempo">{{ s.timerDisplay }}</span>
+                      <i class="fas fa-spinner fa-spin"></i> Produzindo...
                     </span>
                     <span v-else-if="grupo.duracaoMinutos > 0" class="lbadge lbadge-done">
                       <i class="fas fa-clock"></i> {{ fmtTime(grupo.duracaoMinutos) }}
@@ -1024,7 +1023,6 @@ onMounted(() => {
 .lbadge { max-width: 100%; white-space: nowrap; font-size: .74rem; font-weight: 700; padding: 3px 9px; border-radius: var(--r-full); border: 1px solid transparent; display: inline-flex; align-items: center; gap: 4px; }
 .lbadge-done      { background:var(--blue-bg); border-color:var(--blue-dim); color:var(--blue); }
 .lbadge-running   { background:var(--blue-bg); border-color:var(--blue-dim); color:var(--blue); }
-.lbadge-tempo { font-family:var(--mono); font-weight:800; font-variant-numeric:tabular-nums }
 .lbadge-scheduled { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); }
 .lbadge-warning   { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); cursor:help; }
 .lbadge-est       { background:var(--cream); border-color:var(--border); color:var(--muted); }
