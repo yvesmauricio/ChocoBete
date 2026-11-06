@@ -1,98 +1,76 @@
-// Controle de atualização do app (PWA).
-// - Confere se há versão nova ao abrir, ao voltar pro app e a cada 10 min.
-// - Quando a versão nova termina de baixar, liga `novaVersao` → o
-//   AtualizacaoBanner.vue mostra o aviso. NADA é recarregado sozinho:
-//   quem decide o momento é o usuário (evita perder algo não salvo).
-import { ref } from 'vue'
-import { registerSW } from 'virtual:pwa-register'
-import { versaoInstalada, consultarVersaoPublicada, descreverFalhaVersao } from './versaoApp.js'
-
-export const novaVersao = ref(false)   // há versão nova pronta pra aplicar?
-export const aviso = ref(true)         // o aviso está visível? (o "Depois" apenas esconde)
-
-let updateSW = null
-let registro = null   // registro do service worker (pra pedir verificação manual)
-const INTERVALO_MS = 10 * 60 * 1000
-
-export function iniciarAtualizacaoApp() {
-  updateSW = registerSW({
-    immediate: true,
-    onRegisteredSW(_url, reg) {
-      if (!reg) return
-      registro = reg
-      const verificar = () => {
-        if (navigator.onLine) reg.update().catch(() => {})
-      }
-      setInterval(verificar, INTERVALO_MS)
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible') return
-        verificar()
-        // Voltou pro app com atualização pendente → mostra o aviso de novo
-        if (novaVersao.value) aviso.value = true
-      })
-    },
-    onNeedRefresh() {
-      novaVersao.value = true
-      aviso.value = true
-    },
-    onOfflineReady() {
-      console.log('App pronto para uso offline')
-    }
-  })
+/* global __APP_VERSION__, __APP_BUILD__, __APP_COMMIT__ */
+// Versão do app: a INSTALADA (embutida no build) e a PUBLICADA (version.json).
+// __APP_*__ são injetados pelo vite.config.js; os fallbacks cobrem testes/dev.
+export const versaoInstalada = {
+  versao: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev',
+  build: typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : '',
+  commit: typeof __APP_COMMIT__ !== 'undefined' ? __APP_COMMIT__ : ''
 }
 
-export function aplicarAtualizacao() {
-  if (!updateSW) return location.reload()
-  updateSW(true)                         // ativa o SW novo e recarrega
-  // Rede de segurança: se por algum motivo não recarregar, força.
-  setTimeout(() => location.reload(), 4000)
-}
-
-export function adiarAtualizacao() {
-  aviso.value = false
-}
-
-const esperar = (ms) => new Promise(r => setTimeout(r, ms))
-
-/**
- * Verificação manual (botão em Ajustes). Pergunta ao servidor qual versão está publicada e
- * pede ao service worker pra procurar atualização, esperando até ~20 s a nova terminar de baixar.
- * Estados: 'offline' | 'erro' | 'nova' (pronta pra aplicar) | 'diferente' (publicada, ainda
- * não chegou aqui) | 'atualizado'. `publicada` é o conteúdo do version.json (ou null).
- */
-export async function buscarAtualizacaoAgora() {
-  if (!navigator.onLine) return { estado: 'offline', publicada: null }
-  const consulta = await consultarVersaoPublicada()
-  const publicada = consulta.ok ? consulta.dados : null
-  if (registro) {
-    try { await registro.update() } catch { /* sem rede no meio do caminho: segue com o que há */ }
-    for (let i = 0; i < 40 && !novaVersao.value; i++) {
-      if (!registro.installing && !registro.waiting) break
-      await esperar(500)
-    }
-    await esperar(300) // dá tempo do aviso "nova versão pronta" chegar
-  }
-  if (novaVersao.value) return { estado: 'nova', publicada }
-  if (!publicada) return { estado: 'erro', publicada: null, motivo: consulta.motivo, status: consulta.status }
-  const diferente = publicada.commit && versaoInstalada.commit && publicada.commit !== versaoInstalada.commit
-  return { estado: diferente ? 'diferente' : 'atualizado', publicada }
+/** "28/10/2026 21:10" no fuso do aparelho (ou '' se não houver data). */
+export function dataBuild(v) {
+  const d = v?.build ? new Date(v.build) : null
+  if (!d || Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 /**
- * Último recurso quando o app não atualiza: remove o service worker e o cache DO APP e recarrega.
- * NÃO apaga seus dados (ficam no banco do aparelho, que não é tocado aqui). Preserva os caches de
- * fontes/ícones pra não ficar sem eles caso a internet caia logo depois.
- * Exige internet e servidor respondendo, senão o app poderia não conseguir reabrir.
+ * Rótulos curtos pra comparar duas versões. Se o número é diferente, basta
+ * "v3.0.0 → v3.1.0". Se é o mesmo (publicou sem mudar o número), inclui a data
+ * do build pra não parecer que nada mudou.
  */
-export async function forcarAtualizacaoCompleta() {
-  if (!navigator.onLine) throw new Error('Precisa de internet para forçar a atualização.')
-  const consulta = await consultarVersaoPublicada()
-  if (!consulta.ok) throw new Error(descreverFalhaVersao(consulta.motivo, consulta.status))
-  const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? []
-  await Promise.all(regs.map(r => r.unregister()))
-  if (typeof caches !== 'undefined') {
-    const chaves = await caches.keys()
-    await Promise.all(chaves.filter(k => !/^(font-awesome|google-fonts)/.test(k)).map(k => caches.delete(k)))
+export function rotulosVersao(atual, nova) {
+  const mesmaVersao = atual?.versao === nova?.versao
+  const rot = (v) => `v${v?.versao ?? '?'}` + (mesmaVersao && dataBuild(v) ? ` · ${dataBuild(v)}` : '')
+  return { atual: rot(atual), nova: rot(nova) }
+}
+
+/**
+ * Lê /version.json direto da rede (ignora cache e service worker) e diz POR QUE falhou:
+ *   { ok: true, dados }  ou  { ok: false, motivo, status? } com motivo:
+ *   'rede'          — sem resposta (internet, Wi-Fi sem saída, servidor fora);
+ *   'redirecionado' — o servidor mandou para outra página (típico: login do Cloudflare Access);
+ *   'http'          — o servidor respondeu erro (ex.: 404, 500 — ver `status`);
+ *   'nao-json'      — veio uma PÁGINA no lugar do arquivo (o Cloudflare Pages devolve a página
+ *                     inicial quando o arquivo não existe no deploy; ou uma tela de login);
+ *   'invalido'      — é JSON mas não tem o formato esperado.
+ */
+export async function consultarVersaoPublicada() {
+  try {
+    const base = import.meta.env?.BASE_URL ?? '/'
+    const r = await fetch(`${base}version.json?t=${Date.now()}`, { cache: 'no-store', redirect: 'manual' })
+    if (r.type === 'opaqueredirect' || (r.status >= 300 && r.status < 400)) return { ok: false, motivo: 'redirecionado' }
+    if (!r.ok) return { ok: false, motivo: 'http', status: r.status }
+    const texto = await r.text()
+    let j
+    try { j = JSON.parse(texto) } catch { return { ok: false, motivo: 'nao-json' } }
+    if (!j || typeof j.versao !== 'string') return { ok: false, motivo: 'invalido' }
+    return { ok: true, dados: j }
+  } catch { return { ok: false, motivo: 'rede' } }
+}
+
+/** Como antes: a versão publicada, ou null se não deu para ler (o motivo está em consultarVersaoPublicada). */
+export async function buscarVersaoPublicada() {
+  const r = await consultarVersaoPublicada()
+  return r.ok ? r.dados : null
+}
+
+/** Mensagem em português, com o que fazer, para cada motivo de falha. */
+export function descreverFalhaVersao(motivo, status) {
+  switch (motivo) {
+    case 'rede':
+      return 'Sem resposta do servidor. Confira a internet do aparelho (Wi-Fi sem sinal ou bloqueado) e tente de novo.'
+    case 'redirecionado':
+      return 'O servidor pediu login (Cloudflare Access) em vez de entregar a versão. Abra o site no navegador e entre de novo, ou libere /version.json e /sw.js no Access.'
+    case 'http':
+      return status === 404
+        ? 'O arquivo de versão não existe no servidor (erro 404). O deploy mais recente pode não ter terminado ou não incluiu a atualização.'
+        : `O servidor respondeu com erro (HTTP ${status}). Tente de novo em instantes.`
+    case 'nao-json':
+      return 'O servidor devolveu uma página no lugar do arquivo de versão. Costuma ser o deploy sem o /version.json (o Cloudflare devolve a página inicial quando um arquivo não existe) ou uma tela de login. Teste abrir /version.json no navegador do celular.'
+    case 'invalido':
+      return 'O arquivo de versão do servidor está num formato inesperado.'
+    default:
+      return 'Não consegui consultar o servidor agora. Tente de novo em instantes.'
   }
-  location.reload()
 }
