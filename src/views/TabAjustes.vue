@@ -1,6 +1,6 @@
 <template>
   <div class="tab-ajustes">
-    <!-- ── Cabeçalho ───────────────────────────────────── -->
+    <!-- ── Cabeçalho ────_───────────────────────────────── -->
     <div class="tab-hdr">
       <div class="tab-hdr-top">
         <h2 class="tab-title"><i class="fas fa-sliders"></i> Ajustes</h2>
