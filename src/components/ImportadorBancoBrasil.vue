@@ -10,6 +10,10 @@
     :loading="importando"
     :fileName="arquivoNome"
     :resultado="resultadoImportacao"
+    :previa="previa"
+    :confirmandoPrevia="confirmandoPrevia"
+    @confirmar-previa="confirmarPrevia"
+    @cancelar-previa="cancelarPrevia"
     @file-change="onFileChange"
     @desfazer="onDesfazer"
   >
@@ -28,13 +32,14 @@ import { useStore } from '../store.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import { R$, normalizar, parseValorBr, processarCsv, parseDataBr, detectarColunasExtrato, lerArquivoComoTexto } from '../utils.js'
 import ImportadorBase from './ImportadorBase.vue'
+import { useImportacaoExtrato } from '../composables/useImportacaoExtrato.js'
 
 const confirmar = useConfirm()
 
 const s = useStore()
 const importando = ref(false)
 const arquivoNome = ref('')
-const resultadoImportacao = ref(null)
+const { previa, resultado: resultadoImportacao, confirmando: confirmandoPrevia, preparar, cancelar: cancelarPrevia, confirmar: confirmarPrevia } = useImportacaoExtrato('bb')
 const contaSelecionadaId = ref('')
 const contasBb = computed(() => s.getContasFinanceirasPorBanco('bb'))
 
@@ -107,20 +112,8 @@ async function onFileChange(event) {
     }
 
     const lancamentos = extrairLancamentos(linhas, colunas)
-    const resumo = await s.importarLancamentosFinanceiros(lancamentos)
-    resultadoImportacao.value = resumo
-
-    if (!resumo.validos) {
-      s.notify('Nenhum lancamento valido foi encontrado nesse arquivo.', 'warning')
-      return
-    }
-
-    if (resumo.importadosCount === 0) {
-      s.notify('Os lancamentos desse extrato ja estavam registrados.', 'warning')
-      return
-    }
-
-    s.notify(`BB: ${resumo.importadosCount} lancamento(s) importado(s)!`)
+    // Nada é gravado aqui: abre a conferência e só grava ao confirmar.
+    await preparar({ arquivo, formato: 'csv', texto, colunas: Object.keys(primeiraLinha), lancamentos, contaId: contaSelecionadaId.value })
   } catch (error) {
     console.error(error)
     resultadoImportacao.value = null

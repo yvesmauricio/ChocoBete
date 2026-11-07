@@ -30,7 +30,10 @@ export function criarRegrasFinanceiras({ contasFinanceiras }) {
       banco: normalizarTextoFinanceiro(conta.banco || ''),
       titular: String(conta.titular || '').trim(),
       natureza: conta.natureza === 'empresarial' ? 'empresarial' : 'pessoal',
-      papel: String(conta.papel || '').trim()
+      papel: String(conta.papel || '').trim(),
+      // Opcional: nº da agência/conta como aparece no extrato. Se preenchido, só extratos que
+      // o contenham são aceitos nesta conta.
+      identificador_extrato: String(conta.identificador_extrato || '').trim()
     }
   }
 

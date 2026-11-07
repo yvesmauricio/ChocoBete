@@ -12,6 +12,10 @@
     :loading="importando"
     :fileName="arquivoNome"
     :resultado="resultadoImportacao"
+    :previa="previa"
+    :confirmandoPrevia="confirmandoPrevia"
+    @confirmar-previa="confirmarPrevia"
+    @cancelar-previa="cancelarPrevia"
     @file-change="onFileChange"
     @desfazer="onDesfazer"
   >
@@ -31,13 +35,14 @@ import { useConfirm } from '../composables/useConfirm.js'
 import { parseValorBr, parseDataBr } from '../utils.js'
 import { extrairTextoPdf } from '../services/pdfService.js'
 import ImportadorBase from './ImportadorBase.vue'
+import { useImportacaoExtrato } from '../composables/useImportacaoExtrato.js'
 
 const confirmar = useConfirm()
 
 const s = useStore()
 const importando = ref(false)
 const arquivoNome = ref('')
-const resultadoImportacao = ref(null)
+const { previa, resultado: resultadoImportacao, confirmando: confirmandoPrevia, preparar, cancelar: cancelarPrevia, confirmar: confirmarPrevia } = useImportacaoExtrato('itau')
 const contaSelecionadaId = ref('')
 const contasItau = computed(() => s.getContasFinanceirasPorBanco('itau'))
 
@@ -125,23 +130,9 @@ async function onFileChange(event) {
       conta_id: contaSelecionadaId.value
     }))
 
-    if (!lancamentos.length) {
-      s.notify('Nenhum lançamento encontrado no PDF. Verifique se é o extrato conta corrente.', 'error')
-      return
-    }
-
-    const resumo = await s.importarLancamentosFinanceiros(lancamentos)
-    resultadoImportacao.value = resumo
-
-    if (!resumo.validos) {
-      s.notify('Nenhum lançamento válido encontrado.', 'warning')
-      return
-    }
-    if (resumo.importadosCount === 0) {
-      s.notify('Todos os lançamentos já estavam registrados.', 'warning')
-      return
-    }
-    s.notify(`Itaú: ${resumo.importadosCount} lançamento(s) importado(s)!`, 'success')
+    // Nada é gravado aqui: abre a conferência (inclusive "não achei lançamentos" ou "este PDF
+    // é de outro banco") e só grava ao confirmar.
+    await preparar({ arquivo, formato: 'pdf', texto, lancamentos, contaId: contaSelecionadaId.value })
   } catch (error) {
     console.error(error)
     s.notify(error?.message || 'Erro ao ler o PDF do Itaú.', 'error')

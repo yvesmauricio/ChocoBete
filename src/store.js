@@ -596,6 +596,7 @@ export const useStore = defineStore('choco', () => {
     contasFinanceiras.value = Array.isArray(contasCfg)
       ? contasCfg.map(normalizarContaFinanceira).filter(c => c.nome)
       : []
+    await _carregarImportacoesExtrato()
     if (cfg) company.value = { ...company.value, ...cfg }
     perfis.value = normalizarPerfis(perfisCfg)
     if (Array.isArray(categoriasCfg) && categoriasCfg.length) categoriasFinanceiro.value = categoriasCfg
@@ -968,6 +969,7 @@ export const useStore = defineStore('choco', () => {
       contasFinanceiras.value = Array.isArray(contasCfg)
         ? contasCfg.map(normalizarContaFinanceira).filter(conta => conta.nome)
         : []
+      await _carregarImportacoesExtrato()
 
       const savedTimer = await configGet('active_timer')
       if (savedTimer) {
@@ -1193,24 +1195,62 @@ async function registrarProducaoFantasma(dados) {
     financeiro.value = await db.financeiro.orderBy('data').reverse().toArray()
   }
 
-  // Guarda o lote da última importação de extrato (sessão atual) para permitir desfazer.
+  // Última importação desta sessão (compatibilidade com telas antigas).
   const ultimaImportacao = ref(null)
 
-  async function desfazerUltimaImportacao() {
-    const lote = ultimaImportacao.value
-    if (!lote || !lote.ids?.length) {
-      notify('Não há nenhuma importação recente para desfazer.', 'warning')
+  // Histórico PERSISTENTE de importações de extrato (config `extrato_importacoes`): cada lote
+  // guarda de onde veio (arquivo, conta, período) e o que criou/alterou, para poder ser
+  // desfeito inteiro a qualquer momento — não só o último, e não só até recarregar o app.
+  const importacoesExtrato = ref([])
+  // Assinatura do formato do último extrato aceito em cada conta (config `extrato_assinaturas`).
+  const assinaturasExtrato = ref({})
+
+  async function _carregarImportacoesExtrato() {
+    const lista = await configGet('extrato_importacoes', [])
+    importacoesExtrato.value = Array.isArray(lista) ? lista : []
+    const assin = await configGet('extrato_assinaturas', {})
+    assinaturasExtrato.value = assin && typeof assin === 'object' && !Array.isArray(assin) ? assin : {}
+  }
+
+  /** Desfaz uma importação inteira: apaga o que ela criou e devolve a categoria/natureza
+   *  que a conciliação de transferências mudou em lançamentos que já existiam. */
+  async function desfazerImportacaoExtrato(loteId) {
+    const lote = importacoesExtrato.value.find(l => l.id === loteId)
+    if (!lote || lote.desfeito_em) {
+      notify('Esta importação já foi desfeita (ou não existe mais).', 'warning')
       return false
     }
-    await db.financeiro.bulkDelete(lote.ids)
+    const hashes = new Set(lote.hashes || [])
+    const ids = hashes.size ? await db.financeiro.where('hash_duplicidade').anyOf([...hashes]).primaryKeys() : []
+    if (ids.length) await db.financeiro.bulkDelete(ids)
+    for (const antes of lote.alterados || []) {
+      if (hashes.has(antes.hash)) continue
+      const registro = await db.financeiro.where('hash_duplicidade').equals(antes.hash).first()
+      if (registro && !registro.editado_manualmente) {
+        await db.financeiro.update(registro.id, { categoria: antes.categoria, natureza: antes.natureza })
+      }
+    }
+    importacoesExtrato.value = importacoesExtrato.value.map(l => l.id === loteId ? { ...l, desfeito_em: new Date().toISOString() } : l)
+    await configSet('extrato_importacoes', importacoesExtrato.value)
     ultimaImportacao.value = null
     await carregarFinanceiro()
     agendarSync()
-    notify(`Importação desfeita: ${lote.ids.length} lançamento(s) removido(s).`)
+    notify(`Importação desfeita: ${ids.length} lançamento(s) removido(s).`)
     return true
   }
 
-  async function importarLancamentosFinanceiros(lancamentos = []) {
+  /** Desfaz a importação mais recente que ainda não foi desfeita (vale após recarregar o app). */
+  async function desfazerUltimaImportacao() {
+    const lote = importacoesExtrato.value.find(l => !l.desfeito_em)
+    if (!lote) {
+      notify('Não há nenhuma importação para desfazer.', 'warning')
+      return false
+    }
+    return desfazerImportacaoExtrato(lote.id)
+  }
+
+  /** Normaliza e separa o que é NOVO do que já existe — sem gravar nada. */
+  async function _prepararLoteImportacao(lancamentos = []) {
     const preparadosBase = lancamentos
       .map(normalizarLancamentoFinanceiro)
       .filter(item => item.data && item.descricao && Number.isFinite(item.valor) && item.tipo)
@@ -1225,15 +1265,7 @@ async function registrarProducaoFantasma(dados) {
       preparados.push(item)
     }
 
-    if (!preparados.length) {
-      return {
-        recebidos: lancamentos.length,
-        validos: 0,
-        importadosCount: 0,
-        duplicados: 0,
-        totalImportado: 0
-      }
-    }
+    if (!preparados.length) return { preparados, novos: [] }
 
     const existentes = await db.financeiro.toArray()
     const assinaturasExistentes = new Set()
@@ -1254,6 +1286,30 @@ async function registrarProducaoFantasma(dados) {
       return true
     })
 
+    return { preparados, novos }
+  }
+
+  /** Prévia: quantos lançamentos entrariam e quantos já existem. NÃO grava nada. */
+  async function simularImportacaoFinanceira(lancamentos = []) {
+    const { preparados, novos } = await _prepararLoteImportacao(lancamentos)
+    return { recebidos: lancamentos.length, validos: preparados.length, novos: novos.length, duplicados: preparados.length - novos.length }
+  }
+
+  /** @param meta  { banco, conta_id, arquivo, hashArquivo, formato, assinatura } — origem do
+   *  arquivo, guardada no histórico para auditar e desfazer. */
+  async function importarLancamentosFinanceiros(lancamentos = [], meta = null) {
+    const { preparados, novos } = await _prepararLoteImportacao(lancamentos)
+
+    if (!preparados.length) {
+      return {
+        recebidos: lancamentos.length,
+        validos: 0,
+        importadosCount: 0,
+        duplicados: 0,
+        totalImportado: 0
+      }
+    }
+
     let idsNovos = []
     if (novos.length) {
       idsNovos = await db.financeiro.bulkAdd(novos, { allKeys: true })
@@ -1261,12 +1317,15 @@ async function registrarProducaoFantasma(dados) {
 
     const todos = await db.financeiro.toArray()
     const reconciliados = reconciliarTransferenciasInternas(todos)
+    const alteradosAntes = [] // estado anterior, para o "desfazer" poder devolver
     const alterados = reconciliados.filter((item, index) => {
       const atual = todos[index]
-      return atual && (
+      const mudou = atual && (
         atual.categoria !== item.categoria ||
         atual.natureza !== item.natureza
       )
+      if (mudou) alteradosAntes.push({ hash: atual.hash_duplicidade, categoria: atual.categoria, natureza: atual.natureza })
+      return mudou
     })
 
     if (alterados.length) {
@@ -1278,8 +1337,36 @@ async function registrarProducaoFantasma(dados) {
       agendarSync()
     }
 
+    let lote = null
+    if (novos.length) {
+      const datas = novos.map(n => n.data).sort()
+      lote = {
+        id: `imp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        quando: new Date().toISOString(),
+        banco: meta?.banco || novos[0]?.banco || null,
+        conta_id: meta?.conta_id || novos[0]?.conta_id || '',
+        conta_nome: novos[0]?.conta_nome || '',
+        arquivo: meta?.arquivo || '',
+        hash_arquivo: meta?.hashArquivo || '',
+        formato: meta?.formato || '',
+        periodo: { ini: datas[0], fim: datas[datas.length - 1] },
+        qtd: novos.length,
+        total: novos.reduce((acc, item) => acc + Number(item.valor || 0), 0),
+        hashes: novos.map(n => n.hash_duplicidade),
+        alterados: alteradosAntes,
+        desfeito_em: null
+      }
+      importacoesExtrato.value = [lote, ...importacoesExtrato.value].slice(0, 40)
+      await configSet('extrato_importacoes', importacoesExtrato.value)
+      if (lote.conta_id && meta?.assinatura) {
+        assinaturasExtrato.value = { ...assinaturasExtrato.value, [lote.conta_id]: meta.assinatura }
+        await configSet('extrato_assinaturas', assinaturasExtrato.value)
+      }
+      agendarSync()
+    }
+
     ultimaImportacao.value = idsNovos.length
-      ? { ids: idsNovos, banco: novos[0]?.banco || null, quando: new Date().toISOString() }
+      ? { ids: idsNovos, banco: novos[0]?.banco || null, quando: new Date().toISOString(), loteId: lote?.id || null }
       : null
 
     return {
@@ -1287,6 +1374,7 @@ async function registrarProducaoFantasma(dados) {
       validos: preparados.length,
       importadosCount: novos.length,
       duplicados: preparados.length - novos.length,
+      loteId: lote?.id || null,
       totalImportado: novos.reduce((acc, item) => acc + Number(item.valor || 0), 0),
       receitasImportadas: novos
         .filter(item => item.natureza === 'entrada')
@@ -2100,8 +2188,9 @@ async function registrarProducaoFantasma(dados) {
     producaoBusca,
     getPrecoUnitarioInsumo, getMediaTempoReceita, getProductionIngredients,
     getCustoProducaoReceita, getCustoMaoDeObra, expandirIngredientes,
-    carregarFinanceiro, importarLancamentosFinanceiros,
-    ultimaImportacao, desfazerUltimaImportacao,
+    carregarFinanceiro, importarLancamentosFinanceiros, simularImportacaoFinanceira,
+    ultimaImportacao, desfazerUltimaImportacao, desfazerImportacaoExtrato,
+    importacoesExtrato, assinaturasExtrato,
     atualizarLancamentoFinanceiro, atualizarLancamentosEmLote,
     limparFinanceiroPorBanco, reclassificarTodosFinanceiro,
 

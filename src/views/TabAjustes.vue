@@ -862,6 +862,11 @@
           <label class="label">Papel da Conta</label>
           <input v-model="formConta.papel" class="input" placeholder="Ex: Recebimento de vendas" />
         </div>
+        <div v-if="formConta.banco !== 'outro'" class="fg">
+          <label class="label">Nº da conta no extrato (opcional)</label>
+          <input v-model="formConta.identificador_extrato" class="input" inputmode="text" placeholder="Ex: 12345-6" />
+          <p class="aj-nota">Se preencher, só extratos que contenham esse número são aceitos nesta conta — protege contra importar o extrato de outra conta do mesmo banco. Deixe vazio se os extratos dela não trazem o número.</p>
+        </div>
       </div>
       <template #foot>
         <div class="spacer"></div>
@@ -1220,13 +1225,13 @@ watch(abaAtiva, (aba) => {
 
 // ── Gerenciamento de Contas ──
 const modalConta = ref(false)
-const formConta = reactive({ id: null, nome: '', banco: 'pagbank', titular: '', natureza: 'pessoal', papel: '' })
+const formConta = reactive({ id: null, nome: '', banco: 'pagbank', titular: '', natureza: 'pessoal', papel: '', identificador_extrato: '' })
 
 function abrirModalConta(conta = null) {
   if (conta) {
     Object.assign(formConta, JSON.parse(JSON.stringify(conta)))
   } else {
-    Object.assign(formConta, { id: null, nome: '', banco: 'pagbank', titular: '', natureza: 'pessoal', papel: '' })
+    Object.assign(formConta, { id: null, nome: '', banco: 'pagbank', titular: '', natureza: 'pessoal', papel: '', identificador_extrato: '' })
   }
   modalConta.value = true
 }
