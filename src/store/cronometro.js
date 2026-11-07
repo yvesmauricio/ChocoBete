@@ -28,6 +28,24 @@ export function criarCronometro({ producoes, atualizarLoteProducao }) {
     return `Lote de ${dataHoraBR(timer.value.activeLoteId)}`;
   });
 
+  // Cronômetro "órfão": está ligado/pausado num lote que já não existe (apagado,
+  // estornado, ou com a data editada por fora). Sem isso ele ficava preso, sem
+  // nenhum card para controlá-lo.
+  const timerOrfao = computed(() => {
+    const id = timer.value.activeLoteId
+    return Boolean(id) && !producoes.value.some(p => p.data_producao === id)
+  })
+
+  /** O lote do cronômetro mudou de data (edição do lote): o cronômetro vai junto.
+   *  O id do lote É a data de produção, então sem isto ele ficava apontando
+   *  para uma data que não existe mais. */
+  function seguirLoteRenomeado(dataAntiga, dataNova) {
+    if (!dataNova || dataAntiga === dataNova) return
+    if (timer.value.activeLoteId !== dataAntiga) return
+    timer.value.activeLoteId = dataNova
+    configSet('active_timer', timer.value)
+  }
+
   // ── Ações do Cronômetro ───────────────────
   function startTimer(loteId) {
     if (timer.value.activeLoteId !== loteId) {
@@ -116,6 +134,8 @@ export function criarCronometro({ producoes, atualizarLoteProducao }) {
     tickerId,
     timer,
     activeLoteName,
+    timerOrfao,
+    seguirLoteRenomeado,
     startTimer,
     startTicker,
     pauseTimer,

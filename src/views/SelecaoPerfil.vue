@@ -10,12 +10,41 @@
       <div class="perfil-logo-sub">Quem está usando?</div>
     </div>
 
-    <div class="perfil-cards">
+    <!-- Primeira abertura (ou app limpo): antes de qualquer coisa, este aparelho
+         precisa saber quem é. Isso define o que ele pode editar — cada área
+         tem um único dono — e evita dois aparelhos editando o mesmo dado. -->
+    <div v-if="s.papelCarregado && !s.papelAparelho" class="perfil-setup">
+      <div class="perfil-setup-titulo">Que aparelho é este?</div>
+      <div class="perfil-setup-aviso">Escolha uma vez. Cada área tem um único aparelho que edita; no outro ela fica só para consulta.</div>
+
+      <button class="perfil-card" :class="{ 'is-marcado': escolha === 'admin' }" @click="escolha = 'admin'">
+        <div class="perfil-avatar" style="background: linear-gradient(135deg, var(--brown-dark), var(--brown))"><i class="fas fa-user-gear"></i></div>
+        <div class="perfil-info">
+          <div class="perfil-nome">Admin</div>
+          <div class="perfil-desc">Receitas, produção, financeiro, ajustes</div>
+        </div>
+      </button>
+      <button class="perfil-card" :class="{ 'is-marcado': escolha === 'vendas' }" @click="escolha = 'vendas'">
+        <div class="perfil-avatar" style="background: linear-gradient(135deg, var(--green), #15803d)"><i class="fas fa-book-open"></i></div>
+        <div class="perfil-info">
+          <div class="perfil-nome">Vendas</div>
+          <div class="perfil-desc">Cobranças (fiados), clientes e cardápio do balcão</div>
+        </div>
+      </button>
+
+      <input v-model="nomeAparelhoInput" class="perfil-setup-nome" type="text" maxlength="40" placeholder="Nome do aparelho (ex.: Celular da Bete)" />
+      <button class="perfil-setup-ok" :disabled="!escolha || salvandoPapel" @click="confirmarPapel">
+        Confirmar
+      </button>
+    </div>
+
+    <div v-else class="perfil-cards">
       <button v-for="p in cards" :key="p.id" class="perfil-card" @click="$emit('selecionar', p.id)">
         <div class="perfil-avatar" :style="{ background: p.cor }">{{ p.iniciais }}</div>
         <div class="perfil-info">
           <div class="perfil-nome">{{ p.nome }}</div>
           <div class="perfil-desc">{{ p.descricao }}</div>
+          <div v-if="p.somenteConsulta" class="perfil-consulta"><i class="fas fa-eye"></i> Somente consulta neste aparelho</div>
         </div>
         <svg class="perfil-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path d="M9 18l6-6-6-6"/>
@@ -26,7 +55,7 @@
     <!-- Recuperar dados — só aparece se ainda não há nenhum dado neste
          aparelho (instalação nova ou app recém-limpo). Evita ter que
          entrar como Admin e ir em Ajustes → Backup só pra restaurar. -->
-    <div v-if="s.bancoVazio" class="perfil-recuperar">
+    <div v-if="s.bancoVazio && s.papelAparelho" class="perfil-recuperar">
       <button class="perfil-recuperar-toggle" @click="mostrarRecuperar = !mostrarRecuperar" :disabled="s.recuperandoDados">
         <i class="fas fa-clock-rotate-left"></i>
         Já usei o app antes? Restaurar dados
@@ -40,7 +69,7 @@
         </button>
 
         <button
-          v-if="s.suportaPastaBackupLocal"
+          v-if="s.suportaPastaBackupLocal && s.papelAparelho === 'admin'"
           class="perfil-recuperar-opcao"
           :disabled="s.recuperandoDados"
           @click="s.recuperarDaPastaLocal"
@@ -49,7 +78,7 @@
           <span>Restaurar de uma pasta local</span>
         </button>
 
-        <label class="perfil-recuperar-opcao" :class="{ 'is-disabled': s.recuperandoDados }">
+        <label v-if="s.papelAparelho === 'admin'" class="perfil-recuperar-opcao" :class="{ 'is-disabled': s.recuperandoDados }">
           <i class="fas fa-file-code"></i>
           <span>Escolher um arquivo de backup (.json)</span>
           <input
@@ -74,10 +103,26 @@
 import { ref, computed } from 'vue'
 import { useStore } from '../store.js'
 const s = useStore()
-defineEmits(['selecionar'])
 const props = defineProps({ config: { type: Object, required: true } })
 
 const mostrarRecuperar = ref(false)
+
+// ── Papel deste aparelho (primeira abertura) ───────────────
+const emit = defineEmits(['selecionar'])
+const escolha = ref('')
+const nomeAparelhoInput = ref('')
+const salvandoPapel = ref(false)
+async function confirmarPapel() {
+  if (!escolha.value || salvandoPapel.value) return
+  salvandoPapel.value = true
+  try {
+    const ok = await s.definirPapelAparelho(escolha.value, nomeAparelhoInput.value)
+    // Aparelho de Vendas já abre direto na caderneta.
+    if (ok && escolha.value === 'vendas') emit('selecionar', 'bete')
+  } finally {
+    salvandoPapel.value = false
+  }
+}
 
 function iniciais(nome) {
   const partes = String(nome || '').trim().split(/\s+/)
@@ -95,14 +140,16 @@ const cards = computed(() => {
       nome: props.config.ym.nome,
       descricao: props.config.ym.descricao,
       iniciais: iniciais(props.config.ym.nome) || 'AD',
-      cor: 'linear-gradient(135deg, var(--brown-dark), var(--brown))'
+      cor: 'linear-gradient(135deg, var(--brown-dark), var(--brown))',
+      somenteConsulta: s.papelAparelho === 'vendas'
     },
     {
       id: 'bete',
       nome: props.config.bete.nome,
       descricao: props.config.bete.descricao,
       iniciais: iniciais(props.config.bete.nome) || 'VE',
-      cor: 'linear-gradient(135deg, var(--green), #15803d)'
+      cor: 'linear-gradient(135deg, var(--green), #15803d)',
+      somenteConsulta: s.papelAparelho === 'admin'
     }
   ]
   if (s.bancoVazio) return fixos
@@ -113,7 +160,8 @@ const cards = computed(() => {
       nome: e.nome,
       descricao: e.descricao,
       iniciais: iniciais(e.nome) || '??',
-      cor: e.cor
+      cor: e.cor,
+      somenteConsulta: s.papelAparelho === 'vendas'
     }))
   ]
 })
@@ -271,4 +319,14 @@ const cards = computed(() => {
   animation: perfil-rec-spin .7s linear infinite;
 }
 @keyframes perfil-rec-spin { to { transform: rotate(360deg); } }
+
+/* ── Primeira abertura: que aparelho é este? ── */
+.perfil-setup { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 340px; }
+.perfil-setup-titulo { font-size: 18px; font-weight: 800; color: var(--brown); font-family: var(--font); text-align: center; }
+.perfil-setup-aviso { font-size: 13px; color: var(--muted); text-align: center; line-height: 1.4; }
+.perfil-card.is-marcado { border-color: var(--green); box-shadow: 0 0 0 2px var(--green) inset; }
+.perfil-setup-nome { padding: 12px 14px; border: 1.5px solid var(--border); border-radius: var(--r-md); background: var(--surface); font: inherit; font-size: 14px; }
+.perfil-setup-ok { padding: 14px; border: none; border-radius: var(--r-md); background: var(--brown-dark); color: #fff; font-weight: 800; font-size: 15px; cursor: pointer; }
+.perfil-setup-ok:disabled { opacity: .45; cursor: default; }
+.perfil-consulta { margin-top: 4px; font-size: 11px; font-weight: 700; color: var(--muted); }
 </style>

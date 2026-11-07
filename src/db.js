@@ -1,5 +1,6 @@
 import Dexie from 'dexie'
 import { TABELAS_COM_UID, uidLegado } from './uids.js'
+import { liberarEscrita } from './services/travaPorPapel.js'
 
 export { TABELAS_COM_UID, uidLegado }
 
@@ -403,6 +404,8 @@ export const CONFIG_CHAVES_DO_APARELHO = [
   'sync_last_change', // quando este aparelho fez a última alteração (desempate no merge)
   'd1_pedidos_cursor', // até onde este aparelho já buscou pedidos do site (servidor D1)
   'd1_pedidos_apagar', // pedidos do site apagados aqui que o servidor ainda precisa saber
+  'papel_aparelho',   // 'admin' | 'vendas': o papel deste aparelho (nunca viaja no backup)
+  'aparelho_nome',    // nome amigável deste aparelho (ex.: "Celular da Bete")
 ]
 
 const ehChaveDoAparelho = (chave) => CONFIG_CHAVES_DO_APARELHO.includes(chave)
@@ -446,6 +449,7 @@ function linhasComUid(tabela, rows) {
  */
 export async function importarDados(backup, { guarda } = {}) {
   return db.transaction('rw', db.tables, async () => {
+    liberarEscrita() // importar/restaurar/mesclar não passa pela trava de papel (a regra de dono é aplicada no merge)
     if (guarda) {
       const atual = await lerTudoAgora()
       if (!guarda(atual)) throw new Error('LOCAL_MUDOU')

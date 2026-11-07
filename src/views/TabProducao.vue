@@ -59,6 +59,19 @@
         </div>
       </section>
 
+      <!-- Cronômetro ligado num lote que não está na lista (outro mês) ou que não existe mais -->
+      <div v-if="s.timer.activeLoteId && !gruposProducao.some(g => g.id === s.timer.activeLoteId)" class="timer-fora">
+        <div v-if="s.timerOrfao" class="timer-orfao">
+          <i class="fas fa-triangle-exclamation"></i>
+          <span>Há um cronômetro de um lote que não existe mais.</span>
+          <button class="btn btn-secondary" @click="descartarTimerOrfao">Descartar</button>
+        </div>
+        <LoteTimerStrip v-else
+          :label="'Lote de ' + dataHoraBR(s.timer.activeLoteId) + ' · fora do mês exibido'"
+          :display="s.timerDisplay" :running="s.timer.isRunning"
+          @pausar="s.pauseTimer" @retomar="s.startTimer(s.timer.activeLoteId)" @parar="confirmStopTimer" />
+      </div>
+
       <div class="production-groups">
         <!-- Cabeçalho de colunas (só aparece no layout de desktop) -->
         <div class="tbl-head tbl-head--lotes" aria-hidden="true">
@@ -67,7 +80,13 @@
           <span class="th-acts"></span>
         </div>
         <div v-for="grupo in gruposProducao" :key="grupo.id" class="production-card"
-          :class="{ 'card-agendado': grupo.agendado, 'card-locked': s.loteOriginalEmEdicao === grupo.id }">
+          :class="{
+            'card-agendado': grupo.agendado,
+            'card-concluido': grupo.duracaoMinutos > 0 && s.timer.activeLoteId !== grupo.id,
+            'card-rodando': s.timer.activeLoteId === grupo.id && s.timer.isRunning,
+            'card-pausado': s.timer.activeLoteId === grupo.id && !s.timer.isRunning,
+            'card-locked': s.loteOriginalEmEdicao === grupo.id
+          }">
 
           <!-- Cabeçalho do lote -->
           <SwipeRow v-if="s.loteOriginalEmEdicao !== grupo.id" :row-id="'lote-' + grupo.id" :width="larguraAcoesLote(grupo)" class="lote-swipe">
@@ -80,8 +99,8 @@
                   <div class="lote-titulo">{{ dataHoraBR(grupo.data) }}</div>
                   <div class="lote-meta">
                     <!-- Status / tempo -->
-                    <span v-if="s.timer.activeLoteId === grupo.id" class="lbadge lbadge-running">
-                      <i class="fas fa-spinner fa-spin"></i> Produzindo...
+                    <span v-if="s.timer.activeLoteId === grupo.id" class="lbadge" :class="s.timer.isRunning ? 'lbadge-running' : 'lbadge-paused'">
+                      <i :class="s.timer.isRunning ? 'fas fa-fire-burner' : 'fas fa-pause'"></i> {{ s.timer.isRunning ? 'Produzindo' : 'Pausado' }}
                     </span>
                     <span v-else-if="grupo.duracaoMinutos > 0" class="lbadge lbadge-done">
                       <i class="fas fa-clock"></i> {{ fmtTime(grupo.duracaoMinutos) }}
@@ -110,27 +129,13 @@
                 </div>
               </div>
 
-              <!-- Ações fixas: timer precisa de acesso imediato, não fica no swipe -->
+              <!-- Ações fixas (fora do swipe). Iniciar o cronômetro fica aqui; com o
+                   cronômetro rodando, pausar/parar ficam na faixa dentro do card. -->
               <div class="lote-acts" @click.stop>
-                <!-- Timer -->
-                <template v-if="!grupo.duracaoMinutos || s.timer.activeLoteId === grupo.id">
-                  <button v-if="s.timer.activeLoteId === grupo.id && s.timer.isRunning"
-                    class="lote-act-btn act-pause" @click="s.pauseTimer" title="Pausar" aria-label="Pausar o cronômetro">
-                    <i class="fas fa-pause"></i>
-                  </button>
-                  <button v-else-if="s.timer.activeLoteId === grupo.id && !s.timer.isRunning"
-                    class="lote-act-btn act-play" @click="s.startTimer(grupo.id)" title="Retomar" aria-label="Retomar o cronômetro">
-                    <i class="fas fa-play"></i>
-                  </button>
-                  <button v-else
-                    class="lote-act-btn act-play" @click="s.startTimer(grupo.id)" title="Iniciar timer" aria-label="Iniciar o cronômetro">
-                    <i class="fas fa-play"></i>
-                  </button>
-                  <button v-if="s.timer.activeLoteId === grupo.id"
-                    class="lote-act-btn act-stop" @click="confirmStopTimer" title="Parar timer" aria-label="Parar o cronômetro">
-                    <i class="fas fa-stop"></i>
-                  </button>
-                </template>
+                <button v-if="!grupo.duracaoMinutos && s.timer.activeLoteId !== grupo.id"
+                  class="lote-act-btn act-play" @click="iniciarTimerLote(grupo)" title="Iniciar cronômetro" aria-label="Iniciar o cronômetro">
+                  <i class="fas fa-play"></i>
+                </button>
                 <!-- Retomar na Cozinha -->
                 <button class="lote-act-btn act-retomar" @click="handleRetomar(grupo)" title="Editar na Cozinha" aria-label="Editar este lote na Cozinha">
                   <i class="fas fa-utensils"></i>
@@ -159,11 +164,16 @@
             </template>
           </SwipeRow>
 
+          <!-- Cronômetro fixado no próprio card do lote -->
+          <LoteTimerStrip v-if="s.timer.activeLoteId === grupo.id && s.loteOriginalEmEdicao !== grupo.id"
+            :display="s.timerDisplay" :running="s.timer.isRunning"
+            @pausar="s.pauseTimer" @retomar="s.startTimer(grupo.id)" @parar="confirmStopTimer" />
+
           <!-- Números do lote no celular (no computador já aparecem nas colunas) -->
           <div v-if="s.loteOriginalEmEdicao !== grupo.id" class="pd-lote-nums" @click="toggleGrupo(grupo.id)">
-            <span><small>Custo</small><b>{{ R$(grupo.custoTotal) }}</b></span>
-            <span><small>Venda</small><b>{{ R$(grupo.vendaTotal) }}</b></span>
-            <span><small>Lucro</small><b :class="grupo.vendaTotal - grupo.custoTotal < 0 ? 'c-red' : 'c-green'">{{ R$(grupo.vendaTotal - grupo.custoTotal) }}</b></span>
+            <span class="num-custo"><small>Custo</small><b>{{ R$(grupo.custoTotal) }}</b></span>
+            <span class="num-venda"><small>Venda</small><b>{{ R$(grupo.vendaTotal) }}</b></span>
+            <span class="num-lucro" :class="grupo.vendaTotal - grupo.custoTotal < 0 ? 'neg' : 'pos'"><small>Lucro</small><b>{{ R$(grupo.vendaTotal - grupo.custoTotal) }}</b></span>
           </div>
 
           <!-- Lote travado (em edição na Cozinha): sem swipe, só status + retomar -->
@@ -406,6 +416,7 @@ import { R$, dataHoraBR, fmtQtd as fmtQ, getNowLocal, normalizar, textoEtiquetaR
 import BaseModal from '../components/BaseModal.vue'
 import AppListRow from '../components/AppListRow.vue'
 import SwipeRow from '../components/SwipeRow.vue'
+import LoteTimerStrip from '../components/LoteTimerStrip.vue'
 import { useSwipe } from '../composables/useSwipe.js'
 import { useModalStack } from '../composables/useModalStack.js'
 import { useConfirm } from '../composables/useConfirm.js'
@@ -495,6 +506,25 @@ function localParaISO(local) {
   return new Date(local).toISOString()
 }
 const saving = ref(false)
+
+/** Iniciar o cronômetro deste lote. Há um cronômetro só: iniciar outro lote
+ *  zeraria, sem aviso, o tempo do que está em andamento — então pede para
+ *  parar (ou finalizar) o atual antes. */
+function iniciarTimerLote(grupo) {
+  // Cronômetro preso num lote que já não existe não pode impedir de iniciar outro.
+  if (s.timerOrfao) {
+    s.resetTimer()
+    s.notify('Descartei um cronômetro antigo que estava preso em um lote que não existe mais.', 'warning', 4000)
+  }
+  const ativo = s.timer.activeLoteId
+  if (ativo && ativo !== grupo.id) {
+    s.notify('Já existe um cronômetro em andamento em outro lote. Pare-o (ou finalize) antes de iniciar este.', 'warning', 4500)
+    return
+  }
+  s.startTimer(grupo.id)
+}
+
+function descartarTimerOrfao() { s.resetTimer() }
 
 async function confirmStopTimer() {
   const ok = await confirm.ask('Deseja finalizar o cronômetro e registrar o tempo neste lote?', {
@@ -996,8 +1026,14 @@ onMounted(() => {
 
 /* ── Cards de lote (nova UI) ── */
 .production-groups { display: flex; flex-direction: column; gap: 12px; padding: 8px 0; }
-.production-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; margin: 0 12px; overflow: hidden; box-shadow: var(--shadow-sm); }
-.card-agendado { border-color:var(--gold); background:var(--gold-bg); }
+.production-card { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border2); border-radius: 20px; margin: 0 12px; overflow: hidden; box-shadow: var(--shadow-sm); transition: border-color var(--t), box-shadow var(--t); }
+/* Estado do lote = faixa colorida na lateral (em vez de pintar o card inteiro).
+   Ordem importa: o que vem depois vence (rodando > concluído > agendado). */
+.card-agendado  { border-left-color: var(--gold); }
+.card-agendado:not(.card-concluido):not(.card-rodando):not(.card-pausado) { background: linear-gradient(180deg, var(--gold-bg) 0, var(--surface) 96px); }
+.card-concluido { border-left-color: var(--green); }
+.card-pausado   { border-left-color: var(--gold); }
+.card-rodando   { border-left-color: var(--blue); box-shadow: 0 4px 18px rgba(29, 78, 216, .13); }
 
 /* Cabeçalho do lote */
 .lote-hdr-row { display:flex; align-items:center; width:100%; }
@@ -1024,6 +1060,7 @@ onMounted(() => {
 .lbadge-done      { background:var(--blue-bg); border-color:var(--blue-dim); color:var(--blue); }
 .lbadge-running   { background:var(--blue-bg); border-color:var(--blue-dim); color:var(--blue); }
 .lbadge-scheduled { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); }
+.lbadge-paused    { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); }
 .lbadge-warning   { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); cursor:help; }
 .lbadge-est       { background:var(--cream); border-color:var(--border); color:var(--muted); }
 .lbadge-sep       { color:var(--border2); font-size:.7rem; }
@@ -1034,8 +1071,6 @@ onMounted(() => {
 .lote-act-btn { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: .9rem; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all var(--t); }
 .lote-act-btn:active { transform:scale(.9); }
 .act-play  { background:var(--green-bg); color:var(--green); border-color:var(--green-dim); }
-.act-pause { background:var(--blue-bg); color:var(--blue); border-color:var(--blue-dim); }
-.act-stop  { background:var(--orange-bg); color:var(--orange); border-color:var(--orange-dim); }
 .act-retomar { background:var(--gold-bg); color:var(--gold-dark); border-color:var(--gold); }
 .act-cancelar { background:var(--red-bg, #FCEBEB); color:var(--red, #A32D2D); border-color:var(--red, #A32D2D); }
 .act-pesar { background:var(--brown-bg, #F1E7DD); color:var(--brown-dark); border-color:var(--border); }
@@ -1304,13 +1339,24 @@ onMounted(() => {
 .pd-resumo-lucro strong { flex-shrink: 0; white-space: nowrap; font-family: var(--mono); font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 
 /* Números do lote no celular (no computador já existem as colunas) */
-.pd-lote-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 0 14px 12px; cursor: pointer; }
-.pd-lote-nums span { display: flex; flex-direction: column; gap: 1px; padding: 7px 8px; background: var(--bg); border-radius: 10px; min-width: 0; }
-.pd-lote-nums small { font-size: .7rem; font-weight: 700; color: var(--muted); }
-.pd-lote-nums b { font-family: var(--mono); font-size: .8rem; font-weight: 800; color: var(--brown-dark); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pd-lote-nums b.c-red { color: var(--red); }
-.pd-lote-nums b.c-green { color: var(--green); }
+.pd-lote-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 0 14px 14px; cursor: pointer; }
+/* Quadros brancos com borda fina: funcionam sobre qualquer estado do card
+   (antes eram cinza e destoavam do fundo dourado dos lotes agendados). */
+.pd-lote-nums span { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
+.pd-lote-nums small { font-size: .64rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pd-lote-nums b { font-family: var(--mono); font-size: .82rem; font-weight: 800; color: var(--brown-dark); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-agendado:not(.card-concluido):not(.card-rodando):not(.card-pausado) .pd-lote-nums span:not(.num-lucro) { border-color: rgba(200, 137, 10, .28); }
+.pd-lote-nums .num-lucro.pos { background: var(--green-bg); border-color: var(--green-dim); }
+.pd-lote-nums .num-lucro.pos small, .pd-lote-nums .num-lucro.pos b { color: var(--green); }
+.pd-lote-nums .num-lucro.neg { background: var(--red-bg); border-color: var(--red-dim); }
+.pd-lote-nums .num-lucro.neg small, .pd-lote-nums .num-lucro.neg b { color: var(--red); }
 html.is-desktop .pd-lote-nums { display: none; }
+
+/* Cronômetro de um lote fora da lista (outro mês) ou órfão */
+.timer-fora { margin: 8px 12px 0; }
+.timer-fora :deep(.lote-timer) { margin: 0; }
+.timer-orfao { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--gold-bg); border: 1px solid rgba(200, 137, 10, .45); font-size: .8rem; font-weight: 700; color: var(--gold-dark); }
+.timer-orfao span { flex: 1; min-width: 0; }
 @media (max-width: 340px) { .pd-lote-nums b { font-size: .74rem; } }
 .lote-act-btn:focus-visible, .cal-nav:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 2px; }
 </style>

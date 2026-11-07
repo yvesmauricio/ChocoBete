@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:backup": "node tests-backup/run.mjs"
+    "test:backup": "node tests-backup/run.mjs",
+    "test:papel": "node --test \"tests-papel/*.test.mjs\""
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.2.0",

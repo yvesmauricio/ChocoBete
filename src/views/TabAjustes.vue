@@ -27,6 +27,27 @@
 
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
+            <h4 class="aj-grupo-titulo">Este aparelho</h4>
+            <p class="aj-grupo-desc">Cada área tem um único aparelho que a edita; nos outros ela fica só para consulta. Isso evita dois aparelhos alterando o mesmo dado.</p>
+          </div>
+          <article class="aj-card">
+            <div class="aj-form">
+              <div class="aj-row-titulo">{{ papelDoAparelhoTexto }}<span v-if="s.nomeAparelho"> · {{ s.nomeAparelho }}</span></div>
+              <p class="aj-nota">{{ papelDoAparelhoAjuda }}</p>
+              <p class="aj-nota">
+                <template v-if="s.googleDriveConfigured">
+                  {{ s.hasLocalChanges ? 'Há alterações ainda não enviadas ao Drive.' : 'Tudo enviado ao Drive.' }}
+                  <template v-if="s.ultimoSyncTs"> Última sincronização: {{ dataHoraBR(s.ultimoSyncTs) }}.</template>
+                </template>
+                <template v-else>Google Drive desconectado: os dados só estão neste aparelho.</template>
+              </p>
+              <button class="btn btn-secondary" @click="mudarPapelDoAparelho">Mudar a função deste aparelho</button>
+            </div>
+          </article>
+        </div>
+
+        <div class="aj-grupo">
+          <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Ao abrir o app</h4>
             <p class="aj-grupo-desc">Qual perfil aparece quando o app é aberto.</p>
           </div>
@@ -906,6 +927,26 @@ import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
 
 const s = useStore()
 const confirmar = useAppConfirm()
+
+// ── Função deste aparelho (Admin ou Vendas) ───────────────
+const papelDoAparelhoTexto = computed(() => s.papelAparelho === 'vendas' ? 'Aparelho de Vendas' : s.papelAparelho === 'admin' ? 'Aparelho Admin' : 'Função não definida')
+const papelDoAparelhoAjuda = computed(() => s.papelAparelho === 'vendas'
+  ? 'Edita as cobranças (fiados e clientes) e o cardápio do balcão. Receitas, produção e financeiro aparecem só para consulta.'
+  : 'Edita receitas, produção, financeiro e ajustes. Cobranças e cardápio do balcão aparecem só para consulta.')
+async function mudarPapelDoAparelho() {
+  // Trocar a função muda o que este aparelho pode editar e enviar: o que está
+  // pendente aqui precisa ir para o Drive ANTES, senão seria descartado.
+  if (s.hasLocalChanges) {
+    s.notify('Há alterações ainda não enviadas ao Drive. Sincronize antes de mudar a função deste aparelho.', 'warning')
+    return
+  }
+  const novo = s.papelAparelho === 'admin' ? 'vendas' : 'admin'
+  const ok = await confirmar.ask(
+    `Este aparelho passará a ser ${novo === 'vendas' ? 'de Vendas' : 'Admin'}. Só ${novo === 'vendas' ? 'cobranças e cardápio do balcão' : 'receitas, produção, financeiro e ajustes'} poderão ser editados aqui. Dois aparelhos não devem ter a mesma função.`,
+    { title: 'Mudar a função deste aparelho', confirmLabel: 'Mudar', cancelLabel: 'Cancelar', type: 'warning', icon: 'fas fa-mobile-screen' }
+  )
+  if (ok) await s.definirPapelAparelho(novo, s.nomeAparelho)
+}
 const company = reactive({ ...s.company })
 const perfilConfig = reactive(JSON.parse(JSON.stringify(s.perfis)))
 const modoCompras = ref(s.modoListaCompras)

@@ -18,7 +18,7 @@ export function useSyncIndicador(s) {
   const clicavel = computed(() => estado.value === 'pending' || estado.value === 'error')
 
   const titulo = computed(() => {
-    if (s.syncStatus === 'conflict') return 'Conflito: outro aparelho também alterou os dados — toque para escolher qual versão manter'
+    if (s.syncStatus === 'conflict') return s.syncAlerta ? 'Sincronização pausada: algo não parece normal — toque para ver' : 'Conflito: outro aparelho também alterou os dados — toque para escolher qual versão manter'
     if (estado.value === 'error') return 'Falha ao salvar no Drive — toque para tentar de novo'
     if (estado.value === 'syncing') return 'Salvando no Drive…'
     if (estado.value === 'pending') return 'Precisa salvar: há alterações ainda não enviadas ao Drive — toque para enviar agora'

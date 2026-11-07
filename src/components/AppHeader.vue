@@ -64,7 +64,7 @@ const syncEstado = computed(() => {
 const temAlteracoesPendentes = computed(() => s.hasLocalChanges && s.syncStatus !== 'syncing')
 const syncClicavel = computed(() => s.syncStatus === 'error' || s.syncStatus === 'conflict' || temAlteracoesPendentes.value)
 const syncTitulo = computed(() => {
-  if (s.syncStatus === 'conflict') return 'Outro aparelho também alterou os dados — toque para escolher qual versão manter'
+  if (s.syncStatus === 'conflict') return s.syncAlerta ? 'Sincronização pausada: algo não parece normal — toque para ver' : 'Outro aparelho também alterou os dados — toque para escolher qual versão manter'
   if (s.syncStatus === 'error') return 'Falha ao salvar no Drive — toque para tentar de novo'
   if (s.syncStatus === 'syncing') return 'Salvando no Drive…'
   if (s.hasLocalChanges) return 'Há alterações que ainda não foram enviadas ao Drive — toque para enviar agora'

@@ -1,6 +1,6 @@
 import { defineStore } from "pinia"
 import { ref, computed } from 'vue'
-import { db, configGet, configSet, exportarDados, importarDados, garantirPersistencia, migrateLegacyDbIfNeeded } from './db.js' // Removed getMesRef, normalizar
+import { db, configGet, configSet, exportarDados, importarDados, garantirPersistencia, migrateLegacyDbIfNeeded, CONFIG_CHAVES_DO_APARELHO } from './db.js' // Removed getMesRef, normalizar
 import {
   isGoogleDriveBackupConfigured,
   isGoogleDriveBackupConnected,
@@ -14,6 +14,9 @@ import { useConfirm } from './composables/useConfirm.js'
 import { suportaBackupLocalAutomatico, salvarBackupLocalAutomatico } from './services/localBackup.js'
 import { salvarSnapshot, listarSnapshots, lerSnapshot, apagarSnapshot, salvarBase, lerBase, assinaturaDeDados } from './services/safetyBackup.js'
 import { mesclar, igual } from './services/merge.js'
+import { PAPEL_ADMIN, papelValido } from './services/papelAparelho.js'
+import { instalarTravaPorPapel } from './services/travaPorPapel.js'
+import { conferir } from './services/validacaoDados.js'
 import { normalizarPerfis } from './store/perfis.js'
 import { criarRegrasFinanceiras } from './store/financeiroRegras.js'
 import { criarCustos } from './store/custos.js'
@@ -75,7 +78,9 @@ export const useStore = defineStore('choco', () => {
     pauseTimer,
     stopTimer,
     resetTimer,
-    timerDisplay
+    timerDisplay,
+    timerOrfao,
+    seguirLoteRenomeado
   } = criarCronometro({
     producoes,
     atualizarLoteProducao: (...args) => atualizarLoteProducao(...args)
@@ -181,6 +186,52 @@ export const useStore = defineStore('choco', () => {
     }
     return manual <= 7 ? null : { acao: 'manual', msg: 'Faz mais de 7 dias que você não baixa um backup dos seus dados.' }
   })
+
+  // ── Papel deste aparelho ───────────────────
+  // 'admin' | 'vendas' (ver services/papelAparelho.js). Guardado só neste
+  // aparelho (fora do backup). Define quais áreas ele pode editar: cada área
+  // tem um único dono, então dois aparelhos nunca disputam o mesmo dado.
+  const papelAparelho = ref(null)
+  const nomeAparelho = ref('')
+  const papelCarregado = ref(false)
+  let _desfazerTrava = null
+  let _ultimoAvisoConsulta = 0
+
+  function _instalarTrava() {
+    if (_desfazerTrava) return
+    _desfazerTrava = instalarTravaPorPapel(db, {
+      obterPapel: () => papelAparelho.value,
+      chavesDoAparelho: CONFIG_CHAVES_DO_APARELHO,
+      aoBloquear: (erro) => {
+        // um aviso a cada 3 s no máximo: uma tela que tente gravar em laço não vira enxurrada de toasts
+        const agora = Date.now()
+        if (agora - _ultimoAvisoConsulta < 3000) return
+        _ultimoAvisoConsulta = agora
+        notify(erro.message, 'warning')
+      }
+    })
+  }
+
+  async function carregarPapelAparelho() {
+    const p = await configGet('papel_aparelho', null)
+    papelAparelho.value = papelValido(p) ? p : null
+    nomeAparelho.value = String(await configGet('aparelho_nome', '') || '')
+    _instalarTrava()
+    papelCarregado.value = true
+  }
+
+  /** Define o papel (e o nome) deste aparelho. Feito uma vez, na primeira
+   *  abertura — ou ao trocar de função de propósito, em Ajustes. */
+  async function definirPapelAparelho(papel, nome = '') {
+    if (!papelValido(papel)) return false
+    await configSet('papel_aparelho', papel)
+    await configSet('aparelho_nome', String(nome || '').trim().slice(0, 40))
+    papelAparelho.value = papel
+    nomeAparelho.value = String(nome || '').trim().slice(0, 40)
+    _instalarTrava()
+    if (googleDriveConfigured.value) _executarSync({ manual: true }).catch(() => {})
+    return true
+  }
 
   // ── Sync automático ───────────────────────
   // 'idle' | 'syncing' | 'ok' | 'error' | 'conflict'
@@ -305,6 +356,11 @@ export const useStore = defineStore('choco', () => {
   let _syncPediuDeNovo = false
   let _resolvendoConflito = false
   let _arquivarSempreNoProximo = false
+  // Conferência que segurou um envio/aplicação (queda brusca, cobrança incoerente).
+  // Enquanto há alerta, o ícone fica vermelho (status 'conflict') e só um toque
+  // da pessoa decide — nada é enviado nem aplicado sozinho.
+  const syncAlerta = ref(null) // { motivo, linhas[] } | null
+  let _ignorarAlertaUmaVez = false
 
   async function _executarSync({ manual = false, arquivarSempre = false } = {}) {
     if (!googleDriveConfigured.value) return
@@ -325,6 +381,7 @@ export const useStore = defineStore('choco', () => {
       } while (_syncPediuDeNovo && resultado === 'ok')
     } finally {
       _syncRodando = false
+      _ignorarAlertaUmaVez = false
     }
     if (resultado === 'conflict') await resolverConflitoSync()
   }
@@ -333,6 +390,27 @@ export const useStore = defineStore('choco', () => {
   const comMarcaMigracao = (dados) => {
     const cfg = Array.isArray(dados.config) ? dados.config : []
     return cfg.some(r => r.chave === MARCA_MIGRACAO.chave) ? dados : { ...dados, config: [...cfg, { ...MARCA_MIGRACAO }] }
+  }
+
+  /** Dados a enviar quando o Drive não mudou desde a última sincronização:
+   *  as áreas de OUTRO dono ficam exatamente como estão no Drive (= a base),
+   *  e só as deste aparelho vão. Sem base ou sem papel, envia o local. */
+  function _paraEnvio(local, baseDados, papel) {
+    if (!baseDados || !papelValido(papel)) return local
+    return comMarcaMigracao(mesclar({ base: baseDados, local, remote: baseDados, papel }).dados)
+  }
+
+  /** Confere `resultado` contra `referencia` (queda brusca / cobrança incoerente
+   *  nova). Se algo for apontado: guarda uma cópia, registra o alerta e devolve
+   *  false — quem chamou NÃO envia nem aplica. */
+  async function _conferirAntes(referencia, resultado, motivo) {
+    if (!referencia) return true
+    const c = conferir(referencia, resultado)
+    if (c.ok || _ignorarAlertaUmaVez) return true
+    await _guardarSnapshot(`antes de ${motivo} (a conferência apontou diferenças)`)
+    syncAlerta.value = { motivo, linhas: c.linhas }
+    syncStatus.value = 'conflict'
+    return false
   }
 
   /**
@@ -357,6 +435,14 @@ export const useStore = defineStore('choco', () => {
       syncStatus.value = 'idle'
       return 'offline'
     }
+    // Sem papel definido o aparelho não sincroniza: antes de saber o que é seu,
+    // ele não pode enviar nada. A tela de "Que aparelho é este?" resolve.
+    if (!papelValido(papelAparelho.value)) {
+      syncStatus.value = 'idle'
+      return 'papel'
+    }
+    const papel = papelAparelho.value
+    syncAlerta.value = null
     syncStatus.value = 'syncing'
     try {
       for (let volta = 0; volta < 4; volta++) {
@@ -393,9 +479,11 @@ export const useStore = defineStore('choco', () => {
             syncStatus.value = 'idle'
             return 'ok'
           }
+          const envio = _paraEnvio(local, base?.dados, papel)
+          if (!(await _conferirAntes(base?.dados, envio, 'enviar ao Drive'))) return 'alerta'
           try {
-            const { modifiedTime } = await salvarBackupNoDrive(local, { verificarContra: remoto.modifiedTime, arquivarSempre })
-            await _registrarSyncOk(modifiedTime, seq, local)
+            const { modifiedTime } = await salvarBackupNoDrive(envio, { verificarContra: remoto.modifiedTime, arquivarSempre })
+            await _registrarSyncOk(modifiedTime, seq, envio)
             concluirSyncComAviso('Drive atualizado')
             return 'ok'
           } catch (err) {
@@ -408,8 +496,11 @@ export const useStore = defineStore('choco', () => {
         const { backup: remotoDados, modifiedTime: remotoTs } = await restaurarBackupDoDriveComInfo()
         const ultimaLocalMs = Date.parse(await configGet('sync_last_change', null) || '') || 0
         const preferirLocal = ultimaLocalMs >= (Date.parse(remotoTs || remoto.modifiedTime) || 0)
-        const res = mesclar({ base: base?.dados || null, local, remote: remotoDados, preferirLocal })
+        const res = mesclar({ base: base?.dados || null, local, remote: remotoDados, preferirLocal, papel })
         const dadosMesclados = comMarcaMigracao(res.dados)
+
+        if (!res.igualAoLocal && !(await _conferirAntes(local, dadosMesclados, 'aplicar os dados do Drive neste aparelho'))) return 'alerta'
+        if (!res.igualAoRemoto && !(await _conferirAntes(remotoDados, dadosMesclados, 'enviar ao Drive'))) return 'alerta'
 
         if (!res.igualAoLocal) {
           // Há dados do outro aparelho entrando: guarda uma cópia antes (só
@@ -495,7 +586,7 @@ export const useStore = defineStore('choco', () => {
       const original = (Array.isArray(r) ? r : [])[index] || {}
       return (original.categoria || '') !== (receita.categoria || '') || (original.tamanho || '') !== (receita.tamanho || '')
     })
-    if (receitasComAlteracoes.length) {
+    if (receitasComAlteracoes.length && papelAparelho.value === PAPEL_ADMIN) {
       await db.receitas.bulkPut(receitasComAlteracoes)
     }
     produtos.value = p
@@ -606,10 +697,31 @@ export const useStore = defineStore('choco', () => {
     return true
   }
 
+  /** A conferência pausou a sincronização (ex.: "vendas fiadas: de 212 para 0").
+   *  Nada foi enviado nem aplicado e há uma cópia de segurança. Aqui a pessoa
+   *  decide: continuar (o resultado é o esperado) ou deixar parado. */
+  async function revisarAlertaSync() {
+    if (_resolvendoConflito || !syncAlerta.value) return
+    _resolvendoConflito = true
+    let seguir = false
+    try {
+      const a = syncAlerta.value
+      seguir = await confirmarAcao.ask(
+        `A sincronização foi pausada antes de ${a.motivo}, porque algo não parece normal:\n\n• ${a.linhas.join('\n• ')}\n\nNada foi alterado e uma cópia de segurança foi guardada. Se isso não é o que você esperava, escolha "Não continuar" e avise quem administra o app.`,
+        { title: 'Conferência antes de sincronizar', confirmLabel: 'É isso mesmo, continuar', cancelLabel: 'Não continuar', type: 'warning', icon: 'fas fa-shield-halved' }
+      )
+      if (seguir) { _ignorarAlertaUmaVez = true; syncAlerta.value = null; syncStatus.value = 'idle' }
+    } finally {
+      _resolvendoConflito = false
+    }
+    if (seguir) await _executarSync({ manual: true })
+  }
+
   /** Decisão quando dois aparelhos alteraram os dados: nada é sobrescrito
    *  sem a pessoa escolher, e as DUAS versões ficam guardadas de qualquer
    *  jeito (a deste aparelho numa cópia local, a do Drive fixada no histórico). */
   async function resolverConflitoSync() {
+    if (syncAlerta.value) return revisarAlertaSync()
     if (_resolvendoConflito) return
     _resolvendoConflito = true
     try {
@@ -647,7 +759,13 @@ export const useStore = defineStore('choco', () => {
       syncStatus.value = 'syncing'
       const seq = mudancaSeq
       try {
-        const dados = await exportarDados()
+        let dados = await exportarDados()
+        // As áreas de OUTRO dono continuam sendo as do Drive: "usar a versão deste
+        // aparelho" vale só para o que este aparelho edita.
+        if (papelValido(papelAparelho.value)) {
+          const { backup: noDrive } = await restaurarBackupDoDriveComInfo()
+          dados = comMarcaMigracao(mesclar({ base: noDrive, local: dados, remote: noDrive, papel: papelAparelho.value, preferirLocal: true }).dados)
+        }
         const { modifiedTime } = await salvarBackupNoDrive(dados, { verificarContra: '', forcar: true })
         await _registrarSyncOk(modifiedTime, seq, dados)
         concluirSyncComAviso('Drive atualizado com a versão deste aparelho', { toast: true })
@@ -795,6 +913,7 @@ export const useStore = defineStore('choco', () => {
   async function init() {
     await migrateLegacyDbIfNeeded()
     await garantirPersistencia()
+    await carregarPapelAparelho()
     loading.value = true
     try {
       const [p, r, pr, fin, cfg, perfisCfg, contasCfg, categoriasCfg, regrasCategoriaCfg, regrasDescricaoCfg, pendenteSalvo] = await Promise.all([
@@ -820,7 +939,7 @@ export const useStore = defineStore('choco', () => {
         const original = (Array.isArray(r) ? r : [])[index] || {}
         return (original.categoria || '') !== (receita.categoria || '') || (original.tamanho || '') !== (receita.tamanho || '')
       })
-      if (receitasComAlteracoes.length) {
+      if (receitasComAlteracoes.length && papelAparelho.value === PAPEL_ADMIN) {
         await db.receitas.bulkPut(receitasComAlteracoes)
       }
       if (Array.isArray(categoriasCfg) && categoriasCfg.length) {
@@ -893,7 +1012,7 @@ export const useStore = defineStore('choco', () => {
         )
       })
 
-      if (alterados.length) {
+      if (alterados.length && papelAparelho.value === PAPEL_ADMIN) {
         await db.financeiro.bulkPut(alterados)
         financeiro.value = await db.financeiro.orderBy('data').reverse().toArray()
       }
@@ -1573,6 +1692,8 @@ async function registrarProducaoFantasma(dados) {
     try {
       await db.producoes.bulkPut(atualizados)
       await carregarProducoes(0)
+      // A data do lote é o id dele: se o cronômetro estava neste lote, acompanha a nova data.
+      seguirLoteRenomeado(dataProducaoOriginal, novosDados.data_producao_nova)
       if (algumSuspeito) {
         notify('Tempo registrado ficou bem acima do padrão da receita (possível cronômetro esquecido ligado). Usamos o tempo padrão no custo deste lote — se o tempo real informado estiver correto, edite o horário de início/fim do lote.', 'warning', 6000)
       } else {
@@ -1959,7 +2080,7 @@ async function registrarProducaoFantasma(dados) {
 
     // Dados
     produtos, receitas, producoes, financeiro, contasFinanceiras,
-    timer, timerDisplay, startTimer, pauseTimer, stopTimer, resetTimer,
+    timer, timerDisplay, timerOrfao, startTimer, pauseTimer, stopTimer, resetTimer,
     // Analise de receitas: gerenciamento de ignorados
     getAnaliseIgnorados, ignorarAnalise, desfazerIgnorarAnalise,
 
@@ -1993,6 +2114,7 @@ async function registrarProducaoFantasma(dados) {
     recuperarDeGoogleDrive, recuperarDaPastaLocal, recuperarDeArquivoLocal,
     conectarGoogleDrive, desconectarGoogleDrive, contaGoogle, carregarContaGoogle,
     syncStatus, iniciarSync, syncImediato, agendarSync,
+    papelAparelho, nomeAparelho, papelCarregado, definirPapelAparelho, syncAlerta,
 
     // Analytics e Resumos
     resumoFinanceiroPorMes, totalRecebidoAnoAtual, relatorioMensalMei,
