@@ -18,7 +18,7 @@ Cada área tem um único dono; no outro aparelho ela é só consulta.
 
 ## Interface
 - Primeira abertura: "Que aparelho é este?" (Admin / Vendas + nome). Vendas abre direto na caderneta.
-- Aviso "Somente consulta" ao ver a área de outro dono; cartões de perfil marcados.
+- Faixa **"Somente consulta"** (no fluxo da tela, sem cobrir dados) ao ver a área de outro dono, com o botão **Atualizar** (busca na hora o que o outro aparelho gravou) e "Atualizado há X min"; cartões de perfil marcados.
 - Restaurar de arquivo/pasta só no Admin; Vendas só "baixar do Google Drive".
 - Ajustes → Perfis → "Este aparelho": função, nome, estado do envio, mudar função (só sem pendências).
 - Monitor de pedidos do site roda só no aparelho Vendas.

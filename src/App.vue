@@ -15,6 +15,7 @@
          extra criado em Ajustes → Perfis (ex.: Produção, Financeiro). -->
     <template v-if="perfilInfo?.tipo === 'admin'">
       <AppHeader />
+      <BannerConsulta v-if="avisoSomenteConsulta" :detalhe="avisoSomenteConsulta" />
 
       <main class="main">
         <TabReceitas     v-if="abasVisitadas.receitas" v-show="s.tab === 'receitas'" />
@@ -51,6 +52,7 @@
 
     <!-- ══ MODO BETE (Caderneta) ═══════════════════════════════ -->
     <template v-if="perfilInfo?.tipo === 'caderneta'">
+      <BannerConsulta v-if="avisoSomenteConsulta" :detalhe="avisoSomenteConsulta" topo />
       <main class="main main--bete">
         <TabCaderneta @trocar-perfil="trocarPerfil" />
       </main>
@@ -59,12 +61,6 @@
            (TabCaderneta.vue), não mais uma bolinha flutuante. -->
 
     </template>
-
-    <!-- Aparelho olhando a área de outro dono: tudo aqui é só consulta (a trava
-         no banco recusa qualquer gravação; este aviso explica o porquê). -->
-    <div v-if="avisoSomenteConsulta" class="aviso-consulta" role="status">
-      <i class="fas fa-eye"></i> {{ avisoSomenteConsulta }}
-    </div>
 
     <!-- ─── Confirmação Global (compartilhada) ────────────────── -->
     <ConfirmDialog />
@@ -101,6 +97,7 @@ import { useAndroidBackGuard } from './composables/useAndroidBackGuard.js'
 import { tentarReconectarSilenciosamente, iniciarRenovacaoPorToque } from './services/googleDriveBackup.js'
 import { iniciarMonitorPedidosSite } from './services/pedidosSite.js'
 import AppHeader      from './components/AppHeader.vue'
+import BannerConsulta  from './components/BannerConsulta.vue'
 import AppNav         from './components/AppNav.vue'
 import ConfirmDialog  from './components/ConfirmDialog.vue'
 import AtualizacaoBanner from './components/AtualizacaoBanner.vue'
@@ -157,8 +154,8 @@ watch([() => s.tab, perfilInfo], ([tab, info]) => {
 // Texto do aviso quando este aparelho está vendo a área de outro dono.
 const avisoSomenteConsulta = computed(() => {
   if (!s.papelAparelho || perfil.value === null) return ''
-  if (perfilInfo.value?.tipo === 'caderneta' && s.papelAparelho !== 'vendas') return 'Somente consulta — cobranças e cardápio são editados no aparelho Vendas'
-  if (perfilInfo.value?.tipo === 'admin' && s.papelAparelho !== 'admin') return 'Somente consulta — esta área é editada no aparelho Admin'
+  if (perfilInfo.value?.tipo === 'caderneta' && s.papelAparelho !== 'vendas') return 'edição: Vendas'
+  if (perfilInfo.value?.tipo === 'admin' && s.papelAparelho !== 'admin') return 'edição: Admin'
   return ''
 })
 
@@ -284,25 +281,6 @@ onUnmounted(() => {
    O cronômetro de produção não flutua mais: fica fixado no card do
    lote (TabProducao.vue).
 ──────────────────────────────────────────────────────────────── */
-
-/* ── Aviso de somente consulta ───────────────────────────── */
-.aviso-consulta {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
-  max-width: min(92vw, 420px);
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(61,31,7,.92);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  text-align: center;
-  z-index: calc(var(--z-header) + 6);
-  pointer-events: none;
-  box-shadow: 0 2px 10px rgba(0,0,0,.25);
-}
 
 /* ── FAB ─────────────────────────────────────────────────── */
 .fab {

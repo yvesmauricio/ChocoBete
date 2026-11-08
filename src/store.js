@@ -143,6 +143,7 @@ export const useStore = defineStore('choco', () => {
   // um .json baixado em outro aparelho não protege este).
   const MANUAL_TS_KEY = 'ChocoBete-backup-manual-ts'
   const ultimoSyncTs = ref(null)
+  const ultimaChecagemSync = ref(null) // última vez que conferiu com o Drive e estava em dia
   const backupManualTs = ref((() => { try { return localStorage.getItem(MANUAL_TS_KEY) } catch { return null } })())
   const contaGoogle = ref(lerContaGoogleEmCache())   // { nome, email } da conta conectada
   const infoBackupDrive = ref(null)        // { modifiedTime, tamanhoPrincipal, versoes, tamanhoTotal }
@@ -383,7 +384,24 @@ export const useStore = defineStore('choco', () => {
       _syncRodando = false
       _ignorarAlertaUmaVez = false
     }
+    // Conferiu com o Drive e estava tudo em dia (ou aplicou o que havia): vale como "atualizado agora",
+    // mesmo quando não havia nada novo para baixar nem enviar.
+    if (resultado === 'ok') ultimaChecagemSync.value = new Date().toISOString()
     if (resultado === 'conflict') await resolverConflitoSync()
+  }
+
+  /** Atualização manual (botão "Atualizar" do modo somente consulta): traz o que o outro
+   *  aparelho gravou e confere se há algo a enviar. Devolve como terminou, para a tela avisar.
+   *  @returns 'ok' | 'offline' | 'sem_drive' | 'erro' | 'atencao' */
+  async function atualizarAgora() {
+    if (!googleDriveConfigured.value) return 'sem_drive'
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline'
+    await syncImediato({ manual: true })
+    // se já havia uma sincronização em andamento, espera ela terminar (até ~20 s)
+    for (let i = 0; i < 130 && (syncStatus.value === 'syncing' || _syncRodando); i++) await pausa(150)
+    if (syncStatus.value === 'error') return 'erro'
+    if (syncStatus.value === 'conflict') return 'atencao'
+    return 'ok'
   }
 
   const MARCA_MIGRACAO = { chave: '__legacy_migrated__', valor: true }
@@ -2202,7 +2220,7 @@ async function registrarProducaoFantasma(dados) {
     bancoVazio, recuperandoDados, suportaPastaBackupLocal,
     recuperarDeGoogleDrive, recuperarDaPastaLocal, recuperarDeArquivoLocal,
     conectarGoogleDrive, desconectarGoogleDrive, contaGoogle, carregarContaGoogle,
-    syncStatus, iniciarSync, syncImediato, agendarSync,
+    syncStatus, iniciarSync, syncImediato, agendarSync, atualizarAgora, ultimaChecagemSync,
     papelAparelho, nomeAparelho, papelCarregado, definirPapelAparelho, syncAlerta,
 
     // Analytics e Resumos
