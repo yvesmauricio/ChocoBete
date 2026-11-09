@@ -1,3 +1,0 @@
-# Só depois de testar: faz o link antigo (.html) ir para o novo, servido pelo servidor.
-/pedido-diaadia.html /pedido-diaadia 301
-/pedido-festa.html /pedido-festa 301
