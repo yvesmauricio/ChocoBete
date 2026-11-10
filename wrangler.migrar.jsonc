@@ -1,0 +1,16 @@
+{
+  // Arquivo SÓ para rodar comandos do banco (migrações/importação) pelo seu computador.
+  // NÃO se chama "wrangler.jsonc" de propósito: assim o Cloudflare Pages ignora este arquivo
+  // e continua usando as configurações que você já tem no painel (variáveis, Access etc.).
+  // Uso: npx wrangler d1 migrations apply chocobete --remote -c wrangler.migrar.jsonc
+  "name": "chocobete-migracoes",
+  "compatibility_date": "2025-01-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "chocobete",
+      "database_id": "6ae2fc8a-454c-463a-ba6c-ae3fde4f0cc0",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
