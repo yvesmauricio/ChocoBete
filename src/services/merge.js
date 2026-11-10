@@ -23,6 +23,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import { TABELAS_COM_UID, uidLegado } from '../uids.js'
 import { papelValido, donoDaTabela, donoDaConfig } from './papelAparelho.js'
+import { tabelasForaDoDrive } from './modoServidor.js'
 
 // Tabelas cuja chave primária já é um UUID (iguais em todos os aparelhos).
 const TABELAS_UUID = ['produtos', 'receitas', 'producoes', 'cardapio_pedidos']
@@ -219,7 +220,7 @@ function normalizar(snap, tabelas) {
  * @returns { dados, igualAoLocal, igualAoRemoto, resumo }
  *   `dados` está no espaço de ids DESTE aparelho (ids existentes preservados).
  */
-export function mesclar({ base, local, remote, preferirLocal = false, papel = null }) {
+export function mesclar({ base, local, remote, preferirLocal = false, papel = null, ignorarTabelas = tabelasForaDoDrive() }) {
   const tabelas = nomesDeTabelas()
   const B = normalizar(base || {}, tabelas)
   const L = normalizar(local, tabelas)
@@ -248,6 +249,10 @@ export function mesclar({ base, local, remote, preferirLocal = false, papel = nu
       if (donoDaTabela(nome) !== papel) M[nome] = new Map(R.tab[nome])
     }
   }
+
+  // 1c) tabelas cuja verdade está no SERVIDOR (modo servidor da Caderneta): ficam como estão neste aparelho.
+  //     O Drive nunca as sobrescreve nem as apaga (senão um arquivo antigo desfaria o que o servidor decidiu).
+  for (const nome of ignorarTabelas) if (tabelas.includes(nome)) M[nome] = new Map(L.tab[nome])
 
   // 2) integridade: filho nunca fica sem pai. Pai apagado de um lado mas ainda
   //    usado por um registro que sobrou volta (a versão mais nova que existir).

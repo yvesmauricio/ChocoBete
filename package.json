@@ -7,7 +7,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:backup": "node tests-backup/run.mjs",
-    "test:papel": "node --test \"tests-papel/*.test.mjs\""
+    "test:papel": "node --test \"tests-papel/*.test.mjs\"",
+    "test:servidor": "node --test \"tests-servidor/*.test.mjs\"",
+    "migrar:caderneta": "node scripts/migrar-caderneta.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.2.0",

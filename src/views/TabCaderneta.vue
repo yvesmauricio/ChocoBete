@@ -34,6 +34,7 @@
           </button>
         </div>
       </header>
+      <FilaIndicador />
 
       <div class="cd-corpo">
 
@@ -1245,11 +1246,15 @@
       <!-- Dialog excluir fiado -->
       <div v-if="fiadoExcluir" class="cad-overlay" @click.self="fiadoExcluir=null">
         <div class="cad-dialog">
-          <div class="cad-dialog-title">Excluir este fiado?</div>
-          <div class="cad-dialog-sub">Esta ação não pode ser desfeita.</div>
+          <div class="cad-dialog-title">{{ noServidor ? 'Cancelar esta compra?' : 'Excluir este fiado?' }}</div>
+          <div v-if="noServidor" class="cad-dialog-sub">
+            A compra deixa de contar na cobrança, mas fica guardada no histórico (com o motivo). Se já recebeu algum pagamento, estorne antes.
+          </div>
+          <div v-else class="cad-dialog-sub">Esta ação não pode ser desfeita.</div>
+          <input v-if="noServidor" class="cad-form-input" style="margin-top:10px" type="text" maxlength="120" v-model="motivoCancelar" placeholder="Motivo (ex.: lançada sem querer)">
           <div class="cad-dialog-btns">
-            <button class="cad-btn-cancel" @click="fiadoExcluir=null">Cancelar</button>
-            <button class="cad-btn-confirm danger" @click="excluirFiado_">Excluir</button>
+            <button class="cad-btn-cancel" @click="fiadoExcluir=null">{{ noServidor ? 'Voltar' : 'Cancelar' }}</button>
+            <button class="cad-btn-confirm danger" @click="excluirFiado_">{{ noServidor ? 'Cancelar compra' : 'Excluir' }}</button>
           </div>
         </div>
       </div>
@@ -1399,6 +1404,9 @@
             <div id="editar-titulo" class="cad-modal-titulo"><i class="fas fa-pen"></i> Editar venda</div>
             <button type="button" class="cad-btn-fechar" aria-label="Fechar" :disabled="salvandoEdicao" @click="fecharEditarFiado"><i class="fas fa-xmark"></i></button>
           </div>
+          <p v-if="noServidor" class="cad-dialog-sub" style="margin:0 16px 8px">
+            Ao salvar, a cobrança anterior fica <strong>cancelada no histórico</strong> e esta a substitui. Se já houver pagamento, estorne antes.
+          </p>
 
           <div class="cad-edit-cliente-tag">
             <div class="cad-edit-avatar">{{ iniciais(fiadoEditar.clienteNome) }}</div>
@@ -1533,6 +1541,9 @@
 import { ref, computed, reactive, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import CadernetaSwipeItem from '../components/CadernetaSwipeItem.vue'
 import DescontoCampo from '../components/DescontoCampo.vue'
+import FilaIndicador from '../components/FilaIndicador.vue'
+import { cadernetaNoServidor } from '../services/modoServidor.js'
+import { receberPagamentoServidor, quitarTudoServidor, receberParcialServidor, estornarServidor, alterarVencimentoServidor, lancarVendaServidor, cancelarVendaServidor, corrigirVendaServidor, EVENTO_ATUALIZADA } from '../services/cadernetaServidor.js'
 import TabCardapio from './TabCardapio.vue'
 import {
   getLojas, salvarLojaValidada, excluirLoja as dbExcluirLoja, resumoLoja, arquivarLoja,
@@ -2593,7 +2604,10 @@ async function salvarFiado(ignorarRepetida = false) {
       dataVenc:    dataVenc.value,
       criadoEm:    new Date().toISOString(),
     }
-    fiado.id = await dbSalvarFiado(fiado)
+    if (noServidor) {
+      const salvo = await lancarVendaServidor(fiado)   // grava na fila e no aparelho; vale sem sinal
+      fiado.id = salvo.id; fiado.uid = salvo.uid
+    } else fiado.id = await dbSalvarFiado(fiado)
     fiadoSalvo.value = fiado
     s.syncImediato()   // sync imediato no Drive
     Object.assign(stats, await getStats())
@@ -2616,7 +2630,10 @@ async function concluirFiadoSalvo() {
 async function desfazerFiadoSalvo() {
   const f = fiadoSalvo.value
   if (!f?.id) return
-  await dbExcluirFiado(f.id)
+  if (noServidor) {
+    try { await cancelarVendaServidor(f, 'Desfeita logo após lançar') }
+    catch (err) { s.notify(err?.message || 'Não deu pra desfazer.', 'error'); return }
+  } else await dbExcluirFiado(f.id)
   fiadoSalvo.value = null
   Object.assign(stats, await getStats())
   s.syncImediato()
@@ -3200,7 +3217,8 @@ async function confirmarReceber() {
   salvandoReceber.value = true   // evita toque duplo registrar o pagamento duas vezes
   try {
     const pago = Math.min(valor, f.saldo)
-    await atualizarFiado(f.id, aplicarPagamento(f, pago))
+    if (cadernetaNoServidor()) await receberPagamentoServidor(f, pago)
+    else await atualizarFiado(f.id, aplicarPagamento(f, pago))
     fiadoReceber.value = null
     s.notify('Pagamento registrado!')
     s.syncImediato()   // sync imediato no Drive
@@ -3272,7 +3290,8 @@ async function quitarTudo() {
   if (!c || salvandoQuitar.value) return
   salvandoQuitar.value = true
   try {
-    await Promise.all(c.fiados.map(f => atualizarFiado(f.id, aplicarPagamento(f, f.saldo))))
+    if (cadernetaNoServidor()) await quitarTudoServidor(c.fiados)
+    else await Promise.all(c.fiados.map(f => atualizarFiado(f.id, aplicarPagamento(f, f.saldo))))
     clienteQuitar.value = null
     s.notify(`${c.clienteNome} quitado!`)
     await atualizarAposQuitar()
@@ -3288,7 +3307,9 @@ async function confirmarReceberParcial() {
   if (!c || salvandoQuitar.value || !quitarParcialPronto.value) return
   salvandoQuitar.value = true
   try {
-    const r = await receberParcialCliente(c.fiados.map(f => f.id), valorQuitarParcialNum.value, dataVencRestante.value)
+    const r = cadernetaNoServidor()
+      ? await receberParcialServidor(c.fiados, valorQuitarParcialNum.value, dataVencRestante.value)
+      : await receberParcialCliente(c.fiados.map(f => f.id), valorQuitarParcialNum.value, dataVencRestante.value)
     clienteQuitar.value = null
     s.notify(r.quitouTudo
       ? `${c.clienteNome} quitado!`
@@ -3320,9 +3341,10 @@ async function confirmarEstorno() {
   if (!e || salvandoEstorno.value) return
   salvandoEstorno.value = true
   try {
-    const r = await estornarPagamento(e.fiado.id, {
-      idx: e.idx, valor: e.p.valor, data: e.p.data, hora: e.p.hora, criadoEm: e.p.criadoEm,
-    })
+    const alvoEstorno = { idx: e.idx, uid: e.p.uid, valor: e.p.valor, data: e.p.data, hora: e.p.hora, criadoEm: e.p.criadoEm }
+    const r = cadernetaNoServidor()
+      ? await estornarServidor(e.fiado, alvoEstorno)
+      : await estornarPagamento(e.fiado.id, alvoEstorno)
     estornoPendente.value = null
     // Atualiza o detalhe aberto com os dados gravados (mantém nome/loja/telefone já exibidos).
     const g = r.fiado
@@ -3348,7 +3370,16 @@ async function confirmarEstorno() {
 }
 
 function confirmarExcluirFiado(f) { fiadoExcluir.value = f }
+const motivoCancelar = ref('')
 async function excluirFiado_() {
+  if (noServidor) {
+    try { await cancelarVendaServidor(fiadoExcluir.value, motivoCancelar.value) }
+    catch (err) { s.notify(err?.message || 'Não deu pra cancelar.', 'error'); return }
+    fiadoExcluir.value = null; motivoCancelar.value = ''
+    s.notify('Compra cancelada — continua no histórico')
+    await carregarResumo()
+    return
+  }
   await dbExcluirFiado(fiadoExcluir.value.id)
   fiadoExcluir.value = null
   s.notify('Fiado removido')
@@ -3369,7 +3400,8 @@ function setChipEditar(id) {
 }
 async function salvarVencimento() {
   if (!fiadoEditarVenc.value || !dataVencEditar.value) return
-  await atualizarFiado(fiadoEditarVenc.value.id, { dataVenc: dataVencEditar.value })
+  if (cadernetaNoServidor()) await alterarVencimentoServidor(fiadoEditarVenc.value, dataVencEditar.value)
+  else await atualizarFiado(fiadoEditarVenc.value.id, { dataVenc: dataVencEditar.value })
   fiadoEditarVenc.value = null
   s.notify('Vencimento salvo!')
   s.syncImediato()   // sync imediato no Drive
@@ -3484,7 +3516,7 @@ async function salvarEdicaoFiado() {
     const novoTotal = totalEditarGeral.value
     const totalPago = (f.pagamentos || []).reduce((s, p) => s + Number(p.valor || 0), 0)
     const novoSaldo = Math.max(0, novoTotal - totalPago)
-    await atualizarFiado(f.id, {
+    const mudancasEdicao = {
       itens,
       descricaoLivre: !modoDetalhadoEditar.value && notaLivreEditar.value.trim() ? notaLivreEditar.value.trim() : null,
       total:      novoTotal,
@@ -3496,7 +3528,10 @@ async function salvarEdicaoFiado() {
       horaVenda:  fiadoEditarHora.value || null,
       dataVenc:   dataVencEditar.value  || null,
       editadoEm:  new Date().toISOString()
-    })
+    }
+    // Modo servidor: corrigir = cancelar a venda errada e lançar a certa (histórico preservado).
+    if (noServidor) await corrigirVendaServidor(f, mudancasEdicao)
+    else await atualizarFiado(f.id, mudancasEdicao)
     fiadoEditar.value = null
     s.notify('Alterações salvas!')
     s.syncImediato()
@@ -3505,7 +3540,7 @@ async function salvarEdicaoFiado() {
     Object.assign(stats, s2)
   } catch (err) {
     console.error(err)
-    s.notify('Não deu pra salvar a edição. Tenta de novo?', 'error')
+    s.notify(noServidor && err?.message ? err.message : 'Não deu pra salvar a edição. Tenta de novo?', 'error')
   } finally {
     salvandoEdicao.value = false
   }
@@ -3579,9 +3614,16 @@ watch(() => s.dadosVersao, async () => {
   carregarLojas()
 })
 
+const noServidor = cadernetaNoServidor()
+// Modo servidor: quando o servidor traz mudanças (outro aparelho, fila enviada), recarrega o que está na tela.
+function aoAtualizarPeloServidor() { carregarResumo(); carregarDashboard() }
+onMounted(() => window.addEventListener(EVENTO_ATUALIZADA, aoAtualizarPeloServidor))
+onBeforeUnmount(() => window.removeEventListener(EVENTO_ATUALIZADA, aoAtualizarPeloServidor))
+
 onMounted(async () => {
   // Acerta (sem apagar nada) vendas antigas cujo nome de loja ficou desatualizado.
-  try {
+  // (No modo servidor o nome da época fica na própria venda e quem grava é o servidor.)
+  if (!cadernetaNoServidor()) try {
     const n = await reconciliarNomesLojas()
     if (n) s.syncImediato()
   } catch (err) { console.error('reconciliarNomesLojas', err) }

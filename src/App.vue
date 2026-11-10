@@ -96,6 +96,11 @@ import { useStore } from './store.js'
 import { useAndroidBackGuard } from './composables/useAndroidBackGuard.js'
 import { tentarReconectarSilenciosamente, iniciarRenovacaoPorToque } from './services/googleDriveBackup.js'
 import { iniciarMonitorPedidosSite } from './services/pedidosSite.js'
+import { cadernetaNoServidor, aplicarParametroDeUrl } from './services/modoServidor.js'
+import { iniciarFila } from './services/filaOperacoes.js'
+import { projetarServidorNoLocal, EVENTO_ATUALIZADA } from './services/cadernetaServidor.js'
+import { instalarGuardaServidor } from './services/guardaServidor.js'
+import { db as dbLocal } from './db.js'
 import AppHeader      from './components/AppHeader.vue'
 import BannerConsulta  from './components/BannerConsulta.vue'
 import AppNav         from './components/AppNav.vue'
@@ -224,6 +229,21 @@ useAndroidBackGuard({
 // Pedidos feitos no site: o app confere o servidor enquanto está aberto. Sem a chave do
 // servidor em Ajustes isto não faz nada. Pedido novo vira aviso + vai pro Drive (outros aparelhos).
 let pararMonitorPedidosSite = null
+let pararFilaCaderneta = null
+
+// Modo servidor da Caderneta: envia a fila, lê o servidor e copia para o banco local que as telas já leem.
+function iniciarCadernetaNoServidor() {
+  if (!cadernetaNoServidor() || pararFilaCaderneta) return
+  const removerGuarda = instalarGuardaServidor(dbLocal)
+  const pararFila = iniciarFila({
+    aparelho: s.papelAparelho || '',
+    aposPuxar: async () => {
+      const r = await projetarServidorNoLocal()
+      if (r.vendas || r.lojas || r.clientes || r.removidas) window.dispatchEvent(new CustomEvent(EVENTO_ATUALIZADA))
+    },
+  })
+  pararFilaCaderneta = () => { pararFila(); removerGuarda() }
+}
 // Acesso ao Google Drive: renova no toque quando vence e sincroniza o que ficou esperando.
 let pararRenovacaoDrive = null
 function aoTokenDriveRenovado() { s.agendarSync?.(); s.syncImediato?.() }
@@ -247,6 +267,7 @@ function ajustarMonitorPedidosSite() {
 watch(() => s.papelAparelho, ajustarMonitorPedidosSite)
 
 onMounted(async () => {
+  if (aplicarParametroDeUrl()) { location.reload(); return }   // ?caderneta=servidor | local (por aparelho)
   await s.init()
   // Aparelho de Vendas abre direto na caderneta; sem papel definido, fica na tela de escolha.
   if (s.papelAparelho === 'vendas') await onSelecionarPerfil('bete')
@@ -255,6 +276,7 @@ onMounted(async () => {
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('online', onOnline)
   ajustarMonitorPedidosSite()
+  iniciarCadernetaNoServidor()
   pararRenovacaoDrive = iniciarRenovacaoPorToque()
   window.addEventListener('google-drive:token-renovado', aoTokenDriveRenovado)
 })
@@ -263,6 +285,7 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('online', onOnline)
   pararMonitorPedidosSite?.()
+  pararFilaCaderneta?.()
   pararRenovacaoDrive?.()
   window.removeEventListener('google-drive:token-renovado', aoTokenDriveRenovado)
 })

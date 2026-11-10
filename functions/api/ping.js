@@ -5,7 +5,7 @@ import { json } from '../_lib/util.js'
 import { autenticar } from '../_lib/acesso.js'
 
 // Tabelas que a migração 0001 cria. Se alguma faltar, o ping avisa qual (migração não aplicada).
-const TABELAS_ESPERADAS = ['cardapios', 'itens', 'pedidos', 'pedido_itens', 'registros']
+const TABELAS_ESPERADAS = ['cardapios', 'itens', 'pedidos', 'pedido_itens', 'cad_lojas', 'cad_clientes', 'cad_vendas', 'cad_pagamentos', 'cad_estornos', 'operacoes']
 
 export async function onRequestGet({ request, env }) {
   const quem = await autenticar(request, env)

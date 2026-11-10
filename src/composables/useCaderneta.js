@@ -433,8 +433,10 @@ export async function getStats() {
 }
 
 // ── PAGAMENTO ────────────────────────────────────────────────
+const novoUidPagamento = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `pg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`)
 export function dadosPagamento(valor, saldoAntes, saldoDepois) {
   return {
+    uid: novoUidPagamento(),   // identifica o pagamento no servidor (necessário para estornar depois)
     valor,
     data: hoje(),
     hora: horaAtual(),
@@ -472,7 +474,7 @@ export function aplicarPagamento(fiado, pago) {
  *   • Não muda o esquema do banco: nenhuma migração necessária.
  *
  *  `novaDataVenc` (AAAA-MM-DD): vencimento do que sobrar. Obrigatório quando sobra saldo. */
-export async function receberParcialCliente(ids, valor, novaDataVenc = null) {
+export async function receberParcialCliente(ids, valor, novaDataVenc = null, { uidBase = null } = {}) {
   const pedido = centavos(valor)
   if (!(pedido > 0)) throw new Error('Informe um valor maior que zero.')
   const idsLimpos = [...new Set((ids || []).filter(i => i !== null && i !== undefined))]
@@ -502,11 +504,13 @@ export async function receberParcialCliente(ids, valor, novaDataVenc = null) {
 
     let faltaAbater = alvo
     const gravadas = []
-    for (const f of abertas) {
+    for (const [posicao, f] of abertas.entries()) {
       const parte = centavos(Math.min(faltaAbater, Number(f.saldo)))
       let mud = {}
       if (parte > 0) {
         mud = aplicarPagamento(f, parte)
+        // Modo servidor: o servidor nomeia o pagamento `${operação}-${posição na ordem de abatimento}`; igual aqui.
+        if (uidBase) mud.pagamentos[mud.pagamentos.length - 1].uid = `${uidBase}-${posicao}`
         faltaAbater = centavos(faltaAbater - parte)
       }
       const continuaAberta = (mud.saldo ?? Number(f.saldo)) > 0.01
