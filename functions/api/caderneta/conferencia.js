@@ -1,4 +1,4 @@
-// -  GET /api/caderneta/conferencia — contagens, saldo em aberto (total e por loja) e violações (devem ser 0).
+// GET /api/caderneta/conferencia — contagens, saldo em aberto (total e por loja) e violações (devem ser 0).
 import { json } from '../../_lib/util.js'
 import { autenticar } from '../../_lib/acesso.js'
 import { conferenciaCaderneta } from '../../_lib/caderneta.js'
