@@ -117,8 +117,7 @@ export default defineConfig({
         // Além de /assets/ e das páginas do cardápio, qualquer .html
         // publicado à parte fica de fora do fallback do app (ex: se algum
         // dia existir outro .html estático solto em /public).
-        navigateFallbackDenylist: [/^\/assets\//, PUBLIC_MENU_PATHS, /\.html$/],
-
+        navigateFallbackDenylist: [/^\/assets\//, /^\/api\//, PUBLIC_MENU_PATHS, /\.html$/],
         skipWaiting: false,
         clientsClaim: false,
 
