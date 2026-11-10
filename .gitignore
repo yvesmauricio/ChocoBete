@@ -28,3 +28,9 @@ Thumbs.db
 # Cache do Vite
 .vite/
 *.local
+
+#Dados
+backup.json
+saida/
+saida2/ 
+backup-antes*.sql
