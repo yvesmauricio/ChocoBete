@@ -33,4 +33,5 @@ Thumbs.db
 backup.json
 saida/
 saida2/ 
-backup-antes*.sql
+backup-antes.sql
+backup-antes-importacao.sql
