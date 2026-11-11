@@ -1,4 +1,4 @@
-// GET /api/caderneta/conferencia — contagens, saldo em aberto (total e por loja) e violações (devem ser 0). Só Admin.
+// -GET /api/caderneta/conferencia — contagens, saldo em aberto (total e por loja) e violações (devem ser 0). Só Admin.
 import { json } from '../../_lib/util.js'
 import { exigirPerfil } from '../../_lib/cadernetaHttp.js'
 import { conferenciaCaderneta } from '../../_lib/caderneta.js'
