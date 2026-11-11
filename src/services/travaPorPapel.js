@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import Dexie from 'dexie'
 import { podeEscreverTabela, podeEscreverConfig, mensagemSomenteConsulta, papelValido } from './papelAparelho.js'
+import { cadernetaNoServidor, TABELAS_CADERNETA, escritaLocalLiberada } from './modoServidor.js'
 
 export class SomenteConsultaError extends Error {
   constructor(tabela, papel) {
@@ -43,6 +44,9 @@ export function instalarTravaPorPapel(db, { obterPapel, chavesDoAparelho = [], a
 
   function checar(tabela, chave) {
     if (liberada()) return
+    // Modo servidor: a Caderneta é decidida pelo PERFIL da pessoa no servidor (e não pelo papel do aparelho).
+    // Só a ponte grava aqui (a guarda do modo servidor barra o resto), então ela passa por esta trava.
+    if (TABELAS_CADERNETA.includes(tabela) && cadernetaNoServidor() && escritaLocalLiberada()) return
     const papel = obterPapel()
     if (tabela === 'config') {
       if (chavesDoAparelho.includes(chave)) return

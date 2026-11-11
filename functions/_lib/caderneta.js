@@ -316,9 +316,9 @@ export const TIPOS = {
 // ───────────────────────── execução de uma operação ─────────────────────────
 function stmtRegistrarOp(DB, op, ctx, resultado, motivo, ignorarSeExiste = false) {
   return DB.prepare(
-    `INSERT ${ignorarSeExiste ? 'OR IGNORE ' : ''}INTO operacoes (op_id, tipo, usuario, aparelho, criado_no_aparelho, recebido_em, resultado, motivo, payload)
-     VALUES (?,?,?,?,?,?,?,?,?)`)
-    .bind(op.op_id, String(op.tipo || '?').slice(0, 60), ctx.usuario || null, ctx.aparelho || null, ctx.criadoNoAparelho ?? null, ctx.agora, resultado, motivo || null, JSON.stringify(op.dados ?? null).slice(0, 20000))
+    `INSERT ${ignorarSeExiste ? 'OR IGNORE ' : ''}INTO operacoes (op_id, tipo, usuario, aparelho, criado_no_aparelho, recebido_em, resultado, motivo, payload, papel)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`)
+    .bind(op.op_id, String(op.tipo || '?').slice(0, 60), ctx.usuario || null, ctx.aparelho || null, ctx.criadoNoAparelho ?? null, ctx.agora, resultado, motivo || null, JSON.stringify(op.dados ?? null).slice(0, 20000), ctx.papel || null)
 }
 
 /**
@@ -326,17 +326,21 @@ function stmtRegistrarOp(DB, op, ctx, resultado, motivo, ignorarSeExiste = false
  *   aplicada | duplicada (já tinha sido aplicada/recusada antes) | rejeitada (+motivo) | tentar_de_novo (concorrência)
  * Erros inesperados (banco fora do ar etc.) são relançados: o aparelho mantém a operação na fila e tenta depois.
  */
-export async function aplicarOperacao(DB, op, { usuario, aparelho, agora = Date.now() } = {}) {
+export async function aplicarOperacao(DB, op, { usuario, aparelho, papel = null, autorizar = null, agora = Date.now() } = {}) {
   if (!op || !uuidOk(op.op_id)) return { op_id: op?.op_id ?? null, status: 'rejeitada', motivo: 'Operação sem identificador válido.' }
   const ja = await DB.prepare('SELECT resultado, motivo FROM operacoes WHERE op_id = ?').bind(op.op_id).first()
   if (ja) return { op_id: op.op_id, status: 'duplicada', resultado: ja.resultado, motivo: ja.motivo || undefined }
 
-  const ctx = { usuario, aparelho, agora, criadoNoAparelho: Number.isSafeInteger(op.criado_no_aparelho) ? op.criado_no_aparelho : null }
+  const ctx = { usuario, aparelho, papel, agora, criadoNoAparelho: Number.isSafeInteger(op.criado_no_aparelho) ? op.criado_no_aparelho : null }
   const registrarRejeicao = async (motivo) => {
     await stmtRegistrarOp(DB, op, ctx, 'rejeitada', motivo, true).run()
     return { op_id: op.op_id, status: 'rejeitada', motivo }
   }
   const tratar = TIPOS[op.tipo]
+  if (autorizar) {                       // perfis: recusa ANTES de qualquer gravação e deixa a recusa registrada (auditoria)
+    const aut = await autorizar(op)
+    if (!aut.ok) return registrarRejeicao(aut.motivo)
+  }
   if (!tratar) return registrarRejeicao(`Tipo de operação desconhecido: ${String(op.tipo).slice(0, 40)}`)
 
   try {

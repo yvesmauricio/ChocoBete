@@ -14,7 +14,7 @@ export function useFilaOps() {
   const estado = computed(() => {
     if (s.rejeitadas.length) return 'attention'
     if (s.enviando && s.pendentes) return 'syncing'
-    if (s.pendentes && (s.semLogin || s.ultimoErro)) return 'offline'
+    if (s.pendentes && (s.semLogin || s.semPerfil || s.ultimoErro)) return 'offline'
     if (s.pendentes) return 'pending'
     return 'saved'
   })
@@ -22,7 +22,7 @@ export function useFilaOps() {
     const n = s.pendentes, r = s.rejeitadas.length
     if (r) return `${r} ${r === 1 ? 'alteração recusada' : 'alterações recusadas'} — toque para ver`
     if (estado.value === 'syncing') return 'Enviando…'
-    if (n) return `${n} ${n === 1 ? 'alteração aguardando' : 'alterações aguardando'}${s.semLogin ? ' — faça login' : ''}`
+    if (n) return `${n} ${n === 1 ? 'alteração aguardando' : 'alterações aguardando'}${s.semPerfil ? ' — sem perfil no servidor' : s.semLogin ? ' — faça login' : ''}`
     return 'Tudo salvo no servidor'
   })
   return { estado, texto, pendentes: computed(() => s.pendentes), rejeitadas: computed(() => s.rejeitadas), enviarAgora: descarregar }

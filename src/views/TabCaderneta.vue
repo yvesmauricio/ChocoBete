@@ -1330,6 +1330,7 @@
               <span class="cad-det-pagto-dir">
                 <span class="cad-det-pagto-val">R$ {{ fmt(p.valor) }}</span>
                 <button type="button" class="cad-det-pagto-estornar" title="Foi engano? Estornar este pagamento"
+                  v-if="!noServidor || podeNoServidor('pagamento.estornar')"
                   @click="pedirEstorno(fiadoDetalhe, p, idx)"><i class="fas fa-rotate-left"></i> Estornar</button>
               </span>
             </div>
@@ -1372,7 +1373,7 @@
               style="background: #25D366; color: #fff; border-color: #25D366"
               @click="enviarComprovanteFiado(fiadoDetalhe); fiadoDetalhe=null"
             ><i class="fab fa-whatsapp"></i> Comprovante</button>
-            <button class="cad-btn-cancel" @click="abrirEditarFiado(fiadoDetalhe); fiadoDetalhe=null"><i class="fas fa-pen"></i> Editar</button>
+            <button v-if="!noServidor || podeNoServidor('venda.corrigir', fiadoDetalhe)" class="cad-btn-cancel" @click="abrirEditarFiado(fiadoDetalhe); fiadoDetalhe=null"><i class="fas fa-pen"></i> Editar</button>
           </div>
         </div>
       </div>
@@ -1542,14 +1543,15 @@ import { ref, computed, reactive, onMounted, onBeforeUnmount, watch, nextTick } 
 import CadernetaSwipeItem from '../components/CadernetaSwipeItem.vue'
 import DescontoCampo from '../components/DescontoCampo.vue'
 import FilaIndicador from '../components/FilaIndicador.vue'
+import { podeNoServidor } from '../services/acessoServidor.js'
 import { cadernetaNoServidor } from '../services/modoServidor.js'
-import { receberPagamentoServidor, quitarTudoServidor, receberParcialServidor, estornarServidor, alterarVencimentoServidor, lancarVendaServidor, cancelarVendaServidor, corrigirVendaServidor, EVENTO_ATUALIZADA } from '../services/cadernetaServidor.js'
+import { salvarLojaServidor, arquivarLojaServidor, excluirLojaServidor, salvarClienteServidor, arquivarClienteServidor, excluirClienteServidor, MSG_JUNTAR_SERVIDOR, receberPagamentoServidor, quitarTudoServidor, receberParcialServidor, estornarServidor, alterarVencimentoServidor, lancarVendaServidor, cancelarVendaServidor, corrigirVendaServidor, EVENTO_ATUALIZADA } from '../services/cadernetaServidor.js'
 import TabCardapio from './TabCardapio.vue'
 import {
-  getLojas, salvarLojaValidada, excluirLoja as dbExcluirLoja, resumoLoja, arquivarLoja,
+  getLojas, salvarLojaValidada as salvarLojaLocal, excluirLoja as excluirLojaLocal, resumoLoja, arquivarLoja as arquivarLojaLocal,
   previaRenomearLoja, reconciliarNomesLojas, getNomesLojas,
-  getClientes, getTodosClientes, salvarClienteValidado, excluirCliente as dbExcluirCliente,
-  resumoCliente, arquivarCliente, listarDuplicados, juntarClientes, juntarLojas,
+  getClientes, getTodosClientes, salvarClienteValidado as salvarClienteLocal, excluirCliente as excluirClienteLocal,
+  resumoCliente, arquivarCliente as arquivarClienteLocal, listarDuplicados, juntarClientes, juntarLojas,
   validarTelefone, centavos,
   getFuncoes, FUNCOES_PADRAO, limparFuncao, mesmaFuncao, observarSaldosClientes,
   getFiados, getFiadosAbertos, getFiadosVencendoHoje, getFiadosDoCliente,
@@ -1561,6 +1563,14 @@ import {
   fmt, fmtBR, fmtHora, iniciais, normalizar, resumoItens,
   hoje, horaAtual
 } from '../composables/useCaderneta.js'
+
+// Modo servidor: loja e cliente viram operações na fila ("excluir" = arquivar; nada é apagado no servidor).
+const salvarLojaValidada = (o) => (cadernetaNoServidor() ? salvarLojaServidor(o) : salvarLojaLocal(o))
+const arquivarLoja = (id, arquivar) => (cadernetaNoServidor() ? arquivarLojaServidor(id, arquivar) : arquivarLojaLocal(id, arquivar))
+const dbExcluirLoja = (id) => (cadernetaNoServidor() ? excluirLojaServidor(id) : excluirLojaLocal(id))
+const salvarClienteValidado = (o, opts) => (cadernetaNoServidor() ? salvarClienteServidor(o, opts) : salvarClienteLocal(o, opts))
+const arquivarCliente = (id, arquivar) => (cadernetaNoServidor() ? arquivarClienteServidor(id, arquivar) : arquivarClienteLocal(id, arquivar))
+const dbExcluirCliente = (id) => (cadernetaNoServidor() ? excluirClienteServidor(id) : excluirClienteLocal(id))
 import { useStore } from '../store.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import {
@@ -2323,7 +2333,10 @@ async function excluirCliente_() {
 }
 
 // ── Cadastros repetidos (limpeza do que já existia antes da validação) ──
-async function abrirRepetidos() { modalRepetidos.value = await listarDuplicados() }
+async function abrirRepetidos() {
+  if (cadernetaNoServidor()) { s.notify(MSG_JUNTAR_SERVIDOR); return }
+  modalRepetidos.value = await listarDuplicados()
+}
 function juntarGrupo(tipo, grupo, manter) {
   const outros = grupo.filter(i => i.id !== manter.id)
   const vendas = outros.reduce((n, i) => n + i.vendas, 0)
@@ -3500,8 +3513,10 @@ function compraSwipeActions(f) {
   const temTelefone = !!(telMap.value[f.clienteId] || f.clienteTel)
   const receipt = temTelefone ? ['receipt'] : []
   // No histórico (consulta) não mostra receber nem excluir
-  if (modoResumo.value === 'historico') return [...receipt, 'edit']
-  return f.saldo > 0.01 ? [...receipt, 'receive', 'edit', 'delete'] : [...receipt, 'edit', 'delete']
+  const todas = modoResumo.value === 'historico' ? [...receipt, 'edit'] : (f.saldo > 0.01 ? [...receipt, 'receive', 'edit', 'delete'] : [...receipt, 'edit', 'delete'])
+  if (!noServidor) return todas
+  // Modo servidor: editar = corrigir e excluir = cancelar; só quem tem perfil para isso (ou na própria venda, nos primeiros minutos).
+  return todas.filter(a => (a !== 'edit' || podeNoServidor('venda.corrigir', f)) && (a !== 'delete' || podeNoServidor('venda.cancelar', f)))
 }
 async function salvarEdicaoFiado() {
   const f = fiadoEditar.value

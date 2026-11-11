@@ -17,9 +17,11 @@ import { db } from '../db.js'
 import { liberarEscrita } from './travaPorPapel.js'
 import { uidServidor } from './uidServidor.js'
 import { comEscritaLocalLiberada } from './modoServidor.js'
+import { acessoRef } from './acessoServidor.js'
 import { enfileirar, filaDb, novoUid } from './filaOperacoes.js'
 import {
   atualizarFiado, aplicarPagamento, receberParcialCliente, estornarPagamento, salvarFiado, excluirFiado, hoje, horaAtual,
+  acharLojaDuplicada, acharClienteDuplicado,
 } from '../composables/useCaderneta.js'
 
 const cent = (v) => Math.round((Number(v) || 0) * 100)
@@ -77,6 +79,85 @@ export async function alterarVencimentoServidor(fiado, dataVenc) {
   await comEscritaLocalLiberada(() => atualizarFiado(f.id, { dataVenc }))
 }
 
+// ── Loja e cliente ──
+// Nada é excluído no servidor: "excluir" vira ARQUIVAR (some das listas, o histórico fica). Cadastros repetidos não
+// existem mais (o banco recusa mesmo telefone / mesmo nome), então "juntar duplicados" não se aplica.
+const limpar = (v) => String(v || '').trim().replace(/\s+/g, ' ')
+const agoraISO = () => new Date().toISOString()
+
+/** Cria/renomeia loja. Mesmo contrato de `salvarLojaValidada`: { ok, id, renomeou, vendasAtualizadas } ou { ok:false, dup }. */
+export async function salvarLojaServidor(obj) {
+  const nome = limpar(obj.nome)
+  if (!nome) throw new Error('NOME_VAZIO')
+  const atual = obj.id != null ? await db.cad_lojas.get(obj.id) : null
+  if (obj.id != null && !atual) throw new Error('LOJA_NAO_ENCONTRADA')
+  const dup = await acharLojaDuplicada(nome, atual?.id ?? null)
+  if (dup) return { ok: false, dup }
+  const uidLocal = atual?.uid || novoUid()
+  const renomeou = !!atual && atual.nome !== nome
+  const vendas = renomeou ? await db.cad_fiados.where('lojaId').equals(atual.id).count() : 0
+  await enfileirar('loja.salvar', { uid: uidServidor(uidLocal, 'cad_lojas'), nome })
+  const id = await comEscritaLocalLiberada(async () => {
+    const id = await db.cad_lojas.put({ ...(atual || {}), ...obj, nome, uid: uidLocal })
+    if (renomeou) await db.cad_fiados.where('lojaId').equals(id).modify({ lojaNome: nome })   // o espelho mostra o nome atual
+    return id
+  })
+  return { ok: true, id, renomeou, vendasAtualizadas: vendas }
+}
+
+export async function arquivarLojaServidor(id, arquivar = true) {
+  const l = await db.cad_lojas.get(id)
+  if (!l?.uid) throw new Error('LOJA_NAO_ENCONTRADA')
+  await enfileirar('loja.arquivar', { uid: uidServidor(l.uid, 'cad_lojas'), arquivar })
+  await comEscritaLocalLiberada(() => db.cad_lojas.update(id, arquivar ? { arquivado: true, arquivadoEm: agoraISO() } : { arquivado: false, arquivadoEm: null }))
+}
+
+/** "Excluir" loja vazia = arquivar (com histórico a tela já arquiva). */
+export async function excluirLojaServidor(id) {
+  const [nClientes, nFiados] = await Promise.all([db.cad_clientes.where('lojaId').equals(id).count(), db.cad_fiados.where('lojaId').equals(id).count()])
+  if (nClientes || nFiados) throw new Error('LOJA_COM_HISTORICO')
+  await arquivarLojaServidor(id, true)
+}
+
+/** Cria/edita cliente. Mesmo contrato de `salvarClienteValidado`: { ok, id } ou { ok:false, dup }. */
+export async function salvarClienteServidor(obj, { moverAbertos = false } = {}) {
+  const atual = obj.id != null ? await db.cad_clientes.get(obj.id) : null
+  const final = { ...(atual || {}), ...obj }
+  const nome = limpar(final.nome)
+  if (!nome) throw new Error('NOME_VAZIO')
+  const dup = await acharClienteDuplicado(final, final.id ?? null)
+  if (dup) return { ok: false, dup }
+  const loja = await db.cad_lojas.get(final.lojaId)
+  if (!loja?.uid) throw new Error('LOJA_NAO_ENCONTRADA')
+  const uidLocal = atual?.uid || novoUid()
+  const uid = uidServidor(uidLocal, 'cad_clientes')
+  const mover = !!(moverAbertos && atual && atual.lojaId !== final.lojaId)
+  await enfileirar('cliente.salvar', { uid, loja_uid: uidServidor(loja.uid, 'cad_lojas'), nome, telefone: final.telefone || '', funcao: final.funcao || '', mover_abertos: mover })
+  if (atual && !!atual.arquivado !== !!final.arquivado) await enfileirar('cliente.arquivar', { uid, arquivar: !!final.arquivado })
+  const id = await comEscritaLocalLiberada(() => db.transaction('rw', db.cad_clientes, db.cad_fiados, async () => {
+    const id = await db.cad_clientes.put({ ...final, nome, uid: uidLocal })
+    if (atual && atual.nome !== nome) await db.cad_fiados.where('clienteId').equals(id).modify({ clienteNome: nome })
+    if (mover) await db.cad_fiados.where('clienteId').equals(id).filter(f => f.status === 'aberto').modify({ lojaId: final.lojaId, lojaNome: loja.nome })
+    return id
+  }))
+  return { ok: true, id }
+}
+
+export async function arquivarClienteServidor(id, arquivar = true) {
+  const c = await db.cad_clientes.get(id)
+  if (!c?.uid) throw new Error('CLIENTE_NAO_ENCONTRADO')
+  await enfileirar('cliente.arquivar', { uid: uidServidor(c.uid, 'cad_clientes'), arquivar })
+  await comEscritaLocalLiberada(() => db.cad_clientes.update(id, arquivar ? { arquivado: true, arquivadoEm: agoraISO() } : { arquivado: false, arquivadoEm: null }))
+}
+
+/** "Excluir" cliente sem nenhuma venda = arquivar. */
+export async function excluirClienteServidor(id) {
+  if (await db.cad_fiados.where('clienteId').equals(id).count()) throw new Error('CLIENTE_COM_HISTORICO')
+  await arquivarClienteServidor(id, true)
+}
+
+export const MSG_JUNTAR_SERVIDOR = 'No modo servidor não há cadastros repetidos para juntar: o servidor impede o mesmo telefone e o mesmo nome de loja.'
+
 // ── Venda: lançar, cancelar e corrigir ──
 /** Monta os dados da operação a partir de uma venda no formato da tela (reais) → centavos inteiros, mesma conta do servidor. */
 function dadosDaVenda(f) {
@@ -99,8 +180,9 @@ export async function lancarVendaServidor(fiado) {
   if (!cliente?.uid) throw new Error('Cliente sem identificador. Reabra a tela e tente de novo.')
   const uid = fiado.uid || novoUid()
   await enfileirar('venda.criar', { uid, cliente_uid: uidServidor(cliente.uid, 'cad_clientes'), ...dadosDaVenda(fiado) })
-  const id = await comEscritaLocalLiberada(() => salvarFiado({ ...fiado, uid }))
-  return { ...fiado, uid, id }
+  const usuario = acessoRef.value?.usuario || null   // quem lançou (a Vendas pode desfazer a PRÓPRIA venda nos primeiros minutos)
+  const id = await comEscritaLocalLiberada(() => salvarFiado({ ...fiado, uid, usuario }))
+  return { ...fiado, uid, usuario, id }
 }
 
 const semPagamentoAtivo = (f, acao) => {
@@ -125,8 +207,9 @@ export async function corrigirVendaServidor(fiado, mudancas) {
   return comEscritaLocalLiberada(async () => {
     await excluirFiado(f.id)
     const { id: _id, ...sem } = nova
-    const id = await salvarFiado({ ...sem, uid, saldo: nova.total, status: 'aberto', pagamentos: [], estornos: [], pagoEm: null, criadoEm: new Date().toISOString() })
-    return { ...sem, uid, id }
+    const usuario = acessoRef.value?.usuario || sem.usuario || null
+    const id = await salvarFiado({ ...sem, uid, usuario, saldo: nova.total, status: 'aberto', pagamentos: [], estornos: [], pagoEm: null, criadoEm: new Date().toISOString() })
+    return { ...sem, uid, usuario, id }
   })
 }
 
@@ -146,15 +229,28 @@ export async function listarCorrecoes(limite = 40) {
 }
 
 // ───────────────────────── LEITURA ─────────────────────────
-const vendasPendentes = async () => {
+/** uids (de venda, loja e cliente) com operação ainda na fila: o aparelho tem a versão mais nova, não pisamos. */
+const uidsPendentes = async () => {
   const set = new Set()
   for (const op of await filaDb.fila.where('estado').equals('pendente').toArray()) {
     const d = op.dados || {}
-    if (d.venda_uid) set.add(d.venda_uid)
+    for (const k of ['uid', 'venda_uid', 'loja_uid', 'cliente_uid']) if (d[k]) set.add(d[k])
     for (const u of d.venda_uids || []) set.add(u)
-    if (op.tipo === 'venda.criar' && d.uid) set.add(d.uid)
+    if (d.nova?.uid) set.add(d.nova.uid)
   }
   return set
+}
+/** Operações de CRIAÇÃO que o servidor recusou: o que o aparelho criou "de otimismo" precisa sumir daqui. */
+const criacoesRecusadas = async () => {
+  const por = { cad_lojas: new Set(), cad_clientes: new Set(), cad_fiados: new Set() }
+  for (const op of await filaDb.fila.where('estado').equals('rejeitada').toArray()) {
+    const d = op.dados || {}
+    if (op.tipo === 'loja.salvar' && d.uid) por.cad_lojas.add(d.uid)
+    if (op.tipo === 'cliente.salvar' && d.uid) por.cad_clientes.add(d.uid)
+    if (op.tipo === 'venda.criar' && d.uid) por.cad_fiados.add(d.uid)
+    if (op.tipo === 'venda.corrigir' && d.nova?.uid) por.cad_fiados.add(d.nova.uid)
+  }
+  return por
 }
 
 /**
@@ -165,7 +261,9 @@ export async function projetarServidorNoLocal() {
   const espelho = async (t) => (await filaDb.espelho.where('tabela').equals(t).toArray())
   const [lojasS, clientesS, vendasS, pagS, estS] = await Promise.all(['lojas', 'clientes', 'vendas', 'pagamentos', 'estornos'].map(espelho))
   if (!lojasS.length && !vendasS.length) return { lojas: 0, clientes: 0, vendas: 0 }
-  const pend = await vendasPendentes()
+  const pend = await uidsPendentes()
+  const recusadas = await criacoesRecusadas()
+  const lojaNomePorUid = new Map(lojasS.map(l => [l.uid, l.nome])), clienteNomePorUid = new Map(clientesS.map(c => [c.uid, c.nome]))
 
   const pagPorVenda = new Map(), estPorVenda = new Map(), estornados = new Set(estS.map(e => e.pagamento_uid))
   const pagPorUid = new Map(pagS.map(p => [p.uid, p]))
@@ -181,25 +279,40 @@ export async function projetarServidorNoLocal() {
     const idLoja = new Map([...lojasL].map(([u, r]) => [u, r.id]))
     const idCliente = new Map([...clientesL].map(([u, r]) => [u, r.id]))
 
+    // 0) O servidor recusou uma CRIAÇÃO feita aqui (ex.: telefone que outro aparelho cadastrou antes): some do aparelho.
+    const recusa = async (tabela, mapaL, tabelaEsp, idsMap) => {
+      for (const u of recusadas[tabela]) {
+        const alvo = mapaL.get(uidServidor(u, tabela))
+        const noServidor = tabelaEsp.some(r => r.uid === uidServidor(u, tabela))
+        if (alvo && !noServidor && !pend.has(u)) { await db[tabela].delete(alvo.id); mapaL.delete(uidServidor(u, tabela)); idsMap?.delete(uidServidor(u, tabela)); cont.removidas++ }
+      }
+    }
+    await recusa('cad_fiados', fiadosL, vendasS)
+    await recusa('cad_clientes', clientesL, clientesS, idCliente)
+    await recusa('cad_lojas', lojasL, lojasS, idLoja)
+
+    const mudou = (atual, novo) => Object.keys(novo).some(k => JSON.stringify(atual[k] ?? null) !== JSON.stringify(novo[k] ?? null))
+
     for (const l of lojasS) {
-      const novo = { nome: l.nome, arquivado: !!l.arquivada_em, arquivadoEm: l.arquivada_em ? iso(l.arquivada_em) : undefined }
+      if (pend.has(l.uid)) continue
+      const novo = { nome: l.nome, arquivado: !!l.arquivada_em, arquivadoEm: l.arquivada_em ? iso(l.arquivada_em) : null }
       const atual = lojasL.get(l.uid)
-      if (atual) { if (atual.nome !== novo.nome || !!atual.arquivado !== novo.arquivado) { await db.cad_lojas.put({ ...atual, ...novo }); cont.lojas++ } }
+      if (atual) { if (mudou(atual, novo)) { await db.cad_lojas.put({ ...atual, ...novo }); cont.lojas++ } }
       else { idLoja.set(l.uid, await db.cad_lojas.add({ uid: l.uid, ...novo })); cont.lojas++ }
     }
     for (const c of clientesS) {
+      if (pend.has(c.uid)) continue
       const lojaId = idLoja.get(c.loja_uid)
       if (lojaId == null) continue
-      const novo = { lojaId, nome: c.nome, telefone: c.telefone || '', funcao: c.funcao || '', arquivado: !!c.arquivado_em }
+      const novo = { lojaId, nome: c.nome, telefone: c.telefone || '', funcao: c.funcao || '', arquivado: !!c.arquivado_em, arquivadoEm: c.arquivado_em ? iso(c.arquivado_em) : null }
       const atual = clientesL.get(c.uid)
-      if (atual) {
-        if (['lojaId', 'nome', 'telefone', 'funcao'].some(k => (atual[k] ?? '') !== (novo[k] ?? '')) || !!atual.arquivado !== novo.arquivado) { await db.cad_clientes.put({ ...atual, ...novo }); cont.clientes++ }
-      } else { idCliente.set(c.uid, await db.cad_clientes.add({ uid: c.uid, ...novo })); cont.clientes++ }
+      if (atual) { if (mudou(atual, novo)) { await db.cad_clientes.put({ ...atual, ...novo }); cont.clientes++ } }
+      else { idCliente.set(c.uid, await db.cad_clientes.add({ uid: c.uid, ...novo })); cont.clientes++ }
     }
 
     for (const v of vendasS) {
       const atual = fiadosL.get(v.uid)
-      if (pend.has(v.uid)) continue
+      if (pend.has(v.uid) || pend.has(v.cliente_uid) || pend.has(v.loja_uid)) continue   // ainda há algo do aparelho a caminho
       if (v.cancelada_em) { if (atual) { await db.cad_fiados.delete(atual.id); cont.removidas++ } continue }
       const clienteId = idCliente.get(v.cliente_uid), lojaId = idLoja.get(v.loja_uid)
       if (clienteId == null || lojaId == null) continue
@@ -212,13 +325,15 @@ export async function projetarServidorNoLocal() {
       })
       const itens = (v.itens || []).map(i => ({ id: i.item_id, nome: i.nome, emoji: i.emoji, qty: i.qtd, preco: reais(i.preco_centavos), subtotal: reais(i.subtotal_centavos) }))
       const novo = {
-        clienteId, lojaId, clienteNome: v.cliente_nome, lojaNome: v.loja_nome, itens,
+        clienteId, lojaId,
+        // No servidor a venda guarda o nome DA ÉPOCA; as telas mostram o nome ATUAL do cadastro (como sempre mostraram).
+        clienteNome: clienteNomePorUid.get(v.cliente_uid) ?? v.cliente_nome, lojaNome: lojaNomePorUid.get(v.loja_uid) ?? v.loja_nome, itens,
         total: reais(v.total_centavos), saldo: reais(v.saldo_centavos), desconto: reais(v.desconto_centavos), descontoMotivo: v.desconto_motivo || null,
         status: v.status, dataVenda: v.data_venda, horaVenda: v.hora_venda || null, dataVenc: v.data_venc || null,
-        criadoEm: iso(v.criado_em), pagoEm: iso(v.pago_em), pagamentos, estornos,
+        criadoEm: iso(v.criado_em), pagoEm: iso(v.pago_em), pagamentos, estornos, usuario: v.usuario || null,
       }
-      if (atual) await db.cad_fiados.put({ ...atual, ...novo }); else await db.cad_fiados.add({ uid: v.uid, ...novo })
-      cont.vendas++
+      if (!atual) { await db.cad_fiados.add({ uid: v.uid, ...novo }); cont.vendas++ }
+      else if (mudou(atual, novo)) { await db.cad_fiados.put({ ...atual, ...novo }); cont.vendas++ }
     }
   }))
   return cont

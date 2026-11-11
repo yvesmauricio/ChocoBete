@@ -8,7 +8,7 @@ import { aplicarOperacao } from '../functions/_lib/caderneta.js'
 import { onRequestPost } from '../functions/api/caderneta/ops.js'
 import { onRequestGet } from '../functions/api/caderneta/estado.js'
 import { db } from '../src/db.js'
-import { descarregar, puxarEstado, estadoFila, _usarFetch, filaDb } from '../src/services/filaOperacoes.js'
+import { descarregar, puxarEstado, estadoFila, _usarFetch, filaDb, dispensarRejeitada } from '../src/services/filaOperacoes.js'
 import { receberPagamentoServidor, quitarTudoServidor, receberParcialServidor, estornarServidor, alterarVencimentoServidor, projetarServidorNoLocal } from '../src/services/cadernetaServidor.js'
 
 const TOKEN = 'x'.repeat(40)
@@ -214,4 +214,108 @@ test('nota livre (sem itens) vira item único no servidor', async () => {
   await sincronizar()
   const it = DB.raw.prepare('SELECT nome, subtotal_centavos FROM cad_venda_itens WHERE venda_uid=?').get(v.uid)
   assert.deepEqual([it.nome, it.subtotal_centavos], ['Bolo de aniversário', 8000])
+})
+
+// ── Parte 3: loja e cliente ──
+import { salvarLojaServidor, salvarClienteServidor, arquivarLojaServidor, excluirLojaServidor, arquivarClienteServidor, excluirClienteServidor } from '../src/services/cadernetaServidor.js'
+const lojaPorNome = (n) => db.cad_lojas.toArray().then(l => l.find(x => x.nome === n))
+const cliPorNome = (n) => db.cad_clientes.toArray().then(l => l.find(x => x.nome === n))
+const srvLoja = (nome) => DB.raw.prepare('SELECT * FROM cad_lojas WHERE nome=?').get(nome) ?? null
+const srvCli = (nome) => DB.raw.prepare('SELECT * FROM cad_clientes WHERE nome=?').get(nome) ?? null
+
+test('TUDO sem sinal: cadastra loja, cliente e lança fiado; ao voltar o sinal chega na ordem certa, sem duplicar', async () => {
+  online = false
+  const l = await salvarLojaServidor({ nome: '  Floricultura   Rosa ' })
+  assert.equal(l.ok, true)
+  const c = await salvarClienteServidor({ lojaId: l.id, nome: 'Marta', telefone: '(21) 98888-1111', funcao: 'Gerente' })
+  assert.equal(c.ok, true)
+  const v = await lancarVendaServidor({ clienteId: c.id, clienteNome: 'Marta', lojaId: l.id, lojaNome: 'Floricultura Rosa', itens: [{ id: 'x', nome: 'Trufa', qty: 2, preco: 7 }],
+    total: 14, saldo: 14, status: 'aberto', dataVenda: '2026-11-10', dataVenc: '2026-11-30', criadoEm: new Date().toISOString() })
+  assert.equal(estadoFila.pendentes >= 3, true)
+  await sincronizar()
+  assert.equal(srvLoja('Floricultura Rosa').nome_chave, 'floricultura rosa')
+  assert.deepEqual([srvCli('Marta').funcao, srv(v.uid).cliente_nome, srv(v.uid).loja_nome], ['Gerente', 'Marta', 'Floricultura Rosa'])
+  assert.equal((await db.cad_lojas.filter(x => x.nome === 'Floricultura Rosa').count()), 1)      // não duplicou
+  assert.equal((await db.cad_clientes.filter(x => x.nome === 'Marta').count()), 1)
+  assert.equal((await db.cad_fiados.filter(x => x.uid === v.uid).count()), 1)
+  assert.equal((await projetarServidorNoLocal()).vendas, 0)                                       // projeção só grava o que mudou
+})
+
+test('renomear loja e cliente: servidor guarda o nome da época na venda; a tela mostra o nome atual (inclusive offline)', async () => {
+  online = false
+  const l = await lojaPorNome('Floricultura Rosa'), c = await cliPorNome('Marta')
+  const r = await salvarLojaServidor({ id: l.id, nome: 'Floricultura Rosa Azul' })
+  assert.deepEqual([r.ok, r.renomeou, r.vendasAtualizadas], [true, true, 1])
+  await salvarClienteServidor({ id: c.id, nome: 'Marta Souza' })
+  const fi = (await db.cad_fiados.toArray()).find(f => f.clienteId === c.id)
+  assert.deepEqual([fi.lojaNome, fi.clienteNome], ['Floricultura Rosa Azul', 'Marta Souza'])      // otimista
+  await sincronizar()
+  const f2 = (await db.cad_fiados.toArray()).find(f => f.clienteId === c.id)
+  assert.deepEqual([f2.lojaNome, f2.clienteNome], ['Floricultura Rosa Azul', 'Marta Souza'])      // servidor não desfaz
+  const sv = DB.raw.prepare('SELECT loja_nome, cliente_nome FROM cad_vendas WHERE uid=?').get(fi.uid)
+  assert.deepEqual([sv.loja_nome, sv.cliente_nome], ['Floricultura Rosa', 'Marta'])               // histórico da época preservado
+})
+
+test('renomeação pendente (sem sinal) não é desfeita por uma leitura do servidor', async () => {
+  const l = await lojaPorNome('Floricultura Rosa Azul')
+  online = false
+  await salvarLojaServidor({ id: l.id, nome: 'Floricultura Rosa Verde' })
+  await puxarEstado().catch(() => {}); await projetarServidorNoLocal()
+  assert.equal((await db.cad_lojas.get(l.id)).nome, 'Floricultura Rosa Verde')
+  await sincronizar()
+  assert.equal(srvLoja('Floricultura Rosa Verde')?.nome, 'Floricultura Rosa Verde')
+})
+
+test('mudar cliente de loja levando as vendas em aberto; as pagas ficam onde aconteceram', async () => {
+  const mercado = await lojaPorNome('Mercado Lua'), c = await cliPorNome('Marta Souza')
+  const paga = await lancarVendaServidor({ clienteId: c.id, clienteNome: c.nome, lojaId: c.lojaId, lojaNome: 'x', itens: [{ nome: 'Y', qty: 1, preco: 10 }], total: 10, saldo: 10, status: 'aberto', dataVenda: '2026-11-10', dataVenc: '2026-11-30' })
+  await receberPagamentoServidor(await db.cad_fiados.get(paga.id), 10)
+  await sincronizar()
+  const r = await salvarClienteServidor({ id: c.id, lojaId: mercado.id }, { moverAbertos: true })
+  assert.equal(r.ok, true); await sincronizar()
+  const abertas = DB.raw.prepare("SELECT loja_nome, status FROM cad_vendas WHERE cliente_uid=(SELECT uid FROM cad_clientes WHERE nome='Marta Souza')").all()
+  assert.ok(abertas.some(v => v.status === 'aberto' && v.loja_nome === 'Mercado Lua'))
+  assert.ok(abertas.some(v => v.status === 'pago' && v.loja_nome !== 'Mercado Lua'))
+})
+
+test('telefone repetido: barrado no aparelho; se outro aparelho cadastrou antes, o servidor recusa e o cadastro some daqui', async () => {
+  const mercado = await lojaPorNome('Mercado Lua')
+  const r = await salvarClienteServidor({ lojaId: mercado.id, nome: 'Outra Marta', telefone: '21 98888-1111' })
+  assert.equal(r.ok, false); assert.equal(r.dup.motivo, 'telefone')
+  // outro aparelho cadastra "Nina" com um telefone novo enquanto este (sem sinal) cadastra "Nina Bis" com o MESMO telefone
+  online = false
+  const mine = await salvarClienteServidor({ lojaId: mercado.id, nome: 'Nina Bis', telefone: '(21) 97777-2222' })
+  assert.equal(mine.ok, true)
+  await aplicarOperacao(DB, { op_id: 'op-outro-nina-0001', tipo: 'cliente.salvar', dados: { uid: 'cli-nina-outro-01', loja_uid: (await lojaPorNome('Mercado Lua')).uid, nome: 'Nina', telefone: '(21) 97777-2222' } }, { usuario: 'x', agora: 2_000_000_000_000 })
+  await sincronizar()
+  assert.equal(estadoFila.rejeitadas.some(o => /telefone já está cadastrado/i.test(o.motivo)), true)
+  assert.equal(await cliPorNome('Nina Bis'), undefined)               // otimismo desfeito
+  assert.ok(await cliPorNome('Nina'))                                  // o cadastro do outro aparelho veio
+  for (const o of estadoFila.rejeitadas) await dispensarRejeitada(o.op_id)
+})
+
+test('arquivar/reativar e "excluir": nada é apagado no servidor; com histórico, excluir é barrado', async () => {
+  const vazia = await salvarLojaServidor({ nome: 'Loja Vazia' })
+  await sincronizar()
+  await excluirLojaServidor(vazia.id)                                  // vira arquivada
+  await sincronizar()
+  assert.ok(srvLoja('Loja Vazia').arquivada_em); assert.equal((await db.cad_lojas.get(vazia.id)).arquivado, true)
+  await arquivarLojaServidor(vazia.id, false); await sincronizar()
+  assert.equal(srvLoja('Loja Vazia').arquivada_em, null)
+  const rosa = await lojaPorNome('Floricultura Rosa Verde')
+  await assert.rejects(async () => excluirLojaServidor(rosa.id), /LOJA_COM_HISTORICO/)
+  const nina = await cliPorNome('Nina')
+  await excluirClienteServidor(nina.id); await sincronizar()
+  assert.ok(srvCli('Nina').arquivado_em)
+  await salvarClienteServidor({ id: nina.id, arquivado: false }); await sincronizar()      // reativar pelo caminho da tela
+  assert.equal(srvCli('Nina').arquivado_em, null)
+  const marta = await cliPorNome('Marta Souza')
+  await assert.rejects(async () => excluirClienteServidor(marta.id), /CLIENTE_COM_HISTORICO/)
+  assert.equal(DB.raw.prepare('SELECT COUNT(*) n FROM cad_lojas').get().n >= 4, true)
+})
+
+test('conferência final do servidor depois de tudo: zero violações', async () => {
+  const { conferenciaCaderneta } = await import('../functions/_lib/caderneta.js')
+  const c = await conferenciaCaderneta(DB)
+  assert.equal(c.ok, true, JSON.stringify(c.violacoes))
 })

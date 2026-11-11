@@ -24,7 +24,7 @@ const TAMANHO_LOTE = 50
 const TIPOS_FINAIS = new Set(['aplicada', 'duplicada'])
 
 // Estado observável (objeto simples; a tela usa useFilaOps() para torná-lo reativo)
-export const estadoFila = { pendentes: 0, rejeitadas: [], enviando: false, semLogin: false, ultimoErro: '' }
+export const estadoFila = { pendentes: 0, rejeitadas: [], enviando: false, semLogin: false, semPerfil: false, ultimoErro: '' }
 const ouvintes = new Set()
 const avisar = () => ouvintes.forEach(fn => { try { fn({ ...estadoFila }) } catch { /* ouvinte com erro não derruba a fila */ } })
 export const aoMudarFila = (fn) => { ouvintes.add(fn); return () => ouvintes.delete(fn) }
@@ -53,6 +53,8 @@ export async function enfileirar(tipo, dados) {
 let emAndamento = null
 let fetchImpl = (...a) => fetch(...a)
 export const _usarFetch = (fn) => { fetchImpl = fn } // só para testes
+/** Mesma rede da fila (e dos testes) para outras chamadas do app ao servidor. */
+export const requisitar = (...a) => fetchImpl(...a)
 
 /** Envia o que está pendente, em ordem. Seguro de chamar de vários lugares ao mesmo tempo. Nunca lança. */
 export function descarregar() {
@@ -62,7 +64,7 @@ export function descarregar() {
     try {
       for (;;) {
         const lote = await filaDb.fila.where('estado').equals('pendente').sortBy('seq')
-        if (!lote.length) { estadoFila.ultimoErro = ''; estadoFila.semLogin = false; break }
+        if (!lote.length) { estadoFila.ultimoErro = ''; estadoFila.semLogin = false; estadoFila.semPerfil = false; break }
         const envio = lote.slice(0, TAMANHO_LOTE)
         let resp
         try {
@@ -71,7 +73,11 @@ export function descarregar() {
             body: JSON.stringify({ aparelho, ops: envio.map(({ op_id, tipo, dados, criado_no_aparelho }) => ({ op_id, tipo, dados, criado_no_aparelho })) }),
           })
         } catch { estadoFila.ultimoErro = 'Sem conexão. As alterações continuam guardadas neste aparelho.'; break }
-        if (resp.status === 401 || resp.status === 403) { estadoFila.semLogin = true; estadoFila.ultimoErro = 'Faça login de novo para enviar.'; break }
+        if (resp.status === 403) {
+          let c = null; try { c = await resp.clone().json() } catch { /* sem corpo */ }
+          if (c?.codigo === 'SEM_PERFIL') { estadoFila.semPerfil = true; estadoFila.semLogin = false; estadoFila.ultimoErro = 'Seu login não tem perfil para a Caderneta. Peça ao administrador para liberar.'; break }
+        }
+        if (resp.status === 401 || resp.status === 403) { estadoFila.semLogin = true; estadoFila.semPerfil = false; estadoFila.ultimoErro = 'Faça login de novo para enviar.'; break }
         let corpo = null
         try { corpo = await resp.json() } catch { /* servidor fora do ar */ }
         if (!corpo || !Array.isArray(corpo.resultados)) { estadoFila.ultimoErro = 'O servidor não respondeu. Vamos tentar de novo.'; break }

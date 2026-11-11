@@ -100,6 +100,7 @@ import { cadernetaNoServidor, aplicarParametroDeUrl } from './services/modoServi
 import { iniciarFila } from './services/filaOperacoes.js'
 import { projetarServidorNoLocal, EVENTO_ATUALIZADA } from './services/cadernetaServidor.js'
 import { instalarGuardaServidor } from './services/guardaServidor.js'
+import { acessoRef, carregarAcessoLocal, atualizarAcesso } from './services/acessoServidor.js'
 import { db as dbLocal } from './db.js'
 import AppHeader      from './components/AppHeader.vue'
 import BannerConsulta  from './components/BannerConsulta.vue'
@@ -159,6 +160,8 @@ watch([() => s.tab, perfilInfo], ([tab, info]) => {
 // Texto do aviso quando este aparelho está vendo a área de outro dono.
 const avisoSomenteConsulta = computed(() => {
   if (!s.papelAparelho || perfil.value === null) return ''
+  // Modo servidor: quem pode o quê vem do perfil da PESSOA no servidor, não do papel do aparelho.
+  if (perfilInfo.value?.tipo === 'caderneta' && cadernetaNoServidor()) return acessoRef.value && !acessoRef.value.papel ? 'seu login não tem perfil no servidor' : ''
   if (perfilInfo.value?.tipo === 'caderneta' && s.papelAparelho !== 'vendas') return 'edição: Vendas'
   if (perfilInfo.value?.tipo === 'admin' && s.papelAparelho !== 'admin') return 'edição: Admin'
   return ''
@@ -235,9 +238,12 @@ let pararFilaCaderneta = null
 function iniciarCadernetaNoServidor() {
   if (!cadernetaNoServidor() || pararFilaCaderneta) return
   const removerGuarda = instalarGuardaServidor(dbLocal)
+  carregarAcessoLocal().then(() => atualizarAcesso())          // perfil da pessoa (vale offline até a próxima vez)
+  let ultimoAcesso = Date.now()
   const pararFila = iniciarFila({
     aparelho: s.papelAparelho || '',
     aposPuxar: async () => {
+      if (Date.now() - ultimoAcesso > 5 * 60_000) { ultimoAcesso = Date.now(); atualizarAcesso() }
       const r = await projetarServidorNoLocal()
       if (r.vendas || r.lojas || r.clientes || r.removidas) window.dispatchEvent(new CustomEvent(EVENTO_ATUALIZADA))
     },
