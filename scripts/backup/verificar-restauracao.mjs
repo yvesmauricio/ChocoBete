@@ -28,7 +28,10 @@ export async function verificarRestauracao(sqlDump, { antes = null, depois = nul
   // 1) restaura num banco vazio
   const D1 = criarD1(null)
   const db = D1.raw
-  try { db.exec(sqlDump); ok('restaura inteiro num banco limpo', true) }
+  // Como o `.dump` do SQLite e o `wrangler d1 export`: a carga roda com as chaves estrangeiras DESLIGADAS, porque o arquivo
+  // pode trazer uma tabela "filha" (ex.: pedido_itens) antes da "mãe" (pedidos). A consistência não é abandonada: logo
+  // depois religamos as chaves e o `foreign_key_check` abaixo falha se qualquer linha ficou órfã.
+  try { db.exec('PRAGMA foreign_keys = OFF'); db.exec(sqlDump); db.exec('PRAGMA foreign_keys = ON'); ok('restaura inteiro num banco limpo', true) }
   catch (e) { ok('restaura inteiro num banco limpo', false, e.message); return out }
 
   // 2) integridade

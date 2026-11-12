@@ -16,6 +16,20 @@ function dump(raw, { semGatilhos = false } = {}) {
   return sql.join('\n')
 }
 
+/** Dump no estilo do export real: cada tabela seguida dos seus dados, com `pedido_itens` ANTES de `pedidos` (ordem alfabética),
+ *  e só no fim índices e gatilhos. Foi esse formato que derrubou o primeiro backup de verdade ("no such table: main.pedidos"). */
+function dumpIntercalado(raw) {
+  const obj = raw.prepare("SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY rowid").all()
+  const tabelas = obj.filter(o => o.type === 'table').sort((a, b) => a.name.localeCompare(b.name))
+  const sql = ['PRAGMA defer_foreign_keys=TRUE;']
+  for (const t of tabelas) {
+    sql.push(t.sql + ';')
+    for (const r of raw.prepare(`SELECT * FROM "${t.name}"`).all()) sql.push(`INSERT INTO "${t.name}" (${Object.keys(r).map(k => `"${k}"`).join(',')}) VALUES(${Object.values(r).map(lit).join(',')});`)
+  }
+  for (const o of obj.filter(o => o.type !== 'table')) sql.push(o.sql + ';')
+  return sql.join('\n')
+}
+
 const legado = {
   cad_lojas: [{ id: 1, uid: 'loja-bk-0001', nome: 'Padaria Sol' }],
   cad_clientes: [{ id: 1, uid: 'cli-bk-00001', lojaId: 1, nome: 'Ana', telefone: '(21) 99943-0023' }],
@@ -30,6 +44,23 @@ test('backup bom: restaura, confere e a contagem fica entre antes e depois', asy
   const v = await verificarRestauracao(dump(D1.raw), { antes: r0, depois: r0 })
   assert.equal(v.ok, true, JSON.stringify(v.checks.filter(c => !c.ok)))
   assert.equal(v.resumo.saldo_aberto_centavos, 7000)
+})
+
+test('backup no formato do export real (tabela filha antes da mãe, com linhas) restaura e confere', async () => {
+  const D1 = bancoReal(), r0 = await ref(D1)
+  D1.raw.exec(`INSERT INTO pedidos (uuid, cardapio_id, origem, subtotal_centavos, total_centavos, criado_em, atualizado_em) VALUES ('ped-0001', 'diaadia', 'site', 1000, 1000, 1, 1);
+               INSERT INTO pedido_itens (pedido_uuid, item_uuid, nome, categoria, preco_centavos, qtd) VALUES ('ped-0001', 'it-1', 'Trufa', 'doces', 500, 2);`)
+  const d = dumpIntercalado(D1.raw)
+  assert.ok(d.indexOf('CREATE TABLE pedido_itens') < d.indexOf('CREATE TABLE pedidos'), 'o dump de teste precisa ter a filha antes da mãe')
+  const v = await verificarRestauracao(d, { antes: r0, depois: r0 })
+  assert.equal(v.ok, true, JSON.stringify(v.checks.filter(c => !c.ok)))
+})
+
+test('com as chaves desligadas na carga, linha órfã (filha sem mãe) continua sendo RECUSADA', async () => {
+  const D1 = bancoReal(), r0 = await ref(D1)
+  const d = dumpIntercalado(D1.raw) + "\nINSERT INTO pedido_itens (pedido_uuid, item_uuid, nome, categoria, preco_centavos, qtd) VALUES ('nao-existe', 'i1', 'X', 'c', 1, 1);"
+  const v = await verificarRestauracao(d, { antes: r0, depois: r0 })
+  assert.equal(v.ok, false); assert.ok(v.checks.some(c => !c.ok && /chaves estrangeiras/.test(c.nome)))
 })
 
 test('sem os arquivos de antes/depois a rotina NÃO considera o backup verificado', async () => {
