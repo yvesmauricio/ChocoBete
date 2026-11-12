@@ -12,8 +12,9 @@
 // Cada venda entra por inteiro ou não entra (savepoint). Estornos antigos (que no app removiam o pagamento)
 // viram DUAS linhas: pagamento + estorno, com efeito líquido igual ao do app. O registro original de cada venda
 // fica em `origem_json`.
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { criarD1 } from '../tests-servidor/d1shim.mjs'
 import { uidServidor } from '../src/services/uidServidor.js'
 import { conferenciaCaderneta, chaveNome, chaveTelefone, limparTexto } from '../functions/_lib/caderneta.js'
@@ -211,7 +212,9 @@ export function relatorioMd(rel, quarentena) {
 }
 
 // ───────────────────────── execução por linha de comando ─────────────────────────
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file://').href) {
+// "executado direto?" por caminho REAL (um atalho/symlink não pode fazer o script sair com sucesso sem rodar nada)
+const executadoDireto = (() => { try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
+if (executadoDireto) {
   const arg = process.argv.slice(2)
   const arquivo = arg.find(a => !a.startsWith('--'))
   if (!arquivo) { console.error('Uso: node scripts/migrar-caderneta.mjs <backup.json> [--saida=pasta]'); process.exit(2) }

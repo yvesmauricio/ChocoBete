@@ -24,7 +24,7 @@ saldo ≥ 0 e ≤ total · "pago" ⇔ saldo 0 · pagamento ≤ saldo · saldo = 
 5. **Sem token no aparelho**: as rotas novas usam o login do Cloudflare Access (já existe em `_lib/acesso.js`).
 
 ## Para colocar no ar
-1. `wrangler d1 migrations apply <banco> --remote` (aplica 0003, 0004 e 0005) (faça antes um `wrangler d1 export`).
+1. `wrangler d1 migrations apply <banco> --remote` (aplica 0003 a 0006) (faça antes um `wrangler d1 export`).
 2. Proteger `/api/caderneta/*` no Cloudflare Access e conferir `CF_ACCESS_TEAM_DOMAIN` e `CF_ACCESS_AUD`.
 3. Com o backup JSON real: `npm run migrar:caderneta -- backup.json --saida=./saida`; ler `relatorio.md`; só prosseguir se as conferências fecharem e a quarentena estiver decidida.
 4. `wrangler d1 execute <banco> --remote --file=saida/importar-caderneta.sql`, depois `GET /api/caderneta/conferencia` e comparar com o relatório.
@@ -108,9 +108,13 @@ O servidor decide: operação sem permissão é **recusada antes de gravar**, fi
 
 No modo servidor, o **papel do aparelho** (Admin/Vendas) deixa de decidir a Caderneta: o aparelho do Admin também pode estornar/cancelar/corrigir, e o da Vendas fica limitado pelo perfil da pessoa que fez login.
 
+## Backup diário (pronto — falta configurar na sua conta)
+Guia completo: **`docs/BACKUP_E_RESTAURACAO.md`**. Resumo: todo dia às 03:17 (Brasília) o GitHub exporta o banco, **prova que a cópia restaura** (regras, saldos, nada perdido), criptografa e guarda num bucket fora do Cloudflare; uma **vigia** manda e-mail se o backup parar. Arquivos: `.github/workflows/backup-d1.yml`, `.github/workflows/backup-vigia.yml`, `scripts/backup/*`, migração `0006`, rota `/api/caderneta/backup` (chave **só de backup**, sem acesso a clientes).
+**Simulado de restauração** (`npm run backup:simulado`) é o teste obrigatório antes de desligar o sistema antigo.
+
 ## O que NÃO está feito
-- **Backup diário fora do servidor + teste de restauração** (obrigatório antes de desligar o sistema antigo).
-- **Teste no aparelho real**: a lógica foi testada com banco local e servidor reais (74 testes), mas não a tela tocada com o dedo, nem o Cloudflare Access.
+- **Configurar o backup na sua conta e rodar a primeira vez** (bucket, chaves, secrets do GitHub: passo a passo no guia). A rotina foi ensaiada ponta a ponta aqui com servidor e bucket simulados, e a restauração foi provada no motor D1 real, mas **nunca rodou com a sua conta Cloudflare/GitHub/bucket**.
+- **Teste no aparelho real**: a lógica foi testada com banco local e servidor reais (88 testes), mas não a tela tocada com o dedo, nem o login do Cloudflare Access.
 - **Duplicidade de venda** só é avisada na tela ("Lançar mesmo assim"); o servidor aceita duas vendas iguais (pode ser compra repetida de verdade).
 - As pastas `tests-papel/` e `tests-backup/` citadas no `package.json` não vieram no zip; os testes existentes do merge não foram rodados.
 - Financeiro, receitas e cardápio: etapas seguintes.

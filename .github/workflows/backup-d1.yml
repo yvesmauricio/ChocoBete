@@ -1,0 +1,136 @@
+# Backup diário do banco (Cloudflare D1) — ChocoBete
+#
+#   1. exporta o banco inteiro (tabelas, dados, índices e as REGRAS/gatilhos);
+#   2. PROVA que a cópia restaura num banco limpo e que as conferências fecham (scripts/backup/verificar-restauracao.mjs);
+#   3. criptografa (AES-256) — o backup tem nomes e telefones de clientes;
+#   4. guarda FORA do Cloudflare (bucket S3-compatível: Backblaze B2, AWS S3, R2 de outra conta…) e baixa de volta
+#      para conferir que o arquivo guardado é idêntico;
+#   5. só então registra no servidor "backup feito" (a vigia avisa se isso parar de acontecer).
+# Qualquer passo que falhe derruba a rotina e o GitHub envia e-mail de falha. Um backup que não restaura NUNCA é registrado.
+#
+# Configuração: docs/BACKUP_E_RESTAURACAO.md
+name: Backup diário do banco
+
+on:
+  schedule:
+    - cron: '17 6 * * *'        # 06:17 UTC = 03:17 em Brasília (madrugada: a exportação deixa o D1 indisponível por alguns segundos)
+  workflow_dispatch: {}          # botão "Run workflow" para rodar na hora
+
+concurrency:
+  group: backup-d1
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET }}
+      AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION || 'us-east-1' }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+      D1_NOME: ${{ vars.D1_NOME }}
+      D1_ID: ${{ vars.D1_ID }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+      S3_ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+      WRANGLER_SEND_METRICS: 'false'
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Conferir configuração
+        run: |
+          set -euo pipefail
+          faltando=()
+          for v in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID BACKUP_TOKEN BACKUP_PASSPHRASE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY D1_NOME D1_ID SITE_URL S3_BUCKET; do
+            [ -n "${!v:-}" ] || faltando+=("$v")
+          done
+          if [ ${#faltando[@]} -gt 0 ]; then echo "::error::Faltam secrets/variáveis: ${faltando[*]} (veja docs/BACKUP_E_RESTAURACAO.md)"; exit 1; fi
+          [ "${#BACKUP_PASSPHRASE}" -ge 20 ] || { echo "::error::BACKUP_PASSPHRASE precisa ter pelo menos 20 caracteres"; exit 1; }
+
+      - name: Instalar dependências
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Estado do banco ANTES (só números)
+        run: |
+          curl -fsS --retry 3 -H "Authorization: Bearer $BACKUP_TOKEN" "$SITE_URL/api/caderneta/backup" -o antes.json
+
+      - name: Exportar o banco
+        run: |
+          set -euo pipefail
+          cat > wrangler.toml <<TOML
+          name = "backup"
+          compatibility_date = "2025-01-01"
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "${D1_NOME}"
+          database_id = "${D1_ID}"
+          TOML
+          npx wrangler d1 export "$D1_NOME" --remote --output=dump.sql
+          [ -s dump.sql ] || { echo "::error::exportação vazia"; exit 1; }
+          echo "Exportado: $(stat -c %s dump.sql) bytes"
+
+      - name: Estado do banco DEPOIS (só números)
+        run: |
+          curl -fsS --retry 3 -H "Authorization: Bearer $BACKUP_TOKEN" "$SITE_URL/api/caderneta/backup" -o depois.json
+
+      - name: Provar que restaura e confere
+        run: |
+          set -euo pipefail
+          node scripts/backup/verificar-restauracao.mjs dump.sql --antes=antes.json --depois=depois.json --saida=relatorio.json | tee verificacao.txt
+          { echo '### Backup verificado'; echo '```'; cat verificacao.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Criptografar
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u +%Y%m%d-%H%M%S)
+          echo "NOME=chocobete-d1-${STAMP}.sql.gpg" >> "$GITHUB_ENV"
+          scripts/backup/criptografar.sh dump.sql "chocobete-d1-${STAMP}.sql.gpg"
+
+      - name: Guardar fora do Cloudflare e conferir
+        run: |
+          set -euo pipefail
+          ep=(); [ -z "${S3_ENDPOINT:-}" ] || ep=(--endpoint-url "$S3_ENDPOINT")
+          ANO=$(date -u +%Y); MES=$(date -u +%m)
+          CHAVE="diario/${ANO}/${MES}/${NOME}"
+          aws "${ep[@]}" s3 cp "$NOME" "s3://${S3_BUCKET}/${CHAVE}" --only-show-errors
+          # baixa de volta e compara: o que está guardado é idêntico ao que foi gerado
+          aws "${ep[@]}" s3 cp "s3://${S3_BUCKET}/${CHAVE}" conferido.gpg --only-show-errors
+          LOCAL=$(sha256sum "$NOME" | cut -d' ' -f1); REMOTO=$(sha256sum conferido.gpg | cut -d' ' -f1)
+          [ "$LOCAL" = "$REMOTO" ] || { echo "::error::arquivo guardado difere do gerado"; exit 1; }
+          # no dia 1 de cada mês, uma cópia que o descarte automático dos diários não apaga
+          if [ "$(date -u +%d)" = "01" ]; then aws "${ep[@]}" s3 cp "$NOME" "s3://${S3_BUCKET}/mensal/${ANO}/${NOME}" --only-show-errors; fi
+          echo "CHAVE=${CHAVE}" >> "$GITHUB_ENV"; echo "SHA=${LOCAL}" >> "$GITHUB_ENV"
+          echo "BYTES=$(stat -c %s "$NOME")" >> "$GITHUB_ENV"
+
+      - name: Registrar no servidor (backup em dia)
+        run: |
+          set -euo pipefail
+          jq -n --arg arquivo "$CHAVE" --argjson bytes "$BYTES" --arg sha "$SHA" --slurpfile r relatorio.json \
+            '{arquivo:$arquivo, bytes:$bytes, sha256:$sha, resumo:$r[0].resumo}' > registro.json
+          curl -sS --retry 3 --fail-with-body -X POST -H "Authorization: Bearer $BACKUP_TOKEN" -H 'Content-Type: application/json' \
+            --data @registro.json "$SITE_URL/api/caderneta/backup" | jq '{horas_desde: .horas_desde, atrasado: .atrasado}'
+
+      - name: Segunda cópia (GitHub, criptografada, 14 dias)
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-criptografado
+          path: ${{ env.NOME }}
+          retention-days: 14
+          if-no-files-found: error

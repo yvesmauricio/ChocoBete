@@ -1,0 +1,29 @@
+# Vigia do backup: se o backup diário parar (token vencido, bucket cheio, ação desligada…), este aviso aparece
+# em até um dia, em vez de você descobrir só quando precisar restaurar. Falhar aqui = GitHub envia e-mail.
+name: Vigia do backup
+
+on:
+  schedule:
+    - cron: '43 15 * * *'       # 15:43 UTC = 12:43 em Brasília (≈ 9 h depois do backup)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  vigia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Backup está em dia?
+        shell: bash
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          set -euo pipefail
+          [ -n "${BACKUP_TOKEN:-}" ] && [ -n "${SITE_URL:-}" ] || { echo "::error::Faltam BACKUP_TOKEN e/ou SITE_URL"; exit 1; }
+          curl -fsS --retry 3 -H "Authorization: Bearer $BACKUP_TOKEN" "$SITE_URL/api/caderneta/backup" -o estado.json
+          jq '{ok, violacoes, backup: {horas_desde: .backup.horas_desde, atrasado: .backup.atrasado, arquivo: .backup.ultimo.arquivo}}' estado.json
+          [ "$(jq -r '.ok' estado.json)" = "true" ] || { echo "::error::As conferências da Caderneta acusaram violação"; exit 1; }
+          [ "$(jq -r '.backup.atrasado' estado.json)" = "false" ] || { echo "::error::BACKUP ATRASADO ($(jq -r 'if .backup.horas_desde == null then "nunca foi feito" else "o último foi há \(.backup.horas_desde) h" end' estado.json)). Veja a execução mais recente de Backup diário do banco."; exit 1; }

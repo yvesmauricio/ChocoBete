@@ -412,5 +412,29 @@ export async function conferenciaCaderneta(DB) {
       `SELECT COUNT(*) AS n FROM cad_vendas v WHERE v.bruto_centavos <> COALESCE((SELECT SUM(subtotal_centavos) FROM cad_venda_itens i WHERE i.venda_uid = v.uid),0)`),
     estorno_sem_pagamento: await n(`SELECT COUNT(*) AS n FROM cad_estornos e WHERE NOT EXISTS (SELECT 1 FROM cad_pagamentos p WHERE p.uid = e.pagamento_uid)`),
   }
-  return { contagens, saldo_aberto_centavos: saldoAberto, saldo_aberto_por_loja: porLoja, violacoes, ok: Object.values(violacoes).every(v => v === 0) }
+  return { contagens, saldo_aberto_centavos: saldoAberto, saldo_aberto_por_loja: porLoja, violacoes, ok: Object.values(violacoes).every(v => v === 0), backup: await statusBackup(DB) }
+}
+
+// ───────────────────────── backups ─────────────────────────
+const HORAS_ALERTA_BACKUP = 30
+
+/** Último backup registrado e há quantas horas. `atrasado` = nunca houve ou passou de 30 h (a rotina é diária). */
+export async function statusBackup(DB, agora = Date.now()) {
+  const u = await DB.prepare('SELECT id, feito_em, arquivo, bytes, sha256, resumo FROM backups_registro ORDER BY id DESC LIMIT 1').first()
+  if (!u) return { ultimo: null, horas_desde: null, atrasado: true }
+  const horas = Math.max(0, (agora - u.feito_em) / 3_600_000)
+  return { ultimo: { id: u.id, feito_em: u.feito_em, arquivo: u.arquivo, bytes: u.bytes, sha256: u.sha256, resumo: JSON.parse(u.resumo) }, horas_desde: Math.round(horas * 10) / 10, atrasado: horas > HORAS_ALERTA_BACKUP }
+}
+
+/** Registra um backup já verificado e guardado. Valida o formato; o resumo não pode ter dado pessoal (só números). */
+export async function registrarBackup(DB, d, agora = Date.now()) {
+  const arquivo = String(d?.arquivo || '').trim()
+  const bytes = d?.bytes, sha = String(d?.sha256 || '').toLowerCase()
+  if (!arquivo || arquivo.length > 200) throw new Rejeicao('Nome do arquivo inválido.')
+  if (!Number.isSafeInteger(bytes) || bytes <= 0) throw new Rejeicao('Tamanho inválido.')
+  if (!/^[0-9a-f]{64}$/.test(sha)) throw new Rejeicao('sha256 inválido.')
+  const r = d?.resumo
+  if (!r || typeof r !== 'object' || Object.values(r).some(v => !Number.isFinite(v))) throw new Rejeicao('Resumo precisa conter só números.')
+  await DB.prepare('INSERT INTO backups_registro (feito_em, arquivo, bytes, sha256, resumo) VALUES (?,?,?,?,?)').bind(agora, arquivo, bytes, sha, JSON.stringify(r)).run()
+  return statusBackup(DB, agora)
 }

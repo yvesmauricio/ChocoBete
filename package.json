@@ -9,7 +9,9 @@
     "test:backup": "node tests-backup/run.mjs",
     "test:papel": "node --test \"tests-papel/*.test.mjs\"",
     "test:servidor": "node --test \"tests-servidor/*.test.mjs\"",
-    "migrar:caderneta": "node scripts/migrar-caderneta.mjs"
+    "migrar:caderneta": "node scripts/migrar-caderneta.mjs",
+    "backup:verificar": "node scripts/backup/verificar-restauracao.mjs",
+    "backup:simulado": "bash scripts/backup/simulado-restauracao.sh"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.2.0",
