@@ -131,6 +131,23 @@ test('leitura incremental por cursor', async () => {
   assert.equal((await lerEstado(e.DB, b.cursor)).vendas.length, 0)
 })
 
+test('leitura completa (desde=0) com mais de 100 vendas não estoura o limite de 100 valores do D1', async () => {
+  const e = await cenario()   // já tem 1 venda
+  for (let i = 2; i <= 144; i++) {
+    const r = await rodar(e, op('venda.criar', { uid: U('vv' + i), cliente_uid: U('cli1'), data_venda: '2026-11-01',
+      itens: [{ id: 'p1', nome: 'Trufa', qtd: 1, preco_centavos: 700 }], desconto_centavos: 0, total_centavos: 700 }))
+    assert.equal(r.status, 'aplicada', r.motivo)
+    if (i % 2 === 0) await rodar(e, op('pagamento.registrar', { uid: U('pg' + i), venda_uid: U('vv' + i), valor_centavos: 100 }))
+  }
+  const a = await lerEstado(e.DB, 0)
+  assert.equal(a.vendas.length, 144)
+  assert.equal(a.itens.length, 2 + 143)
+  assert.equal(a.pagamentos.length, 72)
+  assert.equal(a.mais, false)
+  // as vendas voltam com o saldo certo (pagamentos parciais aplicados)
+  assert.equal(a.vendas.filter(v => v.saldo_centavos === 600).length, 72)
+})
+
 // ── O BANCO se defende sozinho: SQL direto, ignorando toda a camada acima ──
 const tenta = (e, sql, ...a) => assert.throws(() => e.DB.raw.prepare(sql).run(...a), /E_|constraint/i)
 

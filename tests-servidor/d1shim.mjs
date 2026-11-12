@@ -8,8 +8,12 @@ export function criarD1(dirMigracoes = new URL('../migrations/', import.meta.url
   const db = new DatabaseSync(':memory:')
   db.exec('PRAGMA foreign_keys = ON')
   if (dirMigracoes) for (const f of readdirSync(dirMigracoes).filter(f => f.endsWith('.sql')).sort()) db.exec(readFileSync(join(dirMigracoes, f), 'utf8'))
+  // O D1 real recusa consultas com mais de 100 valores ligados (?); o SQLite local aceita milhares.
+  // Reproduzimos o limite aqui para o teste pegar esse tipo de erro antes de ir ao ar.
+  const LIMITE_D1 = 100
+  const confere = (a) => { if (a.length > LIMITE_D1) throw new Error(`D1_ERROR: too many SQL variables (${a.length} > ${LIMITE_D1})`) }
   const stmt = (sql) => ({
-    args: [], bind(...a) { this.args = a; return this },
+    args: [], bind(...a) { confere(a); this.args = a; return this },
     async run() { const r = db.prepare(sql).run(...this.args); return { success: true, meta: { changes: Number(r.changes) } } },
     async first() { return db.prepare(sql).get(...this.args) ?? null },
     async all() { return { results: db.prepare(sql).all(...this.args) } },

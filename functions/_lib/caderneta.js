@@ -358,6 +358,8 @@ export async function aplicarOperacao(DB, op, { usuario, aparelho, papel = null,
 
 // ───────────────────────── leitura incremental ─────────────────────────
 const LIMITE_MUDANCAS = 500
+const LOTE_CONSULTA = 90   // D1: máximo de 100 valores ligados (?) por consulta; 90 deixa folga
+const emLotes = (lista, n = LOTE_CONSULTA) => { const l = []; for (let i = 0; i < lista.length; i += n) l.push(lista.slice(i, i + n)); return l }
 
 /** Tudo que mudou depois do número `desde` (0 = tudo). O aparelho guarda `cursor` e pergunta de novo a partir dele. */
 export async function lerEstado(DB, desde = 0) {
@@ -369,21 +371,26 @@ export async function lerEstado(DB, desde = 0) {
   // Se houver mais, o cursor para no último item devolvido, sem pular nenhum.
   out.cursor = Math.max(...mud.map(m => m.seq))
   const por = (t) => mud.filter(m => m.tabela === t).map(m => m.uid)
+  // O D1 aceita no máximo 100 valores ligados por consulta: busca em lotes menores.
   const buscar = async (tabela, uids, extra = '') => {
-    if (!uids.length) return []
-    const { results } = await DB.prepare(`SELECT * FROM ${tabela} WHERE uid IN (${uids.map(() => '?').join(',')}) ${extra}`).bind(...uids).all()
-    return results
+    const todos = []
+    for (const lote of emLotes(uids)) {
+      const { results } = await DB.prepare(`SELECT * FROM ${tabela} WHERE uid IN (${lote.map(() => '?').join(',')}) ${extra}`).bind(...lote).all()
+      todos.push(...results)
+    }
+    return todos
   }
   out.lojas = await buscar('cad_lojas', por('lojas'))
   out.clientes = await buscar('cad_clientes', por('clientes'))
   out.vendas = await buscar('cad_vendas', por('vendas'))
   out.pagamentos = await buscar('cad_pagamentos', por('pagamentos'))
   out.estornos = await buscar('cad_estornos', por('estornos'))
-  if (out.vendas.length) {
+  for (const lote of emLotes(out.vendas.map(v => v.uid))) {
     const { results } = await DB.prepare(
-      `SELECT * FROM cad_venda_itens WHERE venda_uid IN (${out.vendas.map(() => '?').join(',')}) ORDER BY venda_uid, pos`).bind(...out.vendas.map(v => v.uid)).all()
-    out.itens = results
+      `SELECT * FROM cad_venda_itens WHERE venda_uid IN (${lote.map(() => '?').join(',')}) ORDER BY venda_uid, pos`).bind(...lote).all()
+    out.itens.push(...results)
   }
+  out.itens.sort((a, b) => (a.venda_uid < b.venda_uid ? -1 : a.venda_uid > b.venda_uid ? 1 : a.pos - b.pos))
   return out
 }
 
