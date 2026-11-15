@@ -2,7 +2,7 @@
 // O app só usa isto para ESCONDER botões e avisar cedo. Quem decide é sempre o servidor: uma operação sem permissão
 // é recusada, fica registrada e aparece no indicador com o motivo.
 import { shallowRef } from 'vue'
-import { filaDb, requisitar } from './filaOperacoes.js'
+import { filaDb, requisitar, precisaLogin } from './filaOperacoes.js'
 
 /** { usuario, papel: 'admin'|'vendas'|null, permissoes: [...], so_admin: [...], janela_desfazer_min } ou null (ainda não sabemos) */
 export const acessoRef = shallowRef(null)
@@ -14,8 +14,8 @@ export async function carregarAcessoLocal() {
 /** Pergunta ao servidor e guarda (vale offline até a próxima vez). Nunca lança. */
 export async function atualizarAcesso() {
   try {
-    const r = await requisitar('/api/caderneta/eu', { credentials: 'same-origin' })
-    if (!r.ok) return acessoRef.value
+    const r = await requisitar('/api/caderneta/eu', { credentials: 'same-origin', redirect: 'manual' })
+    if (precisaLogin(r) || !r.ok) return acessoRef.value
     const a = await r.json()
     acessoRef.value = a
     await filaDb.meta.put({ chave: 'acesso', valor: a })

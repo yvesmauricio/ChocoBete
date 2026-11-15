@@ -25,5 +25,5 @@ export function useFilaOps() {
     if (n) return `${n} ${n === 1 ? 'alteração aguardando' : 'alterações aguardando'}${s.semPerfil ? ' — sem perfil no servidor' : s.semLogin ? ' — faça login' : ''}`
     return 'Tudo salvo no servidor'
   })
-  return { estado, texto, pendentes: computed(() => s.pendentes), rejeitadas: computed(() => s.rejeitadas), enviarAgora: descarregar }
+  return { estado, texto, precisaEntrar: computed(() => !!s.semLogin), pendentes: computed(() => s.pendentes), rejeitadas: computed(() => s.rejeitadas), enviarAgora: descarregar }
 }

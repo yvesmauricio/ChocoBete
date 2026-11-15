@@ -74,3 +74,22 @@ test('sem login (401): nada é perdido e a tela sabe pedir login', async () => {
   env.ADMIN_TOKEN = antes; await descarregar()
   assert.equal(estadoFila.pendentes, 0); assert.equal(venda('venda-offline-1').data_venc, '2026-12-01')
 })
+
+test('sessão do Access vencida (redirecionamento para o login) vira "faça login", não "sem conexão"; nada se perde', async () => {
+  const ant = _usarFetch
+  const redirecionado = { type: 'opaqueredirect', status: 0, ok: false, redirected: false, json: async () => { throw new Error('sem corpo') } }
+  let chamadas = 0, opcoes = null
+  _usarFetch(async (_u, init) => { chamadas++; opcoes = init; return redirecionado })
+  await enfileirar('venda.vencimento', { venda_uid: 'venda-offline-1', data_venc: '2027-02-01' })
+  await descarregar()
+  assert.equal(estadoFila.semLogin, true); assert.equal(estadoFila.pendentes, 1); assert.match(estadoFila.ultimoErro, /login/i)
+  assert.doesNotMatch(estadoFila.ultimoErro, /conex/i)
+  assert.equal(opcoes.redirect, 'manual')                           // o app pede para NÃO seguir o redirecionamento
+  // volta a logar → o mesmo item é enviado e o estado limpa
+  _usarFetch(async (url, init = {}) => {
+    const req = new Request('https://app.test' + url, { ...init, headers: { ...(init.headers || {}), authorization: `Bearer ${TOKEN}` } })
+    return onRequestPost({ request: req, env })
+  })
+  await descarregar()
+  assert.equal(estadoFila.pendentes, 0); assert.equal(estadoFila.semLogin, false); assert.equal(venda('venda-offline-1').data_venc, '2027-02-01')
+})

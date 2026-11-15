@@ -46,6 +46,8 @@
           </article>
         </div>
 
+        <ModoServidorCard />
+
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Ao abrir o app</h4>
@@ -928,6 +930,7 @@ import { versaoInstalada, dataBuild, descreverFalhaVersao } from '../services/ve
 import { novaVersao, buscarAtualizacaoAgora, aplicarAtualizacao, forcarAtualizacaoCompleta } from '../services/atualizacaoApp.js'
 import { statusBackupLocal, escolherPastaBackupLocal, reautorizarPastaBackupLocal, desconectarPastaBackupLocal } from '../services/localBackup.js'
 import BaseModal from '../components/BaseModal.vue'
+import ModoServidorCard from '../components/ModoServidorCard.vue'
 import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
 
 const s = useStore()

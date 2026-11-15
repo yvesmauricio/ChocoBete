@@ -56,6 +56,13 @@ export const _usarFetch = (fn) => { fetchImpl = fn } // só para testes
 /** Mesma rede da fila (e dos testes) para outras chamadas do app ao servidor. */
 export const requisitar = (...a) => fetchImpl(...a)
 
+/**
+ * Com o Cloudflare Access na frente da API, uma sessão vencida NÃO devolve 401: devolve um redirecionamento para a tela
+ * de login (que o navegador, numa chamada do app, trata como falha de rede). Pedimos `redirect: 'manual'` e reconhecemos
+ * a resposta "opaqueredirect" como "preciso fazer login de novo" — e não como "sem internet".
+ */
+export const precisaLogin = (resp) => !!resp && (resp.type === 'opaqueredirect' || resp.status === 401 || (resp.status === 0 && resp.type !== 'error'))
+
 /** Envia o que está pendente, em ordem. Seguro de chamar de vários lugares ao mesmo tempo. Nunca lança. */
 export function descarregar() {
   if (emAndamento) return emAndamento
@@ -69,7 +76,7 @@ export function descarregar() {
         let resp
         try {
           resp = await fetchImpl('/api/caderneta/ops', {
-            method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', credentials: 'same-origin', redirect: 'manual', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ aparelho, ops: envio.map(({ op_id, tipo, dados, criado_no_aparelho }) => ({ op_id, tipo, dados, criado_no_aparelho })) }),
           })
         } catch { estadoFila.ultimoErro = 'Sem conexão. As alterações continuam guardadas neste aparelho.'; break }
@@ -77,7 +84,7 @@ export function descarregar() {
           let c = null; try { c = await resp.clone().json() } catch { /* sem corpo */ }
           if (c?.codigo === 'SEM_PERFIL') { estadoFila.semPerfil = true; estadoFila.semLogin = false; estadoFila.ultimoErro = 'Seu login não tem perfil para a Caderneta. Peça ao administrador para liberar.'; break }
         }
-        if (resp.status === 401 || resp.status === 403) { estadoFila.semLogin = true; estadoFila.semPerfil = false; estadoFila.ultimoErro = 'Faça login de novo para enviar.'; break }
+        if (precisaLogin(resp) || resp.status === 403) { estadoFila.semLogin = true; estadoFila.semPerfil = false; estadoFila.ultimoErro = 'Faça login de novo para enviar.'; break }
         let corpo = null
         try { corpo = await resp.json() } catch { /* servidor fora do ar */ }
         if (!corpo || !Array.isArray(corpo.resultados)) { estadoFila.ultimoErro = 'O servidor não respondeu. Vamos tentar de novo.'; break }
@@ -115,7 +122,8 @@ export async function puxarEstado() {
   for (let volta = 0; volta < 20; volta++) {
     let corpo
     try {
-      const r = await fetchImpl(`/api/caderneta/estado?desde=${cursor}`, { credentials: 'same-origin' })
+      const r = await fetchImpl(`/api/caderneta/estado?desde=${cursor}`, { credentials: 'same-origin', redirect: 'manual' })
+      if (precisaLogin(r)) { estadoFila.semLogin = true; avisar(); break }
       if (!r.ok) break
       corpo = await r.json()
     } catch { break }

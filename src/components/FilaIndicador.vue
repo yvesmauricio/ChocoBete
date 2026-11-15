@@ -6,6 +6,10 @@
     </button>
     <div v-if="aberto" class="fila-ind-painel">
       <p v-if="pendentes">As alterações ficam guardadas neste aparelho e são enviadas assim que houver sinal.</p>
+      <p v-if="precisaEntrar">
+        Sua sessão venceu. <a class="fila-ind-link" href="/api/caderneta/eu" target="_blank" rel="noopener">Toque aqui para entrar de novo</a>,
+        depois volte ao app: o envio recomeça sozinho.
+      </p>
       <ul v-if="rejeitadas.length" class="fila-ind-lista">
         <li v-for="r in rejeitadas" :key="r.op_id">
           <strong>{{ rotulo(r.tipo) }}</strong> — {{ r.motivo }}
@@ -36,7 +40,7 @@ import { dispensarRejeitada } from '../services/filaOperacoes.js'
 import { cadernetaNoServidor } from '../services/modoServidor.js'
 import { listarCorrecoes } from '../services/cadernetaServidor.js'
 
-const { estado, texto, pendentes, rejeitadas, enviarAgora } = useFilaOps()
+const { estado, texto, pendentes, rejeitadas, enviarAgora, precisaEntrar } = useFilaOps()
 const aberto = ref(false)
 const visivel = computed(() => cadernetaNoServidor())
 const icone = computed(() => ({ saved: 'fa-cloud-check', pending: 'fa-clock', syncing: 'fa-rotate fa-spin', offline: 'fa-cloud-slash', attention: 'fa-triangle-exclamation' }[estado.value] || 'fa-cloud'))
@@ -62,6 +66,7 @@ async function alternarCorrecoes() {
 .fila-ind--attention { color: #c62828; }
 .fila-ind-painel { margin-top: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(128, 128, 128, 0.35); color: inherit; }
 .fila-ind-painel p { margin: 0 0 8px; opacity: 0.85; }
+.fila-ind-link { color: inherit; font-weight: 600; text-decoration: underline; }
 .fila-ind-lista { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
 .fila-ind-ok, .fila-ind-enviar { margin-left: 8px; padding: 4px 10px; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 </style>
