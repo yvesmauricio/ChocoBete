@@ -354,8 +354,8 @@
           </div>
 
           <div class="cad-nv-cats">
+           <div v-for="c in categoriasVenda" :key="c.id" class="cad-nv-grupo">
             <div
-              v-for="c in categoriasVenda" :key="c.id"
               class="cad-nv-cat" :class="{ ativo: qtds[c.id] > 0 }"
             >
               <div class="cad-nv-cat-emoji">{{ c.emoji }}</div>
@@ -378,6 +378,27 @@
                 <button class="cad-stepper-btn" @click="inc(c)" :aria-label="`Adicionar ${c.nome}`">+</button>
               </div>
             </div>
+
+            <!-- Outros preços da mesma categoria (ex.: trufa de 8 e de 9) -->
+            <div
+              v-for="p in c.extras" :key="chaveExtra(c.id, p)"
+              class="cad-nv-cat cad-nv-cat--extra" :class="{ ativo: qtds[chaveExtra(c.id, p)] > 0 }"
+            >
+              <div class="cad-nv-cat-info">
+                <div class="cad-nv-cat-nome cad-nv-cat-nome--extra">{{ c.nome }} · R$ {{ fmt(p) }}</div>
+                <div v-if="qtds[chaveExtra(c.id, p)] > 0" class="cad-nv-cat-preco">{{ qtds[chaveExtra(c.id, p)] }} × R$ {{ fmt(p) }}</div>
+                <div v-if="qtds[chaveExtra(c.id, p)] > 0" class="cad-nv-cat-subtotal">= R$ {{ fmt(qtds[chaveExtra(c.id, p)] * p) }}</div>
+              </div>
+              <div class="cad-stepper cad-stepper--linha">
+                <button class="cad-stepper-btn" :disabled="!qtds[chaveExtra(c.id, p)]" @click="decExtra(c, p)" :aria-label="`Remover ${c.nome} de R$ ${fmt(p)}`">−</button>
+                <div class="cad-stepper-qty">{{ qtds[chaveExtra(c.id, p)] || 0 }}</div>
+                <button class="cad-stepper-btn" @click="incExtra(c, p)" :aria-label="`Adicionar ${c.nome} de R$ ${fmt(p)}`">+</button>
+              </div>
+            </div>
+            <button type="button" class="cad-nv-cat-outro" @click="abrirModalPrecos(c.id, true)">
+              <i class="fas fa-plus"></i> outro preço de {{ c.nome.toLowerCase() }}
+            </button>
+           </div>
           </div>
 
           <DescontoCampo v-model:valor="descontoRaw" v-model:motivo="descontoMotivo" />
@@ -474,7 +495,7 @@
 
       <div class="cad-lancar-body cad-nv-body">
         <div class="cad-nv-recibo">
-          <div v-for="i in fiadoSalvo.itens" :key="i.id" class="cad-nv-recibo-linha">
+          <div v-for="(i, idx) in fiadoSalvo.itens" :key="`${i.id}-${i.preco}-${idx}`" class="cad-nv-recibo-linha">
             <div class="cad-nv-recibo-emoji">{{ i.emoji }}</div>
             <div class="cad-nv-recibo-desc">
               <div class="cad-nv-recibo-nome">{{ i.qty }}× {{ i.nome }}</div>
@@ -771,8 +792,9 @@
       <div v-if="modalPrecos" class="cad-modal-overlay cad-modal-overlay--top" @click.self="modalPrecos=false">
         <div class="cad-modal-sheet">
           <div class="cad-modal-header"><div class="cad-modal-titulo"><i class="fas fa-tag"></i> Preço de cada categoria</div><button class="cad-btn-fechar" @click="modalPrecos=false"><i class="fas fa-xmark"></i></button></div>
-          <p class="cad-nv-precos-dica">O mesmo preço vale pra todos os sabores da categoria.</p>
-          <div v-for="c in categoriasVenda" :key="c.id" class="cad-nv-preco-linha">
+          <p class="cad-nv-precos-dica">O preço principal vale pra todos os sabores da categoria. Se uma categoria tem versões com outros preços (ex.: trufa de 8 e de 9), adicione em “outro preço”.</p>
+          <div v-for="c in categoriasVenda" :key="c.id" class="cad-nv-preco-grupo">
+           <div class="cad-nv-preco-linha">
             <span class="cad-nv-preco-emoji">{{ c.emoji }}</span>
             <span class="cad-nv-preco-nome">{{ c.nome }}</span>
             <div class="cad-nv-preco-campo">
@@ -784,6 +806,24 @@
                 @input="onInputPreco(c.id, $event)"
               >
             </div>
+           </div>
+           <div class="cad-nv-extras">
+            <span v-for="p in formExtras[c.id]" :key="p" class="cad-nv-extra-chip">
+              R$ {{ fmt(p) }}
+              <button type="button" :aria-label="`Remover preço R$ ${fmt(p)} de ${c.nome}`" @click="removerExtra(c.id, p)"><i class="fas fa-xmark"></i></button>
+            </span>
+            <div class="cad-nv-extra-novo">
+              <span>outro preço R$</span>
+              <input
+                :id="`extra-${c.id}`"
+                type="text" inputmode="numeric" placeholder="0,00"
+                :value="formNovoExtra[c.id]"
+                @input="onInputNovoExtra(c.id, $event)"
+                @keydown.enter.prevent="addExtra(c.id)"
+              >
+              <button type="button" :aria-label="`Adicionar outro preço de ${c.nome}`" @click="addExtra(c.id)"><i class="fas fa-plus"></i></button>
+            </div>
+           </div>
           </div>
           <button class="cad-btn-primary" @click="salvarPrecos_"><i class="fas fa-check"></i> Salvar preços</button>
         </div>
@@ -1301,7 +1341,7 @@
 
           <div class="cad-det-itens">
             <div v-if="fiadoDetalheItens(fiadoDetalhe).length" class="cad-det-lista">
-              <div v-for="i in fiadoDetalheItens(fiadoDetalhe)" :key="i.id" class="cad-det-item">
+              <div v-for="(i, idx) in fiadoDetalheItens(fiadoDetalhe)" :key="`${i.id}-${i.preco}-${idx}`" class="cad-det-item">
                 <span class="cad-det-item-emoji">{{ i.emoji || '📦' }}</span>
                 <span class="cad-det-item-nome">{{ i.nome }}</span>
                 <span class="cad-det-item-tag">{{ i.qty }}x {{ fmt(i.preco || 0) }}</span>
@@ -1558,7 +1598,7 @@ import {
   salvarFiado as dbSalvarFiado, atualizarFiado, excluirFiado as dbExcluirFiado,
   getStats,
   getTaxas, salvarTaxas,
-  getPrecosCategorias, salvarPrecosCategorias,
+  getPrecosCategorias, salvarPrecosCategorias, getPrecosVariantes, salvarPrecosVariantes,
   aplicarPagamento, receberParcialCliente, estornarPagamento,
   fmt, fmtBR, fmtHora, iniciais, normalizar, resumoItens,
   hoje, horaAtual
@@ -2378,7 +2418,10 @@ const CATEGORIAS_VENDA = [
 ]
 
 const clienteAtual  = ref(null)
-const categoriasVenda = ref(CATEGORIAS_VENDA.map(c => ({ id: c.id, nome: c.nome, emoji: c.emoji, preco: 0 })))
+const categoriasVenda = ref(CATEGORIAS_VENDA.map(c => ({ id: c.id, nome: c.nome, emoji: c.emoji, preco: 0, extras: [] })))
+// Chave da quantidade de um preço EXTRA da categoria. O preço principal continua
+// usando só o id da categoria (qtds['cat-trufa']), igual a antes da mudança.
+const chaveExtra = (catId, preco) => `${catId}@${Math.round((Number(preco) || 0) * 100)}`
 const qtds          = reactive({})
 const dataVenda     = ref(new Date().toLocaleDateString('sv'))
 const horaVenda     = ref(new Date().toTimeString().slice(0, 5))
@@ -2448,7 +2491,9 @@ const fmtMoedaCampo   = (n) => new Intl.NumberFormat('pt-BR', { minimumFractionD
 const descontoDe = (f) => centavos(Number(f?.desconto) || 0)
 
 const brutoLancar = computed(() =>
-  centavos(categoriasVenda.value.reduce((soma, c) => soma + (qtds[c.id] || 0) * c.preco, 0))
+  centavos(categoriasVenda.value.reduce((soma, c) =>
+    soma + (qtds[c.id] || 0) * c.preco
+         + (c.extras || []).reduce((s2, p) => s2 + (qtds[chaveExtra(c.id, p)] || 0) * p, 0), 0))
 )
 const descontoLancar = computed(() => Math.min(centavos(moedaParaNumero(descontoRaw.value)), brutoLancar.value))
 const totalLancar = computed(() => centavos(brutoLancar.value - descontoLancar.value))
@@ -2477,6 +2522,7 @@ function precoMaisComum(lista) {
 
 async function carregarCategoriasVenda() {
   const salvos = await getPrecosCategorias()
+  const variantes = await getPrecosVariantes().catch(() => ({}))
   let sugestoes = null
   const lista = []
   for (const c of CATEGORIAS_VENDA) {
@@ -2487,12 +2533,14 @@ async function carregarCategoriasVenda() {
       }
       preco = precoMaisComum(sugestoes.filter(p => c.casa.test(p.categoria) || c.casa.test(p.nome)))
     }
-    lista.push({ id: c.id, nome: c.nome, emoji: c.emoji, preco })
+    const extras = (variantes[c.id] || []).filter(p => centavos(p) !== centavos(preco))
+    lista.push({ id: c.id, nome: c.nome, emoji: c.emoji, preco, extras })
   }
   categoriasVenda.value = lista
 }
 
 async function iniciarLancar() {
+  Object.keys(qtds).forEach(k => { delete qtds[k] })   // inclui as quantidades dos preços extras
   CATEGORIAS_VENDA.forEach(c => { qtds[c.id] = 0 })
   dataVenda.value = new Date().toLocaleDateString('sv')
   horaVenda.value = new Date().toTimeString().slice(0, 5)
@@ -2515,19 +2563,54 @@ function inc(c) {
   qtds[c.id] = (qtds[c.id] || 0) + 1
 }
 function dec(c) { if (qtds[c.id] > 0) qtds[c.id]-- }
+function incExtra(c, p) { const k = chaveExtra(c.id, p); qtds[k] = (qtds[k] || 0) + 1 }
+function decExtra(c, p) { const k = chaveExtra(c.id, p); if (qtds[k] > 0) qtds[k]-- }
 
 // ── Preços das categorias (modal) ─────────────────────────
 const modalPrecos = ref(false)
 const formPrecos  = reactive({})
+const formExtras  = reactive({})      // { 'cat-trufa': [8, 9] } — preços extras em edição
+const formNovoExtra = reactive({})    // texto digitado no campo "outro preço"
+const textoParaReais = (txt) => parseFloat(String(txt || '').replace(/[^\d,]/g, '').replace(',', '.')) || 0
 
 const formatarPreco = (n) => n > 0 ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(n) : ''
 
-function abrirModalPrecos(focoId = null) {
-  categoriasVenda.value.forEach(c => { formPrecos[c.id] = formatarPreco(c.preco) })
+function abrirModalPrecos(focoId = null, focarExtra = false) {
+  categoriasVenda.value.forEach(c => {
+    formPrecos[c.id] = formatarPreco(c.preco)
+    formExtras[c.id] = [...(c.extras || [])]
+    formNovoExtra[c.id] = ''
+  })
   modalPrecos.value = true
   if (focoId) {
-    setTimeout(() => document.getElementById(`preco-${focoId}`)?.focus(), 320)
+    const alvo = focarExtra ? `extra-${focoId}` : `preco-${focoId}`
+    setTimeout(() => document.getElementById(alvo)?.focus(), 320)
   }
+}
+
+function onInputNovoExtra(id, e) {
+  const digitos = e.target.value.replace(/\D/g, '')
+  formNovoExtra[id] = digitos ? formatarPreco(Number(digitos) / 100) : ''
+  e.target.value = formNovoExtra[id]
+}
+
+// Adiciona o valor digitado à lista de preços extras da categoria (sem repetir
+// o preço principal nem um extra que já existe).
+function addExtra(id) {
+  const v = textoParaReais(formNovoExtra[id])
+  if (!(v > 0)) return
+  const principal = textoParaReais(formPrecos[id])
+  const lista = formExtras[id] || []
+  if (centavos(v) === centavos(principal) || lista.some(p => centavos(p) === centavos(v))) {
+    s.notify('Esse preço já está na lista', 'warning')
+    formNovoExtra[id] = ''
+    return
+  }
+  formExtras[id] = [...lista, v].sort((a, b) => a - b)
+  formNovoExtra[id] = ''
+}
+function removerExtra(id, preco) {
+  formExtras[id] = (formExtras[id] || []).filter(p => centavos(p) !== centavos(preco))
 }
 
 function onInputPreco(id, e) {
@@ -2538,12 +2621,16 @@ function onInputPreco(id, e) {
 
 async function salvarPrecos_() {
   const precos = {}
+  const variantes = {}
   for (const c of categoriasVenda.value) {
     const v = parseFloat(String(formPrecos[c.id] || '').replace(/[^\d,]/g, '').replace(',', '.')) || 0
     precos[c.id] = v
+    if (formNovoExtra[c.id]) addExtra(c.id)   // valor digitado e esquecido de confirmar com o "+"
+    variantes[c.id] = (formExtras[c.id] || []).filter(p => centavos(p) !== centavos(v))
   }
   await salvarPrecosCategorias(precos)
-  categoriasVenda.value = categoriasVenda.value.map(c => ({ ...c, preco: precos[c.id] }))
+  await salvarPrecosVariantes(variantes)
+  categoriasVenda.value = categoriasVenda.value.map(c => ({ ...c, preco: precos[c.id], extras: variantes[c.id] }))
   modalPrecos.value = false
   s.notify('Preços salvos!')
   s.syncImediato()
@@ -2594,9 +2681,14 @@ async function salvarFiado(ignorarRepetida = false) {
   }
   salvandoFiado.value = true
   try {
-    const itens = categoriasVenda.value
-      .filter(c => qtds[c.id] > 0)
-      .map(c => ({ id: c.id, nome: c.nome, emoji: c.emoji, qty: qtds[c.id], preco: c.preco, subtotal: qtds[c.id] * c.preco }))
+    // Uma linha por (categoria, preço): a trufa de 8 e a de 9 viram duas linhas, ambas com o mesmo `id` da categoria.
+    const itens = []
+    for (const c of categoriasVenda.value) {
+      const linhas = [{ k: c.id, preco: c.preco }, ...(c.extras || []).map(p => ({ k: chaveExtra(c.id, p), preco: p }))]
+      for (const l of linhas) {
+        if (qtds[l.k] > 0) itens.push({ id: c.id, nome: c.nome, emoji: c.emoji, qty: qtds[l.k], preco: l.preco, subtotal: centavos(qtds[l.k] * l.preco) })
+      }
+    }
     // Nome da loja lido do cadastro na hora de gravar (nunca de uma cópia que pode estar velha).
     const nomeLojaVigente = (await getNomesLojas())[lojaAtual.value.id] || lojaAtual.value.nome
     const fiado = {
@@ -3461,16 +3553,31 @@ async function abrirEditarFiado(f) {
   // linhas extras, pra não se perder nada ao editar.
   await carregarCategoriasVenda()
   const itensAtuais = f.itens || []
-  const doCat = categoriasVenda.value.map(c => {
-    const item = itensAtuais.find(i => i.id === c.id)
-    // Mantém o preço gravado na venda; só usa o preço atual se o item é novo.
-    return { id: c.id, nome: c.nome, emoji: c.emoji, categoria: 'Categorias', preco: item ? Number(item.preco || c.preco) : c.preco }
+  // Cada categoria vira uma linha POR PREÇO: os preços gravados nesta venda (mantidos como
+  // estão, mesmo que o preço atual tenha mudado) + o preço principal + os preços extras.
+  // Assim uma venda com trufa a 8 e a 9 abre com as duas linhas e nada se perde ao salvar.
+  const centDe = (p) => Math.round((Number(p) || 0) * 100)
+  const qtdPorChave = {}
+  const doCat = categoriasVenda.value.flatMap(c => {
+    const precos = []
+    const somar = (p) => { const n = Number(p) || 0; if (n > 0 && !precos.some(x => centDe(x) === centDe(n))) precos.push(n) }
+    itensAtuais.filter(i => i.id === c.id).forEach(i => {
+      const pr = Number(i.preco) || c.preco   // item sem preço gravado usa o preço atual (como antes)
+      somar(pr)
+      const k = `${c.id}@${centDe(pr)}`
+      qtdPorChave[k] = (qtdPorChave[k] || 0) + (i.qty ?? i.qtd ?? 0)
+    })
+    somar(c.preco); (c.extras || []).forEach(somar)
+    if (!precos.length) precos.push(c.preco)
+    precos.sort((a, b) => a - b)
+    return precos.map(p => ({ id: `${c.id}@${centDe(p)}`, itemId: c.id, nome: c.nome, emoji: c.emoji, categoria: 'Categorias', preco: p }))
   })
   const antigos = itensAtuais
     .filter(i => !categoriasVenda.value.some(c => c.id === i.id))
     .map(i => ({ id: i.id, nome: i.nome, emoji: i.emoji || '📦', categoria: 'Itens anteriores', preco: Number(i.preco || 0) }))
   produtosEditar.value = [...doCat, ...antigos]
   produtosEditar.value.forEach(p => {
+    if (p.itemId) { qtdsEditar[p.id] = qtdPorChave[p.id] || 0; return }
     const item = itensAtuais.find(i => i.id === p.id)
     qtdsEditar[p.id] = item ? (item.qty ?? item.qtd ?? 0) : 0
   })
@@ -3526,7 +3633,7 @@ async function salvarEdicaoFiado() {
     const itens = modoDetalhadoEditar.value
       ? produtosEditar.value
           .filter(p => qtdsEditar[p.id] > 0)
-          .map(p => ({ id: p.id, nome: p.nome, emoji: p.emoji, qty: qtdsEditar[p.id], preco: p.preco, subtotal: qtdsEditar[p.id] * p.preco }))
+          .map(p => ({ id: p.itemId ?? p.id, nome: p.nome, emoji: p.emoji, qty: qtdsEditar[p.id], preco: p.preco, subtotal: centavos(qtdsEditar[p.id] * p.preco) }))
       : []
     const novoTotal = totalEditarGeral.value
     const totalPago = (f.pagamentos || []).reduce((s, p) => s + Number(p.valor || 0), 0)
@@ -4868,6 +4975,18 @@ onMounted(async () => {
 .cad-nv-cat .cad-stepper-btn { width: 44px; height: 44px; font-size: 22px; }
 .cad-nv-cat .cad-stepper-qty { min-width: 30px; font-size: 18px; }
 
+/* Preços extras da mesma categoria (ex.: trufa de 8 e de 9) */
+.cad-nv-grupo { display: flex; flex-direction: column; gap: 6px; }
+.cad-nv-cat--extra { margin-left: 22px; padding: 8px 10px 8px 14px; }
+.cad-nv-cat-nome--extra { font-size: 15px; }
+.cad-nv-cat--extra .cad-stepper-btn { width: 40px; height: 40px; font-size: 20px; }
+.cad-nv-cat-outro {
+  align-self: flex-start; margin-left: 22px; padding: 4px 2px; border: 0; background: none; cursor: pointer;
+  font-family: var(--font); font-size: 12.5px; font-weight: 800; color: var(--brown-mid);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.cad-nv-cat-outro:active { opacity: .7; }
+
 /* Modal de preços */
 .cad-nv-precos-dica { font-size: 13px; color: var(--muted); margin: -4px 0 12px; line-height: 1.4; }
 .cad-nv-preco-linha {
@@ -4875,6 +4994,31 @@ onMounted(async () => {
   border-bottom: 1px solid var(--border);
 }
 .cad-nv-preco-linha:last-of-type { margin-bottom: 14px; }
+.cad-nv-preco-grupo { border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 4px; }
+.cad-nv-preco-grupo:last-of-type { margin-bottom: 14px; }
+.cad-nv-preco-grupo .cad-nv-preco-linha { border-bottom: 0; margin-bottom: 0; }
+.cad-nv-extras { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-left: 40px; }
+.cad-nv-extra-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border-radius: var(--r-full);
+  background: var(--cream); border: 1.5px solid var(--border); color: var(--brown-dark);
+  font-family: var(--mono); font-size: 13px; font-weight: 800;
+}
+.cad-nv-extra-chip button {
+  width: 24px; height: 24px; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--surface); color: var(--brown-mid); font-size: 11px;
+}
+.cad-nv-extra-novo {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 10px; border-radius: var(--r-full);
+  background: var(--surface); border: 1.5px dashed var(--border); color: var(--brown-mid); font-size: 12px; font-weight: 800;
+}
+.cad-nv-extra-novo input {
+  width: 64px; border: 0; background: transparent; outline: none; text-align: right;
+  font-family: var(--mono); font-size: 14px; font-weight: 800; color: var(--brown-dark);
+}
+.cad-nv-extra-novo button {
+  width: 28px; height: 28px; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--brown); color: #fff; font-size: 12px;
+}
 .cad-nv-preco-emoji { font-size: 22px; width: 30px; text-align: center; }
 .cad-nv-preco-nome { flex: 1; font-size: 15px; font-weight: 800; color: var(--brown-dark); }
 .cad-nv-preco-campo {

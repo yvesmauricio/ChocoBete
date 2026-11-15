@@ -649,11 +649,59 @@ export async function salvarPrecosCategorias(precos) {
   await db.config.put({ chave: CHAVE_PRECOS_CAT, valor: JSON.parse(JSON.stringify(precos)) })
 }
 
+// ── PREÇOS EXTRAS POR CATEGORIA (ex.: trufa de 7, de 8 e de 9) ──
+// O preço "principal" continua em `cad_precos_categorias` (nada muda ali).
+// Os preços ADICIONAIS ficam numa chave própria, `cad_precos_variantes`, no
+// formato { 'cat-trufa': { '800': 1, '900': 1 } } (centavos como chave).
+// Mapa em vez de lista de propósito: o merge do Drive junta aparelhos chave a
+// chave, então dois aparelhos que adicionam preços diferentes ficam com os dois.
+// Quem não conhece esta chave (versão antiga do app) simplesmente a ignora.
+const CHAVE_PRECOS_VAR = 'cad_precos_variantes'
+
+/** Devolve { 'cat-trufa': [8, 9], … } em reais, ordenado e sem repetição. */
+export async function getPrecosVariantes() {
+  const row = await db.config.get(CHAVE_PRECOS_VAR).catch(() => null)
+  const bruto = row?.valor
+  const out = {}
+  if (!bruto || typeof bruto !== 'object') return out
+  for (const [catId, mapa] of Object.entries(bruto)) {
+    if (!mapa || typeof mapa !== 'object') continue
+    const lista = Object.keys(mapa)
+      .filter(k => mapa[k])
+      .map(k => Number(k) / 100)
+      .filter(p => Number.isFinite(p) && p > 0)
+      .sort((a, b) => a - b)
+    if (lista.length) out[catId] = lista
+  }
+  return out
+}
+
+/** Recebe { 'cat-trufa': [8, 9], … } em reais e grava no formato de mapa. */
+export async function salvarPrecosVariantes(porCategoria) {
+  const valor = {}
+  for (const [catId, lista] of Object.entries(porCategoria || {})) {
+    const mapa = {}
+    for (const p of Array.isArray(lista) ? lista : []) {
+      const c = Math.round((Number(p) || 0) * 100)
+      if (c > 0) mapa[String(c)] = 1
+    }
+    if (Object.keys(mapa).length) valor[catId] = mapa
+  }
+  await db.config.put({ chave: CHAVE_PRECOS_VAR, valor })
+}
+
 // ── RESUMO ITENS ─────────────────────────────────────────────
 export function resumoItens(itens) {
   if (!itens?.length) return ''
+  // Mesmo produto em dois preços (ex.: trufa a 7 e a 9): mostra o preço pra não
+  // aparecer "2x Trufa" duas vezes sem explicação. Com um preço só, fica igual a antes.
+  const repetidos = new Map()
+  itens.forEach(i => repetidos.set(i.nome, (repetidos.get(i.nome) || 0) + 1))
   return itens.map(i => {
     const emoji = i.emoji || '📦'
-    return `${emoji} ${i.qtd || i.qty || 0}x ${i.nome}`
+    const preco = repetidos.get(i.nome) > 1 && Number(i.preco) > 0
+      ? ` (R$ ${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(Number(i.preco))})`
+      : ''
+    return `${emoji} ${i.qtd || i.qty || 0}x ${i.nome}${preco}`
   }).join('\n')
 } 
