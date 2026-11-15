@@ -4,7 +4,8 @@
 //   node scripts/migrar-caderneta.mjs <backup.json> [--saida=./saida-migracao] [--agora=<ms>]
 //
 // Gera na pasta de saída:
-//   importar-caderneta.sql   o que pode entrar, JÁ TESTADO contra o esquema real (mesmos gatilhos do D1)
+//   preflight-caderneta.sql  colisões por UID e chaves únicas no destino (deve retornar vazio)
+//   importar-caderneta.sql  importação repetível; UID já existente é ignorado, nunca atualizado
 //   relatorio.md / .json     contagens antes e depois, saldos ao centavo, e a lista de divergências
 //   quarentena.json          registros originais que NÃO entraram (e por quê)
 //
@@ -25,7 +26,66 @@ const lit = (v) => {
   if (typeof v === 'number') { if (!Number.isFinite(v)) throw new Error('número inválido'); return String(v) }
   return `'${String(v).replace(/'/g, "''")}'`
 }
-const inserir = (tabela, o) => `INSERT INTO ${tabela} (${Object.keys(o).join(', ')}) VALUES (${Object.values(o).map(lit).join(', ')});`
+const TABELAS_IMPORTACAO = {
+  cad_lojas: { chave: ['uid'], unicas: [{ colunas: ['nome_chave'] }] },
+  cad_clientes: { chave: ['uid'], unicas: [
+    { colunas: ['telefone_chave'], quando: 'telefone_chave IS NOT NULL' },
+    { colunas: ['loja_uid', 'nome_chave', 'funcao_chave'], quando: 'telefone_chave IS NULL' },
+  ] },
+  cad_vendas: { chave: ['uid'], unicas: [] },
+  cad_venda_itens: { chave: ['venda_uid', 'pos'], unicas: [] },
+  cad_pagamentos: { chave: ['uid'], unicas: [] },
+  cad_estornos: { chave: ['uid'], unicas: [{ colunas: ['pagamento_uid'] }] },
+}
+
+// O WHERE evita até mesmo executar triggers BEFORE INSERT numa reexecução.
+// Isso é necessário para pagamentos: o trigger valida o saldo corrente antes
+// que SQLite possa resolver um conflito de chave primária.
+const inserir = (tabela, o) => {
+  const colunas = Object.keys(o)
+  const valores = Object.values(o).map(lit)
+  const chave = TABELAS_IMPORTACAO[tabela]?.chave || []
+  const jaExiste = chave.map(c => `${c} IS ${lit(o[c])}`).join(' AND ')
+  return `INSERT INTO ${tabela} (${colunas.join(', ')}) SELECT ${valores.join(', ')} WHERE NOT EXISTS (SELECT 1 FROM ${tabela} WHERE ${jaExiste});`
+}
+
+/** Gera consultas que apontam colisões no destino sem expor valores dos registros. */
+function gerarPreflightImportacao(D1) {
+  const raw = D1.raw
+  const consultas = []
+  for (const [tabela, regra] of Object.entries(TABELAS_IMPORTACAO)) {
+    const linhas = raw.prepare(`SELECT * FROM ${tabela}`).all()
+    const colunas = raw.prepare(`PRAGMA table_info(${tabela})`).all().map(c => c.name)
+    for (const linha of linhas) {
+      const predicado = (cols) => cols.map(c => `${c} IS ${lit(linha[c])}`).join(' AND ')
+      const mesmaChave = predicado(regra.chave)
+      const mesmoConteudo = predicado(colunas)
+      const chaveTexto = regra.chave.map(c => `${c}=${linha[c]}`).join('|')
+      const chaveLegivel = lit(chaveTexto)
+      consultas.push(
+        `SELECT ${lit(tabela)} AS tabela, ${chaveLegivel} AS chave WHERE EXISTS (SELECT 1 FROM ${tabela} WHERE ${mesmaChave} AND NOT (${mesmoConteudo}))`
+      )
+      for (const regraUnica of regra.unicas) {
+        const unica = regraUnica.colunas
+        // Índices parciais só impõem unicidade quando todos os campos-chave estão preenchidos.
+        if (unica.some(c => linha[c] == null)) continue
+        const filtro = regraUnica.quando ? ` AND ${regraUnica.quando}` : ''
+        consultas.push(
+          `SELECT ${lit(tabela)} AS tabela, ${lit(`colisao:${unica.join('+')};${chaveTexto}`)} AS chave WHERE EXISTS (SELECT 1 FROM ${tabela} WHERE ${predicado(unica)}${filtro} AND NOT (${mesmaChave}))`
+        )
+      }
+    }
+  }
+  if (!consultas.length) return ['SELECT NULL AS tabela, NULL AS chave WHERE 0']
+  // SQLite limita o número de termos de UNION em uma consulta.
+  const TAMANHO = 250
+  const blocos = []
+  for (let i = 0; i < consultas.length; i += TAMANHO) {
+    blocos.push(consultas.slice(i, i + TAMANHO).join('\nUNION ALL\n'))
+  }
+  return blocos
+}
+
 const slug = (u) => String(u).replace(/[^0-9A-Za-z_-]/g, '_')
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/
 const cent = (v) => Math.round((Number(v) || 0) * 100)
@@ -171,7 +231,8 @@ export function migrarCaderneta(backup, { agora = Date.now(), descartarPagamento
     if (erro) rejeita(`O banco recusou a venda (${erro}).`)
   }
 
-  return { sql: sqlSaida.join('\n') + '\n', quarentena, avisos, ajustes, descartadosTotal, D1, legado: {
+  const sql = sqlSaida.join('\n') + '\n'
+  return { sql, sqlRepetivel: sql, preflight: gerarPreflightImportacao(D1), quarentena, avisos, ajustes, descartadosTotal, D1, legado: {
     lojas: lojasL.length, clientes: clientesL.length, vendas: fiadosL.length, pagamentos_ativos: pagamentosAtivosLegado, estornos: estornosLegado,
     saldo_aberto_centavos: saldoLegado, saldo_por_loja: Object.fromEntries([...saldoLegadoPorLoja].filter(([, v]) => v > 0)) } }
 }
@@ -189,6 +250,11 @@ export async function montarRelatorio(r) {
   return { gerado_em: new Date().toISOString(), antes: r.legado, depois: c, em_quarentena: { vendas: quarVendas.length, saldo_centavos: saldoQuar, total_registros: r.quarentena.length },
     avisos: r.avisos, ajustes_aprovados: r.ajustes, checks, ok_para_prosseguir: Object.values(checks).every(Boolean) && r.quarentena.length === 0 }
 }
+
+// O código de saída é usado por automações para decidir se podem avançar.
+// Checks numéricos podem fechar mesmo quando há registros em quarentena;
+// nesse caso o relatório exige decisão humana e o processo deve falhar.
+export const codigoSaidaMigracao = (relatorio) => relatorio?.ok_para_prosseguir === true ? 0 : 1
 
 export function relatorioMd(rel, quarentena) {
   const L = [], f = reais
@@ -223,10 +289,11 @@ if (executadoDireto) {
   const r = migrarCaderneta(JSON.parse(readFileSync(arquivo, 'utf8')), { ...(agoraArg ? { agora: Number(agoraArg.split('=')[1]) } : {}), descartarPagamentosDuplicados: arg.includes('--aceitar-pagamentos-duplicados') })
   const rel = await montarRelatorio(r)
   mkdirSync(saida, { recursive: true })
-  writeFileSync(join(saida, 'importar-caderneta.sql'), r.sql)
+  writeFileSync(join(saida, 'preflight-caderneta.sql'), r.preflight.join(';\n') + ';\n')
+  writeFileSync(join(saida, 'importar-caderneta.sql'), r.sqlRepetivel)
   writeFileSync(join(saida, 'relatorio.json'), JSON.stringify(rel, null, 2))
   writeFileSync(join(saida, 'relatorio.md'), relatorioMd(rel, r.quarentena))
   writeFileSync(join(saida, 'quarentena.json'), JSON.stringify(r.quarentena, null, 2))
   console.log(relatorioMd(rel, r.quarentena))
-  process.exit(Object.values(rel.checks).every(Boolean) ? 0 : 1)
+  process.exit(codigoSaidaMigracao(rel))
 }

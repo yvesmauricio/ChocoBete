@@ -26,8 +26,9 @@ saldo ≥ 0 e ≤ total · "pago" ⇔ saldo 0 · pagamento ≤ saldo · saldo = 
 ## Para colocar no ar
 1. `wrangler d1 migrations apply <banco> --remote` (aplica 0003 a 0006) (faça antes um `wrangler d1 export`).
 2. Proteger `/api/caderneta/*` no Cloudflare Access e conferir `CF_ACCESS_TEAM_DOMAIN` e `CF_ACCESS_AUD`.
-3. Com o backup JSON real: `npm run migrar:caderneta -- backup.json --saida=./saida`; ler `relatorio.md`; só prosseguir se as conferências fecharem e a quarentena estiver decidida.
-4. `wrangler d1 execute <banco> --remote --file=saida/importar-caderneta.sql`, depois `GET /api/caderneta/conferencia` e comparar com o relatório.
+3. Com o backup JSON real: `npm run migrar:caderneta -- backup.json --saida=./saida`; ler `relatorio.md`; só prosseguir se `ok_para_prosseguir` for verdadeiro. Quarentena não resolvida faz o comando terminar com erro.
+4. Antes de importar, executar `wrangler d1 execute <banco> --remote --file=saida/preflight-caderneta.sql`. O resultado deve estar vazio. Se retornar qualquer linha, **não importe**: há UID com conteúdo diferente ou colisão de chave única no destino; compare os registros e reconcilie primeiro.
+5. Executar `wrangler d1 execute <banco> --remote --file=saida/importar-caderneta.sql`, depois `GET /api/caderneta/conferencia` e comparar com o relatório. O SQL verifica a chave antes de inserir: reexecutar o mesmo arquivo não duplica nem atualiza registros nem dispara novamente os gatilhos financeiros. Gere e preserve o mesmo artefato SQL para uma eventual repetição; gerar um novo arquivo em outro momento pode produzir timestamps diferentes e o pré-check deve apontar essa divergência.
 
 ## Etapa 1b — telas ligadas ao servidor (parte 1: cobrança)
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { migrarCaderneta, montarRelatorio } from '../scripts/migrar-caderneta.mjs'
+import { codigoSaidaMigracao, migrarCaderneta, montarRelatorio } from '../scripts/migrar-caderneta.mjs'
 import { criarD1 } from './d1shim.mjs'
 import { conferenciaCaderneta } from '../functions/_lib/caderneta.js'
 
@@ -55,6 +55,7 @@ test('migração: o que é consistente entra; o resto vai para quarentena com mo
   assert.equal(rel.checks.sem_violacoes_no_banco, true)
   assert.equal(rel.checks.pagamentos_confere, true)
   assert.equal(rel.ok_para_prosseguir, false)                                    // há quarentena: decisão humana
+  assert.equal(codigoSaidaMigracao(rel), 1)                                     // automação não pode prosseguir
 })
 
 test('migração: valores e histórico ficam corretos', async () => {
@@ -81,12 +82,31 @@ test('migração: o SQL gerado aplica limpo em banco novo e dá os mesmos númer
   assert.deepEqual(a, b); assert.equal(a.ok, true)
 })
 
+test('migração: SQL pode ser reaplicado e preserva divergências que surgiram depois', async () => {
+  const r = migrarCaderneta(backup(), { agora: AGORA })
+  const destino = criarD1()
+  destino.raw.exec(r.sqlRepetivel)
+  const antes = await conferenciaCaderneta(destino)
+  destino.raw.exec(r.sqlRepetivel)
+  assert.deepEqual(await conferenciaCaderneta(destino), antes)
+  assert.deepEqual(r.preflight.flatMap(sql => destino.raw.prepare(sql).all()), [])
+
+  // Uma edição já feita no destino é detectada e nunca sobrescrita por uma cópia antiga.
+  const uidLoja = destino.raw.prepare("SELECT uid FROM cad_lojas WHERE nome='Padaria Sol'").get().uid
+  destino.raw.prepare('UPDATE cad_lojas SET nome=?, nome_chave=? WHERE uid=?').run('Nome atual', 'nome-atual', uidLoja)
+  const conflitos = r.preflight.flatMap(sql => destino.raw.prepare(sql).all())
+  assert.ok(conflitos.some(c => c.tabela === 'cad_lojas' && c.chave.includes(`uid=${uidLoja}`)))
+  destino.raw.exec(r.sqlRepetivel)
+  assert.equal(destino.raw.prepare('SELECT nome FROM cad_lojas WHERE uid=?').get(uidLoja).nome, 'Nome atual')
+})
+
 test('migração: backup 100% consistente fecha sem pendências', async () => {
   const b = backup(); b.cad_lojas = b.cad_lojas.filter(l => l.id !== 3); b.cad_clientes = b.cad_clientes.filter(c => c.id !== 3)
   b.cad_clientes[1].telefone = ''; b.cad_fiados = b.cad_fiados.filter(f => [1, 2, 3].includes(f.id))
   const r = migrarCaderneta(b, { agora: AGORA })
   const rel = await montarRelatorio(r)
   assert.equal(r.quarentena.length, 0); assert.equal(rel.ok_para_prosseguir, true)
+  assert.equal(codigoSaidaMigracao(rel), 0)
 })
 
 test('migração: pagamento duplicado (idêntico) só é descartado com a opção explícita', async () => {
