@@ -44,7 +44,7 @@ import { listarCorrecoes } from '../services/cadernetaServidor.js'
 const { estado, texto, pendentes, rejeitadas, enviarAgora, precisaEntrar, erroLeitura } = useFilaOps()
 const aberto = ref(false)
 const visivel = computed(() => cadernetaNoServidor())
-const icone = computed(() => ({ saved: 'fa-cloud-check', pending: 'fa-clock', syncing: 'fa-rotate fa-spin', offline: 'fa-cloud-slash', attention: 'fa-triangle-exclamation' }[estado.value] || 'fa-cloud'))
+const icone = computed(() => ({ saved: 'fa-cloud', pending: 'fa-clock', syncing: 'fa-rotate fa-spin', offline: 'fa-plug-circle-xmark', attention: 'fa-triangle-exclamation' }[estado.value] || 'fa-cloud'))
 const ROTULOS = { 'pagamento.registrar': 'Pagamento', 'pagamento.estornar': 'Estorno', 'recebimento.parcial': 'Recebimento', 'venda.vencimento': 'Vencimento', 'venda.criar': 'Venda' }
 const rotulo = (t) => ROTULOS[t] || 'Alteração'
 const dispensar = (id) => dispensarRejeitada(id)
@@ -60,14 +60,14 @@ async function alternarCorrecoes() {
 </script>
 
 <style scoped>
-.fila-ind { margin: 0 16px 8px; font-size: 0.9rem; }
-.fila-ind-btn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-.fila-ind--saved { color: #2e7d32; }
-.fila-ind--pending, .fila-ind--syncing, .fila-ind--offline { color: #b26a00; }
-.fila-ind--attention { color: #c62828; }
-.fila-ind-painel { margin-top: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(128, 128, 128, 0.35); color: inherit; }
-.fila-ind-painel p { margin: 0 0 8px; opacity: 0.85; }
-.fila-ind-link { color: inherit; font-weight: 600; text-decoration: underline; }
-.fila-ind-lista { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
-.fila-ind-ok, .fila-ind-enviar { margin-left: 8px; padding: 4px 10px; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+/* Mesmo vocabulário do app: pílula com fundo suave (como os avisos do Caderninho) e painel branco em cartão. */
+.fila-ind { margin: 0 14px 8px; font-family: var(--font); font-size: .86rem; --fi-cor: var(--green); --fi-bg: var(--green-bg); --fi-borda: var(--green-dim); }
+.fila-ind--pending, .fila-ind--syncing, .fila-ind--offline { --fi-cor: #8a4b00; --fi-bg: #fff4e0; --fi-borda: var(--orange-dim); }
+.fila-ind--attention { --fi-cor: var(--red); --fi-bg: var(--red-bg); --fi-borda: var(--red-dim, #f5c2c2); }
+.fila-ind-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--fi-borda); background: var(--fi-bg); color: var(--fi-cor); font-family: var(--font); font-size: .84rem; font-weight: 800; line-height: 1.2; text-align: left; cursor: pointer; }
+.fila-ind-painel { margin-top: 8px; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+.fila-ind-painel p { margin: 0 0 8px; font-size: .84rem; line-height: 1.45; color: var(--text); }
+.fila-ind-link { color: var(--brown-mid); font-weight: 700; text-decoration: underline; }
+.fila-ind-lista { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; font-size: .84rem; color: var(--text); }
+.fila-ind-ok, .fila-ind-enviar { margin-left: 8px; min-height: 36px; padding: 0 12px; border-radius: var(--r-sm); border: 1px solid var(--border2, var(--border)); background: var(--cream, #faf6f0); color: var(--brown-dark); font-family: var(--font); font-size: .82rem; font-weight: 700; cursor: pointer; }
 </style>
