@@ -190,7 +190,7 @@ const catAtiva = ref('Todas')
 const lote     = ref([])
 const consultaAberta = reactive({})
 
-const categorias = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base']
+const categorias = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base', 'Presentes']
 
 // ── filtros ─────────────────────────────────────────────────────────
 const receitasFiltradas = computed(() => {

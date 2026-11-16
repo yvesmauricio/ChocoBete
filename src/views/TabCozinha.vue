@@ -284,7 +284,7 @@ const tempoEstimadoLote = computed(() => {
   return Math.round(total)
 })
 
-const categorias = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base', 'Festa']
+const categorias = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base', 'Presentes', 'Festa']
 const catAtiva = ref('Trufa')
 const chipsEl = ref(null)
 const chipRefs = ref({})

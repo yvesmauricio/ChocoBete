@@ -1561,7 +1561,7 @@ async function onFotoSelecionada(r, evento) {
   }
 }
 
-const ordemCategorias = ['Trufa', 'Cone', 'Barra', 'Bolo', 'Brownie']
+const ordemCategorias = ['Trufa', 'Cone', 'Barra', 'Bolo', 'Brownie', 'Presentes']
 
 function ordenarGruposCardapio(grupos) {
   return [...grupos].sort((a, b) => {

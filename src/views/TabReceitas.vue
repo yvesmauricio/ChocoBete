@@ -66,7 +66,7 @@
         >
           <template #icon>
             <div class="recipe-icon" :class="r.eh_intermediaria ? 'badge-blue' : 'badge-gold'">
-              <i :class="r.eh_intermediaria ? 'fas fa-blender' : 'fas fa-cookie-bite'"></i>
+              <i :class="r.eh_intermediaria ? 'fas fa-blender' : (r.eh_kit ? 'fas fa-gift' : 'fas fa-cookie-bite')"></i>
             </div>
           </template>
           <template #title>
@@ -167,14 +167,18 @@
           <!-- Tipo: toggle visual -->
           <div class="fg">
             <label class="label">Tipo</label>
-            <div class="option-grid option-grid-2">
-              <button type="button" class="option-card" :class="{ active: Number(form.eh_intermediaria) === 0 }" @click="definirTipoReceita(0)">
+            <div class="option-grid option-grid-3">
+              <button type="button" class="option-card" :class="{ active: Number(form.eh_intermediaria) === 0 && !form.eh_kit }" @click="definirTipoReceita(0)">
                 <i class="fas fa-cookie-bite option-ico"></i>
                 <span class="option-label">Produto Final</span>
               </button>
               <button type="button" class="option-card" :class="{ active: Number(form.eh_intermediaria) === 1 }" @click="definirTipoReceita(1)">
                 <i class="fas fa-blender option-ico"></i>
                 <span class="option-label">Base / Recheio</span>
+              </button>
+              <button type="button" class="option-card" :class="{ active: !!form.eh_kit }" @click="definirTipoReceita('kit')">
+                <i class="fas fa-gift option-ico"></i>
+                <span class="option-label">Kit / Caixa</span>
               </button>
             </div>
           </div>
@@ -251,14 +255,15 @@
         <div class="fg" v-if="s.getCustoTotal(form) > 0">
           <label class="label">Sugerir preço por Markup (Inteligência de Lucro)</label>
           <div class="markup-grid">
-            <button type="button" class="markup-btn" @click="form.preco_sugerido = arredondarPrecoSugerido((s.getCustoTotal(form) / (form.rendimento || 1)) * 2)">
-              <span>2.0x</span><small>50% margem</small>
-            </button>
-            <button type="button" class="markup-btn" @click="form.preco_sugerido = arredondarPrecoSugerido((s.getCustoTotal(form) / (form.rendimento || 1)) * 3)">
-              <span>3.0x</span><small>67% margem</small>
-            </button>
-            <button type="button" class="markup-btn highlight" @click="form.preco_sugerido = arredondarPrecoSugerido((s.getCustoTotal(form) / (form.rendimento || 1)) * 4)">
-              <span>4.0x</span><small>75% margem</small>
+            <button
+              v-for="m in MARKUPS"
+              :key="m"
+              type="button"
+              class="markup-btn"
+              :class="{ highlight: m === 4 }"
+              @click="form.preco_sugerido = precoPorMarkup(m)"
+            >
+              <span>{{ m.toFixed(1) }}x · {{ R$(precoPorMarkup(m)) }}</span><small>{{ Math.round((1 - 1 / m) * 100) }}% margem</small>
             </button>
           </div>
         </div>
@@ -310,6 +315,10 @@
               {{ R$(s.getLucroInfo(form).valor) }}
             </span>
           </div>
+          <div v-if="form.preco_sugerido" class="profit-row">
+            <span class="profit-label">Margem · Markup</span>
+            <span class="profit-val">{{ lucro.percentual.toFixed(0) }}% · {{ markupReal.toFixed(1).replace('.', ',') }}x</span>
+          </div>
         </div>
         </div><!-- /sec-body rendimento -->
       </div>
@@ -339,7 +348,7 @@
           >
           <SwipeRow
             :row-id="ing._key"
-            :width="177"
+            :width="(form.eh_kit && ing.tipo === 'receita') ? 233 : 177"
           >
             <div
               class="ing-row-content"
@@ -375,6 +384,7 @@
               >
                 <i class="fas ing-ico-sm" :class="ing.tipo === 'receita' ? 'fa-mortar-pestle' : 'fa-box'"></i>
                 <span class="ing-name-txt">{{ getNomeIng(ing) || 'Selecionar…' }}</span>
+                <span v-if="form.eh_kit && ing.tipo === 'receita' && ing.sem_baixa" class="ing-papel-chip chip-recheio" style="background:#0f766e">Já produzida</span>
                 <span v-if="ing.papel" class="ing-papel-chip" :class="`chip-${ing.papel}`">{{ ing.papel === 'casca' ? 'Casca' : 'Recheio' }}</span>
               </button>
 
@@ -405,6 +415,17 @@
               >
                 <i class="fas fa-balance-scale"></i>
                 <span>{{ ing.gera_peso !== false ? 'Peso' : 'S/ peso' }}</span>
+              </button>
+              <button
+                v-if="form.eh_kit && ing.tipo === 'receita'"
+                type="button"
+                class="swipe-action-btn"
+                :class="ing.sem_baixa ? 'swipe-btn-peso-off' : 'swipe-btn-peso-on'"
+                @click.stop="ing.sem_baixa = !ing.sem_baixa"
+                title="Se ligado, ao montar o kit o sistema desconta do estoque os insumos desta receita. Desligado = já foi produzida separadamente."
+              >
+                <i class="fas fa-boxes-stacked"></i>
+                <span>{{ ing.sem_baixa ? 'S/ baixa' : 'Baixa' }}</span>
               </button>
               <button
                 type="button"
@@ -805,7 +826,7 @@ function toggleSec(nome) {
 // Passo do stepper por unidade
 function stepQty(ing, dir) {
   const u = getUnidade(ing)
-  const step = (u === 'g' || u === 'ml') ? 5 : (u === 'kg' || u === 'L') ? 0.1 : 1
+  const step = (u === 'g' || u === 'ml' || u === 'cm') ? 5 : (u === 'kg' || u === 'L') ? 0.1 : 1
   const atual = Number(ing.quantidade || 0)
   ing.quantidade = Math.max(0, Math.round((atual + dir * step) * 1000) / 1000)
 }
@@ -835,7 +856,7 @@ const pickerTab    = ref('todos')
 const pickerIndex  = ref(null)
 const showPicker   = ref(false)
 const pickerTabs   = [{ v:'todos', l:'Tudo', ico:null }, { v:'insumos', l:'Ingredientes', ico:'fa-box' }, { v:'bases', l:'Bases', ico:'fa-mortar-pestle' }]
-const categoriasFiltro = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base']
+const categoriasFiltro = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base', 'Presentes']
 
 // Mapeamos as categorias para a propriedade 'tipo' que o composable espera
 const categoryMap = categoriasFiltro.reduce((acc, cat) => {
@@ -901,6 +922,7 @@ const getEmptyForm = () => ({
   categoria: '',
   tamanho: '',
   eh_intermediaria: 0,
+  eh_kit: false,
   rendimento: null,
   unidade_rendimento: 'un',
   peso_unitario: null,
@@ -1161,9 +1183,26 @@ const pesoEsperado  = computed(() => (!form.rendimento || !form.peso_unitario) ?
 const diferencaPeso = computed(() => !pesoEsperado.value ? 0 : totalIngredientesG.value - pesoEsperado.value)
 
 function arredondarPrecoSugerido(valor) {
-  // Arredonda para o meio real mais próximo (R$ 0.50)
-  return Math.round(valor * 2) / 2
+  // Arredonda PARA CIMA (múltiplo do passo): assim a margem
+  // nunca fica abaixo da prometida no botão (arredondar "pro mais próximo"
+  // podia cair abaixo, ex.: custo 0,76 × 2 = 1,52 virava 1,50).
+  // Até R$ 5 usa passo de R$ 0,10 (senão um custo de R$ 0,76 × 2 pularia de
+  // 1,52 para 2,00); de R$ 5 em diante, passo de R$ 0,50.
+  const v = Number(valor || 0)
+  if (v <= 0) return 0
+  const passo = v < 5 ? 0.1 : 0.5
+  const n = Math.round((v / passo) * 1e6) / 1e6
+  return Math.round(Math.ceil(n) * passo * 100) / 100
 }
+
+const MARKUPS = [2, 3, 4]
+// Preço por unidade = custo total ÷ rendimento × markup, arredondado
+function precoPorMarkup(mult) {
+  return arredondarPrecoSugerido(lucro.value.custoUnit * mult)
+}
+
+// Markup (×) e margem (%) REAIS do preço que está digitado, depois do arredondamento
+const markupReal = computed(() => lucro.value.custoUnit > 0 ? Number(form.preco_sugerido || 0) / lucro.value.custoUnit : 0)
 
 /* ── Watchers ─────────────────────────────────────────────────── */
 watch(() => form.ingredientes, () => {
@@ -1196,9 +1235,18 @@ watch(() => form.eh_intermediaria, (val) => {
 })
 
 function definirTipoReceita(tipo) {
-  form.eh_intermediaria = tipo
-  form.usar_em_etiquetas = Number(tipo) === 0
+  const ehKit = tipo === 'kit'
+  form.eh_kit = ehKit
+  form.eh_intermediaria = ehKit ? 0 : tipo
+  form.usar_em_etiquetas = ehKit ? false : Number(tipo) === 0
   if (Number(tipo) === 1) form.categoria = 'Base'
+  if (ehKit) {
+    if (!form.categoria || form.categoria === 'Base') form.categoria = 'Presentes'
+    if (!form.rendimento) form.rendimento = 1
+    form.unidade_rendimento = 'un'
+    // Receitas já adicionadas ao kit (ex.: a trufa) são produção separada: sem baixa de estoque
+    form.ingredientes.forEach(i => { if (i.tipo === 'receita' && i.sem_baixa === undefined) i.sem_baixa = true })
+  }
 }
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -1427,7 +1475,10 @@ function selecionarItem(item) {
   ing.id = item.id; ing.tipo = item.tipo
   // Define o padrão automaticamente: embalagens e itens com nomes específicos começam desativados
   ing.gera_peso = !isProdutoEmbalagem(item)
-  
+  // Em kit/caixa, uma receita (ex.: trufa) é produção separada: usa no custo, mas não baixa estoque
+  if (form.eh_kit && item.tipo === 'receita') ing.sem_baixa = true
+  else delete ing.sem_baixa
+
   fecharPicker()
   restoreAndFocusIngrediente(pickerIndex.value)
 }
@@ -1470,7 +1521,7 @@ function abrir(r) {
   if (r) Object.assign(form, {
     uuid: r.uuid, nome: r.nome, nome_etiqueta: r.nome_etiqueta || '',
     usar_em_etiquetas: r.usar_em_etiquetas ?? !Number(r.eh_intermediaria),
-    categoria: r.categoria, tamanho: r.tamanho || '', eh_intermediaria: r.eh_intermediaria,
+    categoria: r.categoria, tamanho: r.tamanho || '', eh_intermediaria: r.eh_intermediaria, eh_kit: !!r.eh_kit,
     rendimento: r.rendimento, unidade_rendimento: r.unidade_rendimento, peso_unitario: r.peso_unitario,
     preco_sugerido: r.preco_sugerido, modo_preparo: r.modo_preparo, tempo_preparo_min: r.tempo_preparo_min,
     ingredientes: (r.ingredientes || []).map(i => ({ ...i, _key: i.id + Math.random() }))

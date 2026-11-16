@@ -151,9 +151,14 @@
               <option value="g">gramas (g)</option>
               <option value="ml">mililitros (ml)</option>
               <option value="un">unidade (un)</option>
+              <option value="cm">centímetros (cm)</option>
               <option value="kg">quilos (kg)</option>
             </select>
           </div>
+        </div>
+        <div class="custo-card valor-hint" v-if="form.unidade_base === 'cm'">
+          <i class="fas fa-ruler custo-ico"></i>
+          <span>Para fita/barbante: em <strong>Qtd na embalagem</strong> coloque os centímetros do rolo (ex.: rolo de 10 m = <strong>1000</strong>). Na receita você informa só quanto usa (ex.: 30 cm).</span>
         </div>
         <div class="custo-card" v-if="form.custo_por_unidade > 0">
           <i class="fas fa-calculator custo-ico"></i>

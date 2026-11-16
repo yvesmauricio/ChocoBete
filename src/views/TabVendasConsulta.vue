@@ -35,19 +35,33 @@
       <!-- Números do dia -->
       <div class="vc-kpis">
         <div class="vc-kpi vc-kpi--main">
-          <div class="vc-kpi-rot">Em aberto</div>
-          <div class="vc-kpi-val">R$ {{ fmt(resumo.totalAberto) }}</div>
-          <div class="vc-kpi-det">{{ resumo.qtdAbertas }} {{ resumo.qtdAbertas === 1 ? 'compra' : 'compras' }} · {{ resumo.qtdClientesDevendo }} {{ resumo.qtdClientesDevendo === 1 ? 'cliente' : 'clientes' }}</div>
-        </div>
-        <div class="vc-kpi" :class="{ 'vc-kpi--alerta': resumo.totalVencido > 0 }">
-          <div class="vc-kpi-rot">Vencido</div>
-          <div class="vc-kpi-val">R$ {{ fmt(resumo.totalVencido) }}</div>
-          <div class="vc-kpi-det">{{ resumo.qtdVencidas }} {{ resumo.qtdVencidas === 1 ? 'atrasada' : 'atrasadas' }}</div>
-        </div>
-        <div class="vc-kpi">
-          <div class="vc-kpi-rot">Vence hoje</div>
-          <div class="vc-kpi-val">R$ {{ fmt(resumo.totalHoje) }}</div>
-          <div class="vc-kpi-det">{{ resumo.qtdHoje }} {{ resumo.qtdHoje === 1 ? 'compra' : 'compras' }}</div>
+          <div class="vc-kpi-topo">
+            <div>
+              <div class="vc-kpi-rot">Em aberto</div>
+              <div class="vc-kpi-val">R$ {{ fmt(resumo.totalAberto) }}</div>
+            </div>
+            <div class="vc-kpi-pilulas">
+              <span class="vc-kpi-pilula"><i class="fas fa-receipt"></i><b>{{ resumo.qtdAbertas }}</b> {{ resumo.qtdAbertas === 1 ? 'compra' : 'compras' }}</span>
+              <span class="vc-kpi-pilula"><i class="fas fa-user"></i><b>{{ resumo.qtdClientesDevendo }}</b> {{ resumo.qtdClientesDevendo === 1 ? 'cliente' : 'clientes' }}</span>
+            </div>
+          </div>
+
+          <div class="vc-kpi-sub">
+            <div class="vc-kpi-sub-item vc-kpi-sub-item--vencido" :class="{ ativo: resumo.totalVencido > 0 }">
+              <div class="vc-kpi-sub-rot"><i class="fas fa-triangle-exclamation"></i> Vencido</div>
+              <div class="vc-kpi-sub-linha">
+                <b>R$ {{ fmt(resumo.totalVencido) }}</b>
+                <small>{{ resumo.qtdVencidas }} {{ resumo.qtdVencidas === 1 ? 'atrasada' : 'atrasadas' }}</small>
+              </div>
+            </div>
+            <div class="vc-kpi-sub-item vc-kpi-sub-item--hoje" :class="{ ativo: resumo.qtdHoje > 0 }">
+              <div class="vc-kpi-sub-rot"><i class="fas fa-calendar-day"></i> Vence hoje</div>
+              <div class="vc-kpi-sub-linha">
+                <b>R$ {{ fmt(resumo.totalHoje) }}</b>
+                <small>{{ resumo.qtdHoje }} {{ resumo.qtdHoje === 1 ? 'compra' : 'compras' }}</small>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -57,27 +71,48 @@
         </button>
       </div>
 
-      <label class="vc-busca">
-        <i class="fas fa-magnifying-glass"></i>
-        <input v-model="busca" type="search" :placeholder="placeholderBusca" autocomplete="off">
-        <button v-if="busca" type="button" class="vc-busca-x" aria-label="Limpar busca" @click="busca = ''"><i class="fas fa-xmark"></i></button>
-      </label>
+      <div class="vc-barra">
+        <label class="vc-busca">
+          <i class="fas fa-magnifying-glass"></i>
+          <input v-model="busca" type="search" :placeholder="placeholderBusca" autocomplete="off">
+          <button v-if="busca" type="button" class="vc-busca-x" aria-label="Limpar busca" @click="busca = ''"><i class="fas fa-xmark"></i></button>
+        </label>
+        <button
+          type="button" class="vc-filtro-btn" :class="{ aberto: filtrosAbertos, ativo: filtroAtivo }"
+          :aria-expanded="filtrosAbertos" aria-controls="vc-filtros-painel"
+          :aria-label="filtroAtivo ? 'Filtros (um filtro ativo)' : 'Filtros'" @click="filtrosAbertos = !filtrosAbertos"
+        >
+          <i class="fas fa-sliders"></i>
+          <span v-if="filtroAtivo" class="vc-filtro-dot"></span>
+        </button>
+      </div>
+
+      <div id="vc-filtros-painel" class="vc-painel" :class="{ aberto: filtrosAbertos }" :aria-hidden="!filtrosAbertos">
+        <div class="vc-painel-inner">
+          <div class="vc-painel-card">
+            <div class="vc-painel-rot">{{ aba === 'lojas' ? 'Mostrar lojas' : 'Mostrar vendas' }}</div>
+            <div class="vc-seg" role="radiogroup">
+              <button
+                v-for="f in filtrosLista" :key="f.id" type="button" role="radio" class="vc-seg-btn"
+                :aria-checked="filtroSelecionado === f.id" :class="{ sel: filtroSelecionado === f.id }"
+                :tabindex="filtrosAbertos ? 0 : -1" @click="escolherFiltro(f.id)"
+              >
+                <span class="vc-seg-nome">{{ f.nome }}</span>
+                <span class="vc-seg-n">{{ f.n }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button v-if="filtroAtivo && !filtrosAbertos" type="button" class="vc-filtro-ativo" @click="limparFiltro">
+        <i class="fas fa-filter"></i> {{ rotuloFiltroAtivo }} <i class="fas fa-xmark vc-filtro-ativo-x"></i>
+      </button>
 
       <div v-if="carregando" class="vc-vazio"><div class="vc-spin"></div> Carregando…</div>
 
-      <!-- COBRANÇAS · LOJAS · CLIENTES: mesmo formato do painel do vendedor (loja → clientes → compras) -->
-      <template v-else-if="aba !== 'historico'">
-        <div v-if="aba === 'cobrancas'" class="cad-resumo-seg-control">
-          <button type="button" class="cad-resumo-seg-btn" :class="{ active: filtroSit === 'todos' }" @click="filtroSit = 'todos'">
-            <span class="cad-resumo-seg-label">Todos</span>
-            <span class="cad-resumo-seg-val">R$ {{ fmt(resumo.totalAberto) }}</span>
-          </button>
-          <button type="button" class="cad-resumo-seg-btn" :class="{ active: filtroSit === 'vencidos' }" @click="filtroSit = 'vencidos'">
-            <span class="cad-resumo-seg-label">Vencidos</span>
-            <span class="cad-resumo-seg-val" :class="{ 'cad-resumo-seg-val--red': resumo.totalVencido > 0.009 }">R$ {{ fmt(resumo.totalVencido) }}</span>
-          </button>
-        </div>
-
+      <!-- LOJAS: loja → clientes (cada cliente mostra se está em dia, vence ou está atrasado) -->
+      <template v-else-if="aba === 'lojas'">
         <div v-if="!gruposAtivos.length" class="cad-empty">
           <div class="cad-empty-ico"><i class="fas fa-inbox"></i></div>
           <p>{{ textoVazio }}</p>
@@ -89,96 +124,36 @@
             <span class="cad-loja-nome">
               {{ g.lojaNome }}
               <small v-if="g.local" class="cad-loja-local">{{ g.local }}</small>
-              <small v-if="aba === 'lojas'" class="cad-loja-local">{{ g.clientes.length }} {{ g.clientes.length === 1 ? 'cliente' : 'clientes' }}</small>
+              <small class="cad-loja-local">{{ g.clientes.length }} {{ g.clientes.length === 1 ? 'cliente' : 'clientes' }}</small>
             </span>
             <span class="cad-loja-dir">
               <span v-if="g.total > 0.01" class="cad-loja-total">R$ {{ fmt(g.total) }}</span>
               <span v-else class="cad-chip cad-chip--ok"><i class="fas fa-check"></i> Em dia</span>
-              <span v-if="g.vencidos && !(aba === 'cobrancas' && filtroSit === 'vencidos')" class="cad-chip cad-chip--red">{{ g.vencidos }} {{ g.vencidos > 1 ? 'vencidos' : 'vencido' }}</span>
+              <span v-if="g.vencidos" class="cad-chip cad-chip--red">{{ g.vencidos }} {{ g.vencidos > 1 ? 'vencidos' : 'vencido' }}</span>
             </span>
             <svg v-if="!grupoUnico" class="cad-loja-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
           </div>
 
           <div class="cad-grupo-clientes cad-grupo-clientes--indent" :class="{ colapsado: lojaColapsada(g) }">
-            <template v-for="c in g.clientes" :key="c.clienteId">
-
-              <!-- Lojas: clientes em linha simples; toque abre o cliente -->
-              <button v-if="aba === 'lojas'" type="button" class="cad-cli-card vc-cli-linha" :class="{ atrasado: c.atrasado }" @click="abrirModal({ tipo: 'cliente', id: c.clienteId })">
-                <div class="cad-cli-avatar" :class="{ atrasado: c.atrasado }">{{ iniciais(c.clienteNome) }}</div>
-                <div class="cad-cli-info">
-                  <div class="cad-cli-nome">{{ c.clienteNome }}</div>
-                  <div v-if="c.clienteFuncao" class="cad-cli-sub"><span class="cad-funcao-tag cad-funcao-tag--linha">{{ c.clienteFuncao }}</span></div>
-                </div>
-                <div v-if="c.saldo > 0.01" class="cad-cli-valor" :class="{ 'cad-cli-valor--red': c.atrasado }">
-                  <b>R$ {{ fmt(c.saldo) }}</b>
-                  <span class="cad-cli-status" :class="statusCliente(c).cls">{{ statusCliente(c, true).txt }}</span>
-                </div>
-                <span v-else class="cad-chip cad-chip--ok"><i class="fas fa-check"></i> Em dia</span>
-                <i class="fas fa-chevron-right vc-seta-dir"></i>
-              </button>
-
-              <!-- Cobranças / Clientes: cartão que abre e mostra as compras -->
-              <div v-else class="cad-cli-card" :class="{ atrasado: c.atrasado }">
-                <div class="cad-cli-header" :class="{ colapsado: clienteColapsado(g, c) }" @click="alternarCliente(g, c)">
-                  <div class="cad-cli-avatar" :class="{ atrasado: c.atrasado }">{{ iniciais(c.clienteNome) }}</div>
-                  <div class="cad-cli-info">
-                    <div class="cad-cli-nome">{{ c.clienteNome }}</div>
-                    <div v-if="c.clienteFuncao || aba === 'clientes'" class="cad-cli-sub">
-                      <span v-if="c.clienteFuncao" class="cad-funcao-tag cad-funcao-tag--linha">{{ c.clienteFuncao }}</span>
-                      <template v-if="aba === 'clientes'">{{ rotuloCompras(c.nCompras) }}<template v-if="c.ultima"> · última em {{ fmtBR(c.ultima).slice(0, 5) }}</template></template>
-                    </div>
-                  </div>
-                  <div v-if="c.saldo > 0.01" class="cad-cli-valor" :class="{ 'cad-cli-valor--red': c.atrasado }">
-                    <b>R$ {{ fmt(c.saldo) }}</b>
-                    <span class="cad-cli-status" :class="statusCliente(c).cls">{{ statusCliente(c, true).txt }}</span>
-                  </div>
-                  <span v-else class="cad-chip cad-chip--ok"><i class="fas fa-check"></i> Em dia</span>
-                  <svg class="cad-cli-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
-                </div>
-
-                <div class="cad-compras-lista" :class="{ colapsado: clienteColapsado(g, c) }">
-                  <button v-for="f in comprasVisiveis(g, c)" :key="f.id" type="button" class="vc-compra" :class="{ 'vc-compra--atrasada': f.atrasada }" @click="abrirModal({ tipo: 'fiado', id: f.id })">
-                    <div class="cad-compra-esq">
-                      <span class="cad-compra-data">{{ fmtDataHora(f) }}</span>
-                      <span class="cad-compra-itens">{{ qtdItens(f) }}</span>
-                      <div v-if="f.status !== 'pago' && f.pagamentos?.length" class="cad-compra-pgto">
-                        <div class="cad-compra-pgto-linha">
-                          <span class="cad-compra-pgto-recebido"><i class="fas fa-check-circle"></i> R$ {{ fmt(totalPago(f)) }}</span>
-                          <span class="cad-compra-pgto-falta">falta R$ {{ fmt(f.saldo) }}</span>
-                        </div>
-                        <div class="cad-compra-pgto-bar"><div class="cad-compra-pgto-bar-fill" :style="{ width: pctPago(f) + '%' }"></div></div>
-                      </div>
-                    </div>
-                    <div class="cad-compra-dir">
-                      <template v-if="aba === 'cobrancas'">
-                        <span class="cad-compra-valor" :class="{ 'cad-compra-valor--red': f.atrasada }">R$ {{ fmt(f.saldo) }}</span>
-                        <span class="cad-chip" :class="f.atrasada ? 'cad-chip--red' : 'cad-chip--neutral'">
-                          <template v-if="f.dataVenc"><i class="fas" :class="f.atrasada ? 'fa-calendar-xmark' : 'fa-calendar-days'"></i> {{ f.atrasada ? 'Venceu' : 'Vence' }} {{ fmtBR(f.dataVenc).slice(0, 5) }}</template>
-                          <template v-else>Sem vencimento</template>
-                        </span>
-                      </template>
-                      <template v-else>
-                        <span class="cad-compra-valor">R$ {{ fmt(f.total) }}</span>
-                        <span class="cad-chip" :class="`cad-chip--${chipCompra(f).cls}`">{{ chipCompra(f).txt }}</span>
-                      </template>
-                    </div>
-                  </button>
-                  <button v-if="aba === 'clientes' && c.fiados.length > comprasVisiveis(g, c).length" type="button" class="vc-mais-compras" @click="verTodasCompras(g, c)">
-                    Ver compras mais antigas ({{ c.fiados.length - comprasVisiveis(g, c).length }})
-                  </button>
-                  <div v-if="!c.fiados.length" class="vc-sem-compras">Nenhuma compra registrada.</div>
-                </div>
+            <button v-for="c in g.clientes" :key="c.clienteId" type="button" class="cad-cli-card vc-cli-linha" :class="{ atrasado: c.atrasado }" @click="abrirModal({ tipo: 'cliente', id: c.clienteId })">
+              <div class="cad-cli-avatar" :class="{ atrasado: c.atrasado }">{{ iniciais(c.clienteNome) }}</div>
+              <div class="cad-cli-info">
+                <div class="cad-cli-nome">{{ c.clienteNome }}</div>
+                <div v-if="c.clienteFuncao" class="cad-cli-sub"><span class="cad-funcao-tag cad-funcao-tag--linha">{{ c.clienteFuncao }}</span></div>
               </div>
-            </template>
+              <div v-if="c.saldo > 0.01" class="cad-cli-valor" :class="{ 'cad-cli-valor--red': c.atrasado }">
+                <b>R$ {{ fmt(c.saldo) }}</b>
+                <span class="cad-cli-status" :class="statusCliente(c).cls">{{ statusCliente(c).txt }}</span>
+              </div>
+              <span v-else class="cad-chip cad-chip--ok"><i class="fas fa-check"></i> Em dia</span>
+              <i class="fas fa-chevron-right vc-seta-dir"></i>
+            </button>
           </div>
         </div>
       </template>
 
       <!-- HISTÓRICO -->
       <template v-else>
-        <div class="vc-filtros">
-          <button v-for="f in filtrosHist" :key="f.id" class="vc-chip" :class="{ sel: filtroHist === f.id }" @click="filtroHist = f.id">{{ f.nome }}</button>
-        </div>
         <div class="vc-lista">
           <button v-for="f in historicoFiltrado" :key="f.id" class="vc-linha" @click="abrirModal({ tipo: 'fiado', id: f.id })">
             <span class="vc-av" :class="{ 'vc-av--pago': f.status === 'pago' }">
@@ -300,27 +275,24 @@ const atualizando = ref(false)
 const estado = ref('ok') // 'ok' | 'erro'
 const agora = ref(Date.now())
 
-const aba = ref('cobrancas')
+const aba = ref('lojas')
 const busca = ref('')
 const filtroHist = ref('todos')
 const LIMITE_HIST = 200
 
 const abas = [
-  { id: 'cobrancas', nome: 'Cobranças' },
-  { id: 'clientes',  nome: 'Clientes' },
   { id: 'lojas',     nome: 'Lojas' },
   { id: 'historico', nome: 'Histórico' }
 ]
-const filtrosHist = [
-  { id: 'todos', nome: 'Todas' },
-  { id: 'abertas', nome: 'Em aberto' },
-  { id: 'pagas', nome: 'Pagas' }
-]
+
+// Filtros ficam escondidos atrás do botão ao lado da busca (painel recolhível).
+const filtrosAbertos = ref(false)
+const filtroLojas = ref('todas')   // 'todas' | 'abertas' (só lojas com valor em aberto)
 const placeholderBusca = computed(() => ({
-  cobrancas: 'Buscar cliente ou loja', clientes: 'Buscar cliente', lojas: 'Buscar loja', historico: 'Buscar cliente, loja ou item'
+  lojas: 'Buscar loja ou cliente', historico: 'Buscar cliente, loja ou item'
 }[aba.value]))
 
-watch(aba, () => { busca.value = '' })
+watch(aba, () => { busca.value = ''; filtrosAbertos.value = false })
 
 // ── Carga ─────────────────────────────────────────────────
 async function carregar() {
@@ -430,12 +402,8 @@ const resumo = computed(() => {
 const termo = computed(() => normalizar(busca.value.trim()))
 const casa = (...campos) => !termo.value || normalizar(campos.filter(Boolean).join(' ')).includes(termo.value)
 
-// ── Cobranças · Lojas · Clientes: loja → clientes → compras (igual ao painel do vendedor) ──
-const filtroSit = ref('todos')            // Cobranças: 'todos' | 'vencidos'
+// ── Lojas: loja → clientes (igual ao painel do vendedor, só que recolhido) ──
 const lojasEstado = ref(new Map())        // loja aberta/fechada (escolha da pessoa)
-const clientesExpandidos = ref(new Set()) // clientes com a lista de compras aberta
-const comprasTodas = ref(new Set())       // clientes com o histórico completo à mostra
-const COMPRAS_INICIAIS = 6
 
 const diasEntre = (a, b) => Math.max(0, Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000))
 const localLoja = (l) => [l?.bairro, l?.referencia].filter(Boolean).join(' · ')
@@ -450,7 +418,7 @@ const fiadosPorCliente = computed(() => {
   return m
 })
 
-function montarCliente(c, hj, modo) {
+function montarCliente(c, hj) {
   const todos = (fiadosPorCliente.value.get(c.id) || [])
     .map(f => ({ ...f, atrasada: f.status === 'aberto' && f.saldo > 0.01 && !!f.dataVenc && f.dataVenc < hj }))
     .sort(maisRecentesPrimeiro)
@@ -459,17 +427,15 @@ function montarCliente(c, hj, modo) {
   const soma = (l) => centavos(l.reduce((t, f) => t + Number(f.saldo), 0))
   return {
     clienteId: c.id, clienteNome: c.nome, clienteFuncao: c.funcao || '', arquivado: !!c.arquivado,
-    // Cobranças mostra só o que falta receber; Clientes mostra tudo.
-    fiados: modo === 'cobrancas' ? (filtroSit.value === 'vencidos' ? vencidos : abertos) : todos,
+    fiados: todos,
     saldo: soma(abertos), atrasado: vencidos.length > 0, valorVencido: soma(vencidos),
     maxDiasAtraso: vencidos.reduce((m, f) => Math.max(m, diasEntre(f.dataVenc, hj)), 0),
     nCompras: todos.length, ultima: todos[0]?.dataVenda || ''
   }
 }
 
-const gruposAtivos = computed(() => {
-  if (aba.value === 'historico') return []
-  const modo = aba.value
+const gruposBase = computed(() => {
+  if (aba.value !== 'lojas') return []
   const hj = hoje()
   const porLoja = new Map()
   const garantirLoja = (id, nomeFallback) => {
@@ -479,7 +445,7 @@ const gruposAtivos = computed(() => {
     }
     return porLoja.get(id)
   }
-  if (modo === 'lojas') lojas.value.filter(l => !l.arquivado).forEach(l => garantirLoja(l.id))
+  lojas.value.filter(l => !l.arquivado).forEach(l => garantirLoja(l.id))
 
   // Clientes do cadastro + (raro) clientes que sumiram do cadastro mas ainda têm compras.
   const fonte = [...clientes.value]
@@ -488,9 +454,8 @@ const gruposAtivos = computed(() => {
     if (!cadastrados.has(id)) fonte.push({ id, nome: lista[0].clienteNome, funcao: '', lojaId: lista[0].lojaId, _lojaNome: lista[0].lojaNome })
   }
   for (const c of fonte) {
-    const cli = montarCliente(c, hj, modo)
-    if (modo === 'cobrancas' && !cli.fiados.length) continue
-    if (modo !== 'cobrancas' && cli.arquivado && cli.saldo <= 0.01) continue
+    const cli = montarCliente(c, hj)
+    if (cli.arquivado && cli.saldo <= 0.01) continue
     garantirLoja(c.lojaId, c._lojaNome).clientes.push(cli)
   }
 
@@ -499,7 +464,7 @@ const gruposAtivos = computed(() => {
     if (!t) return g
     const lojaCasa = casa(g.lojaNome, g.local)
     return { ...g, _lojaCasa: lojaCasa, clientes: lojaCasa ? g.clientes : g.clientes.filter(c => casa(c.clienteNome, c.clienteFuncao)) }
-  }).filter(g => g.clientes.length || (modo === 'lojas' && (!t || g._lojaCasa)))
+  }).filter(g => g.clientes.length || !t || g._lojaCasa)
 
   return grupos.map(g => {
     const clientesOrd = [...g.clientes].sort((a, b) =>
@@ -512,40 +477,45 @@ const gruposAtivos = computed(() => {
     }
   }).sort((a, b) => (b.valorVencido - a.valorVencido) || (b.total - a.total) || a.lojaNome.localeCompare(b.lojaNome, 'pt-BR'))
 })
+const gruposAtivos = computed(() =>
+  filtroLojas.value === 'abertas' ? gruposBase.value.filter(g => g.total > 0.01) : gruposBase.value)
 const grupoUnico = computed(() => gruposAtivos.value.length === 1)
 
-const textoVazio = computed(() => {
-  if (busca.value.trim()) return 'Nada encontrado.'
-  if (aba.value === 'cobrancas') return filtroSit.value === 'vencidos' ? 'Nenhum fiado vencido.' : 'Nenhum fiado em aberto.'
-  return aba.value === 'lojas' ? 'Nenhuma loja cadastrada.' : 'Nenhum cliente cadastrado.'
-})
+// ── Filtros (conteúdo do painel, conforme a aba) ──
+const filtrosLista = computed(() => aba.value === 'lojas'
+  ? [
+      { id: 'todas',   nome: 'Todas as lojas',     n: gruposBase.value.length },
+      { id: 'abertas', nome: 'Com valor em aberto', n: gruposBase.value.filter(g => g.total > 0.01).length }
+    ]
+  : [
+      { id: 'todos',   nome: 'Todas',     n: fiados.value.length },
+      { id: 'abertas', nome: 'Em aberto', n: fiados.value.filter(f => f.status === 'aberto').length },
+      { id: 'pagas',   nome: 'Pagas',     n: fiados.value.filter(f => f.status === 'pago').length }
+    ])
+const filtroSelecionado = computed(() => aba.value === 'lojas' ? filtroLojas.value : filtroHist.value)
+const filtroAtivo = computed(() => filtroSelecionado.value !== (aba.value === 'lojas' ? 'todas' : 'todos'))
+const rotuloFiltroAtivo = computed(() => filtrosLista.value.find(f => f.id === filtroSelecionado.value)?.nome || '')
+function escolherFiltro(id) {
+  if (aba.value === 'lojas') filtroLojas.value = id
+  else filtroHist.value = id
+}
+function limparFiltro() { escolherFiltro(aba.value === 'lojas' ? 'todas' : 'todos') }
 
-const chaveLoja = (g) => `${aba.value}|${g.lojaId}`
-const chaveCliente = (g, c) => `${aba.value}|${g.lojaId}|${c.clienteId}`
-// Só abre sozinha a loja com vencidos (como no painel do vendedor); a busca abre tudo.
+const textoVazio = computed(() => busca.value.trim() ? 'Nada encontrado.' : (filtroLojas.value === 'abertas' ? 'Nenhuma loja com valor em aberto.' : 'Nenhuma loja cadastrada.'))
+
+const chaveLoja = (g) => `lojas|${g.lojaId}`
+// Todas as lojas começam recolhidas: o cabeçalho já mostra o total e se há vencidos.
+// Abre ao tocar; a busca abre tudo; com uma loja só, ela fica aberta.
 function lojaColapsada(g) {
   if (grupoUnico.value || busca.value.trim()) return false
   const k = chaveLoja(g)
-  if (lojasEstado.value.has(k)) return !lojasEstado.value.get(k)
-  return !(g.vencidos > 0)
+  return lojasEstado.value.has(k) ? !lojasEstado.value.get(k) : true
 }
-const clienteColapsado = (g, c) => !busca.value.trim() && !clientesExpandidos.value.has(chaveCliente(g, c))
 function alternarLoja(g) {
   const m = new Map(lojasEstado.value)
   m.set(chaveLoja(g), lojaColapsada(g)) // estava fechada → abre (e vice-versa)
   lojasEstado.value = m
 }
-function alternarCliente(g, c) {
-  const k = chaveCliente(g, c)
-  const st = new Set(clientesExpandidos.value)
-  st.has(k) ? st.delete(k) : st.add(k)
-  clientesExpandidos.value = st
-}
-function comprasVisiveis(g, c) {
-  if (aba.value === 'clientes' && !busca.value.trim() && !comprasTodas.value.has(chaveCliente(g, c))) return c.fiados.slice(0, COMPRAS_INICIAIS)
-  return c.fiados
-}
-function verTodasCompras(g, c) { comprasTodas.value = new Set(comprasTodas.value).add(chaveCliente(g, c)) }
 
 // Situação do cliente (coluna do valor): atrasado há N dias, vence hoje, vence dd/mm.
 function statusCliente(c) {
@@ -555,17 +525,6 @@ function statusCliente(c) {
   return datas[0] === hoje()
     ? { txt: 'Vence hoje', cls: 'cad-cli-status--warn' }
     : { txt: `Vence ${fmtBR(datas[0]).slice(0, 5)}`, cls: '' }
-}
-const rotuloCompras = (n) => `${Number(n || 0).toLocaleString('pt-BR')} ${Number(n) === 1 ? 'compra' : 'compras'}`
-function chipCompra(f) {
-  if (f.status === 'pago' || f.saldo <= 0.01) return { txt: 'Paga', cls: 'ok' }
-  if (f.atrasada) return { txt: `Venceu ${fmtBR(f.dataVenc).slice(0, 5)}`, cls: 'red' }
-  return { txt: f.pagamentos?.length ? 'Pago em parte' : 'Em aberto', cls: 'warn' }
-}
-const fmtDataHora = (f) => fmtHora(f.horaVenda) ? `${fmtBR(f.dataVenda)} ${fmtHora(f.horaVenda)}` : fmtBR(f.dataVenda)
-function pctPago(f) {
-  const total = f.total || (totalPago(f) + f.saldo)
-  return total ? Math.min(100, Math.max(0, (totalPago(f) / total) * 100)) : 0
 }
 
 const historicoOrdenado = computed(() => [...fiados.value].sort((a, b) => chaveRecente(b).localeCompare(chaveRecente(a))))
@@ -641,20 +600,34 @@ function statusClasse(f) {
 .vc-aviso--alerta { background: var(--orange-bg); color: var(--orange); }
 
 /* KPIs */
-.vc-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.vc-kpis { margin-bottom: 12px; }
 .vc-kpi {
   padding: 12px 14px; background: var(--surface); border: 1.5px solid var(--border);
   border-radius: var(--r-md); box-shadow: var(--shadow);
 }
-.vc-kpi--main { grid-column: 1 / -1; background: linear-gradient(135deg, var(--brown-dark), var(--brown)); border-color: transparent; color: #fff; }
-.vc-kpi-rot { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-.vc-kpi--main .vc-kpi-rot { color: rgba(255, 255, 255, .7); }
-.vc-kpi-val { margin-top: 2px; font-family: var(--mono); font-size: 20px; font-weight: 800; color: var(--brown-dark); }
-.vc-kpi--main .vc-kpi-val { font-size: 28px; color: #fff; }
-.vc-kpi-det { margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
-.vc-kpi--main .vc-kpi-det { color: rgba(255, 255, 255, .75); }
-.vc-kpi--alerta { background: var(--red-bg); border-color: var(--red-dim); }
-.vc-kpi--alerta .vc-kpi-val { color: var(--red); }
+.vc-kpi--main { padding: 10px 12px; background: linear-gradient(135deg, var(--brown-dark), var(--brown)); border-color: transparent; color: #fff; }
+.vc-kpi-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.vc-kpi-rot { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: rgba(255, 255, 255, .7); }
+.vc-kpi-val { margin-top: 1px; font-family: var(--mono); font-size: 26px; line-height: 1.1; font-weight: 800; color: #fff; }
+.vc-kpi-pilulas { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.vc-kpi-pilula {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+  background: rgba(255, 255, 255, .14); font-size: 11.5px; font-weight: 600; color: rgba(255, 255, 255, .85); white-space: nowrap;
+}
+.vc-kpi-pilula i { font-size: 10px; opacity: .75; }
+.vc-kpi-pilula b { font-family: var(--mono); font-weight: 800; color: #fff; }
+
+/* Vencido / Vence hoje: dois blocos lado a lado, com cor só quando há algo a cobrar */
+.vc-kpi-sub { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.vc-kpi-sub-item { padding: 6px 10px; border-radius: var(--r-sm); background: rgba(255, 255, 255, .1); min-width: 0; }
+.vc-kpi-sub-rot { display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: rgba(255, 255, 255, .7); }
+.vc-kpi-sub-rot i { font-size: 10px; }
+.vc-kpi-sub-linha { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; margin-top: 1px; }
+.vc-kpi-sub-linha b { font-family: var(--mono); font-size: 15px; font-weight: 800; color: #fff; }
+.vc-kpi-sub-linha small { font-size: 11px; font-weight: 600; color: rgba(255, 255, 255, .75); }
+.vc-kpi-sub-item--vencido.ativo { background: var(--red); }
+.vc-kpi-sub-item--hoje.ativo { background: var(--orange); }
+.vc-kpi-sub-item.ativo .vc-kpi-sub-rot, .vc-kpi-sub-item.ativo .vc-kpi-sub-linha small { color: rgba(255, 255, 255, .92); }
 
 /* Abas e busca */
 .vc-abas { display: flex; gap: 4px; padding: 4px; margin-bottom: 12px; background: var(--cream-deep); border-radius: var(--r-md); }
@@ -670,13 +643,56 @@ function statusClasse(f) {
 .vc-busca:focus-within { border-color: var(--brown); }
 .vc-busca input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--text); }
 .vc-busca-x { border: 0; background: none; color: var(--muted); font-size: 14px; cursor: pointer; padding: 6px; }
-.vc-filtros { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-.vc-chip {
-  min-height: 36px; padding: 0 14px; border-radius: var(--r-full); cursor: pointer;
-  background: var(--surface); border: 1.5px solid var(--border); color: var(--brown-mid);
-  font-family: var(--font); font-size: 12.5px; font-weight: 800; transition: all var(--t);
+/* Barra de busca + botão de filtros */
+.vc-barra { display: flex; gap: 8px; margin-bottom: 12px; }
+.vc-barra .vc-busca { flex: 1; min-width: 0; margin-bottom: 0; }
+.vc-filtro-btn {
+  position: relative; flex-shrink: 0; width: 46px; height: 46px; display: grid; place-items: center; cursor: pointer;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); color: var(--brown-mid); font-size: 16px;
+  transition: background var(--t), border-color var(--t), color var(--t), transform .1s;
 }
-.vc-chip.sel { background: var(--brown); border-color: var(--brown); color: #fff; }
+.vc-filtro-btn:active { transform: scale(.94); }
+.vc-filtro-btn.aberto { background: var(--cream-deep); border-color: var(--brown); color: var(--brown-dark); }
+.vc-filtro-btn.ativo { color: var(--brown-dark); border-color: var(--brown-light); }
+.vc-filtro-dot {
+  position: absolute; top: 7px; right: 7px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--orange); border: 2px solid var(--surface);
+}
+
+/* Painel recolhível (abre/fecha com transição suave) */
+.vc-painel {
+  display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; margin-bottom: 0;
+  transition: grid-template-rows .22s ease, opacity .18s ease, margin-bottom .22s ease, visibility 0s linear .22s;
+}
+.vc-painel.aberto { grid-template-rows: 1fr; opacity: 1; visibility: visible; margin-bottom: 12px; transition-delay: 0s; }
+.vc-painel-inner { overflow: hidden; min-height: 0; }
+.vc-painel-card { padding: 10px 12px 12px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); }
+.vc-painel-rot { margin: 0 2px 8px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.vc-seg { display: flex; gap: 4px; padding: 4px; background: var(--cream-deep); border-radius: var(--r-md); }
+.vc-seg-btn {
+  flex: 1; min-width: 0; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 0 8px; border: 0; border-radius: var(--r-sm); cursor: pointer; background: transparent;
+  font-family: var(--font); font-size: 12.5px; font-weight: 800; color: var(--brown-mid); transition: all var(--t);
+}
+.vc-seg-btn.sel { background: var(--surface); color: var(--brown-dark); box-shadow: var(--shadow); }
+.vc-seg-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vc-seg-n {
+  min-width: 20px; padding: 1px 6px; border-radius: var(--r-full); background: rgba(0, 0, 0, .06);
+  font-family: var(--mono); font-size: 11px; font-weight: 800; text-align: center;
+}
+.vc-seg-btn.sel .vc-seg-n { background: var(--brown); color: #fff; }
+
+/* Lembrete do filtro ativo quando o painel está fechado */
+.vc-filtro-ativo {
+  display: inline-flex; align-items: center; gap: 7px; margin: -2px 0 12px; min-height: 32px; padding: 0 12px; cursor: pointer;
+  background: var(--cream-deep); border: 1.5px solid var(--border2); border-radius: var(--r-full);
+  font-family: var(--font); font-size: 12px; font-weight: 800; color: var(--brown-dark);
+}
+.vc-filtro-ativo i { font-size: 10.5px; color: var(--brown-mid); }
+.vc-filtro-ativo-x { opacity: .6; }
+@media (prefers-reduced-motion: reduce) {
+  .vc-painel, .vc-painel.aberto { transition: none; }
+}
 
 /* Listas */
 .vc-grupo { margin-bottom: 16px; }
@@ -898,20 +914,5 @@ function statusClasse(f) {
 }
 .vc-cli-linha:active { transform: scale(.985); }
 .vc-seta-dir { color: var(--brown-light); font-size: 12px; flex-shrink: 0; }
-.vc-compra {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; width: calc(100% - 24px);
-  margin: 10px 12px 8px; padding: 10px 12px; text-align: left; cursor: pointer; font-family: var(--font);
-  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-sm);
-  transition: transform .1s, border-color var(--t);
-}
-.vc-compra:active { transform: scale(.985); border-color: var(--brown-light); }
-.vc-compra--atrasada { border-color: #fecaca; background: #fffafa; }
-.cad-compras-lista > .vc-compra:last-child { margin-bottom: 12px; }
-.vc-mais-compras {
-  display: block; width: calc(100% - 24px); margin: 0 12px 12px; min-height: 40px; cursor: pointer;
-  background: none; border: 1.5px dashed var(--border2); border-radius: var(--r-sm);
-  font-family: var(--font); font-size: 12.5px; font-weight: 800; color: var(--brown-mid);
-}
-.vc-sem-compras { padding: 14px 12px; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--muted); }
 
 </style>

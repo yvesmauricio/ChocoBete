@@ -114,7 +114,7 @@ export function criarCustos({ produtos, receitas, producoes, company }) {
       mapa[key].total += qtdEscalada
 
       // Se for uma sub-receita, carregamos sua composição (recursiva, respeitando o nível)
-      if (ing.tipo === 'receita' && alvo.ingredientes) {
+      if (ing.tipo === 'receita' && alvo.ingredientes && !ing.sem_baixa) {
         coletarSubIngredientes(alvo, qtdEscalada, 1, profundidade, new Set(), mapa[key].subIngredientes, '')
       }
     }
@@ -218,6 +218,9 @@ export function criarCustos({ produtos, receitas, producoes, company }) {
     for (const ing of ingredientes) {
       const qtdEscalada = (ing.quantidade || 0) * fator
       if (qtdEscalada <= 0) continue
+
+      // Item de kit marcado como "já produzido": entra no custo, mas não consome insumos do estoque
+      if (ing.sem_baixa) continue
 
       if (ing.tipo === 'receita') {
         const sub = receitas.value.find(x => x.uuid === ing.id)
