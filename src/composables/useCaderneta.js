@@ -645,20 +645,6 @@ export async function salvarPrecosCategorias(precos) {
   await db.config.put({ chave: CHAVE_PRECOS_CAT, valor: JSON.parse(JSON.stringify(precos)) })
 }
 
-// Outros preços de cada categoria (ex.: trufa a R$ 7,00 como principal, mas
-// também a R$ 8,00 e R$ 9,00). Guardado numa chave própria: { 'cat-trufa': [8, 9] }.
-// Backups antigos simplesmente não têm essa chave e continuam funcionando.
-const CHAVE_PRECOS_EXTRAS = 'cad_precos_extras'
-
-export async function getPrecosExtras() {
-  const row = await db.config.get(CHAVE_PRECOS_EXTRAS).catch(() => null)
-  return row?.valor || {}
-}
-
-export async function salvarPrecosExtras(extras) {
-  await db.config.put({ chave: CHAVE_PRECOS_EXTRAS, valor: JSON.parse(JSON.stringify(extras)) })
-}
-
 // ── RESUMO ITENS ─────────────────────────────────────────────
 export function resumoItens(itens) {
   if (!itens?.length) return ''
@@ -666,4 +652,4 @@ export function resumoItens(itens) {
     const emoji = i.emoji || '📦'
     return `${emoji} ${i.qtd || i.qty || 0}x ${i.nome}`
   }).join('\n')
-}
+} 
