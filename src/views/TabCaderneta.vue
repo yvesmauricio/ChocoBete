@@ -3738,7 +3738,7 @@ watch(() => s.dadosVersao, async () => {
 
 const noServidor = cadernetaNoServidor()
 // Modo servidor: quando o servidor traz mudanças (outro aparelho, fila enviada), recarrega o que está na tela.
-function aoAtualizarPeloServidor() { carregarResumo(); carregarDashboard() }
+function aoAtualizarPeloServidor() { carregarResumo(); carregarDashboard(); carregarLojas() }
 onMounted(() => window.addEventListener(EVENTO_ATUALIZADA, aoAtualizarPeloServidor))
 onBeforeUnmount(() => window.removeEventListener(EVENTO_ATUALIZADA, aoAtualizarPeloServidor))
 

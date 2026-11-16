@@ -24,7 +24,7 @@ const TAMANHO_LOTE = 50
 const TIPOS_FINAIS = new Set(['aplicada', 'duplicada'])
 
 // Estado observável (objeto simples; a tela usa useFilaOps() para torná-lo reativo)
-export const estadoFila = { pendentes: 0, rejeitadas: [], enviando: false, semLogin: false, semPerfil: false, ultimoErro: '' }
+export const estadoFila = { pendentes: 0, rejeitadas: [], enviando: false, semLogin: false, semPerfil: false, ultimoErro: '', erroLeitura: '' }
 const ouvintes = new Set()
 const avisar = () => ouvintes.forEach(fn => { try { fn({ ...estadoFila }) } catch { /* ouvinte com erro não derruba a fila */ } })
 export const aoMudarFila = (fn) => { ouvintes.add(fn); return () => ouvintes.delete(fn) }
@@ -119,14 +119,21 @@ const TABELAS = ['lojas', 'clientes', 'vendas', 'pagamentos', 'estornos']
 export async function puxarEstado() {
   let cursor = (await filaDb.meta.get('cursor_caderneta'))?.valor || 0
   let alteradas = 0
+  // Falha na leitura NÃO pode ser silenciosa: sem isto o app mostra só o banco local e diz "tudo salvo".
+  const falhou = (msg) => { estadoFila.erroLeitura = msg; avisar() }
   for (let volta = 0; volta < 20; volta++) {
     let corpo
     try {
-      const r = await fetchImpl(`/api/caderneta/estado?desde=${cursor}`, { credentials: 'same-origin', redirect: 'manual' })
-      if (precisaLogin(r)) { estadoFila.semLogin = true; avisar(); break }
-      if (!r.ok) break
+      const r = await fetchImpl(`/api/caderneta/estado?desde=${cursor}`, { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' })
+      if (precisaLogin(r)) { estadoFila.semLogin = true; falhou('Faça login de novo para ler os dados do servidor.'); break }
+      if (r.status === 403) {
+        let c = null; try { c = await r.clone().json() } catch { /* sem corpo */ }
+        if (c?.codigo === 'SEM_PERFIL') estadoFila.semPerfil = true
+        falhou(c?.erro || 'Seu login não tem permissão para ler a Caderneta.'); break
+      }
+      if (!r.ok) { falhou(`O servidor não conseguiu enviar os dados (erro ${r.status}).`); break }
       corpo = await r.json()
-    } catch { break }
+    } catch { falhou('Sem conexão com o servidor. Mostrando os dados guardados neste aparelho.'); break }
     await filaDb.transaction('rw', filaDb.espelho, filaDb.meta, async () => {
       for (const t of TABELAS) for (const row of corpo[t] || []) await filaDb.espelho.put({ tabela: t, uid: row.uid, ...row })
       // itens vêm junto da venda: guardados dentro dela, sem tabela própria
@@ -138,6 +145,7 @@ export async function puxarEstado() {
       }
       await filaDb.meta.put({ chave: 'cursor_caderneta', valor: corpo.cursor })
     })
+    if (estadoFila.erroLeitura || estadoFila.semLogin || estadoFila.semPerfil) { estadoFila.erroLeitura = ''; estadoFila.semLogin = false; estadoFila.semPerfil = false; avisar() }
     alteradas += TABELAS.reduce((s, t) => s + (corpo[t]?.length || 0), 0)
     cursor = corpo.cursor
     if (!corpo.mais) break
@@ -149,7 +157,7 @@ export async function puxarEstado() {
 /** Envia ao voltar o sinal, ao reabrir o app e de tempos em tempos. Retorna função que desliga tudo. */
 export function iniciarFila({ intervaloMs = 30_000, aparelho: nome = '', aposPuxar = null } = {}) {
   definirAparelho(nome)
-  const rodar = () => { if (typeof navigator !== 'undefined' && navigator.onLine === false) return; descarregar().then(() => puxarEstado()).then(r => aposPuxar?.(r)).catch(() => {}) }
+  const rodar = () => { if (typeof navigator !== 'undefined' && navigator.onLine === false) return; descarregar().then(() => puxarEstado()).then(r => aposPuxar?.(r)).catch((e) => { console.error('[caderneta] leitura do servidor falhou', e); estadoFila.erroLeitura = 'Não foi possível aplicar os dados do servidor neste aparelho.'; avisar() }) }
   const aoVoltar = () => { if (document.visibilityState === 'visible') rodar() }
   const timer = setInterval(rodar, intervaloMs)
   const inicio = setTimeout(rodar, 1500)

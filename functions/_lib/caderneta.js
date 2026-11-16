@@ -360,6 +360,21 @@ export async function aplicarOperacao(DB, op, { usuario, aparelho, papel = null,
 const LIMITE_MUDANCAS = 500
 
 /** Tudo que mudou depois do número `desde` (0 = tudo). O aparelho guarda `cursor` e pergunta de novo a partir dele. */
+// O D1 aceita no máximo 100 parâmetros por consulta. Uma lista `IN (?,?,…)` maior que isso falha com
+// "too many SQL variables" (erro 500), e a primeira leitura de uma base já migrada (centenas de vendas e
+// pagamentos) cai exatamente aí. Por isso toda lista é consultada em lotes pequenos.
+const LOTE_D1 = 90
+async function emLotes(DB, uids, montar) {
+  const out = []
+  for (let i = 0; i < uids.length; i += LOTE_D1) {
+    const parte = uids.slice(i, i + LOTE_D1)
+    const { results } = await montar(parte).bind(...parte).all()
+    out.push(...results)
+  }
+  return out
+}
+const marcas = (l) => l.map(() => '?').join(',')
+
 export async function lerEstado(DB, desde = 0) {
   const { results: mud } = await DB.prepare(
     'SELECT tabela, uid, MAX(seq) AS seq FROM mudancas WHERE seq > ? GROUP BY tabela, uid ORDER BY seq LIMIT ?').bind(desde, LIMITE_MUDANCAS).all()
@@ -369,20 +384,15 @@ export async function lerEstado(DB, desde = 0) {
   // Se houver mais, o cursor para no último item devolvido, sem pular nenhum.
   out.cursor = Math.max(...mud.map(m => m.seq))
   const por = (t) => mud.filter(m => m.tabela === t).map(m => m.uid)
-  const buscar = async (tabela, uids, extra = '') => {
-    if (!uids.length) return []
-    const { results } = await DB.prepare(`SELECT * FROM ${tabela} WHERE uid IN (${uids.map(() => '?').join(',')}) ${extra}`).bind(...uids).all()
-    return results
-  }
+  const buscar = (tabela, uids) => emLotes(DB, uids, (l) => DB.prepare(`SELECT * FROM ${tabela} WHERE uid IN (${marcas(l)})`))
   out.lojas = await buscar('cad_lojas', por('lojas'))
   out.clientes = await buscar('cad_clientes', por('clientes'))
   out.vendas = await buscar('cad_vendas', por('vendas'))
   out.pagamentos = await buscar('cad_pagamentos', por('pagamentos'))
   out.estornos = await buscar('cad_estornos', por('estornos'))
   if (out.vendas.length) {
-    const { results } = await DB.prepare(
-      `SELECT * FROM cad_venda_itens WHERE venda_uid IN (${out.vendas.map(() => '?').join(',')}) ORDER BY venda_uid, pos`).bind(...out.vendas.map(v => v.uid)).all()
-    out.itens = results
+    out.itens = await emLotes(DB, out.vendas.map(v => v.uid), (l) => DB.prepare(`SELECT * FROM cad_venda_itens WHERE venda_uid IN (${marcas(l)}) ORDER BY venda_uid, pos`))
+    out.itens.sort((a, b) => (a.venda_uid < b.venda_uid ? -1 : a.venda_uid > b.venda_uid ? 1 : a.pos - b.pos))
   }
   return out
 }
