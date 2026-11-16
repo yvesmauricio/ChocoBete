@@ -153,23 +153,6 @@
           </article>
         </div>
 
-        <div class="aj-grupo">
-          <div class="aj-grupo-cab">
-            <h4 class="aj-grupo-titulo">Comprovantes e cobrança</h4>
-            <p class="aj-grupo-desc">Vale para as mensagens de WhatsApp da Caderneta.</p>
-          </div>
-          <article class="aj-card">
-            <label class="aj-switch-linha aj-switch-linha--tile">
-              <div class="aj-tile"><i class="fas fa-clock"></i></div>
-              <div class="aj-row-txt">
-                <div class="aj-row-titulo">Mostrar o horário da venda</div>
-                <div class="aj-row-sub">Desligue se você costuma lançar vendas fiado fora do horário real (ex.: fechando o dia à noite). O comprovante passa a mostrar só a data.</div>
-              </div>
-              <input v-model="company.mostrar_hora_venda" type="checkbox" role="switch" class="aj-switch">
-            </label>
-          </article>
-        </div>
-
         <button class="btn btn-primary aj-salvar" @click="save">
           <i class="fas fa-floppy-disk"></i> Salvar dados da empresa
         </button>
@@ -505,7 +488,7 @@
       <section v-if="abaAtiva === 'sistema'" class="aj-pagina fade-in">
         <header class="aj-cab">
           <h3 class="aj-titulo">Sistema</h3>
-          <p class="aj-desc">Preferências do app neste aparelho. As escolhas valem na hora, não precisa salvar.</p>
+          <p class="aj-desc">Preferências do app. As escolhas valem na hora, não precisa salvar.</p>
         </header>
 
         <!-- Quem é este aparelho + PIN do Admin -->
@@ -551,6 +534,24 @@
         <PinDialog v-if="criandoPin" modo="criar" :titulo="pinExiste ? 'Novo PIN do Admin' : 'Crie um PIN de Admin'" subtitulo="De 4 a 6 números." @ok="aoSalvarPin" @cancelar="criandoPin = false" />
         <div v-if="editandoAparelho" class="aj-aparelho-ov">
           <ConfigurarAparelho edicao @pronto="editandoAparelho = false" @cancelar="editandoAparelho = false" />
+        </div>
+
+        <div class="aj-grupo">
+          <div class="aj-grupo-cab">
+            <h4 class="aj-grupo-titulo">Comprovantes e cobrança</h4>
+            <p class="aj-grupo-desc">Vale para as mensagens de WhatsApp da Caderneta, em todos os aparelhos.</p>
+          </div>
+          <article class="aj-card">
+            <label class="aj-switch-linha aj-switch-linha--tile">
+              <div class="aj-tile"><i class="fas fa-clock"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-titulo">Mostrar o horário da venda</div>
+                <div class="aj-row-sub">Desligue se você costuma lançar vendas fiado fora do horário real (ex.: fechando o dia à noite). O comprovante passa a mostrar só a data.</div>
+              </div>
+              <input :checked="s.company.mostrar_hora_venda" type="checkbox" role="switch" class="aj-switch"
+                @change="s.saveCompany({ mostrar_hora_venda: $event.target.checked })">
+            </label>
+          </article>
         </div>
 
         <div class="aj-grupo">
@@ -1157,7 +1158,7 @@ async function save() {
   company.reserva_operacional_historico = proximoHistorico(
     s.company.reserva_operacional_historico, s.company.reserva_operacional_fixa, company.reserva_operacional_fixa, mesAtual
   )
-  s.saveCompany({ ...company })
+  s.saveCompany({ ...company, mostrar_hora_venda: s.company.mostrar_hora_venda })
   await salvarTaxas({ ...taxasCaderneta })
   s.notify('Alterações salvas com sucesso!')
 }
@@ -1303,7 +1304,7 @@ async function zerarDados() {
 .aj-grupo-titulo { margin: 0; font-size: 1.02rem; font-weight: 800; line-height: 1.3; color: var(--brown-dark); }
 .aj-grupo-titulo--risco { color: var(--red); }
 .aj-commit { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85em; font-weight: 700; padding: 1px 8px; border: 1px solid var(--border, rgba(0,0,0,.15)); border-radius: 999px; background: var(--cream); color: var(--brown-dark); cursor: pointer; }
-.aj-atualiza { margin: 10px 16px 0; padding: 10px 12px; border-radius: var(--r-sm); font-size: .86rem; line-height: 1.4; }
+.aj-atualiza { margin: 0 16px 14px; padding: 10px 12px; border-radius: var(--r-sm); font-size: .86rem; line-height: 1.4; }
 .aj-atualiza small { display: block; margin-top: 2px; opacity: .7; }
 .aj-atualiza--ok { background: rgba(46, 125, 50, .1); color: #2e7d32; }
 .aj-atualiza--nova { background: var(--cream); color: var(--brown-dark); font-weight: 600; }
