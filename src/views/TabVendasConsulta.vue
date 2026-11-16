@@ -65,58 +65,113 @@
 
       <div v-if="carregando" class="vc-vazio"><div class="vc-spin"></div> Carregando…</div>
 
-      <!-- COBRANÇAS -->
-      <template v-else-if="aba === 'cobrancas'">
-        <section v-for="g in gruposCobranca" :key="g.id" class="vc-grupo">
-          <div class="vc-grupo-tit" :class="`vc-grupo-tit--${g.id}`">
-            {{ g.titulo }} <span class="vc-grupo-qtd">{{ g.itens.length }}</span>
-            <span class="vc-grupo-soma">R$ {{ fmt(g.soma) }}</span>
+      <!-- COBRANÇAS · LOJAS · CLIENTES: mesmo formato do painel do vendedor (loja → clientes → compras) -->
+      <template v-else-if="aba !== 'historico'">
+        <div v-if="aba === 'cobrancas'" class="cad-resumo-seg-control">
+          <button type="button" class="cad-resumo-seg-btn" :class="{ active: filtroSit === 'todos' }" @click="filtroSit = 'todos'">
+            <span class="cad-resumo-seg-label">Todos</span>
+            <span class="cad-resumo-seg-val">R$ {{ fmt(resumo.totalAberto) }}</span>
+          </button>
+          <button type="button" class="cad-resumo-seg-btn" :class="{ active: filtroSit === 'vencidos' }" @click="filtroSit = 'vencidos'">
+            <span class="cad-resumo-seg-label">Vencidos</span>
+            <span class="cad-resumo-seg-val" :class="{ 'cad-resumo-seg-val--red': resumo.totalVencido > 0.009 }">R$ {{ fmt(resumo.totalVencido) }}</span>
+          </button>
+        </div>
+
+        <div v-if="!gruposAtivos.length" class="cad-empty">
+          <div class="cad-empty-ico"><i class="fas fa-inbox"></i></div>
+          <p>{{ textoVazio }}</p>
+        </div>
+
+        <div v-for="g in gruposAtivos" :key="g.lojaId" class="cad-grupo-loja">
+          <div class="cad-loja-header" :class="{ colapsado: lojaColapsada(g) }" @click="!grupoUnico && alternarLoja(g)" :style="grupoUnico ? 'cursor: default' : null">
+            <svg class="cad-loja-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            <span class="cad-loja-nome">
+              {{ g.lojaNome }}
+              <small v-if="g.local" class="cad-loja-local">{{ g.local }}</small>
+              <small v-if="aba === 'lojas'" class="cad-loja-local">{{ g.clientes.length }} {{ g.clientes.length === 1 ? 'cliente' : 'clientes' }}</small>
+            </span>
+            <span class="cad-loja-dir">
+              <span v-if="g.total > 0.01" class="cad-loja-total">R$ {{ fmt(g.total) }}</span>
+              <span v-else class="cad-chip cad-chip--ok"><i class="fas fa-check"></i> Em dia</span>
+              <span v-if="g.vencidos && !(aba === 'cobrancas' && filtroSit === 'vencidos')" class="cad-chip cad-chip--red">{{ g.vencidos }} {{ g.vencidos > 1 ? 'vencidos' : 'vencido' }}</span>
+            </span>
+            <svg v-if="!grupoUnico" class="cad-loja-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
           </div>
-          <button v-for="f in g.itens" :key="f.id" class="vc-linha" @click="abrirModal({ tipo: 'fiado', id: f.id })">
-            <span class="vc-av">{{ iniciais(f.clienteNome) }}</span>
-            <span class="vc-linha-txt">
-              <span class="vc-linha-nome">{{ f.clienteNome }}</span>
-              <span class="vc-linha-sub">{{ f.lojaNome }} · vence {{ fmtBR(f.dataVenc) }}</span>
-            </span>
-            <span class="vc-linha-val">R$ {{ fmt(f.saldo) }}</span>
-          </button>
-        </section>
-        <div v-if="!gruposCobranca.length" class="vc-vazio">{{ busca ? 'Nada encontrado.' : 'Nenhuma cobrança em aberto. 🎉' }}</div>
-      </template>
 
-      <!-- CLIENTES -->
-      <template v-else-if="aba === 'clientes'">
-        <div class="vc-lista">
-          <button v-for="c in clientesFiltrados" :key="c.id" class="vc-linha" @click="abrirModal({ tipo: 'cliente', id: c.id })">
-            <span class="vc-av">{{ iniciais(c.nome) }}</span>
-            <span class="vc-linha-txt">
-              <span class="vc-linha-nome">{{ c.nome }}<small v-if="c.funcao"> · {{ c.funcao }}</small></span>
-              <span class="vc-linha-sub">{{ nomeLoja(c.lojaId) }}<template v-if="c.arquivado"> · arquivado</template></span>
-            </span>
-            <span v-if="saldoCliente(c.id) > 0.01" class="vc-linha-val">R$ {{ fmt(saldoCliente(c.id)) }}</span>
-            <span v-else class="vc-ok"><i class="fas fa-check"></i> Em dia</span>
-          </button>
-        </div>
-        <div v-if="!clientesFiltrados.length" class="vc-vazio">Nenhum cliente encontrado.</div>
-      </template>
+          <div class="cad-grupo-clientes cad-grupo-clientes--indent" :class="{ colapsado: lojaColapsada(g) }">
+            <template v-for="c in g.clientes" :key="c.clienteId">
 
-      <!-- LOJAS -->
-      <template v-else-if="aba === 'lojas'">
-        <div class="vc-lista">
-          <button v-for="l in lojasFiltradas" :key="l.id" class="vc-linha" @click="abrirModal({ tipo: 'loja', id: l.id })">
-            <span class="vc-av vc-av--loja"><i class="fas fa-store"></i></span>
-            <span class="vc-linha-txt">
-              <span class="vc-linha-nome">{{ l.nome }}</span>
-              <span class="vc-linha-sub">
-                {{ [l.bairro, l.referencia].filter(Boolean).join(' · ') || 'Sem local' }}
-                · {{ qtdClientesLoja(l.id) }} {{ qtdClientesLoja(l.id) === 1 ? 'cliente' : 'clientes' }}<template v-if="l.arquivado"> · arquivada</template>
-              </span>
-            </span>
-            <span v-if="saldoLoja(l.id) > 0.01" class="vc-linha-val">R$ {{ fmt(saldoLoja(l.id)) }}</span>
-            <span v-else class="vc-ok"><i class="fas fa-check"></i> Em dia</span>
-          </button>
+              <!-- Lojas: clientes em linha simples; toque abre o cliente -->
+              <button v-if="aba === 'lojas'" type="button" class="cad-cli-card vc-cli-linha" :class="{ atrasado: c.atrasado }" @click="abrirModal({ tipo: 'cliente', id: c.clienteId })">
+                <div class="cad-cli-avatar" :class="{ atrasado: c.atrasado }">{{ iniciais(c.clienteNome) }}</div>
+                <div class="cad-cli-info">
+                  <div class="cad-cli-nome">{{ c.clienteNome }}</div>
+                  <div v-if="c.clienteFuncao" class="cad-cli-sub"><span class="cad-funcao-tag cad-funcao-tag--linha">{{ c.clienteFuncao }}</span></div>
+                </div>
+                <div v-if="c.saldo > 0.01" class="cad-cli-valor" :class="{ 'cad-cli-valor--red': c.atrasado }">
+                  <b>R$ {{ fmt(c.saldo) }}</b>
+                  <span class="cad-cli-status" :class="statusCliente(c).cls">{{ statusCliente(c, true).txt }}</span>
+                </div>
+                <span v-else class="cad-chip cad-chip--ok"><i class="fas fa-check"></i> Em dia</span>
+                <i class="fas fa-chevron-right vc-seta-dir"></i>
+              </button>
+
+              <!-- Cobranças / Clientes: cartão que abre e mostra as compras -->
+              <div v-else class="cad-cli-card" :class="{ atrasado: c.atrasado }">
+                <div class="cad-cli-header" :class="{ colapsado: clienteColapsado(g, c) }" @click="alternarCliente(g, c)">
+                  <div class="cad-cli-avatar" :class="{ atrasado: c.atrasado }">{{ iniciais(c.clienteNome) }}</div>
+                  <div class="cad-cli-info">
+                    <div class="cad-cli-nome">{{ c.clienteNome }}</div>
+                    <div v-if="c.clienteFuncao || aba === 'clientes'" class="cad-cli-sub">
+                      <span v-if="c.clienteFuncao" class="cad-funcao-tag cad-funcao-tag--linha">{{ c.clienteFuncao }}</span>
+                      <template v-if="aba === 'clientes'">{{ rotuloCompras(c.nCompras) }}<template v-if="c.ultima"> · última em {{ fmtBR(c.ultima).slice(0, 5) }}</template></template>
+                    </div>
+                  </div>
+                  <div v-if="c.saldo > 0.01" class="cad-cli-valor" :class="{ 'cad-cli-valor--red': c.atrasado }">
+                    <b>R$ {{ fmt(c.saldo) }}</b>
+                    <span class="cad-cli-status" :class="statusCliente(c).cls">{{ statusCliente(c, true).txt }}</span>
+                  </div>
+                  <span v-else class="cad-chip cad-chip--ok"><i class="fas fa-check"></i> Em dia</span>
+                  <svg class="cad-cli-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                </div>
+
+                <div class="cad-compras-lista" :class="{ colapsado: clienteColapsado(g, c) }">
+                  <button v-for="f in comprasVisiveis(g, c)" :key="f.id" type="button" class="vc-compra" :class="{ 'vc-compra--atrasada': f.atrasada }" @click="abrirModal({ tipo: 'fiado', id: f.id })">
+                    <div class="cad-compra-esq">
+                      <span class="cad-compra-data">{{ fmtDataHora(f) }}</span>
+                      <span class="cad-compra-itens">{{ qtdItens(f) }}</span>
+                      <div v-if="f.status !== 'pago' && f.pagamentos?.length" class="cad-compra-pgto">
+                        <div class="cad-compra-pgto-linha">
+                          <span class="cad-compra-pgto-recebido"><i class="fas fa-check-circle"></i> R$ {{ fmt(totalPago(f)) }}</span>
+                          <span class="cad-compra-pgto-falta">falta R$ {{ fmt(f.saldo) }}</span>
+                        </div>
+                        <div class="cad-compra-pgto-bar"><div class="cad-compra-pgto-bar-fill" :style="{ width: pctPago(f) + '%' }"></div></div>
+                      </div>
+                    </div>
+                    <div class="cad-compra-dir">
+                      <template v-if="aba === 'cobrancas'">
+                        <span class="cad-compra-valor" :class="{ 'cad-compra-valor--red': f.atrasada }">R$ {{ fmt(f.saldo) }}</span>
+                        <span class="cad-chip" :class="f.atrasada ? 'cad-chip--red' : 'cad-chip--neutral'">
+                          <template v-if="f.dataVenc"><i class="fas" :class="f.atrasada ? 'fa-calendar-xmark' : 'fa-calendar-days'"></i> {{ f.atrasada ? 'Venceu' : 'Vence' }} {{ fmtBR(f.dataVenc).slice(0, 5) }}</template>
+                          <template v-else>Sem vencimento</template>
+                        </span>
+                      </template>
+                      <template v-else>
+                        <span class="cad-compra-valor">R$ {{ fmt(f.total) }}</span>
+                        <span class="cad-chip" :class="`cad-chip--${chipCompra(f).cls}`">{{ chipCompra(f).txt }}</span>
+                      </template>
+                    </div>
+                  </button>
+                  <button v-if="aba === 'clientes' && c.fiados.length > comprasVisiveis(g, c).length" type="button" class="vc-mais-compras" @click="verTodasCompras(g, c)">
+                    Ver compras mais antigas ({{ c.fiados.length - comprasVisiveis(g, c).length }})
+                  </button>
+                  <div v-if="!c.fiados.length" class="vc-sem-compras">Nenhuma compra registrada.</div>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
-        <div v-if="!lojasFiltradas.length" class="vc-vazio">Nenhuma loja encontrada.</div>
       </template>
 
       <!-- HISTÓRICO -->
@@ -215,28 +270,6 @@
               <div v-if="!comprasDoCliente(clienteAberto.id).length" class="vc-vazio">Nenhuma compra registrada.</div>
             </template>
 
-            <!-- loja -->
-            <template v-else-if="modal.tipo === 'loja' && lojaAberta">
-              <div class="vc-det-quem">
-                <b>{{ lojaAberta.nome }}</b>
-                <span>{{ [lojaAberta.bairro, lojaAberta.referencia].filter(Boolean).join(' · ') || 'Sem local informado' }}</span>
-              </div>
-              <div class="vc-totais">
-                <div class="vc-totais-saldo"><span>Em aberto</span><b>R$ {{ fmt(saldoLoja(lojaAberta.id)) }}</b></div>
-                <div><span>Clientes</span><b>{{ qtdClientesLoja(lojaAberta.id) }}</b></div>
-              </div>
-              <div class="vc-sub-tit">Clientes</div>
-              <button v-for="c in clientesDaLoja(lojaAberta.id)" :key="c.id" class="vc-linha vc-linha--folha" @click="abrirModal({ tipo: 'cliente', id: c.id })">
-                <span class="vc-av">{{ iniciais(c.nome) }}</span>
-                <span class="vc-linha-txt">
-                  <span class="vc-linha-nome">{{ c.nome }}</span>
-                  <span class="vc-linha-sub">{{ c.funcao || 'Cliente' }}</span>
-                </span>
-                <span v-if="saldoCliente(c.id) > 0.01" class="vc-linha-val">R$ {{ fmt(saldoCliente(c.id)) }}</span>
-                <span v-else class="vc-ok"><i class="fas fa-check"></i></span>
-              </button>
-              <div v-if="!clientesDaLoja(lojaAberta.id).length" class="vc-vazio">Nenhum cliente nesta loja.</div>
-            </template>
           </div>
         </div>
       </div>
@@ -295,7 +328,10 @@ async function carregar() {
     const [l, c, f] = await Promise.all([getLojas({ incluirArquivadas: true }), getTodosClientes(), getFiados()])
     lojas.value = l
     clientes.value = c
-    fiados.value = f
+    // O nome fica copiado em cada venda: usa sempre o do cadastro atual (cobre renomeações), como no painel do vendedor.
+    const nomeCliente = Object.fromEntries(c.map(x => [x.id, x.nome]))
+    const nomeDaLoja = Object.fromEntries(l.map(x => [x.id, x.nome]))
+    fiados.value = f.map(x => ({ ...x, clienteNome: nomeCliente[x.clienteId] || x.clienteNome, lojaNome: nomeDaLoja[x.lojaId] || x.lojaNome }))
     estado.value = 'ok'
   } catch (e) {
     console.error('[consulta] falha ao ler dados', e)
@@ -372,14 +408,6 @@ const saldoPorCliente = computed(() => {
   return m
 })
 const saldoCliente = (id) => saldoPorCliente.value[id] || 0
-const saldoPorLoja = computed(() => {
-  const m = {}
-  for (const f of abertas.value) m[f.lojaId] = centavos((m[f.lojaId] || 0) + Number(f.saldo))
-  return m
-})
-const saldoLoja = (id) => saldoPorLoja.value[id] || 0
-const clientesDaLoja = (id) => clientes.value.filter(c => c.lojaId === id && !c.arquivado).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-const qtdClientesLoja = (id) => clientes.value.filter(c => c.lojaId === id && !c.arquivado).length
 const comprasDoCliente = (id) => fiados.value
   .filter(f => f.clienteId === id)
   .sort((a, b) => chaveRecente(b).localeCompare(chaveRecente(a)))
@@ -402,34 +430,144 @@ const resumo = computed(() => {
 const termo = computed(() => normalizar(busca.value.trim()))
 const casa = (...campos) => !termo.value || normalizar(campos.filter(Boolean).join(' ')).includes(termo.value)
 
-const gruposCobranca = computed(() => {
-  const hj = hoje()
-  const em7 = new Date(hj + 'T12:00:00'); em7.setDate(em7.getDate() + 7)
-  const lim7 = em7.toLocaleDateString('sv')
-  const defs = [
-    { id: 'vencidas', titulo: 'Atrasadas', ok: f => f.dataVenc && f.dataVenc < hj },
-    { id: 'hoje', titulo: 'Vencem hoje', ok: f => f.dataVenc === hj },
-    { id: 'semana', titulo: 'Próximos 7 dias', ok: f => f.dataVenc > hj && f.dataVenc <= lim7 },
-    { id: 'depois', titulo: 'Mais adiante', ok: f => f.dataVenc > lim7 },
-    { id: 'semdata', titulo: 'Sem data combinada', ok: f => !f.dataVenc }
-  ]
-  const lista = abertas.value.filter(f => casa(f.clienteNome, f.lojaNome))
-  return defs.map(d => {
-    const itens = lista.filter(d.ok).sort((a, b) => String(a.dataVenc || '').localeCompare(String(b.dataVenc || '')))
-    return { id: d.id, titulo: d.titulo, itens, soma: centavos(itens.reduce((t, f) => t + Number(f.saldo), 0)) }
-  }).filter(g => g.itens.length)
+// ── Cobranças · Lojas · Clientes: loja → clientes → compras (igual ao painel do vendedor) ──
+const filtroSit = ref('todos')            // Cobranças: 'todos' | 'vencidos'
+const lojasEstado = ref(new Map())        // loja aberta/fechada (escolha da pessoa)
+const clientesExpandidos = ref(new Set()) // clientes com a lista de compras aberta
+const comprasTodas = ref(new Set())       // clientes com o histórico completo à mostra
+const COMPRAS_INICIAIS = 6
+
+const diasEntre = (a, b) => Math.max(0, Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000))
+const localLoja = (l) => [l?.bairro, l?.referencia].filter(Boolean).join(' · ')
+const maisRecentesPrimeiro = (a, b) => chaveRecente(b).localeCompare(chaveRecente(a))
+
+const fiadosPorCliente = computed(() => {
+  const m = new Map()
+  for (const f of fiados.value) {
+    if (!m.has(f.clienteId)) m.set(f.clienteId, [])
+    m.get(f.clienteId).push(f)
+  }
+  return m
 })
 
-const clientesFiltrados = computed(() =>
-  clientes.value
-    .filter(c => casa(c.nome, c.funcao, nomeLoja(c.lojaId)))
-    .sort((a, b) => (saldoCliente(b.id) - saldoCliente(a.id)) || a.nome.localeCompare(b.nome, 'pt-BR'))
-)
-const lojasFiltradas = computed(() =>
-  lojas.value
-    .filter(l => casa(l.nome, l.bairro, l.referencia))
-    .sort((a, b) => (saldoLoja(b.id) - saldoLoja(a.id)) || a.nome.localeCompare(b.nome, 'pt-BR'))
-)
+function montarCliente(c, hj, modo) {
+  const todos = (fiadosPorCliente.value.get(c.id) || [])
+    .map(f => ({ ...f, atrasada: f.status === 'aberto' && f.saldo > 0.01 && !!f.dataVenc && f.dataVenc < hj }))
+    .sort(maisRecentesPrimeiro)
+  const abertos = todos.filter(f => f.status === 'aberto' && f.saldo > 0.01)
+  const vencidos = abertos.filter(f => f.atrasada)
+  const soma = (l) => centavos(l.reduce((t, f) => t + Number(f.saldo), 0))
+  return {
+    clienteId: c.id, clienteNome: c.nome, clienteFuncao: c.funcao || '', arquivado: !!c.arquivado,
+    // Cobranças mostra só o que falta receber; Clientes mostra tudo.
+    fiados: modo === 'cobrancas' ? (filtroSit.value === 'vencidos' ? vencidos : abertos) : todos,
+    saldo: soma(abertos), atrasado: vencidos.length > 0, valorVencido: soma(vencidos),
+    maxDiasAtraso: vencidos.reduce((m, f) => Math.max(m, diasEntre(f.dataVenc, hj)), 0),
+    nCompras: todos.length, ultima: todos[0]?.dataVenda || ''
+  }
+}
+
+const gruposAtivos = computed(() => {
+  if (aba.value === 'historico') return []
+  const modo = aba.value
+  const hj = hoje()
+  const porLoja = new Map()
+  const garantirLoja = (id, nomeFallback) => {
+    if (!porLoja.has(id)) {
+      const l = lojaPorId.value[id]
+      porLoja.set(id, { lojaId: id, lojaNome: l?.nome || nomeFallback || 'Sem loja', local: localLoja(l), clientes: [] })
+    }
+    return porLoja.get(id)
+  }
+  if (modo === 'lojas') lojas.value.filter(l => !l.arquivado).forEach(l => garantirLoja(l.id))
+
+  // Clientes do cadastro + (raro) clientes que sumiram do cadastro mas ainda têm compras.
+  const fonte = [...clientes.value]
+  const cadastrados = new Set(clientes.value.map(c => c.id))
+  for (const [id, lista] of fiadosPorCliente.value) {
+    if (!cadastrados.has(id)) fonte.push({ id, nome: lista[0].clienteNome, funcao: '', lojaId: lista[0].lojaId, _lojaNome: lista[0].lojaNome })
+  }
+  for (const c of fonte) {
+    const cli = montarCliente(c, hj, modo)
+    if (modo === 'cobrancas' && !cli.fiados.length) continue
+    if (modo !== 'cobrancas' && cli.arquivado && cli.saldo <= 0.01) continue
+    garantirLoja(c.lojaId, c._lojaNome).clientes.push(cli)
+  }
+
+  const t = termo.value
+  const grupos = [...porLoja.values()].map(g => {
+    if (!t) return g
+    const lojaCasa = casa(g.lojaNome, g.local)
+    return { ...g, _lojaCasa: lojaCasa, clientes: lojaCasa ? g.clientes : g.clientes.filter(c => casa(c.clienteNome, c.clienteFuncao)) }
+  }).filter(g => g.clientes.length || (modo === 'lojas' && (!t || g._lojaCasa)))
+
+  return grupos.map(g => {
+    const clientesOrd = [...g.clientes].sort((a, b) =>
+      (b.maxDiasAtraso - a.maxDiasAtraso) || (b.saldo - a.saldo) || a.clienteNome.localeCompare(b.clienteNome, 'pt-BR'))
+    return {
+      ...g, clientes: clientesOrd,
+      total: centavos(clientesOrd.reduce((n, c) => n + c.saldo, 0)),
+      vencidos: clientesOrd.filter(c => c.atrasado).length,
+      valorVencido: clientesOrd.reduce((n, c) => n + c.valorVencido, 0)
+    }
+  }).sort((a, b) => (b.valorVencido - a.valorVencido) || (b.total - a.total) || a.lojaNome.localeCompare(b.lojaNome, 'pt-BR'))
+})
+const grupoUnico = computed(() => gruposAtivos.value.length === 1)
+
+const textoVazio = computed(() => {
+  if (busca.value.trim()) return 'Nada encontrado.'
+  if (aba.value === 'cobrancas') return filtroSit.value === 'vencidos' ? 'Nenhum fiado vencido.' : 'Nenhum fiado em aberto.'
+  return aba.value === 'lojas' ? 'Nenhuma loja cadastrada.' : 'Nenhum cliente cadastrado.'
+})
+
+const chaveLoja = (g) => `${aba.value}|${g.lojaId}`
+const chaveCliente = (g, c) => `${aba.value}|${g.lojaId}|${c.clienteId}`
+// Só abre sozinha a loja com vencidos (como no painel do vendedor); a busca abre tudo.
+function lojaColapsada(g) {
+  if (grupoUnico.value || busca.value.trim()) return false
+  const k = chaveLoja(g)
+  if (lojasEstado.value.has(k)) return !lojasEstado.value.get(k)
+  return !(g.vencidos > 0)
+}
+const clienteColapsado = (g, c) => !busca.value.trim() && !clientesExpandidos.value.has(chaveCliente(g, c))
+function alternarLoja(g) {
+  const m = new Map(lojasEstado.value)
+  m.set(chaveLoja(g), lojaColapsada(g)) // estava fechada → abre (e vice-versa)
+  lojasEstado.value = m
+}
+function alternarCliente(g, c) {
+  const k = chaveCliente(g, c)
+  const st = new Set(clientesExpandidos.value)
+  st.has(k) ? st.delete(k) : st.add(k)
+  clientesExpandidos.value = st
+}
+function comprasVisiveis(g, c) {
+  if (aba.value === 'clientes' && !busca.value.trim() && !comprasTodas.value.has(chaveCliente(g, c))) return c.fiados.slice(0, COMPRAS_INICIAIS)
+  return c.fiados
+}
+function verTodasCompras(g, c) { comprasTodas.value = new Set(comprasTodas.value).add(chaveCliente(g, c)) }
+
+// Situação do cliente (coluna do valor): atrasado há N dias, vence hoje, vence dd/mm.
+function statusCliente(c) {
+  if (c.atrasado) return { txt: `${Math.max(1, c.maxDiasAtraso)}d em atraso`, cls: 'cad-cli-status--red' }
+  const datas = c.fiados.filter(f => f.status === 'aberto' && f.saldo > 0.01 && f.dataVenc).map(f => f.dataVenc).sort()
+  if (!datas.length) return { txt: 'Sem vencimento', cls: '' }
+  return datas[0] === hoje()
+    ? { txt: 'Vence hoje', cls: 'cad-cli-status--warn' }
+    : { txt: `Vence ${fmtBR(datas[0]).slice(0, 5)}`, cls: '' }
+}
+const rotuloCompras = (n) => `${Number(n || 0).toLocaleString('pt-BR')} ${Number(n) === 1 ? 'compra' : 'compras'}`
+function chipCompra(f) {
+  if (f.status === 'pago' || f.saldo <= 0.01) return { txt: 'Paga', cls: 'ok' }
+  if (f.atrasada) return { txt: `Venceu ${fmtBR(f.dataVenc).slice(0, 5)}`, cls: 'red' }
+  return { txt: f.pagamentos?.length ? 'Pago em parte' : 'Em aberto', cls: 'warn' }
+}
+const fmtDataHora = (f) => fmtHora(f.horaVenda) ? `${fmtBR(f.dataVenda)} ${fmtHora(f.horaVenda)}` : fmtBR(f.dataVenda)
+function pctPago(f) {
+  const total = f.total || (totalPago(f) + f.saldo)
+  return total ? Math.min(100, Math.max(0, (totalPago(f) / total) * 100)) : 0
+}
+
 const historicoOrdenado = computed(() => [...fiados.value].sort((a, b) => chaveRecente(b).localeCompare(chaveRecente(a))))
 const historicoFiltrado = computed(() => {
   const lista = historicoOrdenado.value.filter(f =>
@@ -442,8 +580,7 @@ const historicoFiltrado = computed(() => {
 // ── Detalhes ──────────────────────────────────────────────
 const fiadoAberto = computed(() => modal.value?.tipo === 'fiado' ? fiados.value.find(f => f.id === modal.value.id) : null)
 const clienteAberto = computed(() => modal.value?.tipo === 'cliente' ? clientes.value.find(c => c.id === modal.value.id) : null)
-const lojaAberta = computed(() => modal.value?.tipo === 'loja' ? lojaPorId.value[modal.value.id] : null)
-const tituloFolha = computed(() => ({ fiado: 'Compra', cliente: 'Cliente', loja: 'Loja' }[modal.value?.tipo] || ''))
+const tituloFolha = computed(() => ({ fiado: 'Compra', cliente: 'Cliente' }[modal.value?.tipo] || ''))
 
 const desconto = (f) => centavos(Number(f?.desconto) || 0)
 const totalPago = (f) => centavos((f.pagamentos || []).reduce((t, p) => t + Number(p.valor || 0), 0))
@@ -627,4 +764,154 @@ function statusClasse(f) {
 .vc-pag { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; margin-bottom: 6px; background: var(--green-bg); border-radius: var(--r-sm); font-size: 13.5px; font-weight: 700; color: var(--green); }
 .vc-pag b { font-family: var(--mono); }
 .vc-pag i { margin-right: 6px; }
+
+/* ══ Cobranças / Lojas / Clientes (copiado do painel do vendedor) ══ */
+.cad-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.cad-empty-ico { font-size: 40px; margin-bottom: 10px; }
+.cad-resumo-seg-control {
+  flex-shrink: 0;
+  display: flex; gap: 6px; margin-top: 10px;
+}
+.cad-resumo-seg-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 7px 6px 8px; border-radius: var(--r-lg);
+  border: 1px solid var(--border); background: var(--surface);
+  cursor: pointer; transition: all .18s; font-family: var(--font);
+}
+.cad-resumo-seg-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+}
+.cad-resumo-seg-val {
+  font-size: 14px; font-weight: 800; color: var(--brown); font-family: var(--mono);
+}
+.cad-resumo-seg-val--red { color: var(--red, #dc2626); }
+.cad-resumo-seg-btn.active {
+  background: var(--brown-dark); border-color: var(--brown-dark);
+  box-shadow: 0 1px 4px rgba(61,31,7,.25);
+}
+.cad-resumo-seg-btn.active .cad-resumo-seg-label { color: var(--cream); opacity: .8; }
+.cad-resumo-seg-btn.active .cad-resumo-seg-val { color: var(--cream); }
+.cad-resumo-seg-btn.active .cad-resumo-seg-val--red { color: #ffb4b4; }
+.cad-grupo-loja { display: flex; flex-direction: column; gap: 6px; }
+.cad-loja-header {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px; min-height: 48px;
+  background: var(--surface); border-radius: 10px; border-left: 3px solid var(--brown);
+  box-shadow: var(--shadow); cursor: pointer; user-select: none; z-index: 2;
+}
+.cad-loja-header:active { opacity: .8; }
+.cad-loja-ico     { color: var(--brown); flex-shrink: 0; }
+.cad-loja-nome    { font-size: 13px; font-weight: 800; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cad-loja-local   { display: block; font-size: 11px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.cad-loja-total   { font-size: 13px; font-weight: 800; color: var(--brown); font-family: var(--mono); white-space: nowrap; }
+.cad-loja-chevron { color: var(--brown-light); flex-shrink: 0; transition: transform .22s cubic-bezier(.4,0,.2,1); margin-left: 4px; }
+.cad-loja-header.colapsado .cad-loja-chevron { transform: rotate(-90deg); }
+.cad-grupo-clientes {
+  display: flex; flex-direction: column; gap: 4px;
+  overflow: hidden; transition: max-height .28s cubic-bezier(.4,0,.2,1), opacity .22s ease;
+  max-height: 9999px; opacity: 1;
+  /* folga interna (compensada pela margem negativa) pra o overflow:hidden da
+     animação de recolher não cortar a sombra e a borda de baixo dos cards */
+  padding: 2px 4px 10px; margin: 0 -4px;
+}
+.cad-grupo-clientes--indent { margin-left: 10px; padding-left: 8px; }
+.cad-grupo-clientes.colapsado { max-height: 0 !important; opacity: 0; padding-top: 0; padding-bottom: 0; }
+.cad-cli-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); overflow: hidden; box-shadow: var(--shadow); }
+.cad-cli-card.atrasado { border-color: #fecaca; background: #fff9f9; }
+.cad-cli-header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; min-height: 60px; cursor: pointer; user-select: none; }
+.cad-cli-header:active { background: var(--cream); }
+.cad-cli-avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+  background: var(--cream-deep); color: var(--brown-mid); font-size: 12px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; border: 1.5px solid var(--border2);
+}
+.cad-cli-avatar.atrasado { background: #fef2f2; color: var(--red, #dc2626); border-color: #fecaca; }
+.cad-cli-info  { flex: 1; min-width: 0; }
+.cad-cli-nome  { font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cad-cli-chevron { color: var(--brown-light); flex-shrink: 0; transition: transform .22s; }
+.cad-cli-header.colapsado .cad-cli-chevron { transform: rotate(-90deg); }
+.cad-compra-esq { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cad-compra-data { font-size: 10.5px; font-weight: 600; color: var(--muted); }
+.cad-compra-itens {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: pre-line;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.cad-compra-pgto { margin-top: 3px; display: flex; flex-direction: column; gap: 3px; max-width: 220px; }
+.cad-compra-pgto-linha { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.cad-compra-pgto-recebido {
+  font-size: 11px; font-weight: 800; color: var(--green);
+  white-space: nowrap; display: inline-flex; align-items: center; gap: 3px;
+}
+.cad-compra-pgto-recebido i { font-size: 9.5px; }
+.cad-compra-pgto-falta { font-size: 10.5px; font-weight: 700; color: var(--orange); white-space: nowrap; }
+.cad-compra-pgto-bar { height: 4px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.cad-compra-pgto-bar-fill { height: 100%; border-radius: 999px; background: var(--green); transition: width .25s ease; }
+.cad-compra-dir { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; min-width: 96px; }
+.cad-compra-valor { font-size: 14px; font-weight: 800; font-family: var(--mono); white-space: nowrap; }
+.cad-compra-valor--red { color: var(--red, #dc2626); }
+.cad-compra-meta  { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.cad-funcao-tag {
+  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: var(--r-full);
+  background: var(--cream); color: var(--brown-dark); border: 1px solid var(--border);
+  font-size: 10.5px; font-weight: 800; letter-spacing: .02em; vertical-align: middle; white-space: nowrap;
+}
+.cad-resumo-seg-btn { min-width: 0; }
+.cad-cli-card.atrasado { border-color: #fecaca; background: var(--surface); }
+.cad-cli-sub { font-size: 12px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cad-cli-valor { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; line-height: 1.15; }
+.cad-cli-valor .cad-cli-status { font-size: 11.5px; white-space: nowrap; color: var(--muted); }
+.cad-cli-valor .cad-cli-status--red { color: var(--red); }
+.cad-cli-valor .cad-cli-status--warn { color: var(--orange); }
+.cad-funcao-tag--linha { margin-left: 0; margin-right: 6px; }
+.cad-cli-valor b { font-size: 16px; font-weight: 800; font-family: var(--mono); }
+.cad-cli-valor small { font-size: 11px; color: var(--muted); font-weight: 600; }
+.cad-cli-valor--red b { color: var(--red); }
+.cad-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--r-full);
+  font-size: 11px; font-weight: 800; white-space: nowrap; flex-shrink: 0;
+}
+.cad-chip i { font-size: 10px; }
+.cad-chip--ok      { background: var(--green-bg);  color: var(--green); }
+.cad-chip--warn    { background: var(--orange-bg); color: var(--orange); }
+.cad-chip--red     { background: var(--red-bg);    color: var(--red); }
+.cad-chip--neutral { background: var(--cream);     color: var(--muted); border: 1px solid var(--border); }
+.cad-loja-nome small { margin-top: 1px; }
+.cad-loja-dir { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.cad-resumo-seg-btn { overflow: hidden; }
+.cad-resumo-seg-val {
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: clamp(11px, 3.7vw, 14px);
+}
+.cad-cli-nome { min-width: 0; }
+/* ── Aparência igual ao painel do vendedor (regras acima copiadas de lá) ── */
+.cad-grupo-loja { margin-bottom: 12px; }
+.cad-empty p { margin: 0; font-size: 14px; font-weight: 700; }
+.vc-cli-linha {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; min-height: 60px; text-align: left;
+  cursor: pointer; font-family: var(--font); transition: transform .1s;
+}
+.vc-cli-linha:active { transform: scale(.985); }
+.vc-seta-dir { color: var(--brown-light); font-size: 12px; flex-shrink: 0; }
+.vc-compra {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; width: calc(100% - 24px);
+  margin: 10px 12px 8px; padding: 10px 12px; text-align: left; cursor: pointer; font-family: var(--font);
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-sm);
+  transition: transform .1s, border-color var(--t);
+}
+.vc-compra:active { transform: scale(.985); border-color: var(--brown-light); }
+.vc-compra--atrasada { border-color: #fecaca; background: #fffafa; }
+.cad-compras-lista > .vc-compra:last-child { margin-bottom: 12px; }
+.vc-mais-compras {
+  display: block; width: calc(100% - 24px); margin: 0 12px 12px; min-height: 40px; cursor: pointer;
+  background: none; border: 1.5px dashed var(--border2); border-radius: var(--r-sm);
+  font-family: var(--font); font-size: 12.5px; font-weight: 800; color: var(--brown-mid);
+}
+.vc-sem-compras { padding: 14px 12px; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+
 </style>
