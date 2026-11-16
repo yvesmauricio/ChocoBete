@@ -11,12 +11,12 @@
 export const PERFIS_PADRAO = {
   ym: {
     nome: 'Admin',
-    descricao: 'Produção, custos, financeiro',
+    descricao: 'Acesso a todas as telas do sistema',
     modulos: ['painel', 'cozinha', 'receitas', 'insumos', 'financeiro', 'producao', 'inteligencia', 'etiquetas', 'cardapio', 'ajustes']
   },
   bete: {
     nome: 'Vendas',
-    descricao: 'Fiados, clientes, entregas',
+    descricao: 'Fiados, clientes e entregas',
     modulos: ['caderneta']
   }
 }
@@ -28,19 +28,16 @@ export const MODULOS_VALIDOS = [
   'inteligencia', 'etiquetas', 'cardapio', 'ajustes', 'caderneta'
 ]
 
+// Só o NOME é personalizável. Descrição e telas são sempre as do padrão:
+// o Admin enxerga tudo (a área de Vendas é só consulta nele, para não
+// misturar alterações com o banco que vai para o Google Drive).
 function normalizarPerfis(valor) {
   const base = JSON.parse(JSON.stringify(PERFIS_PADRAO))
   if (!valor || typeof valor !== 'object') return base
 
   for (const id of ['ym', 'bete']) {
     const nomeSalvo = typeof valor[id]?.nome === 'string' ? valor[id].nome.trim() : ''
-    const nomeLegado = id === 'ym' ? 'Yves' : 'Bete'
-    if (nomeSalvo && nomeSalvo !== nomeLegado) base[id].nome = nomeSalvo
-    if (typeof valor[id]?.descricao === 'string') base[id].descricao = valor[id].descricao.trim()
-    if (Array.isArray(valor[id]?.modulos)) {
-      const modulos = [...new Set(valor[id].modulos.filter(m => MODULOS_VALIDOS.includes(m)))]
-      if (modulos.length) base[id].modulos = modulos
-    }
+    if (nomeSalvo) base[id].nome = nomeSalvo
   }
 
   return base

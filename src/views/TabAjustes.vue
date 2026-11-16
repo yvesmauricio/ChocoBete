@@ -22,13 +22,13 @@
       <section v-if="abaAtiva === 'perfis'" class="aj-pagina fade-in">
         <header class="aj-cab">
           <h3 class="aj-titulo">Perfis de uso</h3>
-          <p class="aj-desc">Nome de cada perfil e quais telas o Admin enxerga.</p>
+          <p class="aj-desc">Defina o nome de cada perfil.</p>
         </header>
 
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Perfis do sistema</h4>
-            <p class="aj-grupo-desc">Toque para editar. Admin cuida da administração; Vendas é o fluxo simples de clientes e pedidos.</p>
+            <p class="aj-grupo-desc">Toque para editar o nome. Admin acessa tudo (em Vendas, só consulta); Vendas é o fluxo de clientes e pedidos.</p>
           </div>
 
           <details v-for="perfilId in ['ym', 'bete']" :key="perfilId" class="aj-card aj-colapso">
@@ -36,7 +36,7 @@
               <div class="aj-tile"><i class="fas" :class="perfilId === 'ym' ? 'fa-chart-line' : 'fa-book-open'"></i></div>
               <div class="aj-row-txt">
                 <div class="aj-row-titulo">{{ perfilConfig[perfilId].nome || (perfilId === 'ym' ? 'Admin' : 'Vendas') }}</div>
-                <div class="aj-row-sub">{{ perfilConfig[perfilId].descricao || (perfilId === 'ym' ? 'Administração do sistema' : 'Clientes e pedidos') }}</div>
+                <div class="aj-row-sub">{{ descricoesPerfil[perfilId] }}</div>
               </div>
             </summary>
             <div class="aj-form">
@@ -44,23 +44,7 @@
                 <label class="label" :for="`aj-nome-${perfilId}`">Nome do perfil</label>
                 <input :id="`aj-nome-${perfilId}`" v-model="perfilConfig[perfilId].nome" class="input" maxlength="30" />
               </div>
-              <div class="fg">
-                <label class="label" :for="`aj-desc-${perfilId}`">Descrição</label>
-                <input :id="`aj-desc-${perfilId}`" v-model="perfilConfig[perfilId].descricao" class="input" maxlength="80" />
-              </div>
-
-              <div v-if="perfilId === 'ym'" class="fg">
-                <span class="label">Telas que este perfil enxerga</span>
-                <div class="aj-lista-switch">
-                  <label v-for="modulo in modulosYves" :key="modulo.id" class="aj-switch-linha">
-                    <i class="fas aj-item-icone" :class="modulo.icon"></i>
-                    <span class="aj-switch-txt">{{ modulo.label }}</span>
-                    <input v-model="perfilConfig.ym.modulos" type="checkbox" role="switch" class="aj-switch" :value="modulo.id">
-                  </label>
-                </div>
-                <p class="aj-nota">Ajustes e Painel ficam sempre disponíveis, para você nunca perder o acesso às configurações.</p>
-              </div>
-              <p v-else class="aj-nota">O perfil Vendas usa o Caderninho como tela principal. O Cardápio continua acessível pelos atalhos de vendas.</p>
+              <p class="aj-nota">{{ notasPerfil[perfilId] }}</p>
             </div>
           </details>
         </div>
@@ -889,18 +873,14 @@ function alterarModoCompras(modo) {
   modoCompras.value = modo
   s.saveModoListaCompras(modo)
 }
-const modulosYves = [
-  { id: 'painel', label: 'Painel', icon: 'fa-chart-pie' },
-  { id: 'cozinha', label: 'Cozinha', icon: 'fa-utensils' },
-  { id: 'receitas', label: 'Receitas', icon: 'fa-book-open' },
-  { id: 'insumos', label: 'Estoque', icon: 'fa-boxes' },
-  { id: 'financeiro', label: 'Financeiro', icon: 'fa-money-check-dollar' },
-  { id: 'producao', label: 'Histórico', icon: 'fa-clock-rotate-left' },
-  { id: 'inteligencia', label: 'Inteligência', icon: 'fa-brain' },
-  { id: 'etiquetas', label: 'Etiquetas', icon: 'fa-tags' },
-  { id: 'cardapio', label: 'Cardápio', icon: 'fa-book-bookmark' },
-  { id: 'ajustes', label: 'Ajustes', icon: 'fa-cog' },
-]
+const descricoesPerfil = {
+  ym: 'Acesso a todas as telas',
+  bete: 'Somente a área de Vendas'
+}
+const notasPerfil = {
+  ym: 'Acessa tudo. Na área de Vendas só consulta (não envia alterações), para não conflitar com o banco que vai para o Google Drive.',
+  bete: 'Entra apenas na área de Vendas (Caderninho): fiados, clientes e entregas.'
+}
 
 // ── Publicação do Cardápio Interativo ──
 // owner/repo/branch/dominio agora só vêm do .env (não são mais editáveis nem
@@ -1098,8 +1078,6 @@ watch(() => s.perfis, (novoValor) => {
 }, { deep: true })
 
 function salvarPerfis() {
-  if (!perfilConfig.ym.modulos.includes('ajustes')) perfilConfig.ym.modulos.push('ajustes')
-  if (!perfilConfig.ym.modulos.includes('painel')) perfilConfig.ym.modulos.push('painel')
   s.savePerfis(JSON.parse(JSON.stringify(perfilConfig)))
   s.notify('Perfis salvos com sucesso!')
 }
