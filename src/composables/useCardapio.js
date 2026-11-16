@@ -1026,18 +1026,6 @@ const CSS_PEDIDO = `
   .item-selo-destaque { background: var(--creme-fundo); color: var(--terracota); border: 1px solid var(--terracota-claro); box-shadow: none; }
   .item-selo-encomenda { background: #fff; color: var(--terracota-desc); border: 1px solid var(--borda); }
   .ip-btn-enviar { border-radius: 14px; font-weight: 600; }
-  /* Banner com foto: a imagem da categoria volta, com véu escuro e título claro por cima.
-     Só vale pra categoria que TEM imagem (classe tem-capa); as demais seguem no visual leve acima. */
-  .categoria-titulo.tem-capa { background: #3d1f07; color: #fff; min-height: 84px; align-items: flex-end; }
-  .categoria-titulo.tem-capa .categoria-capa-img,
-  .categoria-titulo.tem-capa .categoria-capa-veu { display: block; }
-  .categoria-titulo.tem-capa .categoria-capa-info { padding: 14px 60px 14px 16px; flex-direction: column; align-items: flex-start; flex-wrap: nowrap; gap: 8px; }
-  .categoria-titulo.tem-capa .categoria-titulo-texto { color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.45); }
-  .categoria-titulo.tem-capa .categoria-contagem { color: #fff; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.32); font-weight: 700; }
-  .categoria-titulo.tem-capa .categoria-selecionados { background: #f0c25e; color: #3d1f07; }
-  .categoria-titulo.tem-capa .categoria-chevron { color: #fff; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.4); }
-  .categoria-titulo.tem-capa .categoria-selo-minimo { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); color: #fff; }
-  .categoria-titulo.tem-capa .categoria-preco-unico { background: #f0c25e; border: none; color: #3d1f07; font-weight: 800; }
 `
 
 /**
@@ -1458,7 +1446,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     const capaImg = config?.categorias_img?.[g.categoria] || g.itens.find(it => it.foto)?.foto || ''
     return `
     <div class="categoria-bloco${catIdx === 0 ? ' aberta' : ''}" id="ip-cat-${catIdx}">
-      <button type="button" class="categoria-titulo${capaImg ? ' tem-capa' : ''}" onclick="toggleCategoria(${catIdx})">
+      <button type="button" class="categoria-titulo" onclick="toggleCategoria(${catIdx})">
         ${capaImg
           ? `<img class="categoria-capa-img" src="${capaImg}" alt="">`
           : `<span class="categoria-capa-fundo"><span>${escHtml(g.itens[0]?.emoji || '🍫')}</span></span>`}

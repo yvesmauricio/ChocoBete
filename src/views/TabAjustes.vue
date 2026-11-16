@@ -619,6 +619,42 @@
 
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
+            <h4 class="aj-grupo-titulo">Versão e atualização</h4>
+            <p class="aj-grupo-desc">O app confere sozinho ao abrir e de tempos em tempos. Aqui você força a verificação na hora.</p>
+          </div>
+          <article class="aj-card">
+            <div class="aj-row">
+              <div class="aj-tile"><i class="fas fa-code-branch"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-titulo">Versão instalada neste aparelho</div>
+                <div class="aj-row-sub">
+                  <template v-if="commitCurto">Commit <button type="button" class="aj-commit" title="Toque para copiar" @click="copiarCommit">{{ commitCurto }}</button> · </template>v{{ versaoInstalada.versao }}<template v-if="dataBuildTxt"> · publicada em {{ dataBuildTxt }}</template>
+                </div>
+              </div>
+            </div>
+            <p v-if="mensagemAtualizacao" class="aj-atualiza" :class="classeAtualizacao" role="status">
+              {{ mensagemAtualizacao }}<small v-if="atualizacao.quando"> Verificado às {{ atualizacao.quando }}.</small>
+            </p>
+            <div class="aj-acoes">
+              <button class="btn btn-secondary" :disabled="atualizacao.buscando || atualizacao.forcando" @click="buscarAtualizacao">
+                <i class="fas fa-rotate" :class="{ 'fa-spin': atualizacao.buscando }"></i> {{ atualizacao.buscando ? 'Buscando…' : 'Buscar atualização' }}
+              </button>
+              <button v-if="novaVersao" class="btn btn-primary" @click="aplicarAtualizacao">
+                <i class="fas fa-circle-arrow-up"></i> Atualizar agora
+              </button>
+            </div>
+            <details class="aj-atualiza-avancado">
+              <summary>O app não atualiza?</summary>
+              <p>Isto apaga só a cópia do app guardada no aparelho e recarrega com a versão publicada. Seus dados não são apagados. Precisa de internet.</p>
+              <button class="btn btn-secondary" :disabled="atualizacao.buscando || atualizacao.forcando" @click="forcarAtualizacao">
+                <i class="fas fa-bolt"></i> {{ atualizacao.forcando ? 'Atualizando…' : 'Forçar atualização completa' }}
+              </button>
+            </details>
+          </article>
+        </div>
+
+        <div class="aj-grupo">
+          <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Layout da tela</h4>
             <p class="aj-grupo-desc">Como o app se organiza. Agora está no modo {{ isDesktop ? 'computador' : 'celular' }}.</p>
           </div>
@@ -721,6 +757,30 @@
               </p>
               <button class="btn btn-secondary" @click="salvarPublicacao">
                 <i class="fas fa-floppy-disk"></i> Salvar configuração
+              </button>
+            </div>
+          </details>
+
+          <!-- Publicação no servidor (Cloudflare D1): substitui o token do GitHub -->
+          <details class="aj-card aj-colapso">
+            <summary class="aj-row">
+              <div class="aj-tile"><i class="fas fa-server"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-cabeca">
+                  <div class="aj-row-titulo">Servidor do Cardápio (D1)</div>
+                  <span class="aj-pill" :class="d1Configurado(d1) ? 'aj-pill--ok' : 'aj-pill--off'">{{ d1Configurado(d1) ? 'Ligado' : 'Desligado' }}</span>
+                </div>
+                <div class="aj-row-sub">Publica no servidor e confere os preços de cada pedido. Mais seguro que o token do GitHub.</div>
+              </div>
+            </summary>
+            <div class="aj-form">
+              <div class="fg">
+                <label class="label" for="aj-token-d1">Chave de administrador</label>
+                <input id="aj-token-d1" v-model="d1.token" class="input" type="password" placeholder="mesma chave do ADMIN_TOKEN" autocomplete="off" />
+                <span class="aj-nota">Deixe vazio para continuar publicando pelo GitHub. Esta chave só permite editar o cardápio, nada mais.</span>
+              </div>
+              <button class="btn btn-secondary" :disabled="d1Testando" @click="salvarServidor">
+                <i class="fas fa-floppy-disk"></i> {{ d1Testando ? 'Testando…' : 'Salvar e testar' }}
               </button>
             </div>
           </details>
@@ -837,6 +897,9 @@ import {
   salvarTaxas 
 } from '../composables/useCaderneta.js'
 import { carregarConfigPublicacao, salvarConfigPublicacao } from '../services/githubPublish.js'
+import { carregarConfigD1, salvarConfigD1, testarConexaoD1, despublicarCardapioD1, d1Configurado } from '../services/d1Publish.js'
+import { versaoInstalada, dataBuild, descreverFalhaVersao } from '../services/versaoApp.js'
+import { novaVersao, buscarAtualizacaoAgora, aplicarAtualizacao, forcarAtualizacaoCompleta } from '../services/atualizacaoApp.js'
 import { statusBackupLocal, escolherPastaBackupLocal, reautorizarPastaBackupLocal, desconectarPastaBackupLocal } from '../services/localBackup.js'
 import BaseModal from '../components/BaseModal.vue'
 import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
@@ -869,6 +932,109 @@ const modulosYves = [
 // persistidos aqui) — só o token continua sendo digitado e salvo no app.
 const pub = reactive({ token: '', owner: '', repo: '', branch: 'main', caminho: 'public/pedido.html', dominio: '' })
 carregarConfigPublicacao().then(cfg => Object.assign(pub, cfg))
+
+// ── Versão e atualização do app ──
+const commitCurto = (versaoInstalada.commit || '').slice(0, 7)
+const dataBuildTxt = dataBuild(versaoInstalada)
+const atualizacao = reactive({ buscando: false, forcando: false, estado: '', publicada: null, quando: '', motivo: '', status: 0 })
+
+const mensagemAtualizacao = computed(() => {
+  const nova = atualizacao.publicada?.commit ? ` (commit ${atualizacao.publicada.commit.slice(0, 7)})` : ''
+  switch (atualizacao.estado) {
+    case 'offline': return 'Sem internet. Conecte e tente de novo.'
+    case 'erro': return descreverFalhaVersao(atualizacao.motivo, atualizacao.status)
+    case 'nova': return `Nova versão pronta${nova}. Toque em "Atualizar agora".`
+    case 'diferente': return `Há uma versão mais nova publicada${nova}, mas ela ainda não terminou de chegar neste aparelho. Aguarde alguns segundos e busque de novo; se continuar assim, use "Forçar atualização completa".`
+    case 'atualizado': return 'Você está na versão mais recente.'
+    default: return ''
+  }
+})
+const classeAtualizacao = computed(() => (
+  atualizacao.estado === 'atualizado' ? 'aj-atualiza--ok'
+    : ['nova', 'diferente'].includes(atualizacao.estado) ? 'aj-atualiza--nova'
+      : 'aj-atualiza--aviso'
+))
+
+async function buscarAtualizacao() {
+  if (atualizacao.buscando || atualizacao.forcando) return
+  atualizacao.buscando = true
+  try {
+    const r = await buscarAtualizacaoAgora()
+    atualizacao.estado = r.estado
+    atualizacao.publicada = r.publicada
+    atualizacao.motivo = r.motivo || ''
+    atualizacao.status = r.status || 0
+    atualizacao.quando = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    atualizacao.estado = 'erro'
+  } finally {
+    atualizacao.buscando = false
+  }
+}
+
+async function forcarAtualizacao() {
+  if (atualizacao.buscando || atualizacao.forcando) return
+  if (!confirm('Forçar atualização completa?\n\nO app apaga a cópia guardada de si mesmo e recarrega já com a versão publicada. Seus dados (pedidos, receitas, financeiro) NÃO são apagados.\n\nPrecisa de internet.')) return
+  atualizacao.forcando = true
+  try {
+    await forcarAtualizacaoCompleta() // recarrega a página se der certo
+  } catch (err) {
+    atualizacao.forcando = false
+    s.notify(err?.message || 'Não consegui forçar a atualização agora.')
+  }
+}
+
+async function copiarCommit() {
+  try {
+    await navigator.clipboard.writeText(commitCurto)
+    s.notify(`Commit ${commitCurto} copiado.`)
+  } catch {
+    s.notify(`Commit: ${commitCurto}`)
+  }
+}
+
+// ── Publicação no servidor (D1) ──
+// Sem token salvo aqui, o app continua publicando pelo GitHub como antes.
+const d1 = reactive({ token: '' })
+const d1Testando = ref(false)
+carregarConfigD1().then(cfg => Object.assign(d1, cfg)).catch(() => {})
+
+async function salvarServidor() {
+  const token = String(d1.token || '').trim()
+  if (token && token.length < 32) {
+    s.notify('O token precisa ter pelo menos 32 caracteres. Gere um com: openssl rand -hex 32')
+    return
+  }
+  d1.token = token
+  const anterior = await carregarConfigD1().catch(() => ({ token: '' }))
+  if (!token && d1Configurado(anterior)) {
+    // Desligando: tira as versões do servidor do ar, senão elas continuariam à frente do arquivo do GitHub.
+    d1Testando.value = true
+    try {
+      await despublicarCardapioD1('diaadia', anterior)
+      await despublicarCardapioD1('festa', anterior)
+      await salvarConfigD1({ token: '' })
+      s.notify('Servidor desligado. Os links voltaram ao arquivo do GitHub; publique de novo para atualizar.')
+    } catch (err) {
+      d1.token = anterior.token // não perde o token se não conseguiu despublicar
+      s.notify('Não consegui desligar agora (' + (err?.message || 'sem conexão') + '). Tente de novo com internet.')
+    } finally {
+      d1Testando.value = false
+    }
+    return
+  }
+  await salvarConfigD1({ token })
+  if (!token) { s.notify('Publicação no servidor desligada. O app publica pelo GitHub.'); return }
+  d1Testando.value = true
+  try {
+    await testarConexaoD1({ token })
+    s.notify('Servidor conectado! O cardápio agora é publicado nele.')
+  } catch (err) {
+    s.notify((err?.message || 'Não consegui falar com o servidor.') + ' (token salvo mesmo assim)')
+  } finally {
+    d1Testando.value = false
+  }
+}
 
 async function salvarPublicacao() {
   // Salva o token normalmente, mas owner/repo/branch/dominio são sempre
@@ -1220,6 +1386,15 @@ async function zerarDados() {
 .aj-grupo-cab { padding: 0 2px; }
 .aj-grupo-titulo { margin: 0; font-size: 1.02rem; font-weight: 800; line-height: 1.3; color: var(--brown-dark); }
 .aj-grupo-titulo--risco { color: var(--red); }
+.aj-commit { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85em; font-weight: 700; padding: 1px 8px; border: 1px solid var(--border, rgba(0,0,0,.15)); border-radius: 999px; background: var(--cream); color: var(--brown-dark); cursor: pointer; }
+.aj-atualiza { margin: 10px 16px 0; padding: 10px 12px; border-radius: var(--r-sm); font-size: .86rem; line-height: 1.4; }
+.aj-atualiza small { display: block; margin-top: 2px; opacity: .7; }
+.aj-atualiza--ok { background: rgba(46, 125, 50, .1); color: #2e7d32; }
+.aj-atualiza--nova { background: var(--cream); color: var(--brown-dark); font-weight: 600; }
+.aj-atualiza--aviso { background: rgba(198, 40, 40, .08); color: var(--red); }
+.aj-atualiza-avancado { margin: 4px 16px 16px; font-size: .84rem; }
+.aj-atualiza-avancado summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+.aj-atualiza-avancado p { margin: 8px 0; color: var(--muted); }
 .aj-grupo-desc { margin: 2px 0 0; font-size: .84rem; line-height: 1.45; color: var(--muted); }
 
 /* Cartão */

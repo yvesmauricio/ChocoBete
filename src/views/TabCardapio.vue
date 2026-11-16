@@ -623,22 +623,28 @@
           >
             <i class="fas fa-arrow-left"></i><span v-if="!props.standalone">Voltar</span>
           </button>
-          <div class="cp-pedidos-titulo">Pedidos do balcão</div>
-          <div :style="{ width: props.standalone ? '36px' : '70px' }"></div>
+          <div class="cp-pedidos-titulo">Pedidos</div>
+          <button v-if="publicandoNoServidor" class="cp-fs-btn" :class="{ 'cp-girando': buscandoPedidosSite }" title="Buscar pedidos do site" :disabled="buscandoPedidosSite" @click="buscarPedidosDoSiteAgora(true)">
+            <i class="fas fa-rotate"></i>
+          </button>
+          <div v-else :style="{ width: props.standalone ? '36px' : '70px' }"></div>
         </div>
 
         <div class="cp-pedidos-corpo">
           <div v-if="!pedidosSalvos.length" class="cp-pedidos-vazio">
             <i class="fas fa-clipboard-list"></i>
-            <p>Nenhum pedido salvo ainda.<br>Abra a "Tela cheia", monte um pedido junto com o cliente e toque em "Finalizar pedido".</p>
+            <p>Nenhum pedido ainda.<br>Pedidos feitos no site chegam aqui sozinhos. Para vender no balcão, abra a "Tela cheia", monte o pedido com o cliente e toque em "Finalizar pedido".</p>
           </div>
 
           <template v-else>
             <div v-for="pedido in pedidosSalvos" :key="pedido.uuid" class="cp-pedido-card" :class="'is-' + pedido.status">
               <div class="cp-pedido-topo">
                 <div class="cp-pedido-cliente">
-                  <strong>{{ pedido.clienteNome || 'Venda de balcão' }}</strong>
-                  <span class="cp-pedido-data">{{ formatarDataPedido(pedido.criadoEm) }}</span>
+                  <strong>{{ pedido.clienteNome || (pedido.origem === 'site' ? 'Pedido do site' : 'Venda de balcão') }}</strong>
+                  <span class="cp-pedido-data">
+                    {{ formatarDataPedido(pedido.criadoEm) }}
+                    <span v-if="pedido.origem === 'site'" class="cp-pedido-site"><i class="fas fa-globe"></i> Site<template v-if="pedido.codigo"> · nº {{ pedido.codigo }}</template></span>
+                  </span>
                 </div>
                 <span class="cp-pedido-status" :class="'is-' + pedido.status">
                   <i class="fas" :class="{ 'fa-clock': pedido.status === 'pendente', 'fa-calendar-check': pedido.status === 'agendado', 'fa-circle-check': pedido.status === 'entregue' }"></i>
@@ -649,6 +655,10 @@
               <div class="cp-pedido-itens">
                 <div v-for="item in pedido.itens" :key="item.nome">{{ item.qtd }}x {{ item.nome }}</div>
                 <div v-if="pedido.entregaValor">Entrega: {{ R$(pedido.entregaValor) }}</div>
+                <div v-if="pedido.origem === 'site' && pedido.clienteTelefone" class="cp-pedido-extra"><i class="fab fa-whatsapp"></i> {{ telefoneBonito(pedido.clienteTelefone) }}</div>
+                <div v-if="pedido.origem === 'site' && pedido.recebimento === 'entrega'" class="cp-pedido-extra"><i class="fas fa-location-dot"></i> Entrega<template v-if="pedido.endereco">: {{ pedido.endereco }}</template></div>
+                <div v-else-if="pedido.origem === 'site'" class="cp-pedido-extra"><i class="fas fa-store"></i> Retirada</div>
+                <div v-if="pedido.obs" class="cp-pedido-extra"><i class="fas fa-comment"></i> {{ pedido.obs }}</div>
               </div>
 
               <div class="cp-pedido-pagamento">
@@ -777,10 +787,12 @@ import {
   carregarAbaPadraoCardapio, salvarAbaPadraoCardapio,
   montarItensCardapio, agruparPorCategoria, redimensionarImagem,
   gerarPdfCardapioCompacto, numeroWhatsAppFormatado,
-  gerarHtmlPedidoInterativo, compartilharArquivo, extrairTelefoneDeTexto,
+  gerarHtmlPedidoInterativo, dadosPixDoCardapio, compartilharArquivo, extrairTelefoneDeTexto,
   garantirFontesCarregadas,
 } from '../composables/useCardapio.js'
 import { publicarArquivoGitHub, carregarConfigPublicacao, publicacaoConfigurada, urlPublicaFinal } from '../services/githubPublish.js'
+import { carregarConfigD1, d1Configurado, publicarCardapioD1 } from '../services/d1Publish.js'
+import { importarPedidosDoSite, apagarPedidoNoServidor } from '../services/pedidosSite.js'
 import { salvarPedidoCardapio, listarPedidosCardapio, atualizarStatusPedidoCardapio, excluirPedidoCardapio } from '../db.js'
 import BaseModal from '../components/BaseModal.vue'
 
@@ -892,9 +904,14 @@ function fecharOpcoesGrupo() {
 // WhatsApp de pedidos (Ajustes → Identidade) ainda não tenha sido definido.
 const numeroSugerido = computed(() => extrairTelefoneDeTexto(s.company.contato_etiqueta))
 const numeroEfetivoPedido = computed(() => s.company.whatsapp_pedidos || numeroSugerido.value)
+// Publicação no servidor (D1) ligada? Então o link é o "limpo" (/pedido-diaadia), que passa pela
+// função do servidor; sem isso (GitHub), continua o endereço .html de sempre.
+const configD1 = ref(null)
+const publicandoNoServidor = computed(() => d1Configurado(configD1.value))
+const semHtmlSeServidor = (url) => (publicandoNoServidor.value ? url.replace(/\.html$/, '') : url)
 const urlCardapioPublicado = computed(() => {
   if (!configPublicacao.value?.dominio) return ''
-  return urlPublicaFinal({ ...configPublicacao.value, caminho: `public/pedido-${cardapioAtivo.value}.html` })
+  return semHtmlSeServidor(urlPublicaFinal({ ...configPublicacao.value, caminho: `public/pedido-${cardapioAtivo.value}.html` }))
 })
 // Qual link mostrar/copiar: geral (/pedido, cliente escolhe) ou direto.
 const tipoLink = ref('escolha')
@@ -912,9 +929,9 @@ watch(cardapioAtivo, (id) => { if (tipoLink.value !== 'escolha') tipoLink.value 
 const urlLinkAtual = computed(() => {
   if (!configPublicacao.value?.dominio) return ''
   const o = opcoesLink.find(x => x.id === tipoLink.value) || opcoesLink[0]
-  return urlPublicaFinal({ ...configPublicacao.value, caminho: o.caminho })
+  return semHtmlSeServidor(urlPublicaFinal({ ...configPublicacao.value, caminho: o.caminho }))
 })
-const publicacaoDisponivel = computed(() => publicacaoConfigurada(configPublicacao.value))
+const publicacaoDisponivel = computed(() => publicacaoConfigurada(configPublicacao.value) || publicandoNoServidor.value)
 
 const busca = ref('')
 const expandido = ref(null)
@@ -953,6 +970,7 @@ onMounted(async () => {
   cardapioAtivo.value = abaPadrao.value
   const [, publicacao] = await Promise.all([carregarCardapioAtivo(), carregarConfigPublicacao(), carregarPedidosSalvos()])
   configPublicacao.value = publicacao
+  configD1.value = await carregarConfigD1().catch(() => null)
   await nextTick()
   // Modo "mostrar pro cliente": abre direto na tela cheia. Pra editar o
   // cardápio, é só tocar em "Editar cardápio" — volta pra esta tela normalmente.
@@ -962,7 +980,7 @@ onMounted(async () => {
   if (config.abrir_tela_cheia_padrao && (props.standalone || s.tab === 'cardapio') && !props.forcarEdicao && !props.abrirPedidos) {
     telaCheiaAberta.value = true
   }
-  if (props.abrirPedidos) pedidosPainelAberto.value = true
+  if (props.abrirPedidos) { pedidosPainelAberto.value = true; buscarPedidosDoSiteAgora() }
 })
 
 // ── Pedidos do balcão ───────────────────────────────────────────────────
@@ -993,9 +1011,33 @@ async function onMensagemJanela(event) {
 window.addEventListener('message', onMensagemJanela)
 onUnmounted(() => window.removeEventListener('message', onMensagemJanela))
 
+// Pedidos do site: chegam sozinhos (monitor no App.vue); aqui só recarregamos a lista quando isso acontece
+// e oferecemos o botão de atualizar na hora.
+const buscandoPedidosSite = ref(false)
+async function buscarPedidosDoSiteAgora(avisar = false) {
+  if (buscandoPedidosSite.value) return
+  buscandoPedidosSite.value = true
+  try {
+    const r = await importarPedidosDoSite()
+    if (r.novos > 0) {
+      await carregarPedidosSalvos()
+      if (avisar) s.notify?.(r.novos === 1 ? '1 pedido novo do site.' : `${r.novos} pedidos novos do site.`, 'success')
+      sincronizarDepois(true)
+    } else if (avisar) {
+      s.notify?.(r.erro ? `Não consegui buscar agora: ${r.erro}` : r.ativo ? 'Nenhum pedido novo do site.' : 'Ligue o servidor em Ajustes para receber pedidos do site.')
+    }
+  } finally {
+    buscandoPedidosSite.value = false
+  }
+}
+const aoChegarPedidosSite = () => carregarPedidosSalvos()
+window.addEventListener('pedidos-site:novos', aoChegarPedidosSite)
+onUnmounted(() => window.removeEventListener('pedidos-site:novos', aoChegarPedidosSite))
+
 async function abrirPainelPedidos() {
   pedidosPainelAberto.value = true
   await carregarPedidosSalvos()
+  buscarPedidosDoSiteAgora() // em segundo plano: mostra o que já tem e traz o que chegou
 }
 
 // Se chegou aqui direto pelo atalho "Pedidos" (dashboard da Bete), "Voltar"
@@ -1071,8 +1113,9 @@ async function reabrirPedido(pedido) {
 }
 
 async function removerPedido(pedido) {
-  if (!confirm(`Remover o pedido de ${pedido.clienteNome || 'balcão'}?`)) return
+  if (!confirm(`Remover o pedido de ${pedido.clienteNome || (pedido.origem === 'site' ? 'site' : 'balcão')}?`)) return
   await excluirPedidoCardapio(pedido.uuid)
+  if (pedido.origem === 'site') apagarPedidoNoServidor(pedido.uuid) // tira do servidor também (com retentativa se estiver sem internet)
   sincronizarDepois(true)
   pedidosSalvos.value = pedidosSalvos.value.filter(p => p.uuid !== pedido.uuid)
 }
@@ -1097,6 +1140,15 @@ function formatarDataAgendada(dataStr) {
   const d = new Date(ano, (mes || 1) - 1, dia || 1)
   if (Number.isNaN(d.getTime())) return ''
   return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })
+}
+
+// 21999430023 → (21) 99943-0023 (aceita com 55 na frente)
+function telefoneBonito(t) {
+  let d = String(t || '').replace(/\D/g, '')
+  if (d.length > 11 && d.startsWith('55')) d = d.slice(2)
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return String(t || '')
 }
 
 function linkWhatsAppCliente(pedido) {
@@ -1638,6 +1690,27 @@ async function copiarLinkPublicado() {
   }
 }
 
+/**
+ * Publica o cardápio. Com o servidor ligado (token em Ajustes), publica SÓ nele: a versão do
+ * servidor tem prioridade sobre o arquivo do GitHub, então publicar nos dois não adiantaria.
+ * Sem token, publica pelo GitHub exatamente como sempre foi.
+ * `html` é o HTML clássico (sem registro de pedidos), usado no GitHub.
+ */
+async function publicarCardapio({ html, cfgPub, usarServidor, empresaComNumero }) {
+  const caminho = `public/pedido-${cardapioAtivo.value}.html`
+  if (usarServidor) {
+    const htmlServidor = gerarHtmlPedidoInterativo({
+      config, grupos: gruposAtivos.value, empresa: empresaComNumero, cardapioId: cardapioAtivo.value, apiPedido: '/api/pedido',
+    })
+    await publicarCardapioD1({
+      id: cardapioAtivo.value, html: htmlServidor, config, grupos: gruposAtivos.value,
+      pix: dadosPixDoCardapio({ config, empresa: empresaComNumero }),
+    })
+    return { url: urlPublicaFinal({ ...cfgPub, caminho }).replace(/\.html$/, '') }
+  }
+  return publicarArquivoGitHub(html, { caminho })
+}
+
 async function gerarCardapioInterativo() {
   if (!todosItensAtivos.value.length) { s.notify?.('Ative pelo menos uma receita antes de gerar o cardápio.'); return }
   if (!numeroEfetivoPedido.value) {
@@ -1650,13 +1723,17 @@ async function gerarCardapioInterativo() {
     const html = gerarHtmlPedidoInterativo({ config, grupos: gruposAtivos.value, empresa: empresaComNumero, cardapioId: cardapioAtivo.value })
 
     const cfgPub = await carregarConfigPublicacao()
-    const linkPublicacao = urlPublicaFinal({ ...cfgPub, caminho: `public/pedido-${cardapioAtivo.value}.html` })
+    const cfgD1 = await carregarConfigD1().catch(() => null)
+    const usarServidor = d1Configurado(cfgD1)
+    const linkBase = urlPublicaFinal({ ...cfgPub, caminho: `public/pedido-${cardapioAtivo.value}.html` })
+    const linkPublicacao = usarServidor ? linkBase.replace(/\.html$/, '') : linkBase
     const textoCompartilhamento = `Confira o cardápio de ${config.nome_cardapio || s.company.nome || 'Cardápio'} e monte seu pedido aqui:`
 
-    if (publicacaoConfigurada(cfgPub) && linkPublicacao.startsWith('http')) {
+    if ((usarServidor || publicacaoConfigurada(cfgPub)) && linkPublicacao.startsWith('http')) {
       try {
-        const { url } = await publicarArquivoGitHub(html, { caminho: `public/pedido-${cardapioAtivo.value}.html` })
+        const { url } = await publicarCardapio({ html, cfgPub, usarServidor, empresaComNumero })
         configPublicacao.value = cfgPub
+        configD1.value = cfgD1
         const urlParaCompartilhar = urlLinkAtual.value || url || linkPublicacao
         const resultado = await compartilharLinkCardapio(urlParaCompartilhar, {
           title: `Cardápio ${config.nome_cardapio || s.company.nome || 'Cardápio'}`,
@@ -1670,7 +1747,7 @@ async function gerarCardapioInterativo() {
         }
         return
       } catch (err) {
-        s.notify?.('Não foi possível publicar o cardápio no GitHub. Enviando HTML como alternativa.')
+        s.notify?.(`Não foi possível publicar o cardápio ${usarServidor ? 'no servidor' : 'no GitHub'}. Enviando HTML como alternativa.`)
       }
     }
 
@@ -1709,8 +1786,10 @@ async function publicarLinkCardapioInterativo() {
     return
   }
   const cfgPub = await carregarConfigPublicacao()
-  if (!publicacaoConfigurada(cfgPub)) {
-    s.notify?.('Configure a publicação em Ajustes → Sistema (token do GitHub) antes de gerar o link.')
+  const cfgD1 = await carregarConfigD1().catch(() => null)
+  const usarServidor = d1Configurado(cfgD1)
+  if (!usarServidor && !publicacaoConfigurada(cfgPub)) {
+    s.notify?.('Configure a publicação em Ajustes → Sistema antes de gerar o link.')
     return
   }
   publicandoLink.value = true
@@ -1719,8 +1798,9 @@ async function publicarLinkCardapioInterativo() {
   try {
     const empresaComNumero = { ...s.company, whatsapp_pedidos: numeroEfetivoPedido.value }
     const html = gerarHtmlPedidoInterativo({ config, grupos: gruposAtivos.value, empresa: empresaComNumero, cardapioId: cardapioAtivo.value })
-    await publicarArquivoGitHub(html, { caminho: `public/pedido-${cardapioAtivo.value}.html` })
+    await publicarCardapio({ html, cfgPub, usarServidor, empresaComNumero })
     configPublicacao.value = cfgPub
+    configD1.value = cfgD1
     iniciarContagemLink()
   } catch (err) {
     linkStatus.value = 'idle'
@@ -2139,6 +2219,12 @@ async function publicarLinkCardapioInterativo() {
 .cp-pedido-cliente { display: flex; flex-direction: column; }
 .cp-pedido-cliente strong { font-size: 13.5px; color: var(--brown-dark); }
 .cp-pedido-data { font-size: 10.5px; color: var(--muted); }
+.cp-pedido-site { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--cream); color: var(--brown-dark); font-weight: 700; }
+.cp-pedido-site i { font-size: 9px; }
+.cp-pedido-extra { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.cp-pedido-extra i { width: 14px; text-align: center; }
+.cp-girando i { animation: cp-giro 1s linear infinite; }
+@keyframes cp-giro { to { transform: rotate(360deg); } }
 .cp-pedido-status {
   display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700;
   padding: 4px 9px; border-radius: 999px; white-space: nowrap; flex-shrink: 0;

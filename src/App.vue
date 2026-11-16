@@ -114,7 +114,8 @@
 import { onMounted, onUnmounted, reactive, computed, ref, provide, watch } from 'vue'
 import { useStore } from './store.js'
 import { useAndroidBackGuard } from './composables/useAndroidBackGuard.js'
-import { tentarReconectarSilenciosamente } from './services/googleDriveBackup.js'
+import { tentarReconectarSilenciosamente, iniciarRenovacaoPorToque } from './services/googleDriveBackup.js'
+import { iniciarMonitorPedidosSite } from './services/pedidosSite.js'
 import AppHeader      from './components/AppHeader.vue'
 import AppNav         from './components/AppNav.vue'
 import ConfirmDialog  from './components/ConfirmDialog.vue'
@@ -276,12 +277,27 @@ useAndroidBackGuard({
   tabInicial: 'painel',
 })
 
+// Pedidos feitos no site: o app confere o servidor enquanto está aberto. Sem a chave do
+// servidor em Ajustes isto não faz nada. Pedido novo vira aviso + vai pro Drive (outros aparelhos).
+let pararMonitorPedidosSite = null
+// Acesso ao Google Drive: renova no toque quando vence e sincroniza o que ficou esperando.
+let pararRenovacaoDrive = null
+function aoTokenDriveRenovado() { s.agendarSync?.(); s.syncImediato?.() }
+function aoChegarPedidosDoSite(qtd) {
+  s.notify?.(qtd === 1 ? 'Novo pedido do site!' : `${qtd} novos pedidos do site!`, 'success')
+  window.dispatchEvent(new CustomEvent('pedidos-site:novos'))
+  if (s.googleDriveConfigured) { s.agendarSync?.(); s.syncImediato?.() }
+}
+
 onMounted(async () => {
   await s.init()
   if (s.perfis.inicial !== 'selecao') perfil.value = s.perfis.inicial
   tentarReconectarSilenciosamente()
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('online', onOnline)
+  pararMonitorPedidosSite = iniciarMonitorPedidosSite({ aoChegar: aoChegarPedidosDoSite })
+  pararRenovacaoDrive = iniciarRenovacaoPorToque()
+  window.addEventListener('google-drive:token-renovado', aoTokenDriveRenovado)
 })
 
 onUnmounted(() => {
@@ -289,6 +305,9 @@ onUnmounted(() => {
   window.removeEventListener('mouseup', onMouseDragEnd)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('online', onOnline)
+  pararMonitorPedidosSite?.()
+  pararRenovacaoDrive?.()
+  window.removeEventListener('google-drive:token-renovado', aoTokenDriveRenovado)
 })
 </script>
 
