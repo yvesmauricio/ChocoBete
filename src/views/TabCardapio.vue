@@ -1737,7 +1737,7 @@ async function gerarCardapioInterativo() {
         const urlParaCompartilhar = urlLinkAtual.value || url || linkPublicacao
         const resultado = await compartilharLinkCardapio(urlParaCompartilhar, {
           title: `Cardápio ${config.nome_cardapio || s.company.nome || 'Cardápio'}`,
-          text: `${textoCompartilhamento} ${urlParaCompartilhar}`,
+          text: `${textoCompartilhamento}`,
         })
 
         if (resultado === 'copiado') {
