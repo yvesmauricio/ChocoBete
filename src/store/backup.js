@@ -5,6 +5,10 @@ import { dataHoraBR } from '../utils.js'
 import { conectarGoogleDriveBackup, desconectarGoogleDriveBackup, salvarBackupNoDrive, restaurarBackupDoDriveComInfo, listarHistoricoDrive, getInfoBackupDrive, getContaGoogle, restaurarVersaoHistoricoDrive } from '../services/googleDriveBackup.js'
 import { suportaBackupLocalAutomatico, recuperarEscolhendoPastaBackupLocal } from '../services/localBackup.js'
 import { salvarBase, apagarBase } from '../services/safetyBackup.js'
+import { ehAparelhoAdmin } from './aparelho.js'
+
+// Aviso extra nas restaurações feitas num aparelho Admin: vendas e clientes não voltam no tempo.
+const AVISO_CADERNETA = '\n\nAs vendas, clientes, lojas e preços da Caderneta NÃO são alterados — ficam como estão agora (o vendedor é quem controla esses dados).'
 
 // ctx: refs e funções do store que o backup precisa (sync, snapshots, toast, confirmação).
 export function criarBackup(ctx) {
@@ -100,12 +104,13 @@ export function criarBackup(ctx) {
           return
         }
         const ok = await confirmarAcao.ask(
-          'Isso vai substituir todos os dados atuais pelo conteúdo desse arquivo. Essa ação não pode ser desfeita. Deseja continuar?',
+          'Isso vai substituir os dados atuais pelo conteúdo desse arquivo. Essa ação não pode ser desfeita. Deseja continuar?' + (ehAparelhoAdmin() ? AVISO_CADERNETA : ''),
           { title: 'Restaurar arquivo local', confirmLabel: 'Restaurar e substituir', type: 'danger' }
         )
         if (!ok) return
+        if (ehAparelhoAdmin()) { try { await iniciarSync() } catch { /* segue com o que há aqui */ } }
         await _guardarSnapshot('antes de restaurar arquivo local')
-        await importarDados(dados)
+        await importarDados(dados, { manterCaderneta: ehAparelhoAdmin() })
         await _aposRestauracaoManual()
         notify('Dados restaurados! Recarregando…')
         setTimeout(() => location.reload(), 1500)
@@ -177,14 +182,15 @@ export function criarBackup(ctx) {
     }
     const quando = item?.modifiedTime ? dataHoraBR(item.modifiedTime) : 'essa versão'
     const ok = await confirmarAcao.ask(
-      `Isso vai substituir todos os dados atuais pela versão de ${quando}. Essa ação não pode ser desfeita. Deseja continuar?`,
+      `Isso vai substituir os dados atuais pela versão de ${quando}. Essa ação não pode ser desfeita. Deseja continuar?` + (ehAparelhoAdmin() ? AVISO_CADERNETA : ''),
       { title: 'Restaurar versão do histórico', confirmLabel: 'Restaurar e substituir', type: 'danger' }
     )
     if (!ok) return
     try {
       const dados = await restaurarVersaoHistoricoDrive(item.id)
+      if (ehAparelhoAdmin()) { try { await iniciarSync() } catch { /* segue com o que há aqui */ } }
       await _guardarSnapshot('antes de restaurar versão do histórico')
-      await importarDados(dados)
+      await importarDados(dados, { manterCaderneta: ehAparelhoAdmin() })
       // A versão restaurada vira a verdade deste aparelho e é enviada ao Drive
       // (arquivando antes a versão que estava lá).
       await _aposRestauracaoManual()

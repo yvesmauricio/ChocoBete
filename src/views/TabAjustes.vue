@@ -617,6 +617,51 @@
           <p class="aj-desc">Preferências do app neste aparelho. As escolhas valem na hora, não precisa salvar.</p>
         </header>
 
+        <!-- Quem é este aparelho + PIN do Admin -->
+        <div class="aj-grupo">
+          <div class="aj-grupo-cab">
+            <h4 class="aj-grupo-titulo">Este aparelho</h4>
+            <p class="aj-grupo-desc">O nome e o tipo (Vendedor ou Admin) valem só para este aparelho e não vão para o backup.</p>
+          </div>
+          <article class="aj-card">
+            <div class="aj-row">
+              <div class="aj-tile"><i :class="aparelho?.papel === 'vendedor' ? 'fas fa-book-open' : 'fas fa-gauge-high'"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-titulo">{{ aparelho?.nome || 'Sem nome' }}</div>
+                <div class="aj-row-sub">{{ aparelho?.papel === 'vendedor' ? 'Vendedor — só abre a Caderneta de vendas' : 'Admin — vendas só para consulta' }}</div>
+              </div>
+            </div>
+            <div class="aj-acoes">
+              <button class="btn btn-secondary" @click="editandoAparelho = true"><i class="fas fa-pen"></i> Mudar nome ou tipo</button>
+            </div>
+          </article>
+        </div>
+
+        <div class="aj-grupo">
+          <div class="aj-grupo-cab">
+            <h4 class="aj-grupo-titulo">PIN do Admin</h4>
+            <p class="aj-grupo-desc">Protege restaurar dados, importar e trocar o tipo de um aparelho Vendedor. Vale para todos os aparelhos.</p>
+          </div>
+          <article class="aj-card">
+            <div class="aj-row">
+              <div class="aj-tile"><i class="fas fa-lock"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-titulo">{{ pinExiste ? 'PIN definido' : 'Nenhum PIN definido' }}</div>
+                <div class="aj-row-sub">{{ pinExiste ? 'Para esquecer o PIN antigo, basta definir um novo aqui.' : 'Sem PIN, qualquer pessoa consegue abrir a área do Admin num aparelho Vendedor.' }}</div>
+              </div>
+            </div>
+            <div class="aj-acoes">
+              <button class="btn btn-secondary" @click="criandoPin = true"><i class="fas fa-key"></i> {{ pinExiste ? 'Trocar PIN' : 'Definir PIN' }}</button>
+              <button v-if="pinExiste" class="btn btn-secondary" @click="tirarPin"><i class="fas fa-trash"></i> Remover</button>
+            </div>
+          </article>
+        </div>
+
+        <PinDialog v-if="criandoPin" modo="criar" :titulo="pinExiste ? 'Novo PIN do Admin' : 'Crie um PIN de Admin'" subtitulo="De 4 a 6 números." @ok="aoSalvarPin" @cancelar="criandoPin = false" />
+        <div v-if="editandoAparelho" class="aj-aparelho-ov">
+          <ConfigurarAparelho edicao @pronto="editandoAparelho = false" @cancelar="editandoAparelho = false" />
+        </div>
+
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Versão e atualização</h4>
@@ -902,10 +947,33 @@ import { versaoInstalada, dataBuild, descreverFalhaVersao } from '../services/ve
 import { novaVersao, buscarAtualizacaoAgora, aplicarAtualizacao, forcarAtualizacaoCompleta } from '../services/atualizacaoApp.js'
 import { statusBackupLocal, escolherPastaBackupLocal, reautorizarPastaBackupLocal, desconectarPastaBackupLocal } from '../services/localBackup.js'
 import BaseModal from '../components/BaseModal.vue'
+import PinDialog from '../components/PinDialog.vue'
+import ConfigurarAparelho from './ConfigurarAparelho.vue'
+import { aparelho, temPin, removerPin } from '../store/aparelho.js'
 import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
 
 const s = useStore()
 const confirmar = useAppConfirm()
+
+// ── Este aparelho / PIN do Admin ──
+const editandoAparelho = ref(false)
+const criandoPin = ref(false)
+const pinExiste = ref(false)
+temPin().then(v => { pinExiste.value = v })
+async function aoSalvarPin() {
+  criandoPin.value = false
+  pinExiste.value = await temPin()
+  s.notify('PIN salvo')
+  s.agendarSync() // o PIN vale em todos os aparelhos: vai junto com o backup
+}
+async function tirarPin() {
+  const ok = await confirmar.ask('Sem PIN, qualquer pessoa consegue abrir a área do Admin num aparelho Vendedor. Remover mesmo assim?', { title: 'Remover o PIN?', confirmLabel: 'Remover', type: 'warning' })
+  if (!ok) return
+  await removerPin()
+  pinExiste.value = false
+  s.agendarSync()
+  s.notify('PIN removido')
+}
 const company = reactive({ ...s.company })
 const perfilConfig = reactive(JSON.parse(JSON.stringify(s.perfis)))
 const modoCompras = ref(s.modoListaCompras)
@@ -1583,4 +1651,8 @@ async function zerarDados() {
 .input-with-prefix:focus-within { border-color: var(--brown-mid); box-shadow: 0 0 0 3px rgba(122, 69, 32, .12); }
 .input-with-prefix .input { height: 48px; min-height: 48px; box-shadow: none !important; }
 .input-prefix { padding: 0 14px; font-size: .9rem; }
+
+/* Configurar aparelho aberto por cima de Ajustes */
+.aj-aparelho-ov { position: fixed; inset: 0; z-index: var(--z-modal); background: var(--bg); overflow-y: auto; }
+.aj-aparelho-ov :deep(.ca-shell) { position: static; min-height: 100%; }
 </style>

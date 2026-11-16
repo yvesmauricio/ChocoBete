@@ -15,6 +15,7 @@ import { suportaBackupLocalAutomatico, salvarBackupLocalAutomatico } from './ser
 import { salvarSnapshot, listarSnapshots, lerSnapshot, apagarSnapshot, salvarBase, lerBase, assinaturaDeDados } from './services/safetyBackup.js'
 import { mesclar, igual } from './services/merge.js'
 import { normalizarPerfis } from './store/perfis.js'
+import { ehAparelhoAdmin } from './store/aparelho.js'
 import { criarRegrasFinanceiras } from './store/financeiroRegras.js'
 import { criarCustos } from './store/custos.js'
 import { criarAnalytics } from './store/analytics.js'
@@ -553,7 +554,8 @@ export const useStore = defineStore('choco', () => {
       const snap = await lerSnapshot(alvoId)
       if (!snap?.dados) return { ok: false, erro: 'Essa cópia não pôde ser lida.' }
       await _guardarSnapshot('antes de restaurar uma cópia local')
-      await importarDados(snap.dados)
+      // No Admin, vendas/clientes não voltam no tempo (ver importarDados).
+      await importarDados(snap.dados, { manterCaderneta: ehAparelhoAdmin() })
       await _recarregarEstadoAposImport()
       dadosVersao.value++
       await _aposRestauracaoManual()

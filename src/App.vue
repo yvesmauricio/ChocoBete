@@ -1,11 +1,20 @@
 <template>
-  <div class="shell" :class="{ 'shell--bete': perfilInfo?.tipo === 'caderneta', 'shell--selecao': perfil === null }">
+  <div class="shell" :class="{ 'shell--bete': perfilInfo?.tipo === 'caderneta' || perfilInfo?.tipo === 'consulta', 'shell--selecao': perfil === null }">
 
-    <!-- ══ TELA DE SELEÇÃO DE PERFIL ══════════════════════════ -->
+    <!-- ══ CONFIGURAÇÃO DO APARELHO (1ª abertura, ou editar nome/tipo) ═══
+         Cada aparelho diz quem é (Vendedor ou Admin) e daí em diante só abre o módulo dele. -->
+    <ConfigurarAparelho
+      v-if="aparelhoCarregado && (!aparelho || editandoAparelho)"
+      :edicao="!!aparelho"
+      @pronto="aoConfigurarAparelho"
+      @cancelar="editandoAparelho = false"
+    />
+
+    <!-- ══ TELA DE SELEÇÃO DE PERFIL (só em aparelho Admin) ══════ -->
     <Transition name="fade">
       <SelecaoPerfil
-        v-if="perfil === null"
-        :config="s.perfis"
+        v-if="perfil === null && aparelho?.papel === 'admin'"
+        :config="configSelecao"
         @selecionar="onSelecionarPerfil"
       />
     </Transition>
@@ -74,13 +83,28 @@
     <!-- ══ MODO BETE (Caderneta) ═══════════════════════════════ -->
     <template v-if="perfilInfo?.tipo === 'caderneta'">
       <main class="main main--bete">
-        <TabCaderneta @trocar-perfil="trocarPerfil" />
+        <!-- Aparelho Vendedor: o botão do cabeçalho abre "Este aparelho", não troca de perfil. -->
+        <TabCaderneta @trocar-perfil="mostrarAparelho = true" />
       </main>
 
       <!-- O indicador de sync da Bete agora é um botão no cabeçalho do Início
            (TabCaderneta.vue), não mais uma bolinha flutuante. -->
 
     </template>
+
+    <!-- ══ VENDAS SOMENTE CONSULTA (aparelho Admin) ═════════════ -->
+    <template v-if="perfilInfo?.tipo === 'consulta'">
+      <main class="main main--bete">
+        <TabVendasConsulta @trocar-perfil="trocarPerfil" />
+      </main>
+    </template>
+
+    <AparelhoSheet
+      v-if="mostrarAparelho"
+      @fechar="mostrarAparelho = false"
+      @abrir-admin="abrirAdminTemporario"
+      @editar-aparelho="editarAparelho"
+    />
 
     <!-- ─── Confirmação Global (compartilhada) ────────────────── -->
     <ConfirmDialog />
@@ -121,9 +145,12 @@ import AppNav         from './components/AppNav.vue'
 import ConfirmDialog  from './components/ConfirmDialog.vue'
 import AtualizacaoBanner from './components/AtualizacaoBanner.vue'
 import SelecaoPerfil  from './views/SelecaoPerfil.vue'
+import ConfigurarAparelho from './views/ConfigurarAparelho.vue'
+import AparelhoSheet  from './components/AparelhoSheet.vue'
+import { aparelho, aparelhoCarregado, carregarAparelho } from './store/aparelho.js'
 import {
   TabReceitas, TabProducao, TabPainel, TabInsumos, TabInteligencia, TabFinanceiro,
-  TabCozinha, TabAjustes, TabBriefing, TabEtiquetas, TabCardapio, TabCaderneta
+  TabCozinha, TabAjustes, TabBriefing, TabEtiquetas, TabCardapio, TabCaderneta, TabVendasConsulta
 } from './views/abasAsync.js'
 
 const s = useStore()
@@ -148,9 +175,24 @@ const perfil = ref(null) // null = mostrando seleção
 // Resolve o id selecionado ('ym', 'bete', ou o id de um perfil extra) para
 // o "tipo" de casca que a tela deve montar. Perfis extras usam a mesma
 // casca do Admin ('admin'), só filtrando os módulos exibidos.
+// Aparelho Vendedor só abre a Caderneta. A única exceção é o "modo Admin temporário"
+// (liberado pelo PIN, para restaurar dados etc.), que some ao sair ou reabrir o app.
+const mostrarAparelho = ref(false)
+const editandoAparelho = ref(false)
+const modoAdminTemporario = ref(false)
+
+const configSelecao = computed(() => ({
+  ...s.perfis,
+  bete: { ...s.perfis.bete, descricao: 'Só consulta: lojas, clientes e cobranças' }
+}))
+
 const perfilInfo = computed(() => {
+  if (!aparelho.value) return null
+  const vendedor = aparelho.value.papel === 'vendedor'
+  if (vendedor && !modoAdminTemporario.value && perfil.value !== 'bete') return null
   if (perfil.value === 'ym') return { tipo: 'admin', modulos: s.perfis.ym.modulos }
-  if (perfil.value === 'bete') return { tipo: 'caderneta' }
+  // 'bete' = Vendas: no aparelho do vendedor é a Caderneta completa; no Admin, só consulta.
+  if (perfil.value === 'bete') return { tipo: vendedor ? 'caderneta' : 'consulta' }
   const extra = s.perfis.extras.find(e => e.id === perfil.value)
   if (extra) return { tipo: 'admin', modulos: extra.modulos, nome: extra.nome }
   return null
@@ -179,7 +221,7 @@ async function onSelecionarPerfil(p) {
   // entrar — um app que ficou aberto por horas mandava a foto velha por
   // cima do que o outro aparelho tinha feito. O limite de 4 s evita travar
   // a entrada com internet ruim.
-  if (p === 'bete' && s.googleDriveConfigured) {
+  if (p === 'bete' && aparelho.value?.papel === 'vendedor' && s.googleDriveConfigured) {
     await Promise.race([s.iniciarSync(), new Promise(resolve => setTimeout(resolve, 4000))])
     perfil.value = p
     if (s.hasLocalChanges) s.syncImediato()
@@ -189,7 +231,42 @@ async function onSelecionarPerfil(p) {
 }
 
 function trocarPerfil() {
+  // Vendedor (modo Admin temporário): "sair" volta para as vendas, nunca para a seleção de perfil.
+  if (aparelho.value?.papel === 'vendedor') { voltarParaVendas(); return }
   perfil.value = null
+}
+
+function voltarParaVendas() {
+  modoAdminTemporario.value = false
+  perfil.value = 'bete'
+  if (s.hasLocalChanges) s.syncImediato()
+}
+
+function abrirAdminTemporario() {
+  mostrarAparelho.value = false
+  modoAdminTemporario.value = true
+  perfil.value = 'ym'
+  s.setTab('ajustes')
+}
+
+function editarAparelho() {
+  mostrarAparelho.value = false
+  editandoAparelho.value = true
+}
+
+// Depois de configurar (ou mudar) o aparelho: entra direto no que ele vai usar.
+async function aoConfigurarAparelho() {
+  editandoAparelho.value = false
+  modoAdminTemporario.value = false
+  await entrarConformeAparelho()
+}
+
+async function entrarConformeAparelho() {
+  if (aparelho.value?.papel === 'vendedor') {
+    await onSelecionarPerfil('bete')
+  } else if (aparelho.value?.papel === 'admin') {
+    perfil.value = s.perfis.inicial !== 'selecao' ? s.perfis.inicial : null
+  }
 }
 
 // Disponibiliza trocarPerfil para qualquer componente filho (ex: AppHeader)
@@ -212,6 +289,8 @@ const onVisibilityChange = async () => {
   if (document.visibilityState === 'visible') {
     if (perfilInfo.value?.tipo === 'admin') {
       await s.iniciarSync()
+    } else if (perfilInfo.value?.tipo === 'consulta') {
+      // A própria tela de consulta atualiza ao voltar (TabVendasConsulta).
     } else if (perfilInfo.value?.tipo === 'caderneta' && escondidoDesde && Date.now() - escondidoDesde > REVERIFICAR_APOS_MS) {
       // Bete: só reconfere o Drive se ficou um tempo fora do app (voltar do
       // WhatsApp em segundos não precisa) — evita enviar por cima de algo novo.
@@ -291,7 +370,8 @@ function aoChegarPedidosDoSite(qtd) {
 
 onMounted(async () => {
   await s.init()
-  if (s.perfis.inicial !== 'selecao') perfil.value = s.perfis.inicial
+  await carregarAparelho()
+  await entrarConformeAparelho()
   tentarReconectarSilenciosamente()
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('online', onOnline)

@@ -401,6 +401,7 @@ export const CONFIG_CHAVES_DO_APARELHO = [
   'sync_pending',     // há alterações aqui ainda não enviadas
   'active_timer',     // cronômetro de produção rodando neste aparelho
   'sync_last_change', // quando este aparelho fez a última alteração (desempate no merge)
+  'aparelho_perfil',  // nome e tipo (Vendedor/Admin) DESTE aparelho — nunca viaja entre aparelhos
   'd1_pedidos_cursor', // até onde este aparelho já buscou pedidos do site (servidor D1)
   'd1_pedidos_apagar', // pedidos do site apagados aqui que o servidor ainda precisa saber
 ]
@@ -444,7 +445,11 @@ function linhasComUid(tabela, rows) {
  *    garantir que nada foi gravado no banco entre ler e aplicar.
  *    Aborta lançando Error('LOCAL_MUDOU') sem alterar nada.
  */
-export async function importarDados(backup, { guarda } = {}) {
+// Tabelas e chaves de config da Caderneta (o vendedor é quem controla esses dados).
+export const TABELAS_CADERNETA = ['cad_lojas', 'cad_clientes', 'cad_fiados']
+const ehConfigDaCaderneta = (chave) => typeof chave === 'string' && chave.startsWith('cad_')
+
+export async function importarDados(backup, { guarda, manterCaderneta = false } = {}) {
   return db.transaction('rw', db.tables, async () => {
     if (guarda) {
       const atual = await lerTudoAgora()
@@ -452,10 +457,22 @@ export async function importarDados(backup, { guarda } = {}) {
     }
     // Guarda o estado deste aparelho antes de limpar a tabela config.
     const doAparelho = (await db.config.toArray()).filter(row => ehChaveDoAparelho(row?.chave))
+    // Restauração manual num aparelho Admin: vendas, clientes, lojas e preços
+    // ficam como estão aqui (já são os do vendedor, trazidos pelo sync) — o
+    // backup antigo não pode voltar por cima deles.
+    const catAtual = {}
+    if (manterCaderneta) {
+      for (const t of TABELAS_CADERNETA) catAtual[t] = await db[t].toArray()
+      catAtual.config = (await db.config.toArray()).filter(row => ehConfigDaCaderneta(row?.chave))
+    }
     for (const tabela of db.tables.map(table => table.name)) {
       await db[tabela].clear()
       let rows = Array.isArray(backup?.[tabela]) ? backup[tabela] : []
-      if (tabela === 'config') rows = rows.filter(row => !ehChaveDoAparelho(row?.chave))
+      if (manterCaderneta && TABELAS_CADERNETA.includes(tabela)) rows = catAtual[tabela]
+      if (tabela === 'config') {
+        rows = rows.filter(row => !ehChaveDoAparelho(row?.chave))
+        if (manterCaderneta) rows = [...rows.filter(row => !ehConfigDaCaderneta(row?.chave)), ...catAtual.config]
+      }
       rows = linhasComUid(tabela, rows)
       if (rows.length) await db[tabela].bulkPut(rows)
     }
