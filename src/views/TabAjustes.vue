@@ -22,28 +22,8 @@
       <section v-if="abaAtiva === 'perfis'" class="aj-pagina fade-in">
         <header class="aj-cab">
           <h3 class="aj-titulo">Perfis de uso</h3>
-          <p class="aj-desc">Escolha como o app abre e quais telas cada perfil enxerga.</p>
+          <p class="aj-desc">Nome de cada perfil e quais telas o Admin enxerga.</p>
         </header>
-
-        <div class="aj-grupo">
-          <div class="aj-grupo-cab">
-            <h4 class="aj-grupo-titulo">Ao abrir o app</h4>
-            <p class="aj-grupo-desc">Qual perfil aparece quando o app é aberto.</p>
-          </div>
-          <article class="aj-card">
-            <div class="aj-form">
-              <div class="fg">
-                <label class="label" for="aj-inicial">Perfil inicial</label>
-                <select id="aj-inicial" v-model="perfilConfig.inicial" class="input">
-                  <option value="selecao">Mostrar seleção de perfil</option>
-                  <option value="ym">Abrir direto no perfil Admin</option>
-                  <option value="bete">Abrir direto no perfil Vendas</option>
-                  <option v-for="e in perfilConfig.extras" :key="e.id" :value="e.id">Abrir direto no perfil {{ e.nome }}</option>
-                </select>
-              </div>
-            </div>
-          </article>
-        </div>
 
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
@@ -83,79 +63,6 @@
               <p v-else class="aj-nota">O perfil Vendas usa o Caderninho como tela principal. O Cardápio continua acessível pelos atalhos de vendas.</p>
             </div>
           </details>
-        </div>
-
-        <div class="aj-grupo">
-          <div class="aj-grupo-cab">
-            <h4 class="aj-grupo-titulo">Perfis adicionais</h4>
-            <p class="aj-grupo-desc">Crie um perfil para cada função (ex.: Produção, Financeiro) e escolha quais telas cada um enxerga.</p>
-          </div>
-
-          <details v-for="extra in perfilConfig.extras" :key="extra.id" class="aj-card aj-colapso">
-            <summary class="aj-row">
-              <div class="aj-tile" :style="{ color: extra.cor }"><i class="fas fa-user-tag"></i></div>
-              <div class="aj-row-txt">
-                <div class="aj-row-cabeca">
-                  <div class="aj-row-titulo">{{ extra.nome || 'Perfil sem nome' }}</div>
-                  <span v-if="!extra.modulos.length" class="aj-pill aj-pill--aviso">Sem telas</span>
-                </div>
-                <div class="aj-row-sub">{{ extra.modulos.length === 0 ? 'Nenhuma tela' : extra.modulos.length === 1 ? '1 tela' : `${extra.modulos.length} telas` }}<template v-if="extra.descricao"> · {{ extra.descricao }}</template></div>
-              </div>
-            </summary>
-            <div class="aj-form">
-              <div class="fg">
-                <label class="label" :for="`aj-nome-${extra.id}`">Nome do perfil</label>
-                <input :id="`aj-nome-${extra.id}`" v-model="extra.nome" class="input" maxlength="30" />
-              </div>
-              <div class="fg">
-                <label class="label" :for="`aj-desc-${extra.id}`">Descrição</label>
-                <input :id="`aj-desc-${extra.id}`" v-model="extra.descricao" class="input" maxlength="80" />
-              </div>
-              <div class="fg">
-                <span class="label">Telas que este perfil enxerga</span>
-                <div class="aj-lista-switch">
-                  <label v-for="modulo in modulosYves" :key="modulo.id" class="aj-switch-linha">
-                    <i class="fas aj-item-icone" :class="modulo.icon"></i>
-                    <span class="aj-switch-txt">{{ modulo.label }}</span>
-                    <input v-model="extra.modulos" type="checkbox" role="switch" class="aj-switch" :value="modulo.id">
-                  </label>
-                </div>
-                <p v-if="!extra.modulos.length" class="aj-nota aj-nota--erro">Escolha pelo menos uma tela, senão este perfil abre em branco.</p>
-              </div>
-              <button class="btn aj-btn-risco" @click="removerExtra(extra.id)">
-                <i class="fas fa-trash"></i> Remover este perfil
-              </button>
-            </div>
-          </details>
-
-          <button v-if="!mostrarNovoPerfil" class="aj-adicionar" @click="mostrarNovoPerfil = true">
-            <i class="fas fa-plus"></i> Adicionar novo perfil
-          </button>
-          <article v-else class="aj-card">
-            <div class="aj-row">
-              <div class="aj-tile"><i class="fas fa-user-plus"></i></div>
-              <div class="aj-row-txt">
-                <div class="aj-row-titulo">Novo perfil</div>
-                <div class="aj-row-sub">Depois de criar, escolha as telas dele.</div>
-              </div>
-            </div>
-            <div class="aj-form aj-form--sem-topo">
-              <div class="fg">
-                <label class="label" for="aj-novo-nome">Nome do perfil</label>
-                <input id="aj-novo-nome" v-model="novoPerfilNome" class="input" maxlength="30" placeholder="Ex.: Estoque, Entregas..." />
-              </div>
-              <div class="fg">
-                <label class="label" for="aj-novo-desc">Descrição <span class="label-opt">(opcional)</span></label>
-                <input id="aj-novo-desc" v-model="novoPerfilDescricao" class="input" maxlength="80" />
-              </div>
-              <div class="aj-botoes">
-                <button class="btn btn-secondary" @click="cancelarNovoPerfil">Cancelar</button>
-                <button class="btn btn-primary" :disabled="!novoPerfilNome.trim()" @click="confirmarNovoPerfil">
-                  <i class="fas fa-plus"></i> Criar perfil
-                </button>
-              </div>
-            </div>
-          </article>
         </div>
 
         <button class="btn btn-primary aj-salvar" @click="salvarPerfis">
@@ -1190,46 +1097,9 @@ watch(() => s.perfis, (novoValor) => {
   if (novoValor) Object.assign(perfilConfig, JSON.parse(JSON.stringify(novoValor)))
 }, { deep: true })
 
-// ── Perfis extras (livres) ──────────────────────────────────
-const mostrarNovoPerfil = ref(false)
-const novoPerfilNome = ref('')
-const novoPerfilDescricao = ref('')
-
-function cancelarNovoPerfil() {
-  mostrarNovoPerfil.value = false
-  novoPerfilNome.value = ''
-  novoPerfilDescricao.value = ''
-}
-
-function confirmarNovoPerfil() {
-  if (!novoPerfilNome.value.trim()) return
-  const paleta = ['#b45309', '#15803d', '#1d4ed8', '#a21caf', '#b91c1c', '#0f766e']
-  const cor = paleta[perfilConfig.extras.length % paleta.length]
-  const idsUsados = perfilConfig.extras.map(e => e.id)
-  let id = novoPerfilNome.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'perfil'
-  let n = 2
-  while (idsUsados.includes(id) || ['ym', 'bete'].includes(id)) { id = `${id}_${n}`; n++ }
-  perfilConfig.extras.push({
-    id,
-    nome: novoPerfilNome.value.trim(),
-    descricao: novoPerfilDescricao.value.trim(),
-    cor,
-    modulos: ['painel']
-  })
-  cancelarNovoPerfil()
-}
-
-function removerExtra(id) {
-  perfilConfig.extras = perfilConfig.extras.filter(e => e.id !== id)
-  if (perfilConfig.inicial === id) perfilConfig.inicial = 'selecao'
-}
-
 function salvarPerfis() {
   if (!perfilConfig.ym.modulos.includes('ajustes')) perfilConfig.ym.modulos.push('ajustes')
   if (!perfilConfig.ym.modulos.includes('painel')) perfilConfig.ym.modulos.push('painel')
-  // Nenhum perfil extra pode ficar sem módulo nenhum (senão abre em branco)
-  perfilConfig.extras.forEach(e => { if (!e.modulos.length) e.modulos.push('painel') })
   s.savePerfis(JSON.parse(JSON.stringify(perfilConfig)))
   s.notify('Perfis salvos com sucesso!')
 }

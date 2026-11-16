@@ -108,11 +108,9 @@ export const useStore = defineStore('choco', () => {
 
   const perfis = ref(normalizarPerfis())
 
-  // Usado na tela de seleção de perfil: enquanto não há nenhum dado real
-  // (instalação nova, ou app recém-limpo), escondemos os perfis extras
-  // pré-definidos (Produção/Financeiro, que vêm de fábrica em
-  // PERFIS_PADRAO) e mostramos um jeito rápido de restaurar dados ali
-  // mesmo, sem precisar entrar em Admin → Ajustes → Backup primeiro.
+  // Verdadeiro enquanto não há nenhum dado real (instalação nova, ou app
+  // recém-limpo): a tela de configurar o aparelho usa isso para oferecer
+  // "Restaurar dados" logo na primeira abertura.
   const bancoVazio = computed(() =>
     produtos.value.length === 0 &&
     receitas.value.length === 0 &&

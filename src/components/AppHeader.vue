@@ -28,15 +28,16 @@
           <i class="fas" :class="syncIcone"></i>
         </button>
 
-        <!-- Trocar perfil -->
+        <!-- Atalho para as vendas (consulta). No modo Admin temporário do
+             aparelho vendedor vira "Sair do Admin". Ver atalhoHeader no App.vue. -->
         <button
-          class="hdr-btn hdr-btn-perfil"
-          title="Trocar perfil"
-          @click="trocarPerfil"
+          v-if="atalhoHeader"
+          class="hdr-btn hdr-btn-atalho"
+          :title="atalhoHeader.titulo"
+          @click="atalhoHeader.acao()"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
+          <i class="fas" :class="atalhoHeader.icone" aria-hidden="true"></i>
+          <span>{{ atalhoHeader.label }}</span>
         </button>
       </div>
     </div>
@@ -49,7 +50,7 @@ import { useStore } from '../store.js'
 import { useConfirm } from '../composables/useConfirm.js'
 
 const s = useStore()
-const trocarPerfil = inject('trocarPerfil', () => {})
+const atalhoHeader = inject('atalhoHeader', null)
 const confirmar = useConfirm()
 
 // Esse perfil (Admin) não sincroniza sozinho a cada alteração — diferente

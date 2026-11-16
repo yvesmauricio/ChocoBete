@@ -94,6 +94,9 @@ button{cursor:pointer;font-family:var(--font);touch-action:manipulation}
 .hdr-btn:active{background:rgba(255,255,255,.22);transform:scale(.93)}
 /* ADICIONADO: estado active do botão de ajustes no header */
 .hdr-btn.active{background:var(--gold);color:var(--brown-dark);border-color:var(--gold-light)}
+/* Atalho com texto (Vendas / Sair do Admin): largura pelo conteúdo, mesma altura dos outros botões */
+.hdr-btn-atalho{width:auto;padding:0 13px;gap:8px;font-size:.82rem;font-weight:800;white-space:nowrap}
+.hdr-btn-atalho i{font-size:.9rem}
 /* Botão de sync no cabeçalho do Admin — mesmo tamanho do "trocar perfil",
    mas com cor de aviso quando há algo pendente/errado, pra ser difícil
    de ignorar (era uma bolinha discreta antes; deixava passar batido). */
@@ -953,7 +956,7 @@ html.is-desktop .fab:hover{transform:scale(1.06);box-shadow:0 6px 18px rgba(61,3
 html.is-desktop .floating-timer{bottom:28px;left:calc(var(--side-w) + 24px);cursor:grab}
 html.is-desktop .floating-timer:active{cursor:grabbing}
 html.is-desktop .toast{left:calc(50% + var(--side-w) / 2)}
-html.is-desktop .shell--bete .toast,html.is-desktop .shell--selecao .toast{left:50%}
+html.is-desktop .shell--bete .toast{left:50%}
 html.is-desktop .toast.toast--sutil{bottom:24px}
 
 /* ── Detalhes de mouse e teclado ── */
@@ -973,8 +976,6 @@ html.is-desktop .input:focus-visible,html.is-desktop .search-input:focus-visible
   html.is-desktop .modal-back:hover{background:rgba(255,255,255,.14)}
 }
 
-/* Tela de seleção de perfil: ocupa a janela toda (sem grade de menu/conteúdo) */
-html.is-desktop .shell.shell--selecao{display:block}
 
 
 /* ================================================================
@@ -1003,7 +1004,6 @@ html.is-desktop .tab-content > .swipe-wrap{
 html.is-desktop .tab-content > .swipe-wrap:last-child{border-bottom:0}
 html.is-desktop .tab-content > .swipe-wrap .swipe-btns{border-radius:0}
 html.is-desktop .tab-content > .swipe-wrap .list-row{min-height:60px;padding:11px 16px}
-html.is-desktop .selecao-dica{display:none}
 
 /* ── Cabeçalho de colunas ── */
 html.is-desktop .tbl-head{

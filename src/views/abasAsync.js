@@ -1,6 +1,5 @@
 // Telas carregadas sob demanda: cada uma vira um chunk próprio e só é baixada/
 // executada na primeira vez que a pessoa abre a aba (ou o perfil que a usa).
-// A tela de seleção de perfil (SelecaoPerfil) continua estática: é a 1ª a aparecer.
 import { defineAsyncComponent } from 'vue'
 import AbaCarregando from '../components/AbaCarregando.vue'
 import AbaErro from '../components/AbaErro.vue'

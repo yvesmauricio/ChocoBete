@@ -44,9 +44,7 @@ import { useStore } from '../store.js'
 import { useLayoutMode } from '../composables/useLayoutMode.js'
 const s = useStore()
 const { isDesktop } = useLayoutMode()
-// 'modulos' é a lista de ids de tela que este perfil pode ver — funciona
-// tanto para o Admin/Vendas (padrão) quanto para qualquer perfil extra
-// criado em Ajustes → Perfis.
+// 'modulos' é a lista de ids de tela que o Admin pode ver (Ajustes → Perfis).
 const props = defineProps({ modulos: { type: Array, default: () => [] } })
 const menuAberto = ref(false)
 

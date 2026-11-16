@@ -1,5 +1,5 @@
 <template>
-  <div class="shell" :class="{ 'shell--bete': perfilInfo?.tipo === 'caderneta' || perfilInfo?.tipo === 'consulta', 'shell--selecao': perfil === null }">
+  <div class="shell" :class="{ 'shell--bete': perfilInfo?.tipo === 'caderneta' || perfilInfo?.tipo === 'consulta' }">
 
     <!-- ══ CONFIGURAÇÃO DO APARELHO (1ª abertura, ou editar nome/tipo) ═══
          Cada aparelho diz quem é (Vendedor ou Admin) e daí em diante só abre o módulo dele. -->
@@ -10,18 +10,7 @@
       @cancelar="editandoAparelho = false"
     />
 
-    <!-- ══ TELA DE SELEÇÃO DE PERFIL (só em aparelho Admin) ══════ -->
-    <Transition name="fade">
-      <SelecaoPerfil
-        v-if="perfil === null && aparelho?.papel === 'admin'"
-        :config="configSelecao"
-        @selecionar="onSelecionarPerfil"
-      />
-    </Transition>
-
-    <!-- ══ MODO ADMIN / PERFIS EXTRAS (mesma casca, módulos variam) ═══
-         Serve tanto o perfil fixo "ym" (Admin) quanto qualquer perfil
-         extra criado em Ajustes → Perfis (ex.: Produção, Financeiro). -->
+    <!-- ══ MODO ADMIN ═══════════════════════════════════════════ -->
     <template v-if="perfilInfo?.tipo === 'admin'">
       <AppHeader />
 
@@ -95,7 +84,7 @@
     <!-- ══ VENDAS SOMENTE CONSULTA (aparelho Admin) ═════════════ -->
     <template v-if="perfilInfo?.tipo === 'consulta'">
       <main class="main main--bete">
-        <TabVendasConsulta @trocar-perfil="trocarPerfil" />
+        <TabVendasConsulta @voltar="voltarAoAdmin" />
       </main>
     </template>
 
@@ -144,7 +133,6 @@ import AppHeader      from './components/AppHeader.vue'
 import AppNav         from './components/AppNav.vue'
 import ConfirmDialog  from './components/ConfirmDialog.vue'
 import AtualizacaoBanner from './components/AtualizacaoBanner.vue'
-import SelecaoPerfil  from './views/SelecaoPerfil.vue'
 import ConfigurarAparelho from './views/ConfigurarAparelho.vue'
 import AparelhoSheet  from './components/AparelhoSheet.vue'
 import { aparelho, aparelhoCarregado, carregarAparelho } from './store/aparelho.js'
@@ -170,21 +158,15 @@ provide('unregisterFab', (ownerId) => {
 })
 
 // ── Perfil ─────────────────────────────────────────────────
-const perfil = ref(null) // null = mostrando seleção
+const perfil = ref(null) // null = ainda não entrou (carregando / aparelho sem configuração)
 
-// Resolve o id selecionado ('ym', 'bete', ou o id de um perfil extra) para
-// o "tipo" de casca que a tela deve montar. Perfis extras usam a mesma
-// casca do Admin ('admin'), só filtrando os módulos exibidos.
+// Resolve o perfil atual ('ym' = Admin, 'bete' = Vendas) para o "tipo" de
+// casca que a tela deve montar.
 // Aparelho Vendedor só abre a Caderneta. A única exceção é o "modo Admin temporário"
 // (liberado pelo PIN, para restaurar dados etc.), que some ao sair ou reabrir o app.
 const mostrarAparelho = ref(false)
 const editandoAparelho = ref(false)
 const modoAdminTemporario = ref(false)
-
-const configSelecao = computed(() => ({
-  ...s.perfis,
-  bete: { ...s.perfis.bete, descricao: 'Só consulta: lojas, clientes e cobranças' }
-}))
 
 const perfilInfo = computed(() => {
   if (!aparelho.value) return null
@@ -193,8 +175,6 @@ const perfilInfo = computed(() => {
   if (perfil.value === 'ym') return { tipo: 'admin', modulos: s.perfis.ym.modulos }
   // 'bete' = Vendas: no aparelho do vendedor é a Caderneta completa; no Admin, só consulta.
   if (perfil.value === 'bete') return { tipo: vendedor ? 'caderneta' : 'consulta' }
-  const extra = s.perfis.extras.find(e => e.id === perfil.value)
-  if (extra) return { tipo: 'admin', modulos: extra.modulos, nome: extra.nome }
   return null
 })
 
@@ -213,9 +193,6 @@ watch([() => s.tab, perfilInfo], ([tab, info]) => {
 }, { immediate: true })
 
 async function onSelecionarPerfil(p) {
-  // Não persiste: a cada abertura do app volta pra seleção de perfil
-  // Isso é proposital — segurança de separação dos dados
-
   // Para a Bete: antes de abrir, traz o que outro aparelho tiver salvo no
   // Drive (se não há alterações pendentes aqui). Antes ela só ENVIAVA ao
   // entrar — um app que ficou aberto por horas mandava a foto velha por
@@ -230,11 +207,10 @@ async function onSelecionarPerfil(p) {
   perfil.value = p
 }
 
-function trocarPerfil() {
-  // Vendedor (modo Admin temporário): "sair" volta para as vendas, nunca para a seleção de perfil.
-  if (aparelho.value?.papel === 'vendedor') { voltarParaVendas(); return }
-  perfil.value = null
-}
+// Aparelho Admin: o app já abre direto no Admin. As vendas (somente consulta)
+// são um atalho no cabeçalho; "voltar" traz de volta ao Admin.
+function abrirVendasConsulta() { perfil.value = 'bete' }
+function voltarAoAdmin() { perfil.value = 'ym' }
 
 function voltarParaVendas() {
   modoAdminTemporario.value = false
@@ -265,12 +241,25 @@ async function entrarConformeAparelho() {
   if (aparelho.value?.papel === 'vendedor') {
     await onSelecionarPerfil('bete')
   } else if (aparelho.value?.papel === 'admin') {
-    perfil.value = s.perfis.inicial !== 'selecao' ? s.perfis.inicial : null
+    perfil.value = 'ym'
   }
 }
 
-// Disponibiliza trocarPerfil para qualquer componente filho (ex: AppHeader)
-provide('trocarPerfil', trocarPerfil)
+// Atalho do cabeçalho do Admin (AppHeader). Aparelho Admin: abre as vendas em
+// somente consulta. Vendedor no modo Admin temporário: sai e volta para as vendas.
+const atalhoHeader = computed(() => {
+  if (!aparelho.value || perfil.value !== 'ym') return null
+  if (aparelho.value.papel === 'vendedor') {
+    return { label: 'Sair do Admin', icone: 'fa-arrow-right-from-bracket', titulo: 'Sair do modo Admin e voltar para as vendas', acao: voltarParaVendas }
+  }
+  return {
+    label: s.perfis.bete.nome || 'Vendas',
+    icone: 'fa-book-open',
+    titulo: 'Ver lojas, clientes e cobranças (somente consulta)',
+    acao: abrirVendasConsulta
+  }
+})
+provide('atalhoHeader', atalhoHeader)
 
 // ── Sync ─────────────────────────────────────────────────
 // Nota: para a Bete, o sync já dispara em cada alteração real de dados

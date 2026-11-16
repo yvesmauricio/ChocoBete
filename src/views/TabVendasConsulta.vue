@@ -7,7 +7,7 @@
   -->
   <div class="vc">
     <header class="vc-hdr">
-      <button class="vc-hdr-btn" title="Trocar perfil" aria-label="Trocar perfil" @click="emit('trocar-perfil')">
+      <button class="vc-hdr-btn" title="Voltar ao Admin" aria-label="Voltar ao Admin" @click="emit('voltar')">
         <i class="fas fa-arrow-left"></i>
       </button>
       <div class="vc-hdr-txt">
@@ -263,7 +263,7 @@ import {
 } from '../composables/useCaderneta.js'
 import { telefoneBonito } from '../services/contatoService.js'
 
-const emit = defineEmits(['trocar-perfil'])
+const emit = defineEmits(['voltar'])
 const s = useStore()
 const { modal, abrirModal, fecharModal } = useModalStack()
 
