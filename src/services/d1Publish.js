@@ -119,3 +119,12 @@ export async function apagarPedidoD1(uuid, config) {
   if (resp.status === 401) throw new Error('Token do servidor inválido. Confira em Ajustes → Sistema.')
   if (!resp.ok) throw new Error(`Servidor respondeu com erro (HTTP ${resp.status}).`)
 }
+
+/** Atualiza status/agendamento de um pedido e propaga a mudança aos aparelhos conectados. */
+export async function atualizarPedidoD1(uuid, dados, config) {
+  const resp = await chamar(`/api/admin/pedidos/${encodeURIComponent(uuid)}`, config, {
+    method: 'PUT', body: JSON.stringify(dados),
+  }, 10000)
+  if (resp.status === 401) throw new Error('Token do servidor inválido. Confira em Ajustes → Sistema.')
+  if (!resp.ok) throw new Error(`Servidor respondeu com erro (HTTP ${resp.status}).`)
+}

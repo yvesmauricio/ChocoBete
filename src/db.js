@@ -372,20 +372,22 @@ export async function excluirPedidoCardapio(uuid) {
   try { await db.cardapio_pedidos.delete(uuid) } catch {}
 }
 
-/** Guarda pedidos que vieram do site (servidor). Só ADICIONA os que ainda não existem aqui:
- *  nunca sobrescreve um pedido já importado (status, agendamento e edições locais ficam
- *  intactos). Retorna quantos eram novos. */
+/** Importa pedidos do servidor e aplica alterações de status recebidas de outros aparelhos. */
 export async function importarPedidosSite(pedidos) {
   let novos = 0
+  let atualizados = 0
   await db.transaction('rw', db.cardapio_pedidos, async () => {
     for (const p of pedidos) {
       if (!p?.uuid) continue
-      if (await db.cardapio_pedidos.get(p.uuid)) continue
-      await db.cardapio_pedidos.add(p)
-      novos++
+      const atual = await db.cardapio_pedidos.get(p.uuid)
+      if (!atual) { await db.cardapio_pedidos.add(p); novos++; continue }
+      if (atual.origem === 'site' && Number(p.atualizadoServidorEm) > Number(atual.atualizadoServidorEm || 0)) {
+        await db.cardapio_pedidos.update(p.uuid, { status: p.status, agendadoPara: p.agendadoPara, horaAgendada: p.horaAgendada, atualizadoServidorEm: p.atualizadoServidorEm })
+        atualizados++
+      }
     }
   })
-  return novos
+  return { novos, atualizados }
 }
 
 // ─── Rotina de Backup Forte ─────────────────────────────────────

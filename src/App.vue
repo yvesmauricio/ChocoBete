@@ -351,8 +351,8 @@ let pararMonitorPedidosSite = null
 // Acesso ao Google Drive: renova no toque quando vence e sincroniza o que ficou esperando.
 let pararRenovacaoDrive = null
 function aoTokenDriveRenovado() { s.agendarSync?.(); s.syncImediato?.() }
-function aoChegarPedidosDoSite(qtd) {
-  s.notify?.(qtd === 1 ? 'Novo pedido do site!' : `${qtd} novos pedidos do site!`, 'success')
+function aoChegarPedidosDoSite(qtd, atualizados = 0) {
+  if (qtd > 0) s.notify?.(qtd === 1 ? 'Novo pedido do site!' : `${qtd} novos pedidos do site!`, 'success')
   window.dispatchEvent(new CustomEvent('pedidos-site:novos'))
   if (s.googleDriveConfigured) { s.agendarSync?.(); s.syncImediato?.() }
 }
@@ -364,7 +364,7 @@ onMounted(async () => {
   tentarReconectarSilenciosamente()
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('online', onOnline)
-  pararMonitorPedidosSite = iniciarMonitorPedidosSite({ aoChegar: aoChegarPedidosDoSite })
+  pararMonitorPedidosSite = iniciarMonitorPedidosSite({ aoChegar: aoChegarPedidosDoSite, intervaloMs: 15000 })
   pararRenovacaoDrive = iniciarRenovacaoPorToque()
   window.addEventListener('google-drive:token-renovado', aoTokenDriveRenovado)
 })

@@ -1735,7 +1735,7 @@ async function carregarDashboard() {
     porCliente.set(f.clienteId, a)
   }
   alertasDia.value = [...porCliente.values()].sort((x, y) => y.saldo - x.saldo)
-  pedidosBalcaoPendentes.value = pedidosBalcao.filter(p => p.status !== 'entregue').length
+  pedidosBalcaoPendentes.value = pedidosBalcao.filter(p => !['entregue', 'cancelado'].includes(p.status)).length
   pedidosBalcaoUrgentes.value = pedidosBalcao.filter(p => p.status === 'pendente').length
 }
 

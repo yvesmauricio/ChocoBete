@@ -3,7 +3,7 @@
     <button v-for="n in itensBarra" :key="n.id"
       class="nav-btn" :class="{ active: s.tab === n.id, 'nav-btn--extra-first': n.extra === 'primeiro' }"
       :title="n.label"
-      @click="s.setTab(n.id); menuAberto = false">
+      @click="n.id === 'pedidos' ? abrirPedidosAdmin() : s.setTab(n.id); menuAberto = false">
       <i :class="n.icon"></i>
       <span>{{ n.label }}</span>
     </button>
@@ -25,7 +25,7 @@
         <div v-if="menuAberto && !isDesktop" class="nav-overflow-menu" @click.stop>
           <button v-for="n in navExtraVisiveis" :key="n.id"
             class="nav-overflow-item" :class="{ active: s.tab === n.id }"
-            @click="s.setTab(n.id); menuAberto = false">
+            @click="n.id === 'pedidos' ? abrirPedidosAdmin() : s.setTab(n.id); menuAberto = false">
             <i :class="n.icon"></i>
             <span>{{ n.label }}</span>
           </button>
@@ -47,6 +47,11 @@ const { isDesktop } = useLayoutMode()
 // 'modulos' é a lista de ids de tela que o Admin pode ver (Ajustes → Perfis).
 const props = defineProps({ modulos: { type: Array, default: () => [] } })
 const menuAberto = ref(false)
+function abrirPedidosAdmin() {
+  try { sessionStorage.setItem('cb_admin_abrir_pedidos', '1') } catch {}
+  s.setTab('cardapio')
+  window.dispatchEvent(new Event('admin:abrir-pedidos'))
+}
 
 const navPrincipal = [
   { id: 'painel',     icon: 'fas fa-chart-pie',           label: 'Painel' },
@@ -61,11 +66,12 @@ const navExtra = [
   { id: 'inteligencia', icon: 'fas fa-brain',              label: 'Inteligência' },
   { id: 'etiquetas',    icon: 'fas fa-tags',               label: 'Etiquetas' },
   { id: 'cardapio',     icon: 'fas fa-book-bookmark',      label: 'Cardápio' },
+  { id: 'pedidos',      icon: 'fas fa-clipboard-list',     label: 'Pedidos' },
   { id: 'ajustes',      icon: 'fas fa-cog',                label: 'Ajustes' },
 ]
 
 const navPrincipalVisiveis = computed(() => navPrincipal.filter(n => props.modulos.includes(n.id)))
-const navExtraVisiveis = computed(() => navExtra.filter(n => props.modulos.includes(n.id)))
+const navExtraVisiveis = computed(() => navExtra.filter(n => n.id === 'pedidos' ? props.modulos.includes('cardapio') : props.modulos.includes(n.id)))
 
 // Celular: só os 5 principais na barra (o resto fica em "Mais").
 // Desktop: menu lateral com todos os módulos do perfil, os extras separados

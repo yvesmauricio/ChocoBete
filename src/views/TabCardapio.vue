@@ -647,8 +647,8 @@
                   </span>
                 </div>
                 <span class="cp-pedido-status" :class="'is-' + pedido.status">
-                  <i class="fas" :class="{ 'fa-clock': pedido.status === 'pendente', 'fa-calendar-check': pedido.status === 'agendado', 'fa-circle-check': pedido.status === 'entregue' }"></i>
-                  {{ pedido.status === 'agendado' ? 'Agendado' : pedido.status === 'entregue' ? 'Entregue' : 'Pendente' }}
+                  <i class="fas" :class="{ 'fa-clock': pedido.status === 'pendente', 'fa-calendar-check': pedido.status === 'agendado', 'fa-circle-check': pedido.status === 'entregue', 'fa-ban': pedido.status === 'cancelado' }"></i>
+                  {{ pedido.status === 'agendado' ? 'Agendado' : pedido.status === 'entregue' ? 'Entregue' : pedido.status === 'cancelado' ? 'Cancelado' : 'Pendente' }}
                 </span>
               </div>
 
@@ -695,7 +695,7 @@
               </div>
 
               <template v-if="pedidoAgendando !== pedido.uuid">
-                <div v-if="pedido.status !== 'entregue'" class="cp-pedido-acoes cp-pedido-acoes--secundarias">
+                <div v-if="pedido.status !== 'entregue' && pedido.status !== 'cancelado'" class="cp-pedido-acoes cp-pedido-acoes--secundarias">
                   <a v-if="pedido.clienteTelefone" class="cp-acao" :href="linkWhatsAppCliente(pedido)" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> WhatsApp</a>
                   <button class="cp-acao" @click="iniciarAgendamento(pedido)">
                     <i class="fas" :class="pedido.status === 'agendado' ? 'fa-calendar' : 'fa-calendar-plus'"></i>
@@ -707,12 +707,13 @@
                 </div>
 
                 <div class="cp-pedido-acoes">
-                  <button v-if="pedido.status !== 'entregue'" class="cp-acao cp-acao--entregue" @click="marcarEntregue(pedido)">
+                  <button v-if="pedido.status !== 'entregue' && pedido.status !== 'cancelado'" class="cp-acao cp-acao--entregue" @click="marcarEntregue(pedido)">
                     <i class="fas fa-circle-check"></i> Marcar como entregue
                   </button>
-                  <button v-else class="cp-acao" @click="reabrirPedido(pedido)">
+                  <button v-else-if="pedido.status === 'entregue'" class="cp-acao" @click="reabrirPedido(pedido)">
                     <i class="fas fa-rotate-left"></i> Reabrir pedido
                   </button>
+                  <button v-if="pedido.status !== 'cancelado' && pedido.origem === 'site'" class="cp-acao cp-acao--perigo" @click="cancelarPedido(pedido)"><i class="fas fa-ban"></i> Cancelar pedido</button>
                   <button class="cp-acao cp-acao--perigo cp-acao--icone" title="Remover" @click="removerPedido(pedido)"><i class="fas fa-trash"></i></button>
                 </div>
               </template>
@@ -792,7 +793,7 @@ import {
 } from '../composables/useCardapio.js'
 import { publicarArquivoGitHub, carregarConfigPublicacao, publicacaoConfigurada, urlPublicaFinal } from '../services/githubPublish.js'
 import { carregarConfigD1, d1Configurado, publicarCardapioD1 } from '../services/d1Publish.js'
-import { importarPedidosDoSite, apagarPedidoNoServidor } from '../services/pedidosSite.js'
+import { importarPedidosDoSite, apagarPedidoNoServidor, atualizarPedidoNoServidor } from '../services/pedidosSite.js'
 import { salvarPedidoCardapio, listarPedidosCardapio, atualizarStatusPedidoCardapio, excluirPedidoCardapio } from '../db.js'
 import BaseModal from '../components/BaseModal.vue'
 
@@ -969,6 +970,13 @@ onMounted(async () => {
   abaPadrao.value = await carregarAbaPadraoCardapio()
   cardapioAtivo.value = abaPadrao.value
   const [, publicacao] = await Promise.all([carregarCardapioAtivo(), carregarConfigPublicacao(), carregarPedidosSalvos()])
+  let abrirPedidosAdmin = false
+  try { abrirPedidosAdmin = sessionStorage.getItem('cb_admin_abrir_pedidos') === '1' } catch {}
+  if (abrirPedidosAdmin && !props.standalone && s.tab === 'cardapio') {
+    try { sessionStorage.removeItem('cb_admin_abrir_pedidos') } catch {}
+    pedidosPainelAberto.value = true
+    buscarPedidosDoSiteAgora()
+  }
   configPublicacao.value = publicacao
   configD1.value = await carregarConfigD1().catch(() => null)
   await nextTick()
@@ -1040,6 +1048,14 @@ async function abrirPainelPedidos() {
   buscarPedidosDoSiteAgora() // em segundo plano: mostra o que já tem e traz o que chegou
 }
 
+function aoAbrirPedidosAdmin() {
+  if (s.tab !== 'cardapio' || props.standalone) return
+  try { sessionStorage.removeItem('cb_admin_abrir_pedidos') } catch {}
+  abrirPainelPedidos()
+}
+window.addEventListener('admin:abrir-pedidos', aoAbrirPedidosAdmin)
+onUnmounted(() => window.removeEventListener('admin:abrir-pedidos', aoAbrirPedidosAdmin))
+
 // Se chegou aqui direto pelo atalho "Pedidos" (dashboard da Bete), "Voltar"
 // deve levar de volta pro dashboard — a pessoa nunca esteve no editor do
 // cardápio nesta visita, então cair lá seria confuso. Se abriu a partir do
@@ -1083,6 +1099,7 @@ async function confirmarAgendamento(pedido) {
   pedido.agendadoPara = dataAgendamentoEdicao.value
   pedido.horaAgendada = hora
   await atualizarStatusPedidoCardapio(pedido.uuid, 'agendado', { agendadoPara: dataAgendamentoEdicao.value, horaAgendada: hora })
+  if (pedido.origem === 'site') atualizarPedidoNoServidor(pedido.uuid, 'agendado', { agendadoPara: dataAgendamentoEdicao.value, horaAgendada: hora })
   sincronizarDepois(true)
   cancelarEdicaoAgendamento()
 }
@@ -1092,6 +1109,7 @@ async function desmarcarAgendamento(pedido) {
   pedido.agendadoPara = null
   pedido.horaAgendada = null
   await atualizarStatusPedidoCardapio(pedido.uuid, 'pendente', { agendadoPara: null, horaAgendada: null })
+  if (pedido.origem === 'site') atualizarPedidoNoServidor(pedido.uuid, 'pendente')
   sincronizarDepois(true)
 }
 
@@ -1100,6 +1118,7 @@ async function desmarcarAgendamento(pedido) {
 async function marcarEntregue(pedido) {
   pedido.status = 'entregue' // otimista
   await atualizarStatusPedidoCardapio(pedido.uuid, 'entregue')
+  if (pedido.origem === 'site') atualizarPedidoNoServidor(pedido.uuid, 'entregue', pedido)
   sincronizarDepois(true)
 }
 
@@ -1109,6 +1128,15 @@ async function reabrirPedido(pedido) {
   const novoStatus = pedido.agendadoPara ? 'agendado' : 'pendente'
   pedido.status = novoStatus // otimista
   await atualizarStatusPedidoCardapio(pedido.uuid, novoStatus)
+  if (pedido.origem === 'site') atualizarPedidoNoServidor(pedido.uuid, novoStatus, pedido)
+  sincronizarDepois(true)
+}
+
+async function cancelarPedido(pedido) {
+  if (!confirm(`Cancelar o pedido ${pedido.codigo ? `nº ${pedido.codigo}` : ''} de ${pedido.clienteNome || 'cliente'}?`)) return
+  pedido.status = 'cancelado'
+  await atualizarStatusPedidoCardapio(pedido.uuid, 'cancelado')
+  if (pedido.origem === 'site') atualizarPedidoNoServidor(pedido.uuid, 'cancelado', pedido)
   sincronizarDepois(true)
 }
 
@@ -1123,7 +1151,7 @@ async function removerPedido(pedido) {
 // Badge do atalho "Pedidos": conta o que ainda está em aberto (não
 // entregue ainda) — inclui pendente e agendado, já que os dois ainda
 // precisam de alguma ação da Bete.
-const pedidosPendentesCount = computed(() => pedidosSalvos.value.filter(p => p.status !== 'entregue').length)
+const pedidosPendentesCount = computed(() => pedidosSalvos.value.filter(p => !['entregue', 'cancelado'].includes(p.status)).length)
 
 function formatarDataPedido(iso) {
   const d = new Date(iso)
@@ -2233,6 +2261,7 @@ async function publicarLinkCardapioInterativo() {
 .cp-pedido-status.is-pendente { background: var(--gold-bg); color: var(--gold-dark); }
 .cp-pedido-status.is-agendado { background: var(--blue-bg); color: var(--blue); }
 .cp-pedido-status.is-entregue { background: var(--green-bg); color: var(--green); }
+.cp-pedido-status.is-cancelado { background: var(--red-bg); color: var(--red); }
 .cp-pedido-itens { font-size: 12.5px; color: var(--brown-mid); margin-top: 8px; line-height: 1.6; }
 .cp-pedido-pagamento { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--muted); margin-top: 8px; }
 .cp-pedido-acoes { display: flex; gap: 8px; margin-top: 10px; }

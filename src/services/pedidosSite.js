@@ -7,10 +7,11 @@
 // Desligado enquanto não houver chave do servidor salva em Ajustes.
 
 import { configGet, configSet, importarPedidosSite } from '../db.js'
-import { carregarConfigD1, d1Configurado, buscarPedidosD1, apagarPedidoD1 } from './d1Publish.js'
+import { carregarConfigD1, d1Configurado, buscarPedidosD1, apagarPedidoD1, atualizarPedidoD1 } from './d1Publish.js'
 
 export const CHAVE_CURSOR = 'd1_pedidos_cursor'
 export const CHAVE_FILA_APAGAR = 'd1_pedidos_apagar'
+export const CHAVE_FILA_STATUS = 'd1_pedidos_status'
 const reais = (centavos) => Math.round(Number(centavos) || 0) / 100
 
 /** Converte um pedido do servidor (centavos) para o formato que a tela de pedidos já entende. */
@@ -37,9 +38,10 @@ export function pedidoSiteParaApp(p, itens) {
     valorPix: pedeSinal ? reais(p.sinal_centavos) : 0,
     valorRestante: pedeSinal ? reais(Number(p.total_centavos) - Number(p.sinal_centavos)) : 0,
     temFesta: p.cardapio_id === 'festa',
-    status: 'pendente',
-    agendadoPara: null,
-    horaAgendada: null,
+    status: p.status || 'pendente',
+    agendadoPara: extra.agendadoPara || null,
+    horaAgendada: extra.horaAgendada || null,
+    atualizadoServidorEm: Number(p.atualizado_em) || 0,
     criadoEm: new Date(Number(p.criado_em)).toISOString(),
   }
 }
@@ -68,6 +70,26 @@ async function descarregarFilaApagar(cfg) {
   await configSet(CHAVE_FILA_APAGAR, restantes)
 }
 
+/** Propaga status e agendamento para D1; falhas ficam na fila para a próxima busca. */
+export async function atualizarPedidoNoServidor(uuid, status, campos = {}) {
+  try {
+    const fila = (await configGet(CHAVE_FILA_STATUS, [])) || []
+    const item = { uuid, status, agendadoPara: campos.agendadoPara || null, horaAgendada: campos.horaAgendada || null }
+    await configSet(CHAVE_FILA_STATUS, [...fila.filter(x => x.uuid !== uuid), item])
+    const cfg = await carregarConfigD1()
+    if (d1Configurado(cfg)) await descarregarFilaStatus(cfg)
+  } catch { /* a próxima verificação tentará novamente */ }
+}
+
+async function descarregarFilaStatus(cfg) {
+  const fila = (await configGet(CHAVE_FILA_STATUS, [])) || []
+  const restantes = []
+  for (const item of fila) {
+    try { await atualizarPedidoD1(item.uuid, item, cfg) } catch { restantes.push(item) }
+  }
+  await configSet(CHAVE_FILA_STATUS, restantes)
+}
+
 let emAndamento = null
 
 /** Busca o que chegou desde a última vez. Seguro de chamar de vários lugares ao mesmo tempo. */
@@ -77,9 +99,11 @@ export function importarPedidosDoSite() {
     const cfg = await carregarConfigD1().catch(() => null)
     if (!d1Configurado(cfg)) return { ativo: false, novos: 0 }
 
-    await descarregarFilaApagar(cfg).catch(() => {}) // primeiro, o que ficou pendente de avisar
+    await descarregarFilaApagar(cfg).catch(() => {})
+    await descarregarFilaStatus(cfg).catch(() => {})
     let cursor = Number(await configGet(CHAVE_CURSOR, 0)) || 0
     let novos = 0
+    let atualizados = 0
     for (let volta = 0; volta < 10; volta++) {
       const { pedidos, itens } = await buscarPedidosD1(cursor, cfg)
       if (!pedidos.length) break
@@ -88,13 +112,15 @@ export function importarPedidosDoSite() {
         if (!itensPorPedido.has(i.pedido_uuid)) itensPorPedido.set(i.pedido_uuid, [])
         itensPorPedido.get(i.pedido_uuid).push(i)
       }
-      novos += await importarPedidosSite(pedidos.map(p => pedidoSiteParaApp(p, itensPorPedido.get(p.uuid) || [])))
+      const resultado = await importarPedidosSite(pedidos.map(p => pedidoSiteParaApp(p, itensPorPedido.get(p.uuid) || [])))
+      novos += resultado.novos
+      atualizados += resultado.atualizados
       // O cursor só avança DEPOIS de gravar: se algo falhar no meio, busca de novo na próxima.
       cursor = Math.max(cursor, ...pedidos.map(p => Number(p.atualizado_em) || 0))
       await configSet(CHAVE_CURSOR, cursor)
       if (pedidos.length < 200) break
     }
-    return { ativo: true, novos }
+    return { ativo: true, novos, atualizados }
   })()
     .catch(err => ({ ativo: true, novos: 0, erro: err?.message || 'Falha ao buscar pedidos do site.' }))
     .finally(() => { emAndamento = null })
@@ -110,7 +136,7 @@ export function iniciarMonitorPedidosSite({ aoChegar, intervaloMs = 60_000 } = {
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return
     const r = await importarPedidosDoSite()
-    if (r.novos > 0) aoChegar?.(r.novos)
+    if (r.novos > 0 || r.atualizados > 0) aoChegar?.(r.novos, r.atualizados)
   }
   const aoVoltar = () => { if (document.visibilityState === 'visible') rodar() }
   const timer = setInterval(rodar, intervaloMs)
