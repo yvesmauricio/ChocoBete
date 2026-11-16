@@ -144,6 +144,18 @@
                 <span class="aj-nota">Com DDD, sem +55. É para este número que vão os pedidos feitos no cardápio interativo.</span>
               </div>
               <div class="fg">
+                <label class="label" for="aj-pix">Chave Pix para receber</label>
+                <select v-model="company.chave_pix_tipo" class="input" aria-label="Tipo da chave Pix" @change="company.chave_pix = ''">
+                  <option v-for="t in TIPOS_CHAVE_PIX" :key="t.id" :value="t.id">{{ t.nome }}</option>
+                </select>
+                <input id="aj-pix" :value="maskChavePix(company.chave_pix_tipo, company.chave_pix)" @input="onInputChavePix" class="input" type="text" autocapitalize="none" autocorrect="off" :maxlength="company.chave_pix_tipo === 'aleatoria' ? 36 : null"
+                  :inputmode="company.chave_pix_tipo === 'email' || company.chave_pix_tipo === 'aleatoria' ? 'text' : 'numeric'"
+                  :placeholder="TIPOS_CHAVE_PIX.find(t => t.id === company.chave_pix_tipo)?.dica || ''" />
+                <span v-if="!company.chave_pix" class="aj-nota">Opcional. Vazio = o QR Pix usa o WhatsApp acima como chave de telefone. Só funciona se esse número estiver cadastrado como chave Pix no seu banco.</span>
+                <span v-else-if="!chavePixAjustesValida" class="aj-nota" style="color: var(--red)">Chave incompleta ou inválida para o tipo escolhido — o QR Pix não usará esta chave até corrigir.</span>
+                <span v-else class="aj-nota">QR Pix recebe em <strong>{{ mascararChavePix(chavePixAjustesValida) }}</strong> — na Caderneta (vendas) e no cardápio. Antes de usar, faça um teste de R$ 0,01 para conferir que cai na sua conta. Vale depois de sincronizar o aparelho de vendas.</span>
+              </div>
+              <div class="fg">
                 <label class="label" for="aj-insta">Instagram</label>
                 <input id="aj-insta" :value="company.instagram ? '@' + company.instagram : ''" @input="e => company.instagram = normalizarInstagram(e.target.value)"
                   class="input" type="text" autocapitalize="none" autocorrect="off" placeholder="Ex: @docesdaana" />
@@ -829,6 +841,7 @@ import { maskCpf, maskCnpj, maskCnae, maskTelefone, processarLogo, getMesRef, da
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
 import { normalizarInstagram } from '../services/contatoService.js'
+import { TIPOS_CHAVE_PIX, normalizarChavePix, mascararChavePix } from '../services/pixService.js'
 import { 
   getTaxas, 
   salvarTaxas 
@@ -867,6 +880,22 @@ async function tirarPin() {
   s.notify('PIN removido')
 }
 const company = reactive({ ...s.company })
+// Máscara da chave Pix conforme o tipo, aplicada a cada tecla.
+function maskChavePix(tipo, v) {
+  switch (tipo) {
+    case 'cpf':  return maskCpf(v)
+    case 'cnpj': return maskCnpj(v)
+    case 'email': return String(v || '').replace(/\s/g, '').toLowerCase()
+    case 'aleatoria': return String(v || '').toLowerCase().replace(/[^0-9a-f-]/g, '').slice(0, 36)
+    default: return maskTelefone(v)
+  }
+}
+function onInputChavePix(e) {
+  const v = maskChavePix(company.chave_pix_tipo, e.target.value)
+  e.target.value = v          // garante que um caractere recusado não fique na tela
+  company.chave_pix = v
+}
+const chavePixAjustesValida = computed(() => normalizarChavePix(company.chave_pix_tipo || 'telefone', company.chave_pix))
 const perfilConfig = reactive(JSON.parse(JSON.stringify(s.perfis)))
 const modoCompras = ref(s.modoListaCompras)
 watch(() => s.modoListaCompras, (v) => { modoCompras.value = v })

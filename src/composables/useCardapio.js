@@ -14,7 +14,7 @@
 //      CDN — mesmo padrão do pdfService.js para o pdf.js).
 
 import { configGet, configSet } from '../db.js'
-import { chavePixDoWhatsapp, limparTextoPix } from '../services/pixService.js'
+import { resolverChavePix, limparTextoPix } from '../services/pixService.js'
 import { normalizarInstagram, urlInstagram } from '../services/contatoService.js'
 // Gerador de QR Code (lib de terceiros, MIT — ver src/vendor/QRCODE_LICENSE.txt),
 // importado como texto puro (?raw) pra ser injetado dentro do <script> do
@@ -1035,7 +1035,7 @@ const CSS_PEDIDO = `
 export function dadosPixDoCardapio({ config, empresa }) {
   const nome = config?.nome_cardapio || empresa?.nome || 'Cardápio'
   return {
-    chave: chavePixDoWhatsapp(empresa?.whatsapp_pedidos),
+    chave: resolverChavePix(empresa || {}),
     nome: limparTextoPix(nome, 25, 'LOJA'),
     cidade: limparTextoPix(empresa?.municipio, 15, 'BRASIL'),
   }
@@ -1057,7 +1057,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
   // telefone) — sem cadastro extra nenhum. Se o número não estiver
   // configurado, o bloco de Pix simplesmente não aparece pro cliente (mesma
   // condição do aviso de WhatsApp não configurado, logo abaixo).
-  const chavePix = chavePixDoWhatsapp(empresa?.whatsapp_pedidos)
+  const chavePix = resolverChavePix(empresa || {})
   const nomeRecebedorPix = limparTextoPix(nome, 25, 'LOJA')
   // Nome do titular da conta Pix (Ajustes > Identidade > Razão Social). Aparece pro
   // cliente no bloco de Pix pra ele reconhecer o nome na hora de pagar.

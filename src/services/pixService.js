@@ -29,6 +29,46 @@ export function chavePixDoWhatsapp(whatsappBruto) {
   return '+' + comDDI
 }
 
+export const TIPOS_CHAVE_PIX = [
+  { id: 'telefone',  nome: 'Telefone',        dica: 'Com DDD. Ex: (21) 99999-0000' },
+  { id: 'cpf',       nome: 'CPF',             dica: '11 números' },
+  { id: 'cnpj',      nome: 'CNPJ',            dica: '14 números' },
+  { id: 'email',     nome: 'E-mail',          dica: 'Ex: contato@minhaloja.com' },
+  { id: 'aleatoria', nome: 'Chave aleatória', dica: 'Copie do app do banco' },
+]
+
+/** Põe a chave no formato exigido pelo Pix, conforme o tipo. Devolve '' se não estiver válida. */
+export function normalizarChavePix(tipo, bruta) {
+  const texto = String(bruta || '').trim()
+  if (!texto) return ''
+  const dig = apenasDigitos(texto)
+  switch (tipo) {
+    case 'telefone': return dig.length >= 10 ? chavePixDoWhatsapp(dig) : ''
+    case 'cpf':      return dig.length === 11 ? dig : ''
+    case 'cnpj':     return dig.length === 14 ? dig : ''
+    case 'email':    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto) ? texto.toLowerCase() : ''
+    case 'aleatoria': return /^[0-9a-fA-F-]{32,36}$/.test(texto) ? texto.toLowerCase() : ''
+    default: return ''
+  }
+}
+
+/** Chave Pix da empresa: a cadastrada em Ajustes (qualquer tipo); se não houver, o WhatsApp de pedidos
+ *  (comportamento antigo). `empresa`: { chave_pix, chave_pix_tipo, whatsapp_pedidos }. */
+export function resolverChavePix(empresa = {}) {
+  if (String(empresa.chave_pix || '').trim()) return normalizarChavePix(empresa.chave_pix_tipo || 'telefone', empresa.chave_pix)
+  return chavePixDoWhatsapp(empresa.whatsapp_pedidos)
+}
+
+/** Versão para mostrar na tela sem expor a chave inteira: "e-mail: jo***@dominio.com", "••••0023". */
+export function mascararChavePix(chave) {
+  const c = String(chave || '')
+  if (!c) return ''
+  if (c.includes('@')) { const [u, d] = c.split('@'); return u.slice(0, 2) + '***@' + d }
+  if (c.startsWith('+')) return '••••' + c.slice(-4)
+  if (c.length > 14) return c.slice(0, 4) + '…' + c.slice(-4)
+  return '••••' + c.slice(-4)
+}
+
 /** Remove acentos, caracteres não alfanuméricos e trunca — os campos de
  *  nome/cidade do Pix aceitam só um conjunto restrito de caracteres. */
 export function limparTextoPix(texto, maxLen, fallback = '') {
@@ -80,5 +120,3 @@ export function montarPayloadPix({ chave, nome, cidade, valor, identificador } =
   const semCrc = payload + '6304'
   return semCrc + pixCrc16(semCrc)
 }
-
-

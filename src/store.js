@@ -90,6 +90,8 @@ export const useStore = defineStore('choco', () => {
     posicao_etiqueta: 0,
     contato_etiqueta: '', // texto livre exibido na etiqueta (whatsapp/instagram)
     whatsapp_pedidos: '', // número (com DDD, formatado tipo "(21) 99999-0000") usado no link do WhatsApp do cardápio interativo — quem consome (numeroWhatsAppFormatado, chavePixDoWhatsapp) já limpa a formatação sozinho
+    chave_pix: '',        // chave Pix para receber (opcional; vazio = usa o WhatsApp de pedidos como chave de telefone)
+    chave_pix_tipo: 'telefone', // 'telefone' | 'cpf' | 'cnpj' | 'email' | 'aleatoria'
     mostrar_hora_venda: true, // se falso, mensagens de WhatsApp da Caderneta (comprovante/cobrança) omitem o horário da venda — útil pra quem lança fiado fora da hora real da compra
     instagram: '', // usuário do Instagram (sem @) — aparece em Meu contato (Caderneta), no vCard/QR e no cardápio interativo
     razao_social: '',
