@@ -22,8 +22,6 @@
 // Módulo puro: sem acesso a banco, rede ou relógio.
 // ─────────────────────────────────────────────────────────────────────────
 import { TABELAS_COM_UID, uidLegado } from '../uids.js'
-import { papelValido, donoDaTabela, donoDaConfig } from './papelAparelho.js'
-import { tabelasForaDoDrive } from './modoServidor.js'
 
 // Tabelas cuja chave primária já é um UUID (iguais em todos os aparelhos).
 const TABELAS_UUID = ['produtos', 'receitas', 'producoes', 'cardapio_pedidos']
@@ -213,14 +211,10 @@ function normalizar(snap, tabelas) {
  * @param local  dados deste aparelho
  * @param remote dados do Drive (podem ter ids de outro aparelho)
  * @param preferirLocal  em conflito de um mesmo campo, vale o local?
- * @param papel  'admin' | 'vendas' | null. Com papel, cada área só é mesclada
- *   se este aparelho for o DONO dela (ver papelAparelho.js); o que é de outro
- *   dono vem sempre do Drive, tal e qual — nunca é reenviado a partir daqui.
- *   Sem papel (null) o comportamento é o de sempre (merge em tudo).
  * @returns { dados, igualAoLocal, igualAoRemoto, resumo }
  *   `dados` está no espaço de ids DESTE aparelho (ids existentes preservados).
  */
-export function mesclar({ base, local, remote, preferirLocal = false, papel = null, ignorarTabelas = tabelasForaDoDrive() }) {
+export function mesclar({ base, local, remote, preferirLocal = false }) {
   const tabelas = nomesDeTabelas()
   const B = normalizar(base || {}, tabelas)
   const L = normalizar(local, tabelas)
@@ -242,18 +236,6 @@ export function mesclar({ base, local, remote, preferirLocal = false, papel = nu
     M[nome] = out
   }
 
-  // 1b) áreas de outro dono: valem exatamente como estão no Drive
-  const comPapel = papelValido(papel)
-  if (comPapel) {
-    for (const nome of tabelas) {
-      if (donoDaTabela(nome) !== papel) M[nome] = new Map(R.tab[nome])
-    }
-  }
-
-  // 1c) tabelas cuja verdade está no SERVIDOR (modo servidor da Caderneta): ficam como estão neste aparelho.
-  //     O Drive nunca as sobrescreve nem as apaga (senão um arquivo antigo desfaria o que o servidor decidiu).
-  for (const nome of ignorarTabelas) if (tabelas.includes(nome)) M[nome] = new Map(L.tab[nome])
-
   // 2) integridade: filho nunca fica sem pai. Pai apagado de um lado mas ainda
   //    usado por um registro que sobrou volta (a versão mais nova que existir).
   let ressuscitados = 0
@@ -273,14 +255,6 @@ export function mesclar({ base, local, remote, preferirLocal = false, papel = nu
   for (const chave of [...new Set([...B.config.keys(), ...L.config.keys(), ...R.config.keys()])].sort()) {
     const m = mesclarValor(B.config.get(chave), L.config.get(chave), R.config.get(chave), ctx)
     if (m !== undefined) cfg.set(chave, m)
-  }
-  if (comPapel) {
-    // Chaves '__*' são marcas técnicas compartilhadas: seguem o merge normal.
-    for (const chave of new Set([...B.config.keys(), ...L.config.keys(), ...R.config.keys()])) {
-      if (String(chave).startsWith('__') || donoDaConfig(chave) === papel) continue
-      if (R.config.has(chave)) cfg.set(chave, R.config.get(chave))
-      else cfg.delete(chave)
-    }
   }
 
   // comparações em espaço de uid (ids de aparelhos diferentes não são comparáveis)
@@ -324,10 +298,7 @@ export function mesclar({ base, local, remote, preferirLocal = false, papel = nu
   }
   dados.config = [...cfg.entries()].map(([chave, valor]) => ({ chave, valor }))
   for (const k of Object.keys(local || {})) {
-    if (k === 'config' || tabelas.includes(k)) continue
-    // Tabela que o merge não conhece: repassa a local — salvo se é de outro
-    // dono e o Drive tem a sua própria cópia.
-    dados[k] = (comPapel && donoDaTabela(k) !== papel && Array.isArray(remote?.[k])) ? remote[k] : local[k]
+    if (k !== 'config' && !tabelas.includes(k)) dados[k] = local[k]
   }
 
   const contar = (X) => tabelas.reduce((s, n) => s + X.tab[n].size, 0)

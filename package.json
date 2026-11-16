@@ -6,12 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:backup": "node tests-backup/run.mjs",
-    "test:papel": "node --test \"tests-papel/*.test.mjs\"",
-    "test:servidor": "node --test \"tests-servidor/*.test.mjs\"",
-    "migrar:caderneta": "node scripts/migrar-caderneta.mjs",
-    "backup:verificar": "node scripts/backup/verificar-restauracao.mjs",
-    "backup:simulado": "bash scripts/backup/simulado-restauracao.sh"
+    "test:backup": "node tests-backup/run.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.2.0",

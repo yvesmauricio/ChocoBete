@@ -433,10 +433,8 @@ export async function getStats() {
 }
 
 // ── PAGAMENTO ────────────────────────────────────────────────
-const novoUidPagamento = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `pg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`)
 export function dadosPagamento(valor, saldoAntes, saldoDepois) {
   return {
-    uid: novoUidPagamento(),   // identifica o pagamento no servidor (necessário para estornar depois)
     valor,
     data: hoje(),
     hora: horaAtual(),
@@ -474,7 +472,7 @@ export function aplicarPagamento(fiado, pago) {
  *   • Não muda o esquema do banco: nenhuma migração necessária.
  *
  *  `novaDataVenc` (AAAA-MM-DD): vencimento do que sobrar. Obrigatório quando sobra saldo. */
-export async function receberParcialCliente(ids, valor, novaDataVenc = null, { uidBase = null } = {}) {
+export async function receberParcialCliente(ids, valor, novaDataVenc = null) {
   const pedido = centavos(valor)
   if (!(pedido > 0)) throw new Error('Informe um valor maior que zero.')
   const idsLimpos = [...new Set((ids || []).filter(i => i !== null && i !== undefined))]
@@ -504,13 +502,11 @@ export async function receberParcialCliente(ids, valor, novaDataVenc = null, { u
 
     let faltaAbater = alvo
     const gravadas = []
-    for (const [posicao, f] of abertas.entries()) {
+    for (const f of abertas) {
       const parte = centavos(Math.min(faltaAbater, Number(f.saldo)))
       let mud = {}
       if (parte > 0) {
         mud = aplicarPagamento(f, parte)
-        // Modo servidor: o servidor nomeia o pagamento `${operação}-${posição na ordem de abatimento}`; igual aqui.
-        if (uidBase) mud.pagamentos[mud.pagamentos.length - 1].uid = `${uidBase}-${posicao}`
         faltaAbater = centavos(faltaAbater - parte)
       }
       const continuaAberta = (mud.saldo ?? Number(f.saldo)) > 0.01
@@ -649,59 +645,25 @@ export async function salvarPrecosCategorias(precos) {
   await db.config.put({ chave: CHAVE_PRECOS_CAT, valor: JSON.parse(JSON.stringify(precos)) })
 }
 
-// ── PREÇOS EXTRAS POR CATEGORIA (ex.: trufa de 7, de 8 e de 9) ──
-// O preço "principal" continua em `cad_precos_categorias` (nada muda ali).
-// Os preços ADICIONAIS ficam numa chave própria, `cad_precos_variantes`, no
-// formato { 'cat-trufa': { '800': 1, '900': 1 } } (centavos como chave).
-// Mapa em vez de lista de propósito: o merge do Drive junta aparelhos chave a
-// chave, então dois aparelhos que adicionam preços diferentes ficam com os dois.
-// Quem não conhece esta chave (versão antiga do app) simplesmente a ignora.
-const CHAVE_PRECOS_VAR = 'cad_precos_variantes'
+// Outros preços de cada categoria (ex.: trufa a R$ 7,00 como principal, mas
+// também a R$ 8,00 e R$ 9,00). Guardado numa chave própria: { 'cat-trufa': [8, 9] }.
+// Backups antigos simplesmente não têm essa chave e continuam funcionando.
+const CHAVE_PRECOS_EXTRAS = 'cad_precos_extras'
 
-/** Devolve { 'cat-trufa': [8, 9], … } em reais, ordenado e sem repetição. */
-export async function getPrecosVariantes() {
-  const row = await db.config.get(CHAVE_PRECOS_VAR).catch(() => null)
-  const bruto = row?.valor
-  const out = {}
-  if (!bruto || typeof bruto !== 'object') return out
-  for (const [catId, mapa] of Object.entries(bruto)) {
-    if (!mapa || typeof mapa !== 'object') continue
-    const lista = Object.keys(mapa)
-      .filter(k => mapa[k])
-      .map(k => Number(k) / 100)
-      .filter(p => Number.isFinite(p) && p > 0)
-      .sort((a, b) => a - b)
-    if (lista.length) out[catId] = lista
-  }
-  return out
+export async function getPrecosExtras() {
+  const row = await db.config.get(CHAVE_PRECOS_EXTRAS).catch(() => null)
+  return row?.valor || {}
 }
 
-/** Recebe { 'cat-trufa': [8, 9], … } em reais e grava no formato de mapa. */
-export async function salvarPrecosVariantes(porCategoria) {
-  const valor = {}
-  for (const [catId, lista] of Object.entries(porCategoria || {})) {
-    const mapa = {}
-    for (const p of Array.isArray(lista) ? lista : []) {
-      const c = Math.round((Number(p) || 0) * 100)
-      if (c > 0) mapa[String(c)] = 1
-    }
-    if (Object.keys(mapa).length) valor[catId] = mapa
-  }
-  await db.config.put({ chave: CHAVE_PRECOS_VAR, valor })
+export async function salvarPrecosExtras(extras) {
+  await db.config.put({ chave: CHAVE_PRECOS_EXTRAS, valor: JSON.parse(JSON.stringify(extras)) })
 }
 
 // ── RESUMO ITENS ─────────────────────────────────────────────
 export function resumoItens(itens) {
   if (!itens?.length) return ''
-  // Mesmo produto em dois preços (ex.: trufa a 7 e a 9): mostra o preço pra não
-  // aparecer "2x Trufa" duas vezes sem explicação. Com um preço só, fica igual a antes.
-  const repetidos = new Map()
-  itens.forEach(i => repetidos.set(i.nome, (repetidos.get(i.nome) || 0) + 1))
   return itens.map(i => {
     const emoji = i.emoji || '📦'
-    const preco = repetidos.get(i.nome) > 1 && Number(i.preco) > 0
-      ? ` (R$ ${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(Number(i.preco))})`
-      : ''
-    return `${emoji} ${i.qtd || i.qty || 0}x ${i.nome}${preco}`
+    return `${emoji} ${i.qtd || i.qty || 0}x ${i.nome}`
   }).join('\n')
-} 
+}

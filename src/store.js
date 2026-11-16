@@ -1,6 +1,6 @@
 import { defineStore } from "pinia"
 import { ref, computed } from 'vue'
-import { db, configGet, configSet, exportarDados, importarDados, garantirPersistencia, migrateLegacyDbIfNeeded, CONFIG_CHAVES_DO_APARELHO } from './db.js' // Removed getMesRef, normalizar
+import { db, configGet, configSet, exportarDados, importarDados, garantirPersistencia, migrateLegacyDbIfNeeded } from './db.js' // Removed getMesRef, normalizar
 import {
   isGoogleDriveBackupConfigured,
   isGoogleDriveBackupConnected,
@@ -14,9 +14,6 @@ import { useConfirm } from './composables/useConfirm.js'
 import { suportaBackupLocalAutomatico, salvarBackupLocalAutomatico } from './services/localBackup.js'
 import { salvarSnapshot, listarSnapshots, lerSnapshot, apagarSnapshot, salvarBase, lerBase, assinaturaDeDados } from './services/safetyBackup.js'
 import { mesclar, igual } from './services/merge.js'
-import { PAPEL_ADMIN, papelValido } from './services/papelAparelho.js'
-import { instalarTravaPorPapel } from './services/travaPorPapel.js'
-import { conferir } from './services/validacaoDados.js'
 import { normalizarPerfis } from './store/perfis.js'
 import { criarRegrasFinanceiras } from './store/financeiroRegras.js'
 import { criarCustos } from './store/custos.js'
@@ -78,9 +75,7 @@ export const useStore = defineStore('choco', () => {
     pauseTimer,
     stopTimer,
     resetTimer,
-    timerDisplay,
-    timerOrfao,
-    seguirLoteRenomeado
+    timerDisplay
   } = criarCronometro({
     producoes,
     atualizarLoteProducao: (...args) => atualizarLoteProducao(...args)
@@ -143,7 +138,6 @@ export const useStore = defineStore('choco', () => {
   // um .json baixado em outro aparelho não protege este).
   const MANUAL_TS_KEY = 'ChocoBete-backup-manual-ts'
   const ultimoSyncTs = ref(null)
-  const ultimaChecagemSync = ref(null) // última vez que conferiu com o Drive e estava em dia
   const backupManualTs = ref((() => { try { return localStorage.getItem(MANUAL_TS_KEY) } catch { return null } })())
   const contaGoogle = ref(lerContaGoogleEmCache())   // { nome, email } da conta conectada
   const infoBackupDrive = ref(null)        // { modifiedTime, tamanhoPrincipal, versoes, tamanhoTotal }
@@ -187,52 +181,6 @@ export const useStore = defineStore('choco', () => {
     }
     return manual <= 7 ? null : { acao: 'manual', msg: 'Faz mais de 7 dias que você não baixa um backup dos seus dados.' }
   })
-
-  // ── Papel deste aparelho ───────────────────
-  // 'admin' | 'vendas' (ver services/papelAparelho.js). Guardado só neste
-  // aparelho (fora do backup). Define quais áreas ele pode editar: cada área
-  // tem um único dono, então dois aparelhos nunca disputam o mesmo dado.
-  const papelAparelho = ref(null)
-  const nomeAparelho = ref('')
-  const papelCarregado = ref(false)
-  let _desfazerTrava = null
-  let _ultimoAvisoConsulta = 0
-
-  function _instalarTrava() {
-    if (_desfazerTrava) return
-    _desfazerTrava = instalarTravaPorPapel(db, {
-      obterPapel: () => papelAparelho.value,
-      chavesDoAparelho: CONFIG_CHAVES_DO_APARELHO,
-      aoBloquear: (erro) => {
-        // um aviso a cada 3 s no máximo: uma tela que tente gravar em laço não vira enxurrada de toasts
-        const agora = Date.now()
-        if (agora - _ultimoAvisoConsulta < 3000) return
-        _ultimoAvisoConsulta = agora
-        notify(erro.message, 'warning')
-      }
-    })
-  }
-
-  async function carregarPapelAparelho() {
-    const p = await configGet('papel_aparelho', null)
-    papelAparelho.value = papelValido(p) ? p : null
-    nomeAparelho.value = String(await configGet('aparelho_nome', '') || '')
-    _instalarTrava()
-    papelCarregado.value = true
-  }
-
-  /** Define o papel (e o nome) deste aparelho. Feito uma vez, na primeira
-   *  abertura — ou ao trocar de função de propósito, em Ajustes. */
-  async function definirPapelAparelho(papel, nome = '') {
-    if (!papelValido(papel)) return false
-    await configSet('papel_aparelho', papel)
-    await configSet('aparelho_nome', String(nome || '').trim().slice(0, 40))
-    papelAparelho.value = papel
-    nomeAparelho.value = String(nome || '').trim().slice(0, 40)
-    _instalarTrava()
-    if (googleDriveConfigured.value) _executarSync({ manual: true }).catch(() => {})
-    return true
-  }
 
   // ── Sync automático ───────────────────────
   // 'idle' | 'syncing' | 'ok' | 'error' | 'conflict'
@@ -357,11 +305,6 @@ export const useStore = defineStore('choco', () => {
   let _syncPediuDeNovo = false
   let _resolvendoConflito = false
   let _arquivarSempreNoProximo = false
-  // Conferência que segurou um envio/aplicação (queda brusca, cobrança incoerente).
-  // Enquanto há alerta, o ícone fica vermelho (status 'conflict') e só um toque
-  // da pessoa decide — nada é enviado nem aplicado sozinho.
-  const syncAlerta = ref(null) // { motivo, linhas[] } | null
-  let _ignorarAlertaUmaVez = false
 
   async function _executarSync({ manual = false, arquivarSempre = false } = {}) {
     if (!googleDriveConfigured.value) return
@@ -382,53 +325,14 @@ export const useStore = defineStore('choco', () => {
       } while (_syncPediuDeNovo && resultado === 'ok')
     } finally {
       _syncRodando = false
-      _ignorarAlertaUmaVez = false
     }
-    // Conferiu com o Drive e estava tudo em dia (ou aplicou o que havia): vale como "atualizado agora",
-    // mesmo quando não havia nada novo para baixar nem enviar.
-    if (resultado === 'ok') ultimaChecagemSync.value = new Date().toISOString()
     if (resultado === 'conflict') await resolverConflitoSync()
-  }
-
-  /** Atualização manual (botão "Atualizar" do modo somente consulta): traz o que o outro
-   *  aparelho gravou e confere se há algo a enviar. Devolve como terminou, para a tela avisar.
-   *  @returns 'ok' | 'offline' | 'sem_drive' | 'erro' | 'atencao' */
-  async function atualizarAgora() {
-    if (!googleDriveConfigured.value) return 'sem_drive'
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline'
-    await syncImediato({ manual: true })
-    // se já havia uma sincronização em andamento, espera ela terminar (até ~20 s)
-    for (let i = 0; i < 130 && (syncStatus.value === 'syncing' || _syncRodando); i++) await pausa(150)
-    if (syncStatus.value === 'error') return 'erro'
-    if (syncStatus.value === 'conflict') return 'atencao'
-    return 'ok'
   }
 
   const MARCA_MIGRACAO = { chave: '__legacy_migrated__', valor: true }
   const comMarcaMigracao = (dados) => {
     const cfg = Array.isArray(dados.config) ? dados.config : []
     return cfg.some(r => r.chave === MARCA_MIGRACAO.chave) ? dados : { ...dados, config: [...cfg, { ...MARCA_MIGRACAO }] }
-  }
-
-  /** Dados a enviar quando o Drive não mudou desde a última sincronização:
-   *  as áreas de OUTRO dono ficam exatamente como estão no Drive (= a base),
-   *  e só as deste aparelho vão. Sem base ou sem papel, envia o local. */
-  function _paraEnvio(local, baseDados, papel) {
-    if (!baseDados || !papelValido(papel)) return local
-    return comMarcaMigracao(mesclar({ base: baseDados, local, remote: baseDados, papel }).dados)
-  }
-
-  /** Confere `resultado` contra `referencia` (queda brusca / cobrança incoerente
-   *  nova). Se algo for apontado: guarda uma cópia, registra o alerta e devolve
-   *  false — quem chamou NÃO envia nem aplica. */
-  async function _conferirAntes(referencia, resultado, motivo) {
-    if (!referencia) return true
-    const c = conferir(referencia, resultado)
-    if (c.ok || _ignorarAlertaUmaVez) return true
-    await _guardarSnapshot(`antes de ${motivo} (a conferência apontou diferenças)`)
-    syncAlerta.value = { motivo, linhas: c.linhas }
-    syncStatus.value = 'conflict'
-    return false
   }
 
   /**
@@ -453,14 +357,6 @@ export const useStore = defineStore('choco', () => {
       syncStatus.value = 'idle'
       return 'offline'
     }
-    // Sem papel definido o aparelho não sincroniza: antes de saber o que é seu,
-    // ele não pode enviar nada. A tela de "Que aparelho é este?" resolve.
-    if (!papelValido(papelAparelho.value)) {
-      syncStatus.value = 'idle'
-      return 'papel'
-    }
-    const papel = papelAparelho.value
-    syncAlerta.value = null
     syncStatus.value = 'syncing'
     try {
       for (let volta = 0; volta < 4; volta++) {
@@ -497,11 +393,9 @@ export const useStore = defineStore('choco', () => {
             syncStatus.value = 'idle'
             return 'ok'
           }
-          const envio = _paraEnvio(local, base?.dados, papel)
-          if (!(await _conferirAntes(base?.dados, envio, 'enviar ao Drive'))) return 'alerta'
           try {
-            const { modifiedTime } = await salvarBackupNoDrive(envio, { verificarContra: remoto.modifiedTime, arquivarSempre })
-            await _registrarSyncOk(modifiedTime, seq, envio)
+            const { modifiedTime } = await salvarBackupNoDrive(local, { verificarContra: remoto.modifiedTime, arquivarSempre })
+            await _registrarSyncOk(modifiedTime, seq, local)
             concluirSyncComAviso('Drive atualizado')
             return 'ok'
           } catch (err) {
@@ -514,11 +408,8 @@ export const useStore = defineStore('choco', () => {
         const { backup: remotoDados, modifiedTime: remotoTs } = await restaurarBackupDoDriveComInfo()
         const ultimaLocalMs = Date.parse(await configGet('sync_last_change', null) || '') || 0
         const preferirLocal = ultimaLocalMs >= (Date.parse(remotoTs || remoto.modifiedTime) || 0)
-        const res = mesclar({ base: base?.dados || null, local, remote: remotoDados, preferirLocal, papel })
+        const res = mesclar({ base: base?.dados || null, local, remote: remotoDados, preferirLocal })
         const dadosMesclados = comMarcaMigracao(res.dados)
-
-        if (!res.igualAoLocal && !(await _conferirAntes(local, dadosMesclados, 'aplicar os dados do Drive neste aparelho'))) return 'alerta'
-        if (!res.igualAoRemoto && !(await _conferirAntes(remotoDados, dadosMesclados, 'enviar ao Drive'))) return 'alerta'
 
         if (!res.igualAoLocal) {
           // Há dados do outro aparelho entrando: guarda uma cópia antes (só
@@ -604,7 +495,7 @@ export const useStore = defineStore('choco', () => {
       const original = (Array.isArray(r) ? r : [])[index] || {}
       return (original.categoria || '') !== (receita.categoria || '') || (original.tamanho || '') !== (receita.tamanho || '')
     })
-    if (receitasComAlteracoes.length && papelAparelho.value === PAPEL_ADMIN) {
+    if (receitasComAlteracoes.length) {
       await db.receitas.bulkPut(receitasComAlteracoes)
     }
     produtos.value = p
@@ -614,7 +505,6 @@ export const useStore = defineStore('choco', () => {
     contasFinanceiras.value = Array.isArray(contasCfg)
       ? contasCfg.map(normalizarContaFinanceira).filter(c => c.nome)
       : []
-    await _carregarImportacoesExtrato()
     if (cfg) company.value = { ...company.value, ...cfg }
     perfis.value = normalizarPerfis(perfisCfg)
     if (Array.isArray(categoriasCfg) && categoriasCfg.length) categoriasFinanceiro.value = categoriasCfg
@@ -716,31 +606,10 @@ export const useStore = defineStore('choco', () => {
     return true
   }
 
-  /** A conferência pausou a sincronização (ex.: "vendas fiadas: de 212 para 0").
-   *  Nada foi enviado nem aplicado e há uma cópia de segurança. Aqui a pessoa
-   *  decide: continuar (o resultado é o esperado) ou deixar parado. */
-  async function revisarAlertaSync() {
-    if (_resolvendoConflito || !syncAlerta.value) return
-    _resolvendoConflito = true
-    let seguir = false
-    try {
-      const a = syncAlerta.value
-      seguir = await confirmarAcao.ask(
-        `A sincronização foi pausada antes de ${a.motivo}, porque algo não parece normal:\n\n• ${a.linhas.join('\n• ')}\n\nNada foi alterado e uma cópia de segurança foi guardada. Se isso não é o que você esperava, escolha "Não continuar" e avise quem administra o app.`,
-        { title: 'Conferência antes de sincronizar', confirmLabel: 'É isso mesmo, continuar', cancelLabel: 'Não continuar', type: 'warning', icon: 'fas fa-shield-halved' }
-      )
-      if (seguir) { _ignorarAlertaUmaVez = true; syncAlerta.value = null; syncStatus.value = 'idle' }
-    } finally {
-      _resolvendoConflito = false
-    }
-    if (seguir) await _executarSync({ manual: true })
-  }
-
   /** Decisão quando dois aparelhos alteraram os dados: nada é sobrescrito
    *  sem a pessoa escolher, e as DUAS versões ficam guardadas de qualquer
    *  jeito (a deste aparelho numa cópia local, a do Drive fixada no histórico). */
   async function resolverConflitoSync() {
-    if (syncAlerta.value) return revisarAlertaSync()
     if (_resolvendoConflito) return
     _resolvendoConflito = true
     try {
@@ -778,13 +647,7 @@ export const useStore = defineStore('choco', () => {
       syncStatus.value = 'syncing'
       const seq = mudancaSeq
       try {
-        let dados = await exportarDados()
-        // As áreas de OUTRO dono continuam sendo as do Drive: "usar a versão deste
-        // aparelho" vale só para o que este aparelho edita.
-        if (papelValido(papelAparelho.value)) {
-          const { backup: noDrive } = await restaurarBackupDoDriveComInfo()
-          dados = comMarcaMigracao(mesclar({ base: noDrive, local: dados, remote: noDrive, papel: papelAparelho.value, preferirLocal: true }).dados)
-        }
+        const dados = await exportarDados()
         const { modifiedTime } = await salvarBackupNoDrive(dados, { verificarContra: '', forcar: true })
         await _registrarSyncOk(modifiedTime, seq, dados)
         concluirSyncComAviso('Drive atualizado com a versão deste aparelho', { toast: true })
@@ -932,7 +795,6 @@ export const useStore = defineStore('choco', () => {
   async function init() {
     await migrateLegacyDbIfNeeded()
     await garantirPersistencia()
-    await carregarPapelAparelho()
     loading.value = true
     try {
       const [p, r, pr, fin, cfg, perfisCfg, contasCfg, categoriasCfg, regrasCategoriaCfg, regrasDescricaoCfg, pendenteSalvo] = await Promise.all([
@@ -958,7 +820,7 @@ export const useStore = defineStore('choco', () => {
         const original = (Array.isArray(r) ? r : [])[index] || {}
         return (original.categoria || '') !== (receita.categoria || '') || (original.tamanho || '') !== (receita.tamanho || '')
       })
-      if (receitasComAlteracoes.length && papelAparelho.value === PAPEL_ADMIN) {
+      if (receitasComAlteracoes.length) {
         await db.receitas.bulkPut(receitasComAlteracoes)
       }
       if (Array.isArray(categoriasCfg) && categoriasCfg.length) {
@@ -987,7 +849,6 @@ export const useStore = defineStore('choco', () => {
       contasFinanceiras.value = Array.isArray(contasCfg)
         ? contasCfg.map(normalizarContaFinanceira).filter(conta => conta.nome)
         : []
-      await _carregarImportacoesExtrato()
 
       const savedTimer = await configGet('active_timer')
       if (savedTimer) {
@@ -1032,7 +893,7 @@ export const useStore = defineStore('choco', () => {
         )
       })
 
-      if (alterados.length && papelAparelho.value === PAPEL_ADMIN) {
+      if (alterados.length) {
         await db.financeiro.bulkPut(alterados)
         financeiro.value = await db.financeiro.orderBy('data').reverse().toArray()
       }
@@ -1213,62 +1074,24 @@ async function registrarProducaoFantasma(dados) {
     financeiro.value = await db.financeiro.orderBy('data').reverse().toArray()
   }
 
-  // Última importação desta sessão (compatibilidade com telas antigas).
+  // Guarda o lote da última importação de extrato (sessão atual) para permitir desfazer.
   const ultimaImportacao = ref(null)
 
-  // Histórico PERSISTENTE de importações de extrato (config `extrato_importacoes`): cada lote
-  // guarda de onde veio (arquivo, conta, período) e o que criou/alterou, para poder ser
-  // desfeito inteiro a qualquer momento — não só o último, e não só até recarregar o app.
-  const importacoesExtrato = ref([])
-  // Assinatura do formato do último extrato aceito em cada conta (config `extrato_assinaturas`).
-  const assinaturasExtrato = ref({})
-
-  async function _carregarImportacoesExtrato() {
-    const lista = await configGet('extrato_importacoes', [])
-    importacoesExtrato.value = Array.isArray(lista) ? lista : []
-    const assin = await configGet('extrato_assinaturas', {})
-    assinaturasExtrato.value = assin && typeof assin === 'object' && !Array.isArray(assin) ? assin : {}
-  }
-
-  /** Desfaz uma importação inteira: apaga o que ela criou e devolve a categoria/natureza
-   *  que a conciliação de transferências mudou em lançamentos que já existiam. */
-  async function desfazerImportacaoExtrato(loteId) {
-    const lote = importacoesExtrato.value.find(l => l.id === loteId)
-    if (!lote || lote.desfeito_em) {
-      notify('Esta importação já foi desfeita (ou não existe mais).', 'warning')
+  async function desfazerUltimaImportacao() {
+    const lote = ultimaImportacao.value
+    if (!lote || !lote.ids?.length) {
+      notify('Não há nenhuma importação recente para desfazer.', 'warning')
       return false
     }
-    const hashes = new Set(lote.hashes || [])
-    const ids = hashes.size ? await db.financeiro.where('hash_duplicidade').anyOf([...hashes]).primaryKeys() : []
-    if (ids.length) await db.financeiro.bulkDelete(ids)
-    for (const antes of lote.alterados || []) {
-      if (hashes.has(antes.hash)) continue
-      const registro = await db.financeiro.where('hash_duplicidade').equals(antes.hash).first()
-      if (registro && !registro.editado_manualmente) {
-        await db.financeiro.update(registro.id, { categoria: antes.categoria, natureza: antes.natureza })
-      }
-    }
-    importacoesExtrato.value = importacoesExtrato.value.map(l => l.id === loteId ? { ...l, desfeito_em: new Date().toISOString() } : l)
-    await configSet('extrato_importacoes', importacoesExtrato.value)
+    await db.financeiro.bulkDelete(lote.ids)
     ultimaImportacao.value = null
     await carregarFinanceiro()
     agendarSync()
-    notify(`Importação desfeita: ${ids.length} lançamento(s) removido(s).`)
+    notify(`Importação desfeita: ${lote.ids.length} lançamento(s) removido(s).`)
     return true
   }
 
-  /** Desfaz a importação mais recente que ainda não foi desfeita (vale após recarregar o app). */
-  async function desfazerUltimaImportacao() {
-    const lote = importacoesExtrato.value.find(l => !l.desfeito_em)
-    if (!lote) {
-      notify('Não há nenhuma importação para desfazer.', 'warning')
-      return false
-    }
-    return desfazerImportacaoExtrato(lote.id)
-  }
-
-  /** Normaliza e separa o que é NOVO do que já existe — sem gravar nada. */
-  async function _prepararLoteImportacao(lancamentos = []) {
+  async function importarLancamentosFinanceiros(lancamentos = []) {
     const preparadosBase = lancamentos
       .map(normalizarLancamentoFinanceiro)
       .filter(item => item.data && item.descricao && Number.isFinite(item.valor) && item.tipo)
@@ -1283,7 +1106,15 @@ async function registrarProducaoFantasma(dados) {
       preparados.push(item)
     }
 
-    if (!preparados.length) return { preparados, novos: [] }
+    if (!preparados.length) {
+      return {
+        recebidos: lancamentos.length,
+        validos: 0,
+        importadosCount: 0,
+        duplicados: 0,
+        totalImportado: 0
+      }
+    }
 
     const existentes = await db.financeiro.toArray()
     const assinaturasExistentes = new Set()
@@ -1304,30 +1135,6 @@ async function registrarProducaoFantasma(dados) {
       return true
     })
 
-    return { preparados, novos }
-  }
-
-  /** Prévia: quantos lançamentos entrariam e quantos já existem. NÃO grava nada. */
-  async function simularImportacaoFinanceira(lancamentos = []) {
-    const { preparados, novos } = await _prepararLoteImportacao(lancamentos)
-    return { recebidos: lancamentos.length, validos: preparados.length, novos: novos.length, duplicados: preparados.length - novos.length }
-  }
-
-  /** @param meta  { banco, conta_id, arquivo, hashArquivo, formato, assinatura } — origem do
-   *  arquivo, guardada no histórico para auditar e desfazer. */
-  async function importarLancamentosFinanceiros(lancamentos = [], meta = null) {
-    const { preparados, novos } = await _prepararLoteImportacao(lancamentos)
-
-    if (!preparados.length) {
-      return {
-        recebidos: lancamentos.length,
-        validos: 0,
-        importadosCount: 0,
-        duplicados: 0,
-        totalImportado: 0
-      }
-    }
-
     let idsNovos = []
     if (novos.length) {
       idsNovos = await db.financeiro.bulkAdd(novos, { allKeys: true })
@@ -1335,15 +1142,12 @@ async function registrarProducaoFantasma(dados) {
 
     const todos = await db.financeiro.toArray()
     const reconciliados = reconciliarTransferenciasInternas(todos)
-    const alteradosAntes = [] // estado anterior, para o "desfazer" poder devolver
     const alterados = reconciliados.filter((item, index) => {
       const atual = todos[index]
-      const mudou = atual && (
+      return atual && (
         atual.categoria !== item.categoria ||
         atual.natureza !== item.natureza
       )
-      if (mudou) alteradosAntes.push({ hash: atual.hash_duplicidade, categoria: atual.categoria, natureza: atual.natureza })
-      return mudou
     })
 
     if (alterados.length) {
@@ -1355,36 +1159,8 @@ async function registrarProducaoFantasma(dados) {
       agendarSync()
     }
 
-    let lote = null
-    if (novos.length) {
-      const datas = novos.map(n => n.data).sort()
-      lote = {
-        id: `imp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-        quando: new Date().toISOString(),
-        banco: meta?.banco || novos[0]?.banco || null,
-        conta_id: meta?.conta_id || novos[0]?.conta_id || '',
-        conta_nome: novos[0]?.conta_nome || '',
-        arquivo: meta?.arquivo || '',
-        hash_arquivo: meta?.hashArquivo || '',
-        formato: meta?.formato || '',
-        periodo: { ini: datas[0], fim: datas[datas.length - 1] },
-        qtd: novos.length,
-        total: novos.reduce((acc, item) => acc + Number(item.valor || 0), 0),
-        hashes: novos.map(n => n.hash_duplicidade),
-        alterados: alteradosAntes,
-        desfeito_em: null
-      }
-      importacoesExtrato.value = [lote, ...importacoesExtrato.value].slice(0, 40)
-      await configSet('extrato_importacoes', importacoesExtrato.value)
-      if (lote.conta_id && meta?.assinatura) {
-        assinaturasExtrato.value = { ...assinaturasExtrato.value, [lote.conta_id]: meta.assinatura }
-        await configSet('extrato_assinaturas', assinaturasExtrato.value)
-      }
-      agendarSync()
-    }
-
     ultimaImportacao.value = idsNovos.length
-      ? { ids: idsNovos, banco: novos[0]?.banco || null, quando: new Date().toISOString(), loteId: lote?.id || null }
+      ? { ids: idsNovos, banco: novos[0]?.banco || null, quando: new Date().toISOString() }
       : null
 
     return {
@@ -1392,7 +1168,6 @@ async function registrarProducaoFantasma(dados) {
       validos: preparados.length,
       importadosCount: novos.length,
       duplicados: preparados.length - novos.length,
-      loteId: lote?.id || null,
       totalImportado: novos.reduce((acc, item) => acc + Number(item.valor || 0), 0),
       receitasImportadas: novos
         .filter(item => item.natureza === 'entrada')
@@ -1798,8 +1573,6 @@ async function registrarProducaoFantasma(dados) {
     try {
       await db.producoes.bulkPut(atualizados)
       await carregarProducoes(0)
-      // A data do lote é o id dele: se o cronômetro estava neste lote, acompanha a nova data.
-      seguirLoteRenomeado(dataProducaoOriginal, novosDados.data_producao_nova)
       if (algumSuspeito) {
         notify('Tempo registrado ficou bem acima do padrão da receita (possível cronômetro esquecido ligado). Usamos o tempo padrão no custo deste lote — se o tempo real informado estiver correto, edite o horário de início/fim do lote.', 'warning', 6000)
       } else {
@@ -2186,7 +1959,7 @@ async function registrarProducaoFantasma(dados) {
 
     // Dados
     produtos, receitas, producoes, financeiro, contasFinanceiras,
-    timer, timerDisplay, timerOrfao, startTimer, pauseTimer, stopTimer, resetTimer,
+    timer, timerDisplay, startTimer, pauseTimer, stopTimer, resetTimer,
     // Analise de receitas: gerenciamento de ignorados
     getAnaliseIgnorados, ignorarAnalise, desfazerIgnorarAnalise,
 
@@ -2206,9 +1979,8 @@ async function registrarProducaoFantasma(dados) {
     producaoBusca,
     getPrecoUnitarioInsumo, getMediaTempoReceita, getProductionIngredients,
     getCustoProducaoReceita, getCustoMaoDeObra, expandirIngredientes,
-    carregarFinanceiro, importarLancamentosFinanceiros, simularImportacaoFinanceira,
-    ultimaImportacao, desfazerUltimaImportacao, desfazerImportacaoExtrato,
-    importacoesExtrato, assinaturasExtrato,
+    carregarFinanceiro, importarLancamentosFinanceiros,
+    ultimaImportacao, desfazerUltimaImportacao,
     atualizarLancamentoFinanceiro, atualizarLancamentosEmLote,
     limparFinanceiroPorBanco, reclassificarTodosFinanceiro,
 
@@ -2220,8 +1992,7 @@ async function registrarProducaoFantasma(dados) {
     bancoVazio, recuperandoDados, suportaPastaBackupLocal,
     recuperarDeGoogleDrive, recuperarDaPastaLocal, recuperarDeArquivoLocal,
     conectarGoogleDrive, desconectarGoogleDrive, contaGoogle, carregarContaGoogle,
-    syncStatus, iniciarSync, syncImediato, agendarSync, atualizarAgora, ultimaChecagemSync,
-    papelAparelho, nomeAparelho, papelCarregado, definirPapelAparelho, syncAlerta,
+    syncStatus, iniciarSync, syncImediato, agendarSync,
 
     // Analytics e Resumos
     resumoFinanceiroPorMes, totalRecebidoAnoAtual, relatorioMensalMei,

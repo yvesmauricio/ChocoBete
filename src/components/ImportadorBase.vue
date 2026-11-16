@@ -102,26 +102,12 @@
     </section>
     </Transition>
 
-    <!-- Nada é gravado antes desta conferência: a pessoa vê de onde veio o arquivo,
-         o que vai entrar e os avisos, e confirma. Arquivo de outro banco é barrado aqui. -->
-    <ImportacaoPrevia
-      v-if="previa"
-      :previa="previa"
-      :confirmando="confirmandoPrevia"
-      @confirmar="$emit('confirmar-previa')"
-      @cancelar="$emit('cancelar-previa')"
-    />
-
-    <HistoricoImportacoes />
-
     <slot name="footer" />
   </div>
 </template>
 
 <script setup>
 import { R$ } from '../utils.js'
-import ImportacaoPrevia from './ImportacaoPrevia.vue'
-import HistoricoImportacoes from './HistoricoImportacoes.vue'
 
 defineProps({
   bankKey: String,
@@ -135,12 +121,10 @@ defineProps({
   contaId: String,
   loading: Boolean,
   fileName: String,
-  resultado: Object,
-  previa: Object,
-  confirmandoPrevia: Boolean
+  resultado: Object
 })
 
-defineEmits(['file-change', 'update:contaId', 'desfazer', 'confirmar-previa', 'cancelar-previa'])
+defineEmits(['file-change', 'update:contaId', 'desfazer'])
 </script>
 
 <style scoped>

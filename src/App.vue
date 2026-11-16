@@ -15,7 +15,6 @@
          extra criado em Ajustes → Perfis (ex.: Produção, Financeiro). -->
     <template v-if="perfilInfo?.tipo === 'admin'">
       <AppHeader />
-      <BannerConsulta v-if="avisoSomenteConsulta" :detalhe="avisoSomenteConsulta" />
 
       <main class="main">
         <TabReceitas     v-if="abasVisitadas.receitas" v-show="s.tab === 'receitas'" />
@@ -45,6 +44,28 @@
         </button>
       </Transition>
 
+      <!-- Cronômetro Flutuante — começa no canto inferior esquerdo, arrastável -->
+      <Transition name="fade">
+        <div v-if="s.timerDisplay"
+          class="floating-timer"
+          :style="{ transform: `translate(${timerPos.x}px, ${timerPos.y}px)` }"
+          @click="onTimerClick"
+          @touchstart="onDragStart"
+          @touchmove="onDragMove"
+          @touchend="onDragEnd"
+          @mousedown="onMouseDragStart"
+        >
+          <div class="floating-timer-content">
+            <i class="fas fa-stopwatch" :class="{ 'fa-beat-fade': s.timer.isRunning }"></i>
+            <span class="timer-val">{{ s.timerDisplay }}</span>
+          </div>
+          <div class="floating-timer-label">
+            {{ s.timer.isRunning ? 'Produzindo...' : 'Pausado' }}
+            <span v-if="s.activeLoteName" class="lote-indicator">({{ s.activeLoteName }})</span>
+          </div>
+        </div>
+      </Transition>
+
       <!-- O indicador de sync do perfil Admin agora é um botão no próprio
            AppHeader (mesmo tamanho do botão "trocar perfil"), não mais
            uma bolinha discreta — ver AppHeader.vue. -->
@@ -52,7 +73,6 @@
 
     <!-- ══ MODO BETE (Caderneta) ═══════════════════════════════ -->
     <template v-if="perfilInfo?.tipo === 'caderneta'">
-      <BannerConsulta v-if="avisoSomenteConsulta" :detalhe="avisoSomenteConsulta" topo />
       <main class="main main--bete">
         <TabCaderneta @trocar-perfil="trocarPerfil" />
       </main>
@@ -94,16 +114,8 @@
 import { onMounted, onUnmounted, reactive, computed, ref, provide, watch } from 'vue'
 import { useStore } from './store.js'
 import { useAndroidBackGuard } from './composables/useAndroidBackGuard.js'
-import { tentarReconectarSilenciosamente, iniciarRenovacaoPorToque } from './services/googleDriveBackup.js'
-import { iniciarMonitorPedidosSite } from './services/pedidosSite.js'
-import { cadernetaNoServidor, aplicarParametroDeUrl } from './services/modoServidor.js'
-import { iniciarFila } from './services/filaOperacoes.js'
-import { projetarServidorNoLocal, EVENTO_ATUALIZADA } from './services/cadernetaServidor.js'
-import { instalarGuardaServidor } from './services/guardaServidor.js'
-import { acessoRef, carregarAcessoLocal, atualizarAcesso } from './services/acessoServidor.js'
-import { db as dbLocal } from './db.js'
+import { tentarReconectarSilenciosamente } from './services/googleDriveBackup.js'
 import AppHeader      from './components/AppHeader.vue'
-import BannerConsulta  from './components/BannerConsulta.vue'
 import AppNav         from './components/AppNav.vue'
 import ConfirmDialog  from './components/ConfirmDialog.vue'
 import AtualizacaoBanner from './components/AtualizacaoBanner.vue'
@@ -157,18 +169,7 @@ watch([() => s.tab, perfilInfo], ([tab, info]) => {
   abasVisitadas[tab] = true
 }, { immediate: true })
 
-// Texto do aviso quando este aparelho está vendo a área de outro dono.
-const avisoSomenteConsulta = computed(() => {
-  if (!s.papelAparelho || perfil.value === null) return ''
-  // Modo servidor: quem pode o quê vem do perfil da PESSOA no servidor, não do papel do aparelho.
-  if (perfilInfo.value?.tipo === 'caderneta' && cadernetaNoServidor()) return acessoRef.value && !acessoRef.value.papel ? 'seu login não tem perfil no servidor' : ''
-  if (perfilInfo.value?.tipo === 'caderneta' && s.papelAparelho !== 'vendas') return 'edição: Vendas'
-  if (perfilInfo.value?.tipo === 'admin' && s.papelAparelho !== 'admin') return 'edição: Admin'
-  return ''
-})
-
 async function onSelecionarPerfil(p) {
-  if (!s.papelAparelho) return // sem saber que aparelho é este, nada abre
   // Não persiste: a cada abertura do app volta pra seleção de perfil
   // Isso é proposital — segurança de separação dos dados
 
@@ -221,6 +222,52 @@ const onVisibilityChange = async () => {
 // Voltou a internet: envia o que ficou pendente enquanto estava offline.
 const onOnline = () => { if (s.hasLocalChanges) s.syncImediato() }
 
+// ── Timer drag ───────────────────────────────────────────
+const timerPos = reactive({ x: 0, y: 0 })
+let dragStart = { x: 0, y: 0 }
+let lastPos   = { x: 0, y: 0 }
+let isDragging  = false
+let dragMoved   = false
+
+const onDragStart = (e) => {
+  isDragging = true; dragMoved = false
+  dragStart.x = e.touches[0].clientX; dragStart.y = e.touches[0].clientY
+  lastPos.x = timerPos.x; lastPos.y = timerPos.y
+}
+const onDragMove = (e) => {
+  if (!isDragging) return
+  const dx = e.touches[0].clientX - dragStart.x
+  const dy = e.touches[0].clientY - dragStart.y
+  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragMoved = true
+  timerPos.x = lastPos.x + dx; timerPos.y = lastPos.y + dy
+}
+const onDragEnd  = () => { isDragging = false }
+
+// Mesmo arrastar do cronômetro, com o mouse (desktop). Os listeners de
+// move/up ficam na janela só enquanto o botão está pressionado, pra o timer
+// seguir o cursor mesmo se ele sair de cima do elemento.
+const onMouseDragStart = (e) => {
+  if (e.button !== 0) return
+  isDragging = true; dragMoved = false
+  dragStart.x = e.clientX; dragStart.y = e.clientY
+  lastPos.x = timerPos.x; lastPos.y = timerPos.y
+  window.addEventListener('mousemove', onMouseDragMove)
+  window.addEventListener('mouseup', onMouseDragEnd)
+}
+const onMouseDragMove = (e) => {
+  if (!isDragging) return
+  const dx = e.clientX - dragStart.x
+  const dy = e.clientY - dragStart.y
+  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragMoved = true
+  timerPos.x = lastPos.x + dx; timerPos.y = lastPos.y + dy
+}
+const onMouseDragEnd = () => {
+  isDragging = false
+  window.removeEventListener('mousemove', onMouseDragMove)
+  window.removeEventListener('mouseup', onMouseDragEnd)
+}
+const onTimerClick = () => { if (!dragMoved) s.setTab('producao') }
+
 // Impede que o botão/gesto "Voltar" do Android feche o app de primeira —
 // o primeiro toque navega para a aba inicial; só sai do app a partir dela.
 useAndroidBackGuard({
@@ -229,71 +276,19 @@ useAndroidBackGuard({
   tabInicial: 'painel',
 })
 
-// Pedidos feitos no site: o app confere o servidor enquanto está aberto. Sem a chave do
-// servidor em Ajustes isto não faz nada. Pedido novo vira aviso + vai pro Drive (outros aparelhos).
-let pararMonitorPedidosSite = null
-let pararFilaCaderneta = null
-
-// Modo servidor da Caderneta: envia a fila, lê o servidor e copia para o banco local que as telas já leem.
-function iniciarCadernetaNoServidor() {
-  if (!cadernetaNoServidor() || pararFilaCaderneta) return
-  const removerGuarda = instalarGuardaServidor(dbLocal)
-  carregarAcessoLocal().then(() => atualizarAcesso())          // perfil da pessoa (vale offline até a próxima vez)
-  let ultimoAcesso = Date.now()
-  const pararFila = iniciarFila({
-    aparelho: s.papelAparelho || '',
-    aposPuxar: async () => {
-      if (Date.now() - ultimoAcesso > 5 * 60_000) { ultimoAcesso = Date.now(); atualizarAcesso() }
-      const r = await projetarServidorNoLocal()
-      if (r.vendas || r.lojas || r.clientes || r.removidas) window.dispatchEvent(new CustomEvent(EVENTO_ATUALIZADA))
-    },
-  })
-  pararFilaCaderneta = () => { pararFila(); removerGuarda() }
-}
-// Acesso ao Google Drive: renova no toque quando vence e sincroniza o que ficou esperando.
-let pararRenovacaoDrive = null
-function aoTokenDriveRenovado() { s.agendarSync?.(); s.syncImediato?.() }
-function aoChegarPedidosDoSite(qtd) {
-  s.notify?.(qtd === 1 ? 'Novo pedido do site!' : `${qtd} novos pedidos do site!`, 'success')
-  window.dispatchEvent(new CustomEvent('pedidos-site:novos'))
-  if (s.googleDriveConfigured) { s.agendarSync?.(); s.syncImediato?.() }
-}
-
-// Os pedidos do site entram no cardápio do balcão, que é do aparelho Vendas:
-// só ele busca. O Admin recebe esses pedidos pelo Drive, como o resto.
-function ajustarMonitorPedidosSite() {
-  const deveRodar = s.papelAparelho === 'vendas'
-  if (deveRodar && !pararMonitorPedidosSite) {
-    pararMonitorPedidosSite = iniciarMonitorPedidosSite({ aoChegar: aoChegarPedidosDoSite })
-  } else if (!deveRodar && pararMonitorPedidosSite) {
-    pararMonitorPedidosSite()
-    pararMonitorPedidosSite = null
-  }
-}
-watch(() => s.papelAparelho, ajustarMonitorPedidosSite)
-
 onMounted(async () => {
-  if (aplicarParametroDeUrl()) { location.reload(); return }   // ?caderneta=servidor | local (por aparelho)
   await s.init()
-  // Aparelho de Vendas abre direto na caderneta; sem papel definido, fica na tela de escolha.
-  if (s.papelAparelho === 'vendas') await onSelecionarPerfil('bete')
-  else if (s.papelAparelho && s.perfis.inicial !== 'selecao') perfil.value = s.perfis.inicial
+  if (s.perfis.inicial !== 'selecao') perfil.value = s.perfis.inicial
   tentarReconectarSilenciosamente()
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('online', onOnline)
-  ajustarMonitorPedidosSite()
-  iniciarCadernetaNoServidor()
-  pararRenovacaoDrive = iniciarRenovacaoPorToque()
-  window.addEventListener('google-drive:token-renovado', aoTokenDriveRenovado)
 })
 
 onUnmounted(() => {
+  window.removeEventListener('mousemove', onMouseDragMove)
+  window.removeEventListener('mouseup', onMouseDragEnd)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('online', onOnline)
-  pararMonitorPedidosSite?.()
-  pararFilaCaderneta?.()
-  pararRenovacaoDrive?.()
-  window.removeEventListener('google-drive:token-renovado', aoTokenDriveRenovado)
 })
 </script>
 
@@ -306,9 +301,11 @@ onUnmounted(() => {
 
    Zona inferior (acima da nav = bottom: 64px + gap):
      FAB             → canto direito  (bottom: 80px, right: 16px)
-
-   O cronômetro de produção não flutua mais: fica fixado no card do
-   lote (TabProducao.vue).
+     Timer           → canto esquerdo (bottom: 80px, left: 16px)  ← posição inicial
+     
+   Não sobrepõem porque estão em lados opostos.
+   O timer é arrastável — se o usuário mover para a direita pode colidir
+   com o FAB, mas só se arrastar intencionalmente.
 ──────────────────────────────────────────────────────────────── */
 
 /* ── FAB ─────────────────────────────────────────────────── */
