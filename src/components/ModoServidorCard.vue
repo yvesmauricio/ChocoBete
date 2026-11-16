@@ -45,19 +45,19 @@ async function alternar() {
   trabalhando.value = true
   try {
     if (!ligado.value) {
-      const ok = await confirmar('A Caderneta deste aparelho vai passar a seguir o servidor. Confirme que os dados já foram importados e conferidos.', {
+      const ok = await confirmar.ask('A Caderneta deste aparelho vai passar a seguir o servidor. Confirme que os dados já foram importados e conferidos.', {
         title: 'Ligar a Caderneta no servidor?', type: 'warning', confirmLabel: 'Ligar', icon: 'fas fa-cloud',
       })
       if (!ok) return
       definirCadernetaNoServidor(true)
     } else {
       if (estadoFila.pendentes > 0) {
-        await confirmar(`Há ${estadoFila.pendentes} alteração(ões) ainda não enviadas ao servidor. Conecte-se e aguarde o envio antes de desligar, senão elas não chegam ao servidor.`, {
+        await confirmar.ask(`Há ${estadoFila.pendentes} alteração(ões) ainda não enviadas ao servidor. Conecte-se e aguarde o envio antes de desligar, senão elas não chegam ao servidor.`, {
           title: 'Ainda há envios pendentes', type: 'warning', confirmLabel: 'Entendi', cancelLabel: 'Fechar', icon: 'fas fa-clock',
         })
         return
       }
-      const ok = await confirmar('A Caderneta deste aparelho volta a seguir o modo antigo (Drive). Só faça isso se o administrador mandou.', {
+      const ok = await confirmar.ask('A Caderneta deste aparelho volta a seguir o modo antigo (Drive). Só faça isso se o administrador mandou.', {
         title: 'Desligar a Caderneta no servidor?', type: 'danger', confirmLabel: 'Desligar',
       })
       if (!ok) return
