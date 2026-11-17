@@ -143,7 +143,7 @@
         <div class="grid-2">
           <div class="fg">
             <label class="label">Qtd na embalagem</label>
-            <input v-model.number="form.fator_conversao" class="input" type="number" step="0.001" />
+            <input v-model.number="form.fator_conversao" class="input" type="number" inputmode="decimal" step="any" />
           </div>
           <div class="fg">
             <label class="label">Unidade base</label>
@@ -184,11 +184,11 @@
         <div class="grid-2">
           <div class="fg">
             <label class="label">Estoque atual</label>
-            <input v-model.number="form.estoque_atual" class="input" type="number" step="0.01" />
+            <input v-model.number="form.estoque_atual" class="input" type="number" inputmode="decimal" step="any" />
           </div>
           <div class="fg">
             <label class="label">Mínimo ideal</label>
-            <input v-model.number="form.estoque_minimo" class="input" type="number" step="0.01" />
+            <input v-model.number="form.estoque_minimo" class="input" type="number" inputmode="decimal" step="any" />
           </div>
         </div>
         <p class="hint mt-8">O estoque é baixado automaticamente ao finalizar produções na Cozinha.</p>

@@ -137,10 +137,10 @@
     <!-- ─── Modal Receita ──────────────────────────────────────── -->
     <BaseModal v-if="modal === 'receita'" :title="form.uuid ? 'Editar Receita' : 'Nova Receita'" @close="fecharModal">
 
-      <!-- ── Seção: Identidade ── -->
+      <!-- ── Seção: O que é ── -->
       <div class="form-section">
         <div class="form-section-label sec-toggle" :class="{ closed: !secoesAbertas.has('identidade') }" @click="toggleSec('identidade')">
-          <span><i class="fas fa-tag"></i> Identidade</span>
+          <span><i class="fas fa-tag"></i> O que é</span>
           <span class="sec-summary" v-if="!secoesAbertas.has('identidade') && form.nome">{{ form.nome }}</span>
           <i class="fas fa-chevron-down sec-chevron" :class="{ open: secoesAbertas.has('identidade') }"></i>
         </div>
@@ -150,21 +150,7 @@
             <input v-model="form.nome" class="input" placeholder="Ex: Trufa Tradicional" autocomplete="off" />
           </div>
 
-          <div class="fg">
-            <label class="label">Texto da etiqueta <span class="label-opt">(opcional)</span></label>
-            <input v-model="form.nome_etiqueta" class="input" placeholder="Ex: Tradicional" autocomplete="off" />
-            <div class="hint">Se vazio, a etiqueta usa o nome da receita sem a categoria.</div>
-          </div>
-
-          <label class="receita-toggle-line">
-            <input type="checkbox" v-model="form.usar_em_etiquetas" />
-            <span>
-              <strong>Usar em etiquetas</strong>
-              <small>Mostra esta receita na tela de impressão de etiquetas.</small>
-            </span>
-          </label>
-
-          <!-- Tipo: toggle visual -->
+          <!-- Tipo: define como a receita se comporta no sistema -->
           <div class="fg">
             <label class="label">Tipo</label>
             <div class="option-grid option-grid-3">
@@ -200,60 +186,159 @@
         </div>
       </div>
 
-      <!-- ── Seção: Rendimento ── -->
+      <!-- ── Seção: Ingredientes ── -->
+      <div class="form-section" id="section-ingredientes">
+        <div class="form-section-label sec-toggle" :class="{ closed: !secoesAbertas.has('ingredientes') }" @click="toggleSec('ingredientes')">
+          <span><i class="fas fa-list-ul"></i> Ingredientes</span>
+          <span class="sec-summary" v-if="!secoesAbertas.has('ingredientes')">{{ form.ingredientes.length ? form.ingredientes.length + ' item(s)' : 'Nenhum' }}</span>
+          <i class="fas fa-chevron-down sec-chevron" :class="{ open: secoesAbertas.has('ingredientes') }"></i>
+        </div>
+        <div v-show="secoesAbertas.has('ingredientes')" class="sec-body">
+
+          <div v-if="!form.ingredientes.length" class="ing-empty-state">
+            <i class="fas fa-plus-circle"></i>
+            <span>Toque em <strong>+ Adicionar</strong> para incluir ingredientes ou bases de outras receitas</span>
+          </div>
+
+          <TransitionGroup v-if="form.ingredientes.length" tag="div" name="ing-drag" class="ing-list-card">
+          <div
+            v-for="(ing, i) in form.ingredientes"
+            :key="ing._key"
+            :ref="el => setRowRef(el, i)"
+            class="ing-row-slim"
+            :class="{ 'is-dragging': dragIndex === i }"
+            :style="dragRowStyle(i)"
+          >
+          <div
+            class="ing-row-content"
+            :class="{
+              'is-recipe': ing.tipo === 'receita',
+              'is-invalid': ingredienteIncompleto(ing),
+              'is-duplicate': ingredienteDuplicado(ing, i)
+            }"
+          >
+            <button
+              type="button"
+              class="ing-drag-handle"
+              v-if="form.ingredientes.length > 1"
+              title="Arraste para reordenar"
+              @pointerdown="onHandleDown(i, $event)"
+              @pointermove="onHandleMove"
+              @pointerup="onHandleUp"
+              @pointercancel="onHandleUp"
+              @touchstart.stop
+              @click.stop
+            >
+              <span class="ing-drag-dots"><i class="fas fa-grip-vertical"></i></span>
+            </button>
+
+            <!-- Nome -->
+            <button
+              class="ing-btn-name"
+              :title="getNomeIng(ing)"
+              @click="handleNomeClick(ing, i)"
+              @touchstart.passive="iniciarTooltip(ing, $event)"
+              @touchend="cancelarTooltip"
+              @touchmove="cancelarTooltip"
+            >
+              <i class="fas ing-ico-sm" :class="ing.tipo === 'receita' ? 'fa-mortar-pestle' : 'fa-box'"></i>
+              <span class="ing-name-txt">{{ getNomeIng(ing) || 'Selecionar…' }}</span>
+              <span v-if="form.eh_kit && ing.tipo === 'receita' && ing.sem_baixa" class="ing-papel-chip chip-recheio" style="background:#0f766e">Já produzida</span>
+              <span v-if="ing.papel" class="ing-papel-chip" :class="`chip-${ing.papel}`">{{ ing.papel === 'casca' ? 'Casca' : 'Recheio' }}</span>
+            </button>
+
+            <!-- Stepper de quantidade -->
+            <div class="ing-qty-stepper">
+              <button type="button" class="ing-qty-btn" @click.stop="stepQty(ing, -1)">−</button>
+              <input
+                :id="'ing-qty-' + i"
+                v-model.number="ing.quantidade"
+                type="number"
+                inputmode="decimal"
+                class="ing-input-slim"
+                placeholder="0"
+                @focus="$event.target.select()" />
+              <span class="ing-unit-slim">{{ getUnidade(ing) }}</span>
+              <button type="button" class="ing-qty-btn" @click.stop="stepQty(ing, +1)">+</button>
+            </div>
+
+            <!-- Opções do ingrediente (o mesmo que o deslizar, só que visível) -->
+            <button type="button" class="ing-mais-btn" :class="{ tem: temOpcaoEspecial(ing) }" aria-label="Opções do ingrediente" title="Opções do ingrediente"
+              @click.stop="abrirOpcoesIng(ing)" @pointerdown.stop @touchstart.stop>
+              <i class="fas fa-ellipsis"></i>
+            </button>
+          </div>
+            <div class="ing-row-meta" v-if="ingredienteIncompleto(ing) || ingredienteDuplicado(ing,i) || ingredienteConflitaComProduto(ing) || ingredienteDeveriaSerReceita(ing)">
+              <span v-if="ingredienteIncompleto(ing)" class="ing-meta-chip warn">Selecione o item e informe a quantidade</span>
+              <span v-else-if="ingredienteDuplicado(ing, i)" class="ing-meta-chip warn">Ingrediente repetido na receita</span>
+              <span v-else-if="ingredienteConflitaComProduto(ing)" class="ing-meta-chip warn"><i class="fas fa-triangle-exclamation"></i> Esta sub-receita também existe como produto no estoque — pode gerar desconto em duplicidade na produção</span>
+              <span v-else-if="ingredienteDeveriaSerReceita(ing)" class="ing-meta-chip warn"><i class="fas fa-triangle-exclamation"></i> Existe uma receita com este nome — considere usar a sub-receita para o sistema expandir os ingredientes corretamente</span>
+
+            </div>
+          </div>
+
+          </TransitionGroup><!-- /ing-list-card -->
+
+          <button class="btn-add-ing" @click="addNovoItem">
+            <i class="fas fa-plus"></i> Adicionar ingrediente
+          </button>
+          <button v-if="form.ingredientes.length" class="btn-ing-detail" @click="abrirModal('ingredientes-detalhes')">
+            <i class="fas fa-table"></i> Ver custo detalhado
+          </button>
+        </div><!-- /sec-body ingredientes -->
+      </div>
+
+      <!-- ── Seção: Rendimento e tempo ── -->
       <div class="form-section">
         <div class="form-section-label sec-toggle" :class="{ closed: !secoesAbertas.has('rendimento') }" @click="toggleSec('rendimento')">
-          <span><i class="fas fa-layer-group"></i> Rendimento &amp; Preço</span>
-          <span class="sec-summary" v-if="!secoesAbertas.has('rendimento') && form.rendimento">{{ form.rendimento }} {{ form.unidade_rendimento }}{{ form.preco_sugerido ? ' · R$ ' + maskMoney(form.preco_sugerido) : '' }}</span>
+          <span><i class="fas fa-layer-group"></i> Rendimento e tempo</span>
+          <span class="sec-summary" v-if="!secoesAbertas.has('rendimento') && form.rendimento">{{ form.rendimento }} {{ form.unidade_rendimento }}{{ form.tempo_preparo_min ? ' · ' + form.tempo_preparo_min + ' min' : '' }}</span>
           <i class="fas fa-chevron-down sec-chevron" :class="{ open: secoesAbertas.has('rendimento') }"></i>
         </div>
         <div v-show="secoesAbertas.has('rendimento')" class="sec-body">
-        <div class="render-row-slim">
-          <div class="fg">
-            <label class="label">Rendimento</label>
-            <input v-model.number="form.rendimento" class="input" type="number" min="0" step="0.01" placeholder="10" inputmode="decimal" />
-          </div>
-          <div class="fg">
-            <label class="label">Unidade</label>
-            <div class="unit-pill-grid unit-pill-grid-5">
-              <button v-for="u in ['un','g','kg','pct','cx']" 
-                :key="u" type="button" class="unit-pill"
-                :class="{ active: form.unidade_rendimento === u }"
-                @click="form.unidade_rendimento = u">{{ u }}</button>
+          <div class="render-row-slim">
+            <div class="fg">
+              <label class="label">Rendimento</label>
+              <input v-model.number="form.rendimento" class="input" type="number" min="0" step="any" placeholder="10" inputmode="decimal" />
+            </div>
+            <div class="fg">
+              <label class="label">Unidade</label>
+              <div class="unit-pill-grid unit-pill-grid-5">
+                <button v-for="u in ['un','g','kg','pct','cx']"
+                  :key="u" type="button" class="unit-pill"
+                  :class="{ active: form.unidade_rendimento === u }"
+                  @click="form.unidade_rendimento = u">{{ u }}</button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="fg">
-          <label class="label">Peso de 1 unidade <span class="label-opt">(opcional, em gramas)</span></label>
-          <input v-model.number="form.peso_unitario" class="input" type="number" inputmode="decimal" placeholder="Ex: 30" />
-        </div>
-
-        <div class="fg">
-          <label class="label">Tamanho / Variante <span class="label-opt">(opcional — ex: Festa, Mini, Padrão)</span></label>
-          <input v-model="form.tamanho" class="input" type="text" placeholder="Deixe em branco para o tamanho padrão" />
-          <div class="hint">
-            Use quando existir mais de um tamanho do mesmo sabor (ex: Trufa 30g "Padrão" e Trufa 19g "Festa").
-            Receitas com tamanhos diferentes são comparadas separadamente na Análise de Receitas.
+          <div class="fg">
+            <label class="label">Tempo de preparo (minutos)</label>
+            <input v-model.number="form.tempo_preparo_min" class="input" type="number" inputmode="numeric" placeholder="Ex: 150" />
+            <div class="hint">Some preparo, espera e limpeza (150 = 2h30). É com esse tempo que a mão de obra entra no custo.</div>
+            <template v-if="mediaTempoRealProducao > 0 && Math.round(mediaTempoRealProducao) !== form.tempo_preparo_min">
+              <button type="button" class="btn btn-secondary btn-sm mt-8" @click="form.tempo_preparo_min = Math.round(mediaTempoRealProducao)">
+                <i class="fas fa-wand-magic-sparkles"></i>
+                Usar o tempo das últimas produções ({{ Math.round(mediaTempoRealProducao) }} min)
+              </button>
+              <div class="hint">Média do tempo real medido nas produções desta receita.</div>
+            </template>
           </div>
         </div>
+      </div>
 
-        <div class="fg">
-          <label class="label">Tempo de Preparo Total (minutos)</label>
-          <input v-model.number="form.tempo_preparo_min" class="input" type="number" inputmode="numeric" placeholder="Soma: Ativo + Passivo + Limpeza" />
-          <div class="hint">Ex: 150 para 2h30. O custo da mão de obra será calculado sobre este tempo.</div>
+      <!-- ── Seção: Preço e lucro ── -->
+      <div class="form-section">
+        <div class="form-section-label sec-toggle" :class="{ closed: !secoesAbertas.has('preco') }" @click="toggleSec('preco')">
+          <span><i class="fas fa-coins"></i> Preço e lucro</span>
+          <span class="sec-summary" v-if="!secoesAbertas.has('preco')">{{ form.preco_sugerido ? 'R$ ' + maskMoney(form.preco_sugerido) : 'Sem preço' }}</span>
+          <i class="fas fa-chevron-down sec-chevron" :class="{ open: secoesAbertas.has('preco') }"></i>
         </div>
-        <div v-if="mediaTempoRealProducao > 0 && Math.round(mediaTempoRealProducao) !== form.tempo_preparo_min" class="fg">
-          <label class="label">Sugestão de Calibração</label>
-          <button type="button" class="btn btn-secondary btn-sm" @click="form.tempo_preparo_min = Math.round(mediaTempoRealProducao)">
-            <i class="fas fa-wand-magic-sparkles"></i> 
-            Atualizar para {{ Math.round(mediaTempoRealProducao) }} min (Média Real)
-          </button>
-          <div class="hint">Baseado na média do tempo real das produções anteriores desta receita.</div>
-        </div>
+        <div v-show="secoesAbertas.has('preco')" class="sec-body">
+          <div v-if="!(s.getCustoTotal(form) > 0)" class="hint">Adicione os ingredientes para ver o custo e as sugestões de preço.</div>
 
         <div class="fg" v-if="s.getCustoTotal(form) > 0">
-          <label class="label">Sugerir preço por Markup (Inteligência de Lucro)</label>
+          <label class="label">Qual preço cobrar?</label>
           <div class="markup-grid">
             <button
               v-for="m in MARKUPS"
@@ -261,16 +346,18 @@
               type="button"
               class="markup-btn"
               :class="{ highlight: m === 4 }"
+              :title="`Preço = ${m.toFixed(1).replace('.', ',')}x o custo`"
               @click="form.preco_sugerido = precoPorMarkup(m)"
             >
-              <span>{{ m.toFixed(1) }}x · {{ R$(precoPorMarkup(m)) }}</span><small>{{ Math.round((1 - 1 / m) * 100) }}% margem</small>
+              <span>{{ R$(precoPorMarkup(m)) }}</span><small>{{ Math.round((1 - 1 / m) * 100) }}% de margem</small>
             </button>
           </div>
+          <div class="hint">Toque numa sugestão para preencher o preço, ou digite o seu abaixo.</div>
         </div>
 
         <div class="fg">
           <label class="label label-linha">
-            Preço de venda sugerido
+            Preço de venda
             <button v-if="form.uuid" type="button" class="hist-preco-btn" title="Ver histórico de preços" @click="abrirHistorico(form)">
               <i class="fas fa-clock-rotate-left"></i> Histórico
             </button>
@@ -285,6 +372,7 @@
             />
           </div>
         </div>
+
 
         <!-- Painel de lucratividade -->
         <div v-if="s.getCustoTotal(form) > 0" class="profit-panel">
@@ -320,164 +408,49 @@
             <span class="profit-val">{{ lucro.percentual.toFixed(0) }}% · {{ markupReal.toFixed(1).replace('.', ',') }}x</span>
           </div>
         </div>
-        </div><!-- /sec-body rendimento -->
-      </div>
-
-      <!-- ── Seção: Ingredientes ── -->
-      <div class="form-section" id="section-ingredientes">
-        <div class="form-section-label sec-toggle" :class="{ closed: !secoesAbertas.has('ingredientes') }" @click="toggleSec('ingredientes')">
-          <span><i class="fas fa-list-ul"></i> Ingredientes</span>
-          <span class="sec-summary" v-if="!secoesAbertas.has('ingredientes')">{{ form.ingredientes.length ? form.ingredientes.length + ' item(s)' : 'Nenhum' }}</span>
-          <i class="fas fa-chevron-down sec-chevron" :class="{ open: secoesAbertas.has('ingredientes') }"></i>
         </div>
-        <div v-show="secoesAbertas.has('ingredientes')" class="sec-body">
-
-          <div v-if="!form.ingredientes.length" class="ing-empty-state">
-            <i class="fas fa-plus-circle"></i>
-            <span>Toque em <strong>+ Adicionar</strong> para incluir ingredientes ou bases de outras receitas</span>
-          </div>
-
-          <TransitionGroup v-if="form.ingredientes.length" tag="div" name="ing-drag" class="ing-list-card">
-          <div
-            v-for="(ing, i) in form.ingredientes"
-            :key="ing._key"
-            :ref="el => setRowRef(el, i)"
-            class="ing-row-slim"
-            :class="{ 'is-dragging': dragIndex === i }"
-            :style="dragRowStyle(i)"
-          >
-          <SwipeRow
-            :row-id="ing._key"
-            :width="(form.eh_kit && ing.tipo === 'receita') ? 233 : 177"
-          >
-            <div
-              class="ing-row-content"
-              :class="{
-                'is-recipe': ing.tipo === 'receita',
-                'is-invalid': ingredienteIncompleto(ing),
-                'is-duplicate': ingredienteDuplicado(ing, i)
-              }"
-            >
-              <button
-                type="button"
-                class="ing-drag-handle"
-                v-if="form.ingredientes.length > 1"
-                title="Arraste para reordenar"
-                @pointerdown="onHandleDown(i, $event)"
-                @pointermove="onHandleMove"
-                @pointerup="onHandleUp"
-                @pointercancel="onHandleUp"
-                @touchstart.stop
-                @click.stop
-              >
-                <span class="ing-drag-dots"><i class="fas fa-grip-vertical"></i></span>
-              </button>
-
-              <!-- Nome -->
-              <button
-                class="ing-btn-name"
-                :title="getNomeIng(ing)"
-                @click="handleNomeClick(ing, i)"
-                @touchstart.passive="iniciarTooltip(ing, $event)"
-                @touchend="cancelarTooltip"
-                @touchmove="cancelarTooltip"
-              >
-                <i class="fas ing-ico-sm" :class="ing.tipo === 'receita' ? 'fa-mortar-pestle' : 'fa-box'"></i>
-                <span class="ing-name-txt">{{ getNomeIng(ing) || 'Selecionar…' }}</span>
-                <span v-if="form.eh_kit && ing.tipo === 'receita' && ing.sem_baixa" class="ing-papel-chip chip-recheio" style="background:#0f766e">Já produzida</span>
-                <span v-if="ing.papel" class="ing-papel-chip" :class="`chip-${ing.papel}`">{{ ing.papel === 'casca' ? 'Casca' : 'Recheio' }}</span>
-              </button>
-
-              <!-- Stepper de quantidade -->
-              <div class="ing-qty-stepper">
-                <button type="button" class="ing-qty-btn" @click.stop="stepQty(ing, -1)">−</button>
-                <input
-                  :id="'ing-qty-' + i"
-                  v-model.number="ing.quantidade"
-                  type="number"
-                  inputmode="decimal"
-                  class="ing-input-slim"
-                  placeholder="0"
-                  @focus="$event.target.select()" />
-                <span class="ing-unit-slim">{{ getUnidade(ing) }}</span>
-                <button type="button" class="ing-qty-btn" @click.stop="stepQty(ing, +1)">+</button>
-              </div>
-            </div>
-
-            <!-- Ações reveladas pelo swipe -->
-            <template #actions>
-              <button
-                type="button"
-                class="swipe-action-btn"
-                :class="ing.gera_peso !== false ? 'swipe-btn-peso-on' : 'swipe-btn-peso-off'"
-                @click.stop="ing.gera_peso = ing.gera_peso === false ? true : false"
-                :title="ing.gera_peso !== false ? 'Conta no peso' : 'Não conta no peso'"
-              >
-                <i class="fas fa-balance-scale"></i>
-                <span>{{ ing.gera_peso !== false ? 'Peso' : 'S/ peso' }}</span>
-              </button>
-              <button
-                v-if="form.eh_kit && ing.tipo === 'receita'"
-                type="button"
-                class="swipe-action-btn"
-                :class="ing.sem_baixa ? 'swipe-btn-peso-off' : 'swipe-btn-peso-on'"
-                @click.stop="ing.sem_baixa = !ing.sem_baixa"
-                title="Se ligado, ao montar o kit o sistema desconta do estoque os insumos desta receita. Desligado = já foi produzida separadamente."
-              >
-                <i class="fas fa-boxes-stacked"></i>
-                <span>{{ ing.sem_baixa ? 'S/ baixa' : 'Baixa' }}</span>
-              </button>
-              <button
-                type="button"
-                class="swipe-action-btn"
-                :class="`swipe-btn-papel-${ing.papel || 'off'}`"
-                @click.stop="ciclarPapel(ing)"
-                title="Marcar se este ingrediente é da Casca ou do Recheio (ajuda a duplicar em outros tamanhos com precisão)"
-              >
-                <i class="fas fa-layer-group"></i>
-                <span>{{ ing.papel === 'casca' ? 'Casca' : (ing.papel === 'recheio' ? 'Recheio' : 'Papel') }}</span>
-              </button>
-              <button
-                type="button"
-                class="swipe-action-btn swipe-btn-del"
-                @click.stop="removerIngrediente(i)"
-              >
-                <i class="fas fa-trash"></i>
-                <span>Remover</span>
-              </button>
-            </template>
-          </SwipeRow>
-            <div class="ing-row-meta" v-if="ingredienteIncompleto(ing) || ingredienteDuplicado(ing,i) || ingredienteConflitaComProduto(ing) || ingredienteDeveriaSerReceita(ing)">
-              <span v-if="ingredienteIncompleto(ing)" class="ing-meta-chip warn">Selecione o item e informe a quantidade</span>
-              <span v-else-if="ingredienteDuplicado(ing, i)" class="ing-meta-chip warn">Ingrediente repetido na receita</span>
-              <span v-else-if="ingredienteConflitaComProduto(ing)" class="ing-meta-chip warn"><i class="fas fa-triangle-exclamation"></i> Esta sub-receita também existe como produto no estoque — pode gerar desconto em duplicidade na produção</span>
-              <span v-else-if="ingredienteDeveriaSerReceita(ing)" class="ing-meta-chip warn"><i class="fas fa-triangle-exclamation"></i> Existe uma receita com este nome — considere usar a sub-receita para o sistema expandir os ingredientes corretamente</span>
-
-            </div>
-          </div>
-
-          </TransitionGroup><!-- /ing-list-card -->
-
-          <button class="btn-add-ing" @click="addNovoItem">
-            <i class="fas fa-plus"></i> Adicionar ingrediente
-          </button>
-          <button v-if="form.ingredientes.length" class="btn-ing-detail" @click="abrirModal('ingredientes-detalhes')">
-            <i class="fas fa-table"></i> Ver custo detalhado
-          </button>
-        </div><!-- /sec-body ingredientes -->
       </div>
 
-      <!-- ── Seção: Preparo ── -->
+      <!-- ── Seção: Mais opções (tudo opcional) ── -->
       <div class="form-section">
-        <div class="form-section-label sec-toggle" :class="{ closed: !secoesAbertas.has('preparo') }" @click="toggleSec('preparo')">
-          <span><i class="fas fa-utensils"></i> Modo de preparo <span class="label-opt">(opcional)</span></span>
-          <span class="sec-summary" v-if="!secoesAbertas.has('preparo') && form.modo_preparo">Preenchido</span>
-          <i class="fas fa-chevron-down sec-chevron" :class="{ open: secoesAbertas.has('preparo') }"></i>
+        <div class="form-section-label sec-toggle" :class="{ closed: !secoesAbertas.has('mais') }" @click="toggleSec('mais')">
+          <span><i class="fas fa-sliders"></i> Mais opções <span class="label-opt">(opcional)</span></span>
+          <span class="sec-summary" v-if="!secoesAbertas.has('mais') && (form.modo_preparo || form.tamanho || form.peso_unitario || form.nome_etiqueta)">Preenchido</span>
+          <i class="fas fa-chevron-down sec-chevron" :class="{ open: secoesAbertas.has('mais') }"></i>
         </div>
-        <div v-show="secoesAbertas.has('preparo')" class="sec-body">
+        <div v-show="secoesAbertas.has('mais')" class="sec-body">
           <div class="fg">
+            <label class="label">Modo de preparo</label>
             <textarea v-model="form.modo_preparo" class="input textarea-preparo" rows="4" placeholder="Descreva o passo a passo da receita…"></textarea>
           </div>
+
+          <div class="fg">
+            <label class="label">Peso de cada unidade <span class="label-opt">(em gramas)</span></label>
+            <input v-model.number="form.peso_unitario" class="input" type="number" inputmode="decimal" placeholder="Ex: 30" />
+          </div>
+
+          <div class="fg">
+            <label class="label">Tamanho <span class="label-opt">(só se houver mais de um)</span></label>
+            <input v-model="form.tamanho" class="input" type="text" placeholder="Ex: Festa, Mini — vazio = tamanho padrão" />
+            <div class="hint">
+              Use quando o mesmo sabor tem tamanhos diferentes (Trufa 30g "Padrão" e Trufa 19g "Festa").
+              Eles são comparados separadamente na Análise de Receitas.
+            </div>
+          </div>
+
+          <div class="fg">
+            <label class="label">Texto da etiqueta <span class="label-opt">(opcional)</span></label>
+            <input v-model="form.nome_etiqueta" class="input" placeholder="Ex: Tradicional" autocomplete="off" />
+            <div class="hint">Se vazio, a etiqueta usa o nome da receita sem a categoria.</div>
+          </div>
+
+          <label class="receita-toggle-line">
+            <input type="checkbox" v-model="form.usar_em_etiquetas" />
+            <span>
+              <strong>Usar em etiquetas</strong>
+              <small>Mostra esta receita na tela de impressão de etiquetas.</small>
+            </span>
+          </label>
         </div>
       </div>
 
@@ -549,6 +522,48 @@
         </div>
       </div>
     </div>
+    </Teleport>
+
+    <!-- ─── Opções do ingrediente (folha independente: não desmonta o modal da receita) ─── -->
+    <Teleport to="body">
+      <div v-if="ingOpcoes" class="bottom-sheet-overlay" @click.self="fecharOpcoesIng">
+        <div class="lc-modal">
+          <div class="lc-modal-hdr">
+            <span class="lc-modal-titulo"><i class="fas" :class="ingOpcoes.tipo === 'receita' ? 'fa-mortar-pestle' : 'fa-box'"></i> {{ getNomeIng(ingOpcoes) || 'Ingrediente' }}</span>
+            <button class="lc-modal-close" aria-label="Fechar" @click="fecharOpcoesIng"><i class="fas fa-xmark"></i></button>
+          </div>
+          <div class="lc-modal-body ing-op-body">
+            <button type="button" class="ing-op-linha" role="switch" :aria-checked="ingOpcoes.gera_peso !== false" @click="ingOpcoes.gera_peso = ingOpcoes.gera_peso === false ? true : false">
+              <span class="ing-op-txt">
+                <strong>Conta no peso da receita</strong>
+                <small>Ligado: entra no peso total. Desligue para o que não faz parte do peso final.</small>
+              </span>
+              <span class="ing-op-switch" :class="{ on: ingOpcoes.gera_peso !== false }"><span></span></span>
+            </button>
+
+            <div class="ing-op-grupo">
+              <strong>Faz parte da…</strong>
+              <small>Ajuda a duplicar a receita em outros tamanhos com precisão.</small>
+              <div class="ing-op-seg" role="radiogroup">
+                <button type="button" role="radio" :aria-checked="!ingOpcoes.papel" :class="{ sel: !ingOpcoes.papel }" @click="ingOpcoes.papel = ''">Nenhuma</button>
+                <button type="button" role="radio" :aria-checked="ingOpcoes.papel === 'casca'" :class="{ sel: ingOpcoes.papel === 'casca' }" @click="ingOpcoes.papel = 'casca'">Casca</button>
+                <button type="button" role="radio" :aria-checked="ingOpcoes.papel === 'recheio'" :class="{ sel: ingOpcoes.papel === 'recheio' }" @click="ingOpcoes.papel = 'recheio'">Recheio</button>
+              </div>
+            </div>
+
+            <button v-if="form.eh_kit && ingOpcoes.tipo === 'receita'" type="button" class="ing-op-linha" role="switch" :aria-checked="!ingOpcoes.sem_baixa" @click="ingOpcoes.sem_baixa = !ingOpcoes.sem_baixa">
+              <span class="ing-op-txt">
+                <strong>Descontar do estoque ao montar o kit</strong>
+                <small>Desligue se essa receita já foi produzida à parte, para não descontar os insumos de novo.</small>
+              </span>
+              <span class="ing-op-switch" :class="{ on: !ingOpcoes.sem_baixa }"><span></span></span>
+            </button>
+
+            <button type="button" class="btn btn-secondary ing-op-pronto" @click="fecharOpcoesIng">Pronto</button>
+            <button type="button" class="ing-op-remover" @click="removerDaFolha"><i class="fas fa-trash"></i> Remover da receita</button>
+          </div>
+        </div>
+      </div>
     </Teleport>
 
     <!-- ─── Modal Picker de Ingredientes ──────────────────────── -->
@@ -768,7 +783,6 @@ import CategoryFilter from '../components/CategoryFilter.vue'
 import { useModalStack } from '../composables/useModalStack.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import { useDeleteConfirm } from '../composables/useDeleteConfirm.js'
-import SwipeRow from '../components/SwipeRow.vue'
 import { useSwipe } from '../composables/useSwipe.js'
 import { useListFilter } from '../composables/useListFilter.js'
 import { gerarRelatorioReceitas } from '../composables/useGerarDocumento.js'
@@ -815,8 +829,9 @@ async function abrirHistorico(item) {
 }
 
 // ── Seções colapsáveis ──────────────────────────────────────────
-// Começa com identidade + ingredientes abertos (fluxo mais comum)
-const secoesAbertas = reactive(new Set(['identidade', 'ingredientes', 'rendimento', 'preparo']))
+// Abre só "O que é" + "Ingredientes" (fluxo mais comum); as demais mostram um resumo no cabeçalho
+const secoesAbertas = reactive(new Set(['identidade', 'ingredientes']))
+const abrirSecoesPadrao = () => { secoesAbertas.clear(); secoesAbertas.add('identidade'); secoesAbertas.add('ingredientes') }
 
 function toggleSec(nome) {
   if (secoesAbertas.has(nome)) secoesAbertas.delete(nome)
@@ -856,7 +871,7 @@ const pickerTab    = ref('todos')
 const pickerIndex  = ref(null)
 const showPicker   = ref(false)
 const pickerTabs   = [{ v:'todos', l:'Tudo', ico:null }, { v:'insumos', l:'Ingredientes', ico:'fa-box' }, { v:'bases', l:'Bases', ico:'fa-mortar-pestle' }]
-const categoriasFiltro = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base', 'Presentes']
+const categoriasFiltro = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Páscoa', 'Base', 'Presentes']
 
 // Mapeamos as categorias para a propriedade 'tipo' que o composable espera
 const categoryMap = categoriasFiltro.reduce((acc, cat) => {
@@ -965,9 +980,16 @@ function compartilharReceita(r) {
 const TAMANHO_FESTA_PESO = 19
 const TAMANHO_FESTA_LABEL = 'Festa'
 
-function ciclarPapel(ing) {
-  // '' (sem papel) → casca → recheio → '' ...
-  ing.papel = ing.papel === 'casca' ? 'recheio' : (ing.papel === 'recheio' ? '' : 'casca')
+// Folha de opções do ingrediente (alternativa visível ao deslizar a linha)
+const ingOpcoesKey = ref(null)
+const ingOpcoes = computed(() => form.ingredientes.find(i => i._key === ingOpcoesKey.value) || null)
+const temOpcaoEspecial = (ing) => ing.gera_peso === false || !!ing.papel || !!ing.sem_baixa
+function abrirOpcoesIng(ing) { ingOpcoesKey.value = ing._key }
+function fecharOpcoesIng() { ingOpcoesKey.value = null }
+async function removerDaFolha() {
+  const idx = form.ingredientes.findIndex(i => i._key === ingOpcoesKey.value)
+  fecharOpcoesIng()
+  if (idx >= 0) await removerIngrediente(idx)
 }
 
 function ehTrufa(r) {
@@ -1223,7 +1245,7 @@ watch(() => form.nome, (v) => {
   else if (n.includes('barra'))   form.categoria = 'Barra'
   else if (n.includes('brownie')) form.categoria = 'Brownie'
   else if (n.includes('bolo'))    form.categoria = 'Bolo'
-  else if (n.includes('ovo'))     form.categoria = 'Ovo'
+  else if (n.includes('ovo'))     form.categoria = 'Páscoa'
   else if (n.includes('recheio')) form.categoria = 'Base'
 
   if (!form.nome_etiqueta?.trim()) {
@@ -1518,6 +1540,8 @@ function restoreAndFocusIngrediente(idx) {
 /* ── Modal ────────────────────────────────────────────────────── */
 function abrir(r) {
   Object.assign(form, getEmptyForm())
+  abrirSecoesPadrao()   // o resto fica recolhido, com resumo no cabeçalho
+  ingOpcoesKey.value = null
   if (r) Object.assign(form, {
     uuid: r.uuid, nome: r.nome, nome_etiqueta: r.nome_etiqueta || '',
     usar_em_etiquetas: r.usar_em_etiquetas ?? !Number(r.eh_intermediaria),
@@ -1890,42 +1914,11 @@ async function excluirDireto(r) {
   box-shadow: var(--shadow-md, 0 4px 20px rgba(61,31,7,.13));
   border-radius: var(--r-md, 12px);
 }
-.ing-row-slim.is-dragging .swipe-wrap {
-  box-shadow: none !important;
-}
 
 /* Animação de reordenação (as demais linhas "deslizam" para o novo lugar) */
 .ing-drag-move {
   transition: transform .28s var(--t-spring, cubic-bezier(.34,1.56,.64,1));
 }
-
-.swipe-action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  border: none;
-  cursor: pointer;
-  font-size: .65rem;
-  font-weight: 700;
-  width: 56px;
-  height: 100%;
-  transition: background .15s;
-}
-.swipe-action-btn i { font-size: .95rem; }
-
-.swipe-btn-peso-on  { background: var(--blue, #3b82f6); color: #fff; }
-.swipe-btn-peso-off { background: var(--muted-bg, #f3f4f6); color: var(--muted, #9ca3af); }
-.swipe-btn-del      { background: var(--red, #ef4444); color: #fff; }
-
-.swipe-btn-peso-on:active  { background: #2563eb; }
-.swipe-btn-peso-off:active { background: #e5e7eb; }
-.swipe-btn-del:active      { background: #dc2626; }
-
-.swipe-btn-papel-casca   { background: var(--brown-mid, #92400e); color: #fff; }
-.swipe-btn-papel-recheio { background: var(--pink, #ec4899); color: #fff; }
-.swipe-btn-papel-off     { background: var(--muted-bg, #f3f4f6); color: var(--muted, #9ca3af); }
 
 .ing-papel-chip {
   font-size: .58rem;
@@ -2162,4 +2155,31 @@ async function excluirDireto(r) {
   color: var(--muted, #6b7280);
   line-height: 1.35;
 }
+
+/* Botão "⋯" e folha de opções do ingrediente */
+.ing-mais-btn {
+  position: relative; flex-shrink: 0; width: 36px; height: 36px; margin: auto 6px auto -2px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--muted); font-size: 16px; cursor: pointer;
+}
+.ing-mais-btn:active { background: var(--cream-deep); }
+.ing-mais-btn.tem { color: var(--brown); }
+.ing-mais-btn.tem::after { content: ''; position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--orange, #ea580c); }
+.ing-op-body { gap: 12px; }
+.ing-op-linha {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; padding: 14px 16px; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); font-family: var(--font); color: var(--text);
+}
+.ing-op-txt, .ing-op-grupo { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ing-op-txt strong, .ing-op-grupo strong { font-size: 14.5px; font-weight: 800; color: var(--brown-dark); }
+.ing-op-txt small, .ing-op-grupo small { font-size: 12px; font-weight: 600; line-height: 1.4; color: var(--muted); }
+.ing-op-grupo { padding: 14px 16px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); }
+.ing-op-switch { flex-shrink: 0; width: 46px; height: 28px; padding: 3px; border-radius: 14px; background: var(--border2, #d6cfc7); transition: background .15s; }
+.ing-op-switch span { display: block; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform .15s; }
+.ing-op-switch.on { background: var(--green, #2e7d32); }
+.ing-op-switch.on span { transform: translateX(18px); }
+.ing-op-seg { display: flex; gap: 6px; margin-top: 8px; }
+.ing-op-seg button { flex: 1; min-height: 42px; border: 1.5px solid var(--border); border-radius: var(--r-sm); background: var(--cream); font-family: var(--font); font-size: 14px; font-weight: 800; color: var(--brown-mid); cursor: pointer; }
+.ing-op-seg button.sel { background: var(--brown); border-color: var(--brown); color: #fff; }
+.ing-op-pronto { width: 100%; min-height: 48px; justify-content: center; margin-top: 4px; }
+.ing-op-remover { align-self: center; border: 0; background: none; padding: 8px 12px; font-family: var(--font); font-size: 13.5px; font-weight: 700; color: var(--red, #dc2626); cursor: pointer; }
 </style>

@@ -630,95 +630,262 @@
           <div v-else :style="{ width: props.standalone ? '36px' : '70px' }"></div>
         </div>
 
-        <div class="cp-pedidos-corpo">
+        <div class="cp-pedidos-corpo cp-pedidos-corpo--lista">
+          <div class="vc-topo">
+            <!-- Números do momento (mesmo bloco da consulta de vendas e das Cobranças) -->
+            <div class="vc-kpis">
+              <div class="vc-kpi vc-kpi--main">
+                <div class="vc-kpi-topo">
+                  <div>
+                    <div class="vc-kpi-rot">A entregar</div>
+                    <div class="vc-kpi-val">{{ R$(kpiPedidos.total) }}</div>
+                  </div>
+                  <div class="vc-kpi-pilulas">
+                    <span class="vc-kpi-pilula"><i class="fas fa-clipboard-list"></i><b>{{ kpiPedidos.qtd }}</b> {{ kpiPedidos.qtd === 1 ? 'pedido' : 'pedidos' }}</span>
+                    <span class="vc-kpi-pilula"><i class="fas fa-calendar-xmark"></i><b>{{ kpiPedidos.qtdSemData }}</b> sem data</span>
+                  </div>
+                </div>
+                <div class="vc-kpi-sub">
+                  <div class="vc-kpi-sub-item vc-kpi-sub-item--vencido" :class="{ ativo: kpiPedidos.qtdAtrasados > 0 }">
+                    <div class="vc-kpi-sub-rot"><i class="fas fa-triangle-exclamation"></i> Atrasados</div>
+                    <div class="vc-kpi-sub-linha">
+                      <b>{{ R$(kpiPedidos.totalAtrasados) }}</b>
+                      <small>{{ kpiPedidos.qtdAtrasados }} {{ kpiPedidos.qtdAtrasados === 1 ? 'pedido' : 'pedidos' }}</small>
+                    </div>
+                  </div>
+                  <div class="vc-kpi-sub-item vc-kpi-sub-item--hoje" :class="{ ativo: kpiPedidos.qtdHoje > 0 }">
+                    <div class="vc-kpi-sub-rot"><i class="fas fa-calendar-day"></i> Para hoje</div>
+                    <div class="vc-kpi-sub-linha">
+                      <b>{{ R$(kpiPedidos.totalHoje) }}</b>
+                      <small>{{ kpiPedidos.qtdHoje }} {{ kpiPedidos.qtdHoje === 1 ? 'pedido' : 'pedidos' }}</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="vc-abas" role="tablist">
+              <button v-for="a in abasPedidos" :key="a.id" type="button" role="tab" :aria-selected="abaPedidos === a.id"
+                class="vc-aba" :class="{ sel: abaPedidos === a.id }" @click="abaPedidos = a.id">{{ a.nome }}</button>
+            </div>
+
+            <div class="vc-barra">
+              <label class="vc-busca">
+                <i class="fas fa-magnifying-glass"></i>
+                <input v-model="buscaPedidos" type="search" placeholder="Buscar cliente, item ou nº do pedido" autocomplete="off">
+                <button v-if="buscaPedidos" type="button" class="vc-busca-x" aria-label="Limpar busca" @click="buscaPedidos = ''"><i class="fas fa-xmark"></i></button>
+              </label>
+              <button
+                type="button" class="vc-filtro-btn" :class="{ aberto: filtrosPedidosAbertos, ativo: filtroPedidosAtivo }"
+                :aria-expanded="filtrosPedidosAbertos" aria-controls="vc-filtros-pedidos"
+                :aria-label="filtroPedidosAtivo ? 'Filtros (um filtro ativo)' : 'Filtros'" @click="filtrosPedidosAbertos = !filtrosPedidosAbertos"
+              >
+                <i class="fas fa-sliders"></i>
+                <span v-if="filtroPedidosAtivo" class="vc-filtro-dot"></span>
+              </button>
+            </div>
+
+            <div id="vc-filtros-pedidos" class="vc-painel" :class="{ aberto: filtrosPedidosAbertos }" :aria-hidden="!filtrosPedidosAbertos">
+              <div class="vc-painel-inner">
+                <div class="vc-painel-card">
+                  <div class="vc-painel-rot">{{ abaPedidos === 'historico' ? 'Mostrar pedidos' : 'Mostrar a entregar' }}</div>
+                  <div class="vc-seg" role="radiogroup">
+                    <button
+                      v-for="f in filtrosListaPedidos" :key="f.id" type="button" role="radio" class="vc-seg-btn"
+                      :aria-checked="filtroPedidosSel === f.id" :class="{ sel: filtroPedidosSel === f.id }"
+                      :tabindex="filtrosPedidosAbertos ? 0 : -1" @click="escolherFiltroPedidos(f.id)"
+                    >
+                      <span class="vc-seg-nome">{{ f.nome }}</span>
+                      <span class="vc-seg-n">{{ f.n }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button v-if="filtroPedidosAtivo && !filtrosPedidosAbertos" type="button" class="vc-filtro-ativo" @click="escolherFiltroPedidos('todos')">
+              <i class="fas fa-filter"></i> {{ rotuloFiltroPedidos }} <i class="fas fa-xmark vc-filtro-ativo-x"></i>
+            </button>
+          </div>
+
           <div v-if="!pedidosSalvos.length" class="cp-pedidos-vazio">
             <i class="fas fa-clipboard-list"></i>
             <p>Nenhum pedido ainda.<br>Pedidos feitos no site chegam aqui sozinhos. Para vender no balcão, abra a "Tela cheia", monte o pedido com o cliente e toque em "Finalizar pedido".</p>
           </div>
 
           <template v-else>
-            <div v-for="pedido in pedidosSalvos" :key="pedido.uuid" class="cp-pedido-card" :class="'is-' + pedido.status">
-              <div class="cp-pedido-topo">
-                <div class="cp-pedido-cliente">
-                  <strong>{{ pedido.clienteNome || (pedido.origem === 'site' ? 'Pedido do site' : 'Venda de balcão') }}</strong>
-                  <span class="cp-pedido-data">
-                    {{ formatarDataPedido(pedido.criadoEm) }}
-                    <span v-if="pedido.origem === 'site'" class="cp-pedido-site"><i class="fas fa-globe"></i> Site<template v-if="pedido.codigo"> · nº {{ pedido.codigo }}</template></span>
-                  </span>
-                </div>
-                <span class="cp-pedido-status" :class="'is-' + pedido.status">
-                  <i class="fas" :class="{ 'fa-clock': pedido.status === 'pendente', 'fa-calendar-check': pedido.status === 'agendado', 'fa-circle-check': pedido.status === 'entregue', 'fa-ban': pedido.status === 'cancelado' }"></i>
-                  {{ pedido.status === 'agendado' ? 'Agendado' : pedido.status === 'entregue' ? 'Entregue' : pedido.status === 'cancelado' ? 'Cancelado' : 'Pendente' }}
+            <div v-if="pedidosFiltrados.length" class="vc-lista">
+              <button v-for="p in pedidosFiltrados" :key="p.uuid" type="button" class="vc-linha" @click="abrirPedidoDetalhe(p)">
+                <span class="vc-av" :class="{ 'vc-av--pago': p.status === 'entregue', 'pd-av--atraso': pedidoAtrasado(p), 'pd-av--cancelado': p.status === 'cancelado' }">
+                  <i class="fas" :class="p.status === 'entregue' ? 'fa-check' : p.status === 'cancelado' ? 'fa-ban' : p.origem === 'site' ? 'fa-globe' : 'fa-store'"></i>
                 </span>
-              </div>
+                <span class="vc-linha-txt">
+                  <span class="vc-linha-nome">{{ nomePedido(p) }}</span>
+                  <span class="vc-linha-sub" :class="{ 'pd-sub--atraso': pedidoAtrasado(p) }">{{ subPedido(p) }}</span>
+                </span>
+                <span class="pd-dir">
+                  <span class="vc-linha-val" :class="{ 'vc-linha-val--pago': p.status === 'entregue' }">{{ R$(p.total) }}</span>
+                  <span class="pd-chip" :class="'is-' + (pedidoAtrasado(p) ? 'atrasado' : p.status)">{{ rotuloStatusPedido(p) }}</span>
+                </span>
+              </button>
+            </div>
+            <div v-else class="vc-vazio">Nenhum pedido encontrado.</div>
+            <p v-if="pedidosFiltrados.length && pedidosOrdenados.length > LIMITE_PEDIDOS && !buscaPedidos.trim()" class="vc-mais">Mostrando os {{ LIMITE_PEDIDOS }} mais recentes. Use a busca para achar os antigos.</p>
+          </template>
+        </div>
 
-              <div class="cp-pedido-itens">
-                <div v-for="item in pedido.itens" :key="item.nome">{{ item.qtd }}x {{ item.nome }}</div>
-                <div v-if="pedido.entregaValor">Entrega: {{ R$(pedido.entregaValor) }}</div>
-                <div v-if="pedido.origem === 'site' && pedido.clienteTelefone" class="cp-pedido-extra"><i class="fab fa-whatsapp"></i> {{ telefoneBonito(pedido.clienteTelefone) }}</div>
-                <div v-if="pedido.origem === 'site' && pedido.recebimento === 'entrega'" class="cp-pedido-extra"><i class="fas fa-location-dot"></i> Entrega<template v-if="pedido.endereco">: {{ pedido.endereco }}</template></div>
-                <div v-else-if="pedido.origem === 'site'" class="cp-pedido-extra"><i class="fas fa-store"></i> Retirada</div>
-                <div v-if="pedido.obs" class="cp-pedido-extra"><i class="fas fa-comment"></i> {{ pedido.obs }}</div>
-              </div>
+        <!-- Folha de detalhes do pedido (as ações ficam aqui, não na lista) -->
+        <div v-if="pedidoDetalhe" class="vc-ov" @click.self="fecharPedidoDetalhe">
+          <div class="vc-folha" role="dialog" aria-modal="true">
+            <div class="vc-folha-topo">
+              <div class="vc-folha-titulo">Pedido<template v-if="pedidoDetalhe.codigo"> nº {{ pedidoDetalhe.codigo }}</template></div>
+              <button class="vc-folha-x" aria-label="Fechar" @click="fecharPedidoDetalhe"><i class="fas fa-xmark"></i></button>
+            </div>
 
-              <div class="cp-pedido-pagamento">
-                <span>Total: <strong>{{ R$(pedido.total) }}</strong></span>
-                <span v-if="pedido.cobrarSinal">Sinal Pix: {{ R$(pedido.valorPix) }} · Falta: {{ R$(pedido.valorRestante) }}</span>
-                <span v-else-if="pedido.valorPix">Pago via Pix: {{ R$(pedido.valorPix) }}</span>
-              </div>
-
-              <!-- Agendado — mostra a data/hora combinada. Só quando não está sendo editada agora. -->
-              <div v-if="pedido.status === 'agendado' && pedidoAgendando !== pedido.uuid" class="cp-pedido-agenda-info">
-                <i class="fas fa-calendar-check"></i>
-                <span>Agendado para <strong>{{ formatarDataAgendada(pedido.agendadoPara) }}</strong><template v-if="pedido.horaAgendada"> às <strong>{{ pedido.horaAgendada }}</strong></template></span>
-              </div>
-
-              <!-- Editor de agendamento — abre inline ao tocar em "Agendar"/"Alterar agendamento". -->
-              <div v-if="pedidoAgendando === pedido.uuid" class="cp-pedido-agenda-editor">
-                <div class="cp-pedido-agenda-editor-titulo"><i class="fas fa-calendar-days"></i> Combinar com o cliente</div>
-                <div class="cp-pedido-agenda-editor-campos">
-                  <label class="cp-pedido-agenda-campo">
-                    <span>Data</span>
-                    <input type="date" class="cp-pedido-agenda-input" v-model="dataAgendamentoEdicao">
-                  </label>
-                  <label class="cp-pedido-agenda-campo cp-pedido-agenda-campo--hora">
-                    <span>Hora <em>(opcional)</em></span>
-                    <input type="time" class="cp-pedido-agenda-input" v-model="horaAgendamentoEdicao">
-                  </label>
+            <div class="vc-folha-corpo pd-corpo">
+              <!-- Quem / situação -->
+              <div class="pd-hero">
+                <span class="vc-av pd-hero-av" :class="{ 'vc-av--pago': pedidoDetalhe.status === 'entregue', 'pd-av--atraso': pedidoAtrasado(pedidoDetalhe), 'pd-av--cancelado': pedidoDetalhe.status === 'cancelado' }">
+                  <i class="fas" :class="pedidoDetalhe.status === 'entregue' ? 'fa-check' : pedidoDetalhe.status === 'cancelado' ? 'fa-ban' : pedidoDetalhe.origem === 'site' ? 'fa-globe' : 'fa-store'"></i>
+                </span>
+                <div class="pd-hero-txt">
+                  <b>{{ nomePedido(pedidoDetalhe) }}</b>
+                  <span>{{ pedidoDetalhe.origem === 'site' ? 'Pedido do site' : 'Venda de balcão' }}</span>
                 </div>
-                <div class="cp-pedido-agenda-editor-acoes">
-                  <button class="cp-acao cp-acao--principal" :disabled="!dataAgendamentoEdicao" @click="confirmarAgendamento(pedido)">
-                    <i class="fas fa-check"></i> Confirmar
-                  </button>
+                <span class="pd-chip pd-chip--grande" :class="'is-' + (pedidoAtrasado(pedidoDetalhe) ? 'atrasado' : pedidoDetalhe.status)">{{ rotuloStatusPedido(pedidoDetalhe) }}</span>
+              </div>
+
+              <!-- Contato -->
+              <div v-if="pedidoDetalhe.clienteTelefone" class="pd-card pd-contato">
+                <div class="pd-contato-info">
+                  <small>WhatsApp</small>
+                  <b>{{ telefoneBonito(pedidoDetalhe.clienteTelefone) }}</b>
+                </div>
+                <a class="pd-zap" :href="linkWhatsAppCliente(pedidoDetalhe)" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Conversar</a>
+              </div>
+
+              <!-- Datas (registro do pedido, do combinado e da entrega) -->
+              <div class="pd-card">
+                <div class="pd-card-tit"><i class="fas fa-clock-rotate-left"></i> Datas</div>
+                <div class="pd-linha"><span>Pedido feito</span><b>{{ formatarDataPedido(pedidoDetalhe.criadoEm) }}</b></div>
+                <div class="pd-linha">
+                  <span>Combinado para</span>
+                  <b v-if="pedidoDetalhe.agendadoPara">{{ formatarDataAgendada(pedidoDetalhe.agendadoPara) }}<template v-if="pedidoDetalhe.horaAgendada"> às {{ pedidoDetalhe.horaAgendada }}</template></b>
+                  <b v-else class="pd-vazio">Sem data combinada</b>
+                </div>
+                <div v-if="pedidoDetalhe.status === 'entregue'" class="pd-linha pd-linha--destaque">
+                  <span>{{ isEntrega(pedidoDetalhe) ? 'Entregue em' : 'Retirado em' }}</span>
+                  <b v-if="pedidoDetalhe.entregueEm" class="pd-verde">{{ formatarDataHoraISO(pedidoDetalhe.entregueEm) }}</b>
+                  <b v-else class="pd-vazio">Data não registrada</b>
+                </div>
+                <div v-if="pedidoDetalhe.status === 'entregue' && prazoEntrega(pedidoDetalhe)" class="pd-linha">
+                  <span>Prazo</span>
+                  <span class="pd-prazo" :class="prazoEntrega(pedidoDetalhe).cls">{{ prazoEntrega(pedidoDetalhe).txt }}</span>
+                </div>
+                <div v-if="pedidoDetalhe.status === 'cancelado' && pedidoDetalhe.canceladoEm" class="pd-linha">
+                  <span>Cancelado em</span><b>{{ formatarDataHoraISO(pedidoDetalhe.canceladoEm) }}</b>
+                </div>
+              </div>
+
+              <!-- Entrega ou retirada + taxa -->
+              <div class="pd-card">
+                <div class="pd-card-tit"><i class="fas" :class="isEntrega(pedidoDetalhe) ? 'fa-motorcycle' : 'fa-bag-shopping'"></i> {{ isEntrega(pedidoDetalhe) ? 'Entrega' : 'Retirada' }}</div>
+                <div class="pd-linha">
+                  <span>Taxa de entrega</span>
+                  <b v-if="Number(pedidoDetalhe.entregaValor) > 0">{{ R$(pedidoDetalhe.entregaValor) }}</b>
+                  <b v-else class="pd-vazio">{{ isEntrega(pedidoDetalhe) ? 'Sem taxa' : 'Não se aplica' }}</b>
+                </div>
+                <div v-if="isEntrega(pedidoDetalhe) && pedidoDetalhe.endereco" class="pd-bloco">
+                  <small>Endereço</small>
+                  <span>{{ pedidoDetalhe.endereco }}</span>
+                </div>
+              </div>
+
+              <!-- Itens -->
+              <div class="pd-card">
+                <div class="pd-card-tit"><i class="fas fa-basket-shopping"></i> Itens <em>{{ qtdTotalItens(pedidoDetalhe) }}</em></div>
+                <div v-for="(item, idx) in pedidoDetalhe.itens" :key="item.nome + idx" class="pd-item">
+                  <span class="pd-item-qtd">{{ item.qtd }}×</span>
+                  <span class="pd-item-nome">
+                    {{ item.nome }}
+                    <small v-if="precoUnitItem(item) !== null">{{ R$(precoUnitItem(item)) }} cada</small>
+                  </span>
+                  <b class="pd-item-val">{{ R$(subtotalItem(item)) }}</b>
+                </div>
+              </div>
+
+              <!-- Observação -->
+              <div v-if="pedidoDetalhe.obs" class="pd-card">
+                <div class="pd-card-tit"><i class="fas fa-comment"></i> Observação</div>
+                <div class="pd-obs">{{ pedidoDetalhe.obs }}</div>
+              </div>
+
+              <!-- Valores -->
+              <div class="pd-card pd-totais">
+                <div class="pd-card-tit"><i class="fas fa-receipt"></i> Valores</div>
+                <div class="pd-linha"><span>Itens</span><b>{{ R$(subtotalPedido(pedidoDetalhe)) }}</b></div>
+                <div class="pd-linha"><span>Taxa de entrega</span><b>{{ R$(pedidoDetalhe.entregaValor) }}</b></div>
+                <div class="pd-linha pd-linha--total"><span>Total</span><b>{{ R$(pedidoDetalhe.total) }}</b></div>
+                <template v-if="pedidoDetalhe.cobrarSinal">
+                  <div class="pd-linha"><span>Sinal Pix</span><b class="pd-verde">{{ R$(pedidoDetalhe.valorPix) }}</b></div>
+                  <div class="pd-linha"><span>Falta receber</span><b>{{ R$(pedidoDetalhe.valorRestante) }}</b></div>
+                </template>
+                <div v-else-if="pedidoDetalhe.valorPix" class="pd-linha"><span>Pago via Pix</span><b class="pd-verde">{{ R$(pedidoDetalhe.valorPix) }}</b></div>
+              </div>
+
+              <!-- Editor: combinar data -->
+              <div v-if="pedidoAgendando === pedidoDetalhe.uuid" class="pd-card pd-editor">
+                <div class="pd-card-tit"><i class="fas fa-calendar-days"></i> Combinar com o cliente</div>
+                <div class="pd-editor-campos">
+                  <label><span>Data</span><input type="date" class="cp-pedido-agenda-input" v-model="dataAgendamentoEdicao"></label>
+                  <label><span>Hora <em>(opcional)</em></span><input type="time" class="cp-pedido-agenda-input" v-model="horaAgendamentoEdicao"></label>
+                </div>
+                <div class="pd-editor-acoes">
+                  <button class="cp-acao cp-acao--principal" :disabled="!dataAgendamentoEdicao" @click="confirmarAgendamento(pedidoDetalhe)"><i class="fas fa-check"></i> Confirmar</button>
                   <button class="cp-acao" @click="cancelarEdicaoAgendamento">Cancelar</button>
                 </div>
               </div>
 
-              <template v-if="pedidoAgendando !== pedido.uuid">
-                <div v-if="pedido.status !== 'entregue' && pedido.status !== 'cancelado'" class="cp-pedido-acoes cp-pedido-acoes--secundarias">
-                  <a v-if="pedido.clienteTelefone" class="cp-acao" :href="linkWhatsAppCliente(pedido)" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> WhatsApp</a>
-                  <button class="cp-acao" @click="iniciarAgendamento(pedido)">
-                    <i class="fas" :class="pedido.status === 'agendado' ? 'fa-calendar' : 'fa-calendar-plus'"></i>
-                    {{ pedido.status === 'agendado' ? 'Alterar agendamento' : 'Agendar' }}
-                  </button>
-                  <button v-if="pedido.status === 'agendado'" class="cp-acao cp-acao--icone" title="Voltar pra pendente" @click="desmarcarAgendamento(pedido)">
-                    <i class="fas fa-rotate-left"></i>
-                  </button>
+              <!-- Editor: registrar data da entrega -->
+              <div v-else-if="entregaEditando === pedidoDetalhe.uuid" class="pd-card pd-editor">
+                <div class="pd-card-tit"><i class="fas fa-circle-check"></i> {{ isEntrega(pedidoDetalhe) ? 'Quando foi entregue?' : 'Quando foi retirado?' }}</div>
+                <div class="pd-editor-campos">
+                  <label><span>Data</span><input type="date" class="cp-pedido-agenda-input" v-model="dataEntregaEdicao" :max="hojeISO()"></label>
+                  <label><span>Hora</span><input type="time" class="cp-pedido-agenda-input" v-model="horaEntregaEdicao"></label>
                 </div>
+                <div class="pd-editor-acoes">
+                  <button class="cp-acao cp-acao--entregue" :disabled="!dataEntregaEdicao || !horaEntregaEdicao" @click="confirmarEntrega(pedidoDetalhe)"><i class="fas fa-check"></i> Salvar</button>
+                  <button class="cp-acao" @click="cancelarEdicaoEntrega">Cancelar</button>
+                </div>
+              </div>
 
-                <div class="cp-pedido-acoes">
-                  <button v-if="pedido.status !== 'entregue' && pedido.status !== 'cancelado'" class="cp-acao cp-acao--entregue" @click="marcarEntregue(pedido)">
-                    <i class="fas fa-circle-check"></i> Marcar como entregue
+              <!-- Ações -->
+              <div v-else class="pd-acoes">
+                <template v-if="pedidoEmAberto(pedidoDetalhe)">
+                  <button class="cp-acao cp-acao--entregue pd-acao-principal" @click="iniciarEntrega(pedidoDetalhe)">
+                    <i class="fas fa-circle-check"></i> {{ isEntrega(pedidoDetalhe) ? 'Marcar como entregue' : 'Marcar como retirado' }}
                   </button>
-                  <button v-else-if="pedido.status === 'entregue'" class="cp-acao" @click="reabrirPedido(pedido)">
-                    <i class="fas fa-rotate-left"></i> Reabrir pedido
+                  <div class="pd-acoes-linha">
+                    <button class="cp-acao" @click="iniciarAgendamento(pedidoDetalhe)">
+                      <i class="fas" :class="pedidoDetalhe.status === 'agendado' ? 'fa-calendar' : 'fa-calendar-plus'"></i>
+                      {{ pedidoDetalhe.status === 'agendado' ? 'Alterar data' : 'Agendar' }}
+                    </button>
+                    <button v-if="pedidoDetalhe.status === 'agendado'" class="cp-acao" @click="desmarcarAgendamento(pedidoDetalhe)"><i class="fas fa-rotate-left"></i> Sem data</button>
+                  </div>
+                </template>
+                <template v-else>
+                  <button v-if="pedidoDetalhe.status === 'entregue'" class="cp-acao pd-acao-principal" @click="iniciarEntrega(pedidoDetalhe, true)">
+                    <i class="fas fa-pen"></i> Corrigir data da entrega
                   </button>
-                  <button v-if="pedido.status !== 'cancelado' && pedido.origem === 'site'" class="cp-acao cp-acao--perigo" @click="cancelarPedido(pedido)"><i class="fas fa-ban"></i> Cancelar pedido</button>
-                  <button class="cp-acao cp-acao--perigo cp-acao--icone" title="Remover" @click="removerPedido(pedido)"><i class="fas fa-trash"></i></button>
+                  <button class="cp-acao pd-acao-principal" @click="reabrirPedido(pedidoDetalhe)"><i class="fas fa-rotate-left"></i> Reabrir pedido</button>
+                </template>
+                <div class="pd-acoes-linha pd-acoes-linha--perigo">
+                  <button v-if="pedidoEmAberto(pedidoDetalhe) && pedidoDetalhe.origem === 'site'" class="cp-acao cp-acao--perigo" @click="cancelarPedido(pedidoDetalhe)"><i class="fas fa-ban"></i> Cancelar pedido</button>
+                  <button class="cp-acao cp-acao--perigo" @click="removerPedido(pedidoDetalhe)"><i class="fas fa-trash"></i> Remover</button>
                 </div>
-              </template>
+              </div>
             </div>
-          </template>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -796,6 +963,7 @@ import { carregarConfigD1, d1Configurado, publicarCardapioD1 } from '../services
 import { importarPedidosDoSite, apagarPedidoNoServidor, atualizarPedidoNoServidor } from '../services/pedidosSite.js'
 import { salvarPedidoCardapio, listarPedidosCardapio, atualizarStatusPedidoCardapio, excluirPedidoCardapio } from '../db.js'
 import BaseModal from '../components/BaseModal.vue'
+import '../assets/lista-padrao.css'
 
 const s = useStore()
 
@@ -1115,9 +1283,10 @@ async function desmarcarAgendamento(pedido) {
 
 // Marca como entregue/retirado — não mexe na data/hora combinada, só no
 // status, então o histórico de quando ficou combinado continua salvo.
-async function marcarEntregue(pedido) {
+async function marcarEntregue(pedido, entregueEm = new Date().toISOString()) {
   pedido.status = 'entregue' // otimista
-  await atualizarStatusPedidoCardapio(pedido.uuid, 'entregue')
+  pedido.entregueEm = entregueEm
+  await atualizarStatusPedidoCardapio(pedido.uuid, 'entregue', { entregueEm })
   if (pedido.origem === 'site') atualizarPedidoNoServidor(pedido.uuid, 'entregue', pedido)
   sincronizarDepois(true)
 }
@@ -1127,15 +1296,19 @@ async function marcarEntregue(pedido) {
 async function reabrirPedido(pedido) {
   const novoStatus = pedido.agendadoPara ? 'agendado' : 'pendente'
   pedido.status = novoStatus // otimista
-  await atualizarStatusPedidoCardapio(pedido.uuid, novoStatus)
+  pedido.entregueEm = null
+  pedido.canceladoEm = null
+  await atualizarStatusPedidoCardapio(pedido.uuid, novoStatus, { entregueEm: null, canceladoEm: null })
   if (pedido.origem === 'site') atualizarPedidoNoServidor(pedido.uuid, novoStatus, pedido)
   sincronizarDepois(true)
 }
 
 async function cancelarPedido(pedido) {
   if (!confirm(`Cancelar o pedido ${pedido.codigo ? `nº ${pedido.codigo}` : ''} de ${pedido.clienteNome || 'cliente'}?`)) return
+  const canceladoEm = new Date().toISOString()
   pedido.status = 'cancelado'
-  await atualizarStatusPedidoCardapio(pedido.uuid, 'cancelado')
+  pedido.canceladoEm = canceladoEm
+  await atualizarStatusPedidoCardapio(pedido.uuid, 'cancelado', { canceladoEm })
   if (pedido.origem === 'site') atualizarPedidoNoServidor(pedido.uuid, 'cancelado', pedido)
   sincronizarDepois(true)
 }
@@ -1152,6 +1325,159 @@ async function removerPedido(pedido) {
 // entregue ainda) — inclui pendente e agendado, já que os dois ainda
 // precisam de alguma ação da Bete.
 const pedidosPendentesCount = computed(() => pedidosSalvos.value.filter(p => !['entregue', 'cancelado'].includes(p.status)).length)
+
+// ── Lista de Pedidos: mesmo padrão da consulta de vendas / Cobranças ──
+const LIMITE_PEDIDOS = 200
+const abasPedidos = [
+  { id: 'abertos',   nome: 'A entregar' },
+  { id: 'historico', nome: 'Histórico' }
+]
+const abaPedidos = ref('abertos')
+const buscaPedidos = ref('')
+const filtrosPedidosAbertos = ref(false)
+const filtroPedidosAbertosSel = ref('todos')   // A entregar: 'todos' | 'semdata' | 'agendados'
+const filtroPedidosHistSel = ref('todos')      // Histórico: 'todos' | 'entregues' | 'cancelados'
+const pedidoDetalheUuid = ref(null)
+
+const pedidoEmAberto = (p) => p.status !== 'entregue' && p.status !== 'cancelado'
+const pedidoAtrasado = (p) => p.status === 'agendado' && !!p.agendadoPara && p.agendadoPara < hojeISO()
+const pedidoTotal = (p) => Number(p.total) || 0
+const soma = (l) => l.reduce((t, p) => t + pedidoTotal(p), 0)
+
+const kpiPedidos = computed(() => {
+  const hj = hojeISO()
+  const abertos = pedidosSalvos.value.filter(pedidoEmAberto)
+  const atrasados = abertos.filter(pedidoAtrasado)
+  const hoje = abertos.filter(p => p.status === 'agendado' && p.agendadoPara === hj)
+  return {
+    total: soma(abertos), qtd: abertos.length,
+    qtdSemData: abertos.filter(p => p.status !== 'agendado').length,
+    totalAtrasados: soma(atrasados), qtdAtrasados: atrasados.length,
+    totalHoje: soma(hoje), qtdHoje: hoje.length
+  }
+})
+
+const termoPedidos = computed(() => normalizar(buscaPedidos.value.trim()))
+const casaPedido = (p) => !termoPedidos.value || normalizar([
+  p.clienteNome, p.clienteTelefone, p.codigo, p.obs, p.endereco, (p.itens || []).map(i => i.nome).join(' ')
+].join(' ')).includes(termoPedidos.value)
+
+// A entregar: agendados primeiro (data mais próxima/atrasada no topo), depois os sem data (mais recentes primeiro).
+const pedidosAbertosOrdenados = computed(() => {
+  const chave = (p) => p.status === 'agendado' ? `0${p.agendadoPara || ''}${p.horaAgendada || '00:00'}` : null
+  return pedidosSalvos.value.filter(pedidoEmAberto).sort((a, b) => {
+    const ka = chave(a), kb = chave(b)
+    if (ka && kb) return ka.localeCompare(kb)
+    if (ka) return -1
+    if (kb) return 1
+    return String(b.criadoEm).localeCompare(String(a.criadoEm))
+  })
+})
+const pedidosOrdenados = computed(() => abaPedidos.value === 'historico'
+  ? [...pedidosSalvos.value].sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)))
+  : pedidosAbertosOrdenados.value)
+
+const pedidosFiltrados = computed(() => {
+  const hist = abaPedidos.value === 'historico'
+  const sel = hist ? filtroPedidosHistSel.value : filtroPedidosAbertosSel.value
+  const lista = pedidosOrdenados.value.filter(p => {
+    if (!casaPedido(p)) return false
+    if (sel === 'todos') return true
+    if (hist) return sel === 'entregues' ? p.status === 'entregue' : p.status === 'cancelado'
+    return sel === 'agendados' ? p.status === 'agendado' : p.status !== 'agendado'
+  })
+  return termoPedidos.value ? lista : lista.slice(0, LIMITE_PEDIDOS)
+})
+
+const filtrosListaPedidos = computed(() => {
+  const t = pedidosSalvos.value
+  if (abaPedidos.value === 'historico') return [
+    { id: 'todos',      nome: 'Todos',      n: t.length },
+    { id: 'entregues',  nome: 'Entregues',  n: t.filter(p => p.status === 'entregue').length },
+    { id: 'cancelados', nome: 'Cancelados', n: t.filter(p => p.status === 'cancelado').length }
+  ]
+  const ab = t.filter(pedidoEmAberto)
+  return [
+    { id: 'todos',     nome: 'Todos',     n: ab.length },
+    { id: 'semdata',   nome: 'Sem data',  n: ab.filter(p => p.status !== 'agendado').length },
+    { id: 'agendados', nome: 'Agendados', n: ab.filter(p => p.status === 'agendado').length }
+  ]
+})
+const filtroPedidosSel = computed(() => abaPedidos.value === 'historico' ? filtroPedidosHistSel.value : filtroPedidosAbertosSel.value)
+const filtroPedidosAtivo = computed(() => filtroPedidosSel.value !== 'todos')
+const rotuloFiltroPedidos = computed(() => filtrosListaPedidos.value.find(f => f.id === filtroPedidosSel.value)?.nome || '')
+function escolherFiltroPedidos(id) {
+  if (abaPedidos.value === 'historico') filtroPedidosHistSel.value = id
+  else filtroPedidosAbertosSel.value = id
+}
+watch(abaPedidos, () => { buscaPedidos.value = ''; filtrosPedidosAbertos.value = false })
+
+const nomePedido = (p) => p.clienteNome || (p.origem === 'site' ? 'Pedido do site' : 'Venda de balcão')
+function rotuloStatusPedido(p) {
+  if (pedidoAtrasado(p)) return 'Atrasado'
+  return p.status === 'agendado' ? 'Agendado' : p.status === 'entregue' ? 'Entregue' : p.status === 'cancelado' ? 'Cancelado' : 'Pendente'
+}
+function subPedido(p) {
+  const partes = []
+  if (p.status === 'agendado' && p.agendadoPara) partes.push(formatarDataAgendada(p.agendadoPara) + (p.horaAgendada ? ' às ' + p.horaAgendada : ''))
+  else if (pedidoEmAberto(p)) partes.push('Sem data combinada')
+  else if (p.status === 'entregue') {
+    const d = p.entregueEm ? new Date(p.entregueEm) : null
+    partes.push(d && !Number.isNaN(d.getTime()) ? (isEntrega(p) ? 'Entregue ' : 'Retirado ') + d.toLocaleDateString('pt-BR') : 'Entregue')
+  } else { const d = new Date(p.criadoEm); if (!Number.isNaN(d.getTime())) partes.push('Pedido ' + d.toLocaleDateString('pt-BR')) }
+  partes.push(isEntrega(p) ? 'Entrega' : 'Retirada')
+  const qtd = (p.itens || []).reduce((t, i) => t + (Number(i.qtd) || 0), 0)
+  if (qtd) partes.push(qtd + (qtd === 1 ? ' item' : ' itens'))
+  return partes.join(' · ')
+}
+
+// A folha lê o pedido da lista (não uma cópia): marcar entregue/agendar atualiza na hora; se for removido, fecha sozinha.
+const pedidoDetalhe = computed(() => pedidosSalvos.value.find(p => p.uuid === pedidoDetalheUuid.value) || null)
+function abrirPedidoDetalhe(p) { pedidoDetalheUuid.value = p.uuid }
+function fecharPedidoDetalhe() { pedidoDetalheUuid.value = null; cancelarEdicaoAgendamento(); cancelarEdicaoEntrega() }
+
+// ── Registro da entrega: data e hora em que foi entregue/retirado ──
+const entregaEditando = ref(null)       // uuid do pedido com o editor da data de entrega aberto
+const dataEntregaEdicao = ref('')
+const horaEntregaEdicao = ref('')
+const dataISODe = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const horaDe = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+function iniciarEntrega(pedido, corrigindo = false) {
+  const base = corrigindo && pedido.entregueEm ? new Date(pedido.entregueEm) : new Date()
+  const d = Number.isNaN(base.getTime()) ? new Date() : base
+  entregaEditando.value = pedido.uuid
+  dataEntregaEdicao.value = dataISODe(d)
+  horaEntregaEdicao.value = horaDe(d)
+}
+function cancelarEdicaoEntrega() { entregaEditando.value = null }
+async function confirmarEntrega(pedido) {
+  if (!dataEntregaEdicao.value || !horaEntregaEdicao.value) return
+  const quando = new Date(`${dataEntregaEdicao.value}T${horaEntregaEdicao.value}`)
+  if (Number.isNaN(quando.getTime())) return
+  await marcarEntregue(pedido, quando.toISOString())
+  cancelarEdicaoEntrega()
+}
+
+// ── Dados exibidos no detalhe ──
+const isEntrega = (p) => p.recebimento === 'entrega' || Number(p.entregaValor) > 0
+const subtotalItem = (i) => i.subtotal != null ? Number(i.subtotal) : (Number(i.preco) || 0) * (Number(i.qtd) || 0)
+const precoUnitItem = (i) => i.preco != null ? Number(i.preco) : (Number(i.qtd) > 0 && i.subtotal != null ? Number(i.subtotal) / Number(i.qtd) : null)
+const subtotalPedido = (p) => p.itensTotal != null ? Number(p.itensTotal) : (p.itens || []).reduce((t, i) => t + subtotalItem(i), 0)
+function qtdTotalItens(p) { const n = (p.itens || []).reduce((t, i) => t + (Number(i.qtd) || 0), 0); return n + (n === 1 ? ' item' : ' itens') }
+function formatarDataHoraISO(iso) {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR') + ' às ' + horaDe(d)
+}
+// Entrega em relação ao combinado: no prazo, adiantada ou atrasada (só quando havia data combinada e a entrega foi registrada).
+function prazoEntrega(p) {
+  if (!p.entregueEm || !p.agendadoPara) return null
+  const e = new Date(p.entregueEm); if (Number.isNaN(e.getTime())) return null
+  const t = (iso) => { const [y, m, d] = iso.split('-').map(Number); return Date.UTC(y, m - 1, d) }
+  const dias = Math.round((t(dataISODe(e)) - t(p.agendadoPara)) / 86400000)
+  if (dias === 0) return { txt: 'No dia combinado', cls: 'ok' }
+  if (dias > 0) return { txt: `${dias} ${dias === 1 ? 'dia' : 'dias'} depois do combinado`, cls: 'atraso' }
+  return { txt: `${-dias} ${-dias === 1 ? 'dia' : 'dias'} antes do combinado`, cls: 'ok' }
+}
 
 function formatarDataPedido(iso) {
   const d = new Date(iso)
@@ -2454,4 +2780,66 @@ async function publicarLinkCardapioInterativo() {
 .cp-tab { padding: 14px 6px; font-size: .92rem; }
 .cp-aba-padrao-btn { min-height: 40px; font-size: .84rem; padding: 0 14px; }
 @media (prefers-reduced-motion: reduce) { .cx-switch, .cx-switch::after, .cx-balcao, .cx-btn-enviar { transition: none; } }
+
+/* Pedidos: lista no padrão do sistema (o restante vem de assets/lista-padrao.css) */
+.cp-pedidos-corpo--lista { display: block; padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); }
+.cp-fullscreen .vc-ov { z-index: 10; }
+.pd-dir { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.pd-chip { padding: 2px 9px; border-radius: var(--r-full); font-size: 11px; font-weight: 800; background: var(--gold-bg); color: var(--gold-dark); white-space: nowrap; }
+.pd-chip.is-agendado { background: var(--blue-bg, #e8f0fe); color: var(--blue, #2563eb); }
+.pd-chip.is-entregue { background: var(--green-bg); color: var(--green); }
+.pd-chip.is-atrasado { background: var(--red-bg); color: var(--red); }
+.pd-chip.is-cancelado { background: var(--cream-deep); color: var(--muted); }
+.pd-av--atraso { background: var(--red-bg); color: var(--red); }
+.pd-av--cancelado { background: var(--cream-deep); color: var(--muted); }
+.pd-sub--atraso { color: var(--red); }
+
+/* Detalhe do pedido */
+.pd-corpo { padding: 2px 16px max(24px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
+.pd-hero { display: flex; align-items: center; gap: 12px; padding: 4px 2px 0; }
+.pd-hero-av { width: 48px; height: 48px; font-size: 19px; flex-shrink: 0; }
+.pd-hero-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pd-hero-txt b { font-size: 19px; font-weight: 900; color: var(--brown-dark); line-height: 1.2; overflow-wrap: anywhere; }
+.pd-hero-txt span { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.pd-chip--grande { padding: 5px 12px; font-size: 12px; align-self: flex-start; }
+.pd-card { padding: 14px 16px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); }
+.pd-card-tit { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--brown-mid); }
+.pd-card-tit em { margin-left: auto; font-style: normal; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--muted); }
+.pd-contato { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pd-contato-info { display: flex; flex-direction: column; gap: 1px; }
+.pd-contato-info small { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.pd-contato-info b { font-family: var(--mono); font-size: 15px; color: var(--brown-dark); }
+.pd-zap { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: var(--r-full); background: var(--green-bg); color: var(--green); font-size: 13px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.pd-linha { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px dashed var(--border); font-size: 14px; font-weight: 600; color: var(--muted); }
+.pd-linha:last-child { border-bottom: 0; padding-bottom: 2px; }
+.pd-linha > b { font-weight: 800; color: var(--text); text-align: right; }
+.pd-linha--destaque { background: var(--green-bg); margin: 2px -8px; padding: 10px 8px; border-radius: var(--r-sm); border-bottom: 0; }
+.pd-linha--total { border-bottom: 0; padding-top: 12px; }
+.pd-linha--total span { font-weight: 800; color: var(--brown-dark); }
+.pd-linha--total b { font-family: var(--mono); font-size: 20px; color: var(--brown); }
+.pd-totais .pd-linha > b { font-family: var(--mono); }
+.pd-vazio { color: var(--muted) !important; font-weight: 600 !important; }
+.pd-verde { color: var(--green) !important; }
+.pd-prazo { font-size: 12.5px; font-weight: 800; padding: 3px 10px; border-radius: var(--r-full); }
+.pd-prazo.ok { background: var(--green-bg); color: var(--green); }
+.pd-prazo.atraso { background: var(--red-bg); color: var(--red); }
+.pd-bloco { display: flex; flex-direction: column; gap: 2px; padding-top: 10px; font-size: 14px; color: var(--text); }
+.pd-bloco small { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.pd-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px dashed var(--border); }
+.pd-item:last-child { border-bottom: 0; padding-bottom: 2px; }
+.pd-item-qtd { min-width: 30px; font-family: var(--mono); font-size: 14px; font-weight: 800; color: var(--brown); }
+.pd-item-nome { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 14.5px; font-weight: 800; color: var(--text); }
+.pd-item-nome small { font-size: 12px; font-weight: 600; color: var(--muted); }
+.pd-item-val { font-family: var(--mono); font-size: 14px; font-weight: 800; color: var(--brown-dark); white-space: nowrap; }
+.pd-obs { font-size: 14px; line-height: 1.45; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pd-editor-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.pd-editor-campos label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.pd-editor-campos em { font-style: normal; font-weight: 600; }
+.pd-editor-acoes { display: flex; gap: 8px; }
+.pd-editor-acoes .cp-acao { flex: 1; justify-content: center; min-height: 44px; }
+.pd-acoes { display: flex; flex-direction: column; gap: 8px; }
+.pd-acao-principal { width: 100%; justify-content: center; min-height: 48px; font-size: 15px; }
+.pd-acoes-linha { display: flex; gap: 8px; }
+.pd-acoes-linha .cp-acao { flex: 1; justify-content: center; min-height: 44px; }
+.pd-acoes-linha--perigo { margin-top: 4px; }
 </style>
