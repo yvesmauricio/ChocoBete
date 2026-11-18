@@ -101,6 +101,7 @@ export const useStore = defineStore('choco', () => {
     uf: '',
     cnae: '',
     teto_mei_anual: 81000,
+    mei_data_abertura: '',   // AAAA-MM-DD (opcional): no ano de abertura o teto é proporcional aos meses de atividade
     custo_hora_trabalho: 0, // Valor por hora (ex: 25.50)
     meta_salario_mensal: 0,    // Meta de retirada/salário mensal desejado (vale a partir do mês em que foi definida — ver meta_salario_historico)
     meta_salario_historico: [], // [{ mes: 'MM/YYYY', valor }] — registro de quando a meta mudou, pra não alterar meses já passados
@@ -508,7 +509,7 @@ export const useStore = defineStore('choco', () => {
       : []
     if (cfg) company.value = { ...company.value, ...cfg }
     perfis.value = normalizarPerfis(perfisCfg)
-    if (Array.isArray(categoriasCfg) && categoriasCfg.length) categoriasFinanceiro.value = categoriasCfg
+    if (Array.isArray(categoriasCfg) && categoriasCfg.length) categoriasFinanceiro.value = garantirCategoriaAClassificar(categoriasCfg)
     if (regrasCategoriaCfg && typeof regrasCategoriaCfg === 'object') regrasCategoriaFinanceiro.value = regrasCategoriaCfg
     if (regrasDescricaoCfg && typeof regrasDescricaoCfg === 'object') regrasDescricaoFinanceiro.value = regrasDescricaoCfg
     cozinhaLote.value = await configGet('cozinha_lote', [])
@@ -826,7 +827,7 @@ export const useStore = defineStore('choco', () => {
         await db.receitas.bulkPut(receitasComAlteracoes)
       }
       if (Array.isArray(categoriasCfg) && categoriasCfg.length) {
-        categoriasFinanceiro.value = categoriasCfg
+        categoriasFinanceiro.value = garantirCategoriaAClassificar(categoriasCfg)
       }
       if (regrasCategoriaCfg && typeof regrasCategoriaCfg === 'object') {
         regrasCategoriaFinanceiro.value = regrasCategoriaCfg
@@ -859,7 +860,7 @@ export const useStore = defineStore('choco', () => {
       }
 
       const reclassificados = fin.map(item => {
-        if (item.editado_manualmente) return item
+        if (item.editado_manualmente || item.categoria === 'A classificar') return item
         const conta = resolverContaFinanceira(item)
         const cl = classificarLancamentoFinanceiro({
           tipo: item.tipo,
@@ -1273,10 +1274,16 @@ async function registrarProducaoFantasma(dados) {
     }
   }
 
+  // Configurações antigas de categorias não conhecem a categoria nova: acrescenta sem mexer nas demais.
+  function garantirCategoriaAClassificar(lista) {
+    if (lista.some(c => c.nome === 'A classificar')) return lista
+    return [...lista, { nome: 'A classificar', natureza: 'operacional', grupo: 'Negócio', icon: 'fa-circle-question' }]
+  }
+
   async function reclassificarTodosFinanceiro() {
     // Reclassifica apenas lançamentos que não foram editados manualmente
     const todos = await db.financeiro.toArray()
-    const paraAtualizar = todos.filter(i => !i.editado_manualmente)
+    const paraAtualizar = todos.filter(i => !i.editado_manualmente && i.categoria !== 'A classificar')
     if (!paraAtualizar.length) {
       notify('Todos os lançamentos já estão no padrão atual.', 'warning')
       return 0

@@ -42,27 +42,7 @@
         </button>
       </Transition>
 
-      <!-- Cronômetro Flutuante — começa no canto inferior esquerdo, arrastável -->
-      <Transition name="fade">
-        <div v-if="s.timerDisplay"
-          class="floating-timer"
-          :style="{ transform: `translate(${timerPos.x}px, ${timerPos.y}px)` }"
-          @click="onTimerClick"
-          @touchstart="onDragStart"
-          @touchmove="onDragMove"
-          @touchend="onDragEnd"
-          @mousedown="onMouseDragStart"
-        >
-          <div class="floating-timer-content">
-            <i class="fas fa-stopwatch" :class="{ 'fa-beat-fade': s.timer.isRunning }"></i>
-            <span class="timer-val">{{ s.timerDisplay }}</span>
-          </div>
-          <div class="floating-timer-label">
-            {{ s.timer.isRunning ? 'Produzindo...' : 'Pausado' }}
-            <span v-if="s.activeLoteName" class="lote-indicator">({{ s.activeLoteName }})</span>
-          </div>
-        </div>
-      </Transition>
+      <!-- O cronômetro de produção aparece só no card do lote em execução (aba Produção); não há mais balão flutuante. -->
 
       <!-- O indicador de sync do perfil Admin agora é um botão no próprio
            AppHeader (mesmo tamanho do botão "trocar perfil"), não mais
@@ -290,52 +270,6 @@ const onVisibilityChange = async () => {
 
 // Voltou a internet: envia o que ficou pendente enquanto estava offline.
 const onOnline = () => { if (s.hasLocalChanges) s.syncImediato() }
-
-// ── Timer drag ───────────────────────────────────────────
-const timerPos = reactive({ x: 0, y: 0 })
-let dragStart = { x: 0, y: 0 }
-let lastPos   = { x: 0, y: 0 }
-let isDragging  = false
-let dragMoved   = false
-
-const onDragStart = (e) => {
-  isDragging = true; dragMoved = false
-  dragStart.x = e.touches[0].clientX; dragStart.y = e.touches[0].clientY
-  lastPos.x = timerPos.x; lastPos.y = timerPos.y
-}
-const onDragMove = (e) => {
-  if (!isDragging) return
-  const dx = e.touches[0].clientX - dragStart.x
-  const dy = e.touches[0].clientY - dragStart.y
-  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragMoved = true
-  timerPos.x = lastPos.x + dx; timerPos.y = lastPos.y + dy
-}
-const onDragEnd  = () => { isDragging = false }
-
-// Mesmo arrastar do cronômetro, com o mouse (desktop). Os listeners de
-// move/up ficam na janela só enquanto o botão está pressionado, pra o timer
-// seguir o cursor mesmo se ele sair de cima do elemento.
-const onMouseDragStart = (e) => {
-  if (e.button !== 0) return
-  isDragging = true; dragMoved = false
-  dragStart.x = e.clientX; dragStart.y = e.clientY
-  lastPos.x = timerPos.x; lastPos.y = timerPos.y
-  window.addEventListener('mousemove', onMouseDragMove)
-  window.addEventListener('mouseup', onMouseDragEnd)
-}
-const onMouseDragMove = (e) => {
-  if (!isDragging) return
-  const dx = e.clientX - dragStart.x
-  const dy = e.clientY - dragStart.y
-  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragMoved = true
-  timerPos.x = lastPos.x + dx; timerPos.y = lastPos.y + dy
-}
-const onMouseDragEnd = () => {
-  isDragging = false
-  window.removeEventListener('mousemove', onMouseDragMove)
-  window.removeEventListener('mouseup', onMouseDragEnd)
-}
-const onTimerClick = () => { if (!dragMoved) s.setTab('producao') }
 
 // Impede que o botão/gesto "Voltar" do Android feche o app de primeira —
 // o primeiro toque navega para a aba inicial; só sai do app a partir dela.

@@ -274,6 +274,11 @@
                   <input id="aj-mei" v-model.number="company.teto_mei_anual" type="number" inputmode="decimal" class="input" />
                 </div>
               </div>
+              <div class="fg">
+                <label class="label" for="aj-mei-abertura">Abertura do MEI <span class="label-opt">(opcional)</span></label>
+                <input id="aj-mei-abertura" v-model="company.mei_data_abertura" type="date" class="input" />
+                <span class="aj-nota">Se abriu neste ano, o teto vale proporcional aos meses de atividade (teto ÷ 12 por mês, contando o mês da abertura). Vazio = ano inteiro.</span>
+              </div>
             </div>
           </article>
         </div>

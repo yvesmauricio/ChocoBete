@@ -22,7 +22,12 @@ export function criarAnalytics({ financeiro, producoes, receitas, company }) {
           saidas_insumos: 0,    // Novo: Rastreador específico de insumos
           saidas_das_mei: 0,    // Novo: Rastreador específico de DAS
           saidas_pessoais: 0,
-          rendimento_financeiro: 0
+          rendimento_financeiro: 0,
+          estornos_receita: 0,      // devoluções/estornos de venda (abatem o faturamento)
+          retirada_direta: 0,       // Pró-labore / Retirada pago pela conta PJ
+          fluxo_interno_pj: 0,      // transferências entre contas próprias, vistas pela conta PJ (− = saiu da PJ)
+          a_classificar_qtd: 0,
+          a_classificar_valor: 0
         })
       }
 
@@ -33,6 +38,15 @@ export function criarAnalytics({ financeiro, producoes, receitas, company }) {
       atual.total += valor
       atual.quantidade += 1
 
+      // Lançamentos que ainda precisam de revisão (contam como despesa até lá)
+      if (item.categoria === 'A classificar') {
+        atual.a_classificar_qtd += 1
+        atual.a_classificar_valor += Math.abs(valor)
+      }
+      // O que já saiu do negócio para o bolso: Pró-labore direto + dinheiro movido da conta PJ para conta própria
+      if (item.categoria === 'Pró-labore / Retirada' && valor < 0) atual.retirada_direta += Math.abs(valor)
+      if (item.natureza === 'interna' && item.conta_natureza === 'empresarial') atual.fluxo_interno_pj += valor
+
       if (item.natureza === 'interna') return
 
       if (item.natureza === 'entrada') {
@@ -41,6 +55,7 @@ export function criarAnalytics({ financeiro, producoes, receitas, company }) {
           atual.rendimento_financeiro += valor
         } else {
           atual.receitas_mei += valor
+          if (valor < 0) atual.estornos_receita += Math.abs(valor)
         }
       }
       else if (item.natureza === 'operacional') { // Saídas operacionais
@@ -86,6 +101,8 @@ export function criarAnalytics({ financeiro, producoes, receitas, company }) {
         Number(item.entradas || 0) - Number(item.receitas_mei || 0) - Number(item.rendimento_financeiro || 0)
       ),
       saldo_operacional: Number(item.receitas_mei || 0) - Number(item.saidas_operacionais || 0),
+      // Já retirado do negócio no mês: Pró-labore + saídas líquidas da conta PJ para contas próprias
+      retirado_negocio: Number(item.retirada_direta || 0) + Math.max(0, -Number(item.fluxo_interno_pj || 0)),
       saldo_mes: Number(item.entradas || 0) - Number(item.saidas_operacionais || 0) - Number(item.saidas_pessoais || 0)
     }))
   })
@@ -183,7 +200,10 @@ export function criarAnalytics({ financeiro, producoes, receitas, company }) {
         // O "Real" gerado para o seu bolso é o Saldo Operacional (Receitas MEI - Despesas Empresa)
         total_gerado_retirada: m.saldo_operacional || 0,
         receitas_reais_banco: m.receitas_mei || 0,
-        despesas_reais_banco: m.saidas_operacionais || 0
+        despesas_reais_banco: m.saidas_operacionais || 0,
+        retirado_negocio: m.retirado_negocio || 0,
+        a_classificar_qtd: m.a_classificar_qtd || 0,
+        a_classificar_valor: m.a_classificar_valor || 0
       })
     })
 
@@ -197,6 +217,7 @@ export function criarAnalytics({ financeiro, producoes, receitas, company }) {
           mes_ref: mesRef, total_tempo_min: 0, total_tempo_horas: 0,
           custo_mao_de_obra_total: 0, unidades_produzidas: 0,
           total_gerado_retirada: 0, receitas_reais_banco: 0, despesas_reais_banco: 0,
+          retirado_negocio: 0, a_classificar_qtd: 0, a_classificar_valor: 0,
           lucro_logado_producao: 0
         })
       }

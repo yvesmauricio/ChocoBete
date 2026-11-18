@@ -518,6 +518,15 @@
                   </strong>
                 </div>
 
+                <div v-if="retiradoMes(mes) > 0" class="mtr-retirado">
+                  <span>Já retirado no mês <strong>{{ R$(retiradoMes(mes)) }}</strong></span>
+                  <span>Ainda disponível <strong :class="aindaDisponivel(mes) > 0 ? 'c-green' : 'c-red'">{{ R$(Math.max(0, aindaDisponivel(mes))) }}</strong></span>
+                </div>
+                <div v-if="mes.a_classificar_qtd > 0" class="fin-aviso fin-aviso--mini">
+                  <i class="fas fa-circle-question"></i>
+                  <span>{{ mes.a_classificar_qtd }} {{ mes.a_classificar_qtd === 1 ? 'lançamento' : 'lançamentos' }} ({{ R$(mes.a_classificar_valor) }}) em "A classificar" contam como despesa. Se forem retiradas, mude para Pró-labore / Retirada.</span>
+                </div>
+
                 <!-- Barra de progresso em relação à meta -->
                 <div class="mtr-bar-row">
                   <div class="mtr-bar-bg" aria-hidden="true">
@@ -569,6 +578,16 @@
                       <span>= Retirada segura</span>
                       <strong :class="retirSegura(mes) >= 0 ? 'c-green' : 'c-red'">{{ R$(retirSegura(mes)) }}</strong>
                     </div>
+                    <template v-if="retiradoMes(mes) > 0">
+                      <div class="mtr-eq-row mtr-eq-row--sub">
+                        <span>− Já retirado no mês</span>
+                        <strong class="c-orange">{{ R$(retiradoMes(mes)) }}</strong>
+                      </div>
+                      <div class="mtr-eq-row mtr-eq-row--result">
+                        <span>= Ainda disponível</span>
+                        <strong :class="aindaDisponivel(mes) >= 0 ? 'c-green' : 'c-red'">{{ R$(aindaDisponivel(mes)) }}</strong>
+                      </div>
+                    </template>
                   </div>
                 </Transition>
 
@@ -732,7 +751,7 @@
             <div class="teto-header">
               <div>
                 <div class="teto-titulo">Faturamento MEI · {{ anoRelatorioAtual }}</div>
-                <div class="teto-sub">Limite anual: {{ R$(TETO_MEI_ANUAL) }}</div>
+                <div class="teto-sub">Limite anual: {{ R$(TETO_MEI_ANUAL) }}<template v-if="mesesAtividadeNoAno < 12"> · proporcional a {{ mesesAtividadeNoAno }} {{ mesesAtividadeNoAno === 1 ? 'mês' : 'meses' }} de atividade</template></div>
               </div>
               <div class="teto-valor-wrap">
                 <div class="teto-valor" :class="percentualTeto >= 90 ? 'c-red' : percentualTeto >= 70 ? 'c-orange' : 'c-green'">
@@ -755,7 +774,8 @@
             <div class="teto-alertas" v-if="percentualTeto >= 70">
               <div class="teto-alerta" :class="percentualTeto >= 90 ? 'alerta-danger' : 'alerta-warning'">
                 <i class="fas" :class="percentualTeto >= 90 ? 'fa-triangle-exclamation' : 'fa-circle-info'"></i>
-                <span v-if="percentualTeto >= 100">Teto MEI atingido. Consulte um contador para regularização.</span>
+                <span v-if="percentualTeto > 120">Passou de 20% acima do teto ({{ R$(faturamentoAnoRel - TETO_MEI_ANUAL) }} a mais). Pode haver desenquadramento do MEI com efeito retroativo. Procure seu contador com urgência.</span>
+                <span v-else-if="percentualTeto >= 100">Teto ultrapassado em {{ R$(faturamentoAnoRel - TETO_MEI_ANUAL) }}, dentro da tolerância de 20% (até {{ R$(TETO_COM_TOLERANCIA) }}). O excedente gera DAS complementar e, acima da tolerância, há desenquadramento. Confirme com seu contador.</span>
                 <span v-else-if="percentualTeto >= 90">Atenção: mais de 90% do teto atingido. Monitore os próximos recebimentos.</span>
                 <span v-else>Mais de 70% do teto utilizado. Fique atento ao limite.</span>
               </div>
@@ -798,6 +818,10 @@
                 <div class="lc-cb-linha"><span>Atividade:</span><strong>Produção e venda de alimentos artesanais</strong></div>
               </div>
 
+              <div v-if="dadosRelMensal && dadosRelMensal.a_classificar_qtd > 0" class="fin-aviso">
+                <i class="fas fa-circle-question"></i>
+                <span>{{ dadosRelMensal.a_classificar_qtd }} {{ dadosRelMensal.a_classificar_qtd === 1 ? 'lançamento' : 'lançamentos' }} ({{ R$(dadosRelMensal.a_classificar_valor) }}) em <strong>A classificar</strong>: contam como despesa até você revisar. Se forem retiradas, mude para Pró-labore / Retirada (o app aprende a descrição).</span>
+              </div>
               <div v-if="!dadosRelMensal" class="empty-mini">Sem dados para este mês.</div>
               <template v-else>
 
@@ -813,6 +837,10 @@
                     <div class="lc-col-data">{{ formatarData(item.data) }}</div>
                   </FinanceListRow>
                   <div v-if="!lancMensalEntradas.length" class="lc-vazio">Nenhuma receita neste mês.</div>
+                  <div v-if="dadosRelMensal.estornos_receita > 0" class="lc-estorno">
+                    <span>Estornos e devoluções (já abatidos do faturamento)</span>
+                    <strong class="c-red">− {{ R$(dadosRelMensal.estornos_receita) }}</strong>
+                  </div>
                   <div class="lc-total">
                     <span class="lc-total-label">Total Receita MEI (faturamento)</span>
                     <strong class="c-green">{{ R$(dadosRelMensal.receitas_mei) }}</strong>
@@ -1250,17 +1278,20 @@ const transInternasCount = computed(() =>
   lancamentosFiltrados.value.filter(i => i.natureza === 'interna').length
 )
 
-const totalEntradas  = computed(() =>
-  lancamentosFiltrados.value
-    .filter(i => (i.natureza === 'entrada' || (i.natureza === 'pessoal' && i.valor > 0)) && i.natureza !== 'interna')
-    .reduce((a, i) => a + i.valor, 0)
-)
+// Definição única de caixa (igual no card por banco, na lista e no "saldo do mês"):
+// entrou = valor positivo, saiu = valor negativo, sem transferências entre contas próprias.
+function totaisCaixa(items) {
+  let entradas = 0, saidas = 0
+  for (const i of items) {
+    if (i.natureza === 'interna') continue
+    if (i.valor > 0) entradas += i.valor
+    else saidas -= i.valor
+  }
+  return { entradas, saidas, saldo: entradas - saidas }
+}
 
-const totalSaidas    = computed(() =>
-  lancamentosFiltrados.value
-    .filter(i => (i.natureza === 'operacional' || (i.natureza === 'pessoal' && i.valor < 0)) && i.natureza !== 'interna')
-    .reduce((a, i) => a - i.valor, 0)
-)
+const totalEntradas  = computed(() => totaisCaixa(lancamentosFiltrados.value).entradas)
+const totalSaidas    = computed(() => totaisCaixa(lancamentosFiltrados.value).saidas)
 
 const saldoFiltrado  = computed(() =>
   lancamentosFiltrados.value
@@ -1348,9 +1379,8 @@ function resumoBancoPorPeriodo(banco, ano, mes = '') {
   // Transferências entre contas próprias (natureza 'interna') ficam de fora,
   // igual em todo o resto do Financeiro — mover dinheiro do PagBank pro Itaú
   // não é receita nem despesa do negócio.
-  const receitas = items.filter(i => i.valor > 0 && i.natureza === 'entrada').reduce((a, i) => a + i.valor, 0)
-  const saidas   = items.filter(i => i.valor < 0 && i.natureza !== 'interna').reduce((a, i) => a + Math.abs(i.valor), 0)
-  return { receitas, saidas, saldo: receitas - saidas }
+  const { entradas, saidas, saldo } = totaisCaixa(items)
+  return { receitas: entradas, saidas, saldo }
 }
 
 const resumoBancoPagbank = computed(() => resumoBancoPorPeriodo('pagbank', anoFiltroMensal.value, mesFiltroMensal.value))
@@ -1501,7 +1531,18 @@ async function handleExcluirPorBanco(banco) {
 
 // ── Helpers ──
 // ── Relatórios ──────────────────────────────────────────────
-const TETO_MEI_ANUAL = computed(() => s.company.teto_mei_anual || 81000)
+const TETO_BASE_ANUAL = computed(() => s.company.teto_mei_anual || 81000)
+// No ano de abertura o teto é proporcional: teto ÷ 12 × meses de atividade (mês da abertura conta inteiro).
+const mesesAtividadeNoAno = computed(() => {
+  const ab = String(s.company.mei_data_abertura || '')
+  const [y, m] = ab.split('-').map(Number)
+  if (!y || !m) return 12
+  const ano = Number(anoRelAnual.value)
+  if (y === ano) return Math.max(1, 13 - m)
+  return y > ano ? 0 : 12
+})
+const TETO_MEI_ANUAL = computed(() => TETO_BASE_ANUAL.value / 12 * mesesAtividadeNoAno.value)
+const TETO_COM_TOLERANCIA = computed(() => TETO_MEI_ANUAL.value * 1.2)   // excesso de até 20%
 const nomeContribuinte = 'MEI — Conta PagBank / Itaú'
 
 const relTipo = ref('mensal')
@@ -1610,10 +1651,15 @@ function gerarDocDASN() {
 }
 
 function retirSegura(mes) {
-  const saldoNoBanco = mes.total_gerado_retirada || 0
+  // "Retirada segura" = o que o negócio gerou no mês (receitas − despesas operacionais) menos a reserva de giro.
+  // Não é saldo do banco.
+  const geradoNoMes = mes.total_gerado_retirada || 0
   const reservaGiro = s.reservaGiroEm(mes.mes_ref) || 0
-  return saldoNoBanco - reservaGiro
+  return geradoNoMes - reservaGiro
 }
+// O que já saiu do negócio para o bolso no mês (Pró-labore + transferências da conta PJ para contas próprias)
+const retiradoMes = (mes) => Number(mes.retirado_negocio || 0)
+const aindaDisponivel = (mes) => retirSegura(mes) - retiradoMes(mes)
 
 // ── Meta de Retirada: accordions (detalhe do cálculo por mês + explicação) ──
 // Fechados por padrão para manter o card enxuto; o usuário abre só o que
@@ -2614,4 +2660,12 @@ html.is-desktop .lancamentos-list .fl-banco-sigla { display: inline; }
 .lc-q-linha span:first-child { white-space: normal; }
 .lc-q-linha.hdr span { font-size: .72rem; }
 .lc-q-linha .lc-q-mes { font-size: .8rem; }
+
+/* Avisos e retirada já feita */
+.fin-aviso { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; padding: 11px 13px; border-radius: var(--r-md); background: var(--orange-bg, #fff4e5); color: var(--orange, #b45309); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.fin-aviso i { margin-top: 2px; }
+.fin-aviso--mini { font-size: 12px; padding: 9px 11px; }
+.mtr-retirado { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 10px 0 2px; padding: 9px 12px; border-radius: var(--r-sm); background: var(--cream); font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.mtr-retirado strong { margin-left: 4px; font-family: var(--mono); }
+.lc-estorno { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--muted); }
 </style>

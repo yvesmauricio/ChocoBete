@@ -80,8 +80,10 @@
                   <div class="lote-titulo">{{ dataHoraBR(grupo.data) }}</div>
                   <div class="lote-meta">
                     <!-- Status / tempo -->
-                    <span v-if="s.timer.activeLoteId === grupo.id" class="lbadge lbadge-running">
-                      <i class="fas fa-spinner fa-spin"></i> Produzindo...
+                    <span v-if="s.timer.activeLoteId === grupo.id" class="lbadge" :class="s.timer.isRunning ? 'lbadge-running' : 'lbadge-paused'">
+                      <i class="fas" :class="s.timer.isRunning ? 'fa-stopwatch fa-beat-fade' : 'fa-pause'"></i>
+                      <span class="lbadge-tempo">{{ s.timerDisplay }}</span>
+                      {{ s.timer.isRunning ? 'Produzindo' : 'Pausado' }}
                     </span>
                     <span v-else-if="grupo.duracaoMinutos > 0" class="lbadge lbadge-done">
                       <i class="fas fa-clock"></i> {{ fmtTime(grupo.duracaoMinutos) }}
@@ -997,7 +999,10 @@ onMounted(() => {
 /* ── Cards de lote (nova UI) ── */
 .production-groups { display: flex; flex-direction: column; gap: 12px; padding: 8px 0; }
 .production-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; margin: 0 12px; overflow: hidden; box-shadow: var(--shadow-sm); }
-.card-agendado { border-color:var(--gold); background:var(--gold-bg); }
+/* Agendado: o card continua branco como os demais (o cabeçalho e os itens já são brancos);
+   o estado aparece na borda dourada + faixa lateral, em vez de pintar metade do card. */
+.card-agendado { position: relative; border-color: var(--gold); }
+.card-agendado::before { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 4px; background: var(--gold); z-index: 2; pointer-events: none; }
 
 /* Cabeçalho do lote */
 .lote-hdr-row { display:flex; align-items:center; width:100%; }
@@ -1023,6 +1028,8 @@ onMounted(() => {
 .lbadge { max-width: 100%; white-space: nowrap; font-size: .74rem; font-weight: 700; padding: 3px 9px; border-radius: var(--r-full); border: 1px solid transparent; display: inline-flex; align-items: center; gap: 4px; }
 .lbadge-done      { background:var(--blue-bg); border-color:var(--blue-dim); color:var(--blue); }
 .lbadge-running   { background:var(--blue-bg); border-color:var(--blue-dim); color:var(--blue); }
+.lbadge-paused    { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); }
+.lbadge-tempo     { font-family:var(--mono); font-weight:800; font-variant-numeric:tabular-nums; }
 .lbadge-scheduled { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); }
 .lbadge-warning   { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-dark); cursor:help; }
 .lbadge-est       { background:var(--cream); border-color:var(--border); color:var(--muted); }
@@ -1305,7 +1312,7 @@ onMounted(() => {
 
 /* Números do lote no celular (no computador já existem as colunas) */
 .pd-lote-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 0 14px 12px; cursor: pointer; }
-.pd-lote-nums span { display: flex; flex-direction: column; gap: 1px; padding: 7px 8px; background: var(--bg); border-radius: 10px; min-width: 0; }
+.pd-lote-nums span { display: flex; flex-direction: column; gap: 1px; padding: 7px 8px; background: var(--cream); border-radius: 10px; min-width: 0; }
 .pd-lote-nums small { font-size: .7rem; font-weight: 700; color: var(--muted); }
 .pd-lote-nums b { font-family: var(--mono); font-size: .8rem; font-weight: 800; color: var(--brown-dark); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pd-lote-nums b.c-red { color: var(--red); }

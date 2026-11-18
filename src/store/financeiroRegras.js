@@ -90,6 +90,7 @@ export function criarRegrasFinanceiras({ contasFinanceiras }) {
     { nome: 'Manutenção e Reparos',    natureza: 'operacional', grupo: 'Negócio', icon: 'fa-screwdriver-wrench' },
     { nome: 'Serviços e Assinaturas',  natureza: 'operacional', grupo: 'Negócio', icon: 'fa-rectangle-list' },
     { nome: 'Outras Despesas',         natureza: 'operacional', grupo: 'Negócio', icon: 'fa-receipt' },
+    { nome: 'A classificar',           natureza: 'operacional', grupo: 'Negócio', icon: 'fa-circle-question' },
 
     // ── PESSOAL ───────────────────────────────────────────────
     { nome: 'Renda Pessoal',           natureza: 'pessoal', grupo: 'Pessoal', icon: 'fa-hand-holding-dollar' },
@@ -306,7 +307,9 @@ export function criarRegrasFinanceiras({ contasFinanceiras }) {
     return atualizados
   }
 
-  function classificarLancamentoFinanceiro({ tipo, descricao, valor, banco, conta = null }) {
+  // `novo`: true só na importação/criação de um lançamento. Reclassificações do histórico passam false
+  // e mantêm o comportamento antigo, para não mudar números de meses já fechados.
+  function classificarLancamentoFinanceiro({ tipo, descricao, valor, banco, conta = null, novo = false }) {
     const tipoNorm = normalizarTipoFinanceiro(tipo)
     const descNorm = normalizarTextoFinanceiro(descricao)
     const valorNum = Number(valor || 0)
@@ -507,6 +510,10 @@ export function criarRegrasFinanceiras({ contasFinanceiras }) {
       (tipoNorm.includes('pix enviado') || tipoNorm.includes('ted')) &&
       (contaEmpresarial || banco === 'pagbank') && valorNum < 0
     ) {
+      // Destinatário desconhecido: pode ser fornecedor (despesa) ou retirada. Em lançamentos NOVOS não
+      // assumimos retirada: fica "A classificar" (conta como despesa até você revisar). Ao reclassificar
+      // uma vez, o app aprende a descrição e acerta as próximas.
+      if (novo) return { categoria: 'A classificar', natureza: 'operacional' }
       return { categoria: 'Pró-labore / Retirada', natureza: 'pessoal' }
     }
 
@@ -574,7 +581,7 @@ export function criarRegrasFinanceiras({ contasFinanceiras }) {
     const regraDescricao = regrasDescricaoFinanceiro.value[normalizar(descricao_original)]
     const descricao = regraDescricao || descricao_original
     const banco = conta?.banco || normalizar(dados.banco || 'pagbank')
-    const classificacao = classificarLancamentoFinanceiro({ tipo, descricao: descricao_original, valor, banco, conta })
+    const classificacao = classificarLancamentoFinanceiro({ tipo, descricao: descricao_original, valor, banco, conta, novo: true })
     const mes_ref = dados.mes_ref || getMesRef(data)
     const hash_duplicidade = dados.hash_duplicidade || getHashDuplicidadeFinanceiro({ data, valor, tipo, descricao: descricao_original, banco })
 
