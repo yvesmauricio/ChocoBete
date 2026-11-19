@@ -681,6 +681,17 @@ export async function salvarOpcoesCategoria(opcoes) {
   await db.config.put({ chave: CHAVE_OPCOES_CATEGORIA, valor: JSON.parse(JSON.stringify(opcoes)) })
 }
 
+const CHAVE_MODO_LANCAMENTO = 'cad_modo_lancamento'
+
+export async function getModoLancamentoCaderneta() {
+  const row = await db.config.get(CHAVE_MODO_LANCAMENTO).catch(() => null)
+  return row?.valor === 'produtos' ? 'produtos' : 'categorias'
+}
+
+export async function salvarModoLancamentoCaderneta(modo) {
+  await db.config.put({ chave: CHAVE_MODO_LANCAMENTO, valor: modo === 'produtos' ? 'produtos' : 'categorias' })
+}
+
 // ── RESUMO ITENS ─────────────────────────────────────────────
 export function resumoItens(itens) {
   if (!itens?.length) return ''

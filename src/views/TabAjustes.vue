@@ -571,6 +571,39 @@
           </article>
         </div>
 
+        <div v-if="aparelho?.papel === 'vendedor'" class="aj-grupo">
+          <div class="aj-grupo-cab">
+            <h4 class="aj-grupo-titulo">Lançamento de vendas</h4>
+            <p class="aj-grupo-desc">Escolha como os itens aparecem na Nova Venda da Caderneta.</p>
+          </div>
+          <div class="aj-card" role="radiogroup" aria-label="Modo de lançamento de vendas">
+            <button
+              class="aj-opcao" :class="{ 'is-ativa': modoLancamentoCaderneta === 'categorias' }"
+              role="radio" :aria-checked="modoLancamentoCaderneta === 'categorias'"
+              @click="alterarModoLancamentoCaderneta('categorias')"
+            >
+              <div class="aj-tile"><i class="fas fa-layer-group"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-titulo">Categorias resumidas</div>
+                <div class="aj-row-sub">Mantém a lista atual da Caderneta, com atalhos por categoria e opções personalizadas.</div>
+              </div>
+              <span class="aj-radio" aria-hidden="true"></span>
+            </button>
+            <button
+              class="aj-opcao" :class="{ 'is-ativa': modoLancamentoCaderneta === 'produtos' }"
+              role="radio" :aria-checked="modoLancamentoCaderneta === 'produtos'"
+              @click="alterarModoLancamentoCaderneta('produtos')"
+            >
+              <div class="aj-tile"><i class="fas fa-cookie-bite"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-titulo">Produtos por categoria</div>
+                <div class="aj-row-sub">Mostra os produtos ativos no Dia a dia ou em Festas, agrupados por categoria. Se estiverem nos dois, usa o preço do Dia a dia.</div>
+              </div>
+              <span class="aj-radio" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Versão e atualização</h4>
@@ -849,7 +882,9 @@ import { normalizarInstagram } from '../services/contatoService.js'
 import { TIPOS_CHAVE_PIX, normalizarChavePix, mascararChavePix } from '../services/pixService.js'
 import { 
   getTaxas, 
-  salvarTaxas 
+  salvarTaxas,
+  getModoLancamentoCaderneta,
+  salvarModoLancamentoCaderneta
 } from '../composables/useCaderneta.js'
 import { carregarConfigPublicacao, salvarConfigPublicacao } from '../services/githubPublish.js'
 import { carregarConfigD1, salvarConfigD1, testarConexaoD1, despublicarCardapioD1, d1Configurado } from '../services/d1Publish.js'
@@ -864,6 +899,13 @@ import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
 
 const s = useStore()
 const confirmar = useAppConfirm()
+const modoLancamentoCaderneta = ref('categorias')
+getModoLancamentoCaderneta().then(modo => { modoLancamentoCaderneta.value = modo })
+async function alterarModoLancamentoCaderneta(modo) {
+  modoLancamentoCaderneta.value = modo
+  await salvarModoLancamentoCaderneta(modo)
+  await s.syncImediato()
+}
 
 // ── Este aparelho / PIN do Admin ──
 const editandoAparelho = ref(false)

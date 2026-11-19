@@ -296,7 +296,7 @@
 
     <!-- ══ TELA: NOVA VENDA ════════════════════════════════════
          Tudo numa tela só: data da compra, categorias (Trufa, Cone, Barra,
-         Bolo, Torta, Brownie), data combinada de pagamento e total ao vivo. -->
+         Bolo, Brownie), data combinada de pagamento e total ao vivo. -->
     <div v-else-if="tela === 'lancar'" class="cad-tela">
       <div class="cad-spiral">
         <span v-for="n in 12" :key="n"></span>
@@ -314,6 +314,15 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Filtros do modo completo: ficam FIXOS aqui (fora da área que rola); só a lista abaixo se move -->
+      <div v-if="modoLancamentoCaderneta === 'produtos' && gruposProdutosVenda.length" class="cad-nv-filtros" role="group" aria-label="Filtrar produtos por categoria">
+        <button type="button" class="chip" :class="{ ativo: categoriaProdutoSelecionada === '' }" :aria-pressed="categoriaProdutoSelecionada === ''" @click="categoriaProdutoSelecionada = ''">Todos</button>
+        <button v-for="grupo in gruposProdutosVenda" :key="grupo.categoria" type="button" class="chip"
+          :class="{ ativo: categoriaProdutoSelecionada === grupo.categoria }"
+          :aria-pressed="categoriaProdutoSelecionada === grupo.categoria"
+          @click="categoriaProdutoSelecionada = grupo.categoria">{{ grupo.categoria }}</button>
       </div>
 
       <div class="cad-lancar-body cad-nv-body">
@@ -344,79 +353,119 @@
 
         <!-- 2 · O que levou -->
         <div class="cad-nv-bloco">
-          <div class="cad-nv-label">
+          <div v-if="modoLancamentoCaderneta === 'produtos'" class="cad-nv-label">
+            <span class="cad-nv-num">2</span> O que levou?
+            <span v-if="produtosSelecionados.length" class="cad-nv-sel-resumo">{{ produtosSelecionados.length }} {{ produtosSelecionados.length === 1 ? 'produto' : 'produtos' }} · {{ totalUnidadesProdutosSelecionados }} un.</span>
+          </div>
+          <div v-else class="cad-nv-label">
             <span class="cad-nv-num">2</span> O que levou?
             <button type="button" class="cad-nv-precos-btn" @click="abrirModalPrecos()">
               <i class="fas fa-tag"></i> Preços
             </button>
           </div>
 
-          <div class="cad-nv-cats">
-            <template v-for="c in categoriasVenda.filter(c => !categoriasOcultas.includes(c.id))" :key="c.id">
-            <div
-              class="cad-nv-cat" :class="{ ativo: qtds[c.id] > 0 }"
-            >
-              <div class="cad-nv-cat-emoji">{{ c.emoji }}</div>
-              <div class="cad-nv-cat-info">
-                <div class="cad-nv-cat-nome">{{ c.nome }}</div>
-                <template v-if="c.preco > 0">
-                  <div class="cad-nv-cat-preco">
-                    <template v-if="qtds[c.id] > 0">{{ qtds[c.id] }} × R$ {{ fmt(c.preco) }}</template>
-                    <template v-else>R$ {{ fmt(c.preco) }} cada</template>
-                  </div>
-                  <div v-if="qtds[c.id] > 0" class="cad-nv-cat-subtotal">= R$ {{ fmt(qtds[c.id] * c.preco) }}</div>
-                </template>
-                <button v-else type="button" class="cad-nv-cat-defpreco" @click="abrirModalPrecos(c.id)">
-                  <i class="fas fa-circle-exclamation"></i> Definir preço
-                </button>
-              </div>
-              <div class="cad-stepper cad-stepper--linha">
-                <button class="cad-stepper-btn" :disabled="!qtds[c.id]" @click="dec(c)" :aria-label="`Remover ${c.nome}`">−</button>
-                <div class="cad-stepper-qty">{{ qtds[c.id] || 0 }}</div>
-                <button class="cad-stepper-btn" @click="inc(c)" :aria-label="`Adicionar ${c.nome}`">+</button>
-              </div>
-            </div>
+          <div v-if="modoLancamentoCaderneta === 'categorias'" class="cad-nv-cats">
+            <div v-for="c in categoriasVenda.filter(c => !categoriasOcultas.includes(c.id))" :key="c.id"
+              class="cad-nv-card" :class="{ ativo: qtdCategoria(c) > 0 }">
 
-            <!-- Mesma categoria vendida por outro preço: cada valor vira uma linha -->
-            <div v-for="l in extrasDa(c.id)" :key="l.id" class="cad-nv-cat cad-nv-cat--extra" :class="{ ativo: qtds[l.id] > 0 }">
-              <div class="cad-nv-cat-info">
-                <div class="cad-nv-cat-nome">{{ l.emoji }} {{ l.descricao || l.nome }} a R$ {{ fmt(l.preco) }}</div>
-                <div class="cad-nv-cat-subtotal">{{ qtds[l.id] }} × R$ {{ fmt(l.preco) }} = R$ {{ fmt(qtds[l.id] * l.preco) }}</div>
-              </div>
-              <div class="cad-stepper cad-stepper--linha">
-                <button class="cad-stepper-btn" @click="decExtra(l)" :aria-label="`Remover ${l.nome} a ${fmt(l.preco)}`">−</button>
-                <div class="cad-stepper-qty">{{ qtds[l.id] || 0 }}</div>
-                <button class="cad-stepper-btn" @click="incExtra(l)" :aria-label="`Adicionar ${l.nome} a ${fmt(l.preco)}`">+</button>
-              </div>
-            </div>
-
-            <button v-if="c.preco > 0" type="button" class="cad-nv-outro-btn" @click="abrirExtra(c)">
-              <i class="fas" :class="extraAberto === c.id ? 'fa-chevron-up' : 'fa-plus'"></i>
-              {{ c.nome }} por outro valor
-            </button>
-            <div v-if="extraAberto === c.id" class="cad-nv-outro-painel">
-              <div v-if="atalhosExtras(c.id).length" class="cad-nv-outro-sub">Toque numa opção para somar 1:</div>
-              <div v-if="atalhosExtras(c.id).length" class="cad-chip-row" style="justify-content:flex-start">
-                <button v-for="atalho in atalhosExtras(c.id)" :key="idExtra(c.id, atalho.preco, atalho.nome)" type="button" class="chip" @click="adicionarExtra(c, atalho.preco, atalho.nome)">
-                  {{ atalho.nome ? `${atalho.nome} · ` : '' }}R$ {{ fmt(atalho.preco) }}
-                </button>
-              </div>
-              <div class="cad-nv-outro-sub">{{ c.nome }} por outro valor:</div>
-              <input type="text" class="input" style="min-width:0" placeholder="Descrição (opcional)" v-model="extraNomeDigitado">
-              <div class="cad-nv-outro-linha">
-                <div class="cad-nv-preco-campo">
-                  <span>R$</span>
-                  <input type="text" inputmode="numeric" placeholder="0,00" :value="extraDigitado"
-                    @input="extraDigitado = fmtMoedaCampoDigitos($event)"
-                    @keyup.enter="adicionarExtraDigitado(c)">
+              <!-- Linha principal: preço padrão (o da maioria dos produtos) -->
+              <div class="cad-nv-card-main">
+                <div class="cad-nv-cat-emoji">{{ c.emoji }}</div>
+                <div class="cad-nv-cat-info">
+                  <div class="cad-nv-cat-nome">{{ c.nome }}</div>
+                  <template v-if="c.preco > 0">
+                    <div class="cad-nv-cat-preco">
+                      <template v-if="qtds[c.id] > 0">{{ qtds[c.id] }} × R$ {{ fmt(c.preco) }} = <b class="cad-nv-cat-sub-inline">R$ {{ fmt(qtds[c.id] * c.preco) }}</b></template>
+                      <template v-else>R$ {{ fmt(c.preco) }} cada</template>
+                    </div>
+                  </template>
+                  <button v-else type="button" class="cad-nv-cat-defpreco" @click="abrirModalPrecos(c.id)">
+                    <i class="fas fa-circle-exclamation"></i> Definir preço
+                  </button>
                 </div>
-                <button type="button" class="cad-btn-primary cad-nv-outro-add" @click="adicionarExtraDigitado(c)">Adicionar</button>
+                <div class="cad-stepper cad-stepper--linha">
+                  <button class="cad-stepper-btn" :disabled="!qtds[c.id]" @click="dec(c)" :aria-label="`Remover ${c.nome}`">−</button>
+                  <div class="cad-stepper-qty">{{ qtds[c.id] || 0 }}</div>
+                  <button class="cad-stepper-btn" @click="inc(c)" :aria-label="`Adicionar ${c.nome}`">+</button>
+                </div>
               </div>
-              <label class="cad-nv-outro-guardar">
-                <input type="checkbox" v-model="extraGuardar"> Guardar este valor para a próxima vez
-              </label>
+
+              <!-- Variantes: sabores/produtos com preço diferente do padrão (vêm do Cardápio) + valores avulsos -->
+              <div v-for="l in extrasDa(c.id)" :key="l.id" class="cad-nv-var" :class="{ ativo: qtds[l.id] > 0 }">
+                <div class="cad-nv-var-info">
+                  <div class="cad-nv-var-nome">{{ l.descricao || 'Outro valor' }}</div>
+                  <div class="cad-nv-var-preco">
+                    <template v-if="qtds[l.id] > 0">{{ qtds[l.id] }} × R$ {{ fmt(l.preco) }} = <b>R$ {{ fmt(qtds[l.id] * l.preco) }}</b></template>
+                    <template v-else>R$ {{ fmt(l.preco) }}</template>
+                  </div>
+                </div>
+                <div class="cad-stepper cad-stepper--mini">
+                  <button class="cad-stepper-btn" :disabled="!qtds[l.id]" @click="decExtra(l)" :aria-label="`Remover ${l.descricao || l.nome} a ${fmt(l.preco)}`">−</button>
+                  <div class="cad-stepper-qty">{{ qtds[l.id] || 0 }}</div>
+                  <button class="cad-stepper-btn" @click="incExtra(l)" :aria-label="`Adicionar ${l.descricao || l.nome} a ${fmt(l.preco)}`">+</button>
+                </div>
+              </div>
+
+              <!-- Rodapé do cartão: total da categoria + "outro valor" -->
+              <div v-if="c.preco > 0" class="cad-nv-card-rodape">
+                <button type="button" class="cad-nv-outro-btn" @click="abrirExtra(c)">
+                  <i class="fas" :class="extraAberto === c.id ? 'fa-chevron-up' : 'fa-plus'"></i> Outro valor
+                </button>
+                <span v-if="qtdCategoria(c) > 0 && extrasDa(c.id).length" class="cad-nv-card-total">{{ qtdCategoria(c) }} un. · R$ {{ fmt(subtotalCategoria(c)) }}</span>
+              </div>
+              <div v-if="extraAberto === c.id" class="cad-nv-outro-painel">
+                <div v-if="atalhosExtras(c.id).length" class="cad-nv-outro-sub">Toque numa opção para somar 1:</div>
+                <div v-if="atalhosExtras(c.id).length" class="cad-chip-row" style="justify-content:flex-start">
+                  <button v-for="atalho in atalhosExtras(c.id)" :key="idExtra(c.id, atalho.preco, atalho.nome)" type="button" class="chip" @click="adicionarExtra(c, atalho.preco, atalho.nome)">
+                    {{ atalho.nome ? `${atalho.nome} · ` : '' }}R$ {{ fmt(atalho.preco) }}
+                  </button>
+                </div>
+                <div class="cad-nv-outro-sub">{{ c.nome }} por outro valor:</div>
+                <input type="text" class="input" style="min-width:0" placeholder="Descrição (opcional)" v-model="extraNomeDigitado">
+                <div class="cad-nv-outro-linha">
+                  <div class="cad-nv-preco-campo">
+                    <span>R$</span>
+                    <input type="text" inputmode="numeric" placeholder="0,00" :value="extraDigitado"
+                      @input="extraDigitado = fmtMoedaCampoDigitos($event)"
+                      @keyup.enter="adicionarExtraDigitado(c)">
+                  </div>
+                  <button type="button" class="cad-btn-primary cad-nv-outro-add" @click="adicionarExtraDigitado(c)">Adicionar</button>
+                </div>
+                <label class="cad-nv-outro-guardar">
+                  <input type="checkbox" v-model="extraGuardar"> Guardar este valor para a próxima vez
+                </label>
+              </div>
             </div>
-            </template>
+          </div>
+          <div v-else class="cad-nv-cats">
+            <p v-if="!gruposProdutosVenda.length" class="hint">Nenhum produto cadastrado para lançar.</p>
+            <div v-for="grupo in gruposProdutosFiltrados" :key="grupo.categoria" class="cad-prod-categoria">
+              <div class="cad-prod-categoria-titulo">{{ grupo.categoria }}</div>
+              <div class="cad-nv-cats">
+                <div v-for="p in grupo.produtos" :key="p.id" class="cad-nv-cat" :class="{ ativo: qtdProdutos[p.id] > 0 }">
+                  <div class="cad-nv-cat-emoji">
+                    <img v-if="p.foto" :src="p.foto" :alt="''">
+                    <template v-else>{{ p.emoji || '📦' }}</template>
+                  </div>
+                  <div class="cad-nv-cat-info">
+                    <div class="cad-nv-cat-nome cad-nv-cat-nome--produto" :title="p.nome">{{ p.nome }}</div>
+                    <template v-if="p.preco > 0">
+                      <div class="cad-nv-cat-preco">
+                        <template v-if="qtdProdutos[p.id] > 0">{{ qtdProdutos[p.id] }} × R$ {{ fmt(p.preco) }}</template>
+                        <template v-else>R$ {{ fmt(p.preco) }} cada</template>
+                      </div>
+                      <div v-if="qtdProdutos[p.id] > 0" class="cad-nv-cat-subtotal">= R$ {{ fmt(qtdProdutos[p.id] * p.preco) }}</div>
+                    </template>
+                    <div v-else class="cad-nv-cat-defpreco">Preço não cadastrado</div>
+                  </div>
+                  <div class="cad-stepper cad-stepper--linha">
+                    <button class="cad-stepper-btn" :disabled="!qtdProdutos[p.id]" @click="decProduto(p)" :aria-label="`Remover ${p.nome}`">−</button>
+                    <div class="cad-stepper-qty">{{ qtdProdutos[p.id] || 0 }}</div>
+                    <button class="cad-stepper-btn" :disabled="!(p.preco > 0)" @click="incProduto(p)" :aria-label="`Adicionar ${p.nome}`">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <DescontoCampo v-model:valor="descontoRaw" v-model:motivo="descontoMotivo" />
@@ -845,7 +894,7 @@
       <div v-if="modalPrecos" class="cad-modal-overlay cad-modal-overlay--top" @click.self="modalPrecos=false">
         <div class="cad-modal-sheet">
           <div class="cad-modal-header"><div class="cad-modal-titulo"><i class="fas fa-tag"></i> Categorias e preços</div><button class="cad-btn-fechar" @click="modalPrecos=false"><i class="fas fa-xmark"></i></button></div>
-          <p class="cad-nv-precos-dica">O preço de cima é o padrão e vale pra todos os sabores. Se você também vende a categoria por outros valores, cadastre embaixo — eles viram atalhos na hora de lançar a venda.</p>
+          <p class="cad-nv-precos-dica">O preço de cima é o padrão e vale pra todos os sabores. Produtos do Cardápio com preço diferente do padrão (ex.: um sabor mais caro) já aparecem sozinhos dentro da categoria. Aqui você cadastra outros valores que quiser ter como atalho.</p>
           <div v-for="c in categoriasVenda" :key="c.id" class="cad-nv-preco-bloco">
             <label class="cad-nv-extras-rot"><input v-model="categoriasOcultas" type="checkbox" :value="c.id"> Ocultar {{ c.nome }} na nova venda</label>
             <div class="cad-nv-preco-linha">
@@ -1707,6 +1756,7 @@ import {
   getStats,
   getTaxas, salvarTaxas,
   getPrecosCategorias, salvarPrecosCategorias, getCategoriasOcultas, salvarCategoriasOcultas, getPrecosExtras, salvarPrecosExtras, getOpcoesCategoria, salvarOpcoesCategoria,
+  getModoLancamentoCaderneta,
   aplicarPagamento, receberParcialCliente, estornarPagamento,
   fmt, fmtBR, fmtHora, iniciais, normalizar, resumoItens,
   hoje, horaAtual
@@ -2512,15 +2562,47 @@ const CATEGORIAS_VENDA = [
   { id: 'cat-cone',    nome: 'Cone',    emoji: '🍦', casa: /cone/i },
   { id: 'cat-barra',   nome: 'Barra',   emoji: '🍫', casa: /barra/i },
   { id: 'cat-bolo',    nome: 'Bolo',    emoji: '🍰', casa: /bolo/i },
-  { id: 'cat-torta',   nome: 'Torta',   emoji: '🥧', casa: /torta/i },
   { id: 'cat-brownie', nome: 'Brownie', emoji: '🟫', casa: /brownie/i },
   { id: 'cat-presentes', nome: 'Presentes', emoji: '🎁', casa: /presentes?|kits?|cestas?|lembrancinhas?/i },
 ]
+const chaveCategoriaFiltro = (nome) => String(nome || '').trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+// "Família" da categoria: Barra, Barras, Barrinha e Barrinhas são a mesma coisa; Trufa/Trufas também.
+// Os dois modos (resumido e completo) usam esta mesma chave, então nunca divergem.
+const familiaCategoria = (nome) => {
+  const k = chaveCategoriaFiltro(nome) || 'geral'
+  if (/^barrinhas?$/.test(k)) return 'barra'
+  return k.length > 3 ? k.replace(/s$/, '') : k
+}
+const CATEGORIAS_FILTRO_PREFERIDAS = ['Trufa', 'Barra', 'Cone', 'Bolo', 'Brownie', 'Presentes', 'Festa']
+const prioridadeCategoriaFiltro = new Map(CATEGORIAS_FILTRO_PREFERIDAS.map((nome, idx) => [familiaCategoria(nome), idx]))
+const prioridadeCategoria = (nome) => prioridadeCategoriaFiltro.get(familiaCategoria(nome)) ?? CATEGORIAS_FILTRO_PREFERIDAS.length
+
+// Padroniza o nome da categoria dos produtos: cada família usa UM nome só — o que mais aparece
+// no Cardápio (ex.: se o Cardápio diz "Barra", Barrinha/Barras viram "Barra").
+function padronizarCategoriasProdutos(lista) {
+  const contagem = new Map() // família -> Map(nome original -> quantidade)
+  for (const p of lista) {
+    const nome = String(p.categoria || '').trim() || 'Geral'
+    const fam = familiaCategoria(nome)
+    if (!contagem.has(fam)) contagem.set(fam, new Map())
+    const nomes = contagem.get(fam)
+    nomes.set(nome, (nomes.get(nome) || 0) + 1)
+  }
+  const rotulo = new Map()
+  for (const [fam, nomes] of contagem) {
+    rotulo.set(fam, [...nomes.entries()].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length)[0][0])
+  }
+  return lista.map(p => ({ ...p, categoria: rotulo.get(familiaCategoria(p.categoria)) }))
+}
 
 const clienteAtual  = ref(null)
 const categoriasVenda = ref(CATEGORIAS_VENDA.map(c => ({ id: c.id, nome: c.nome, emoji: c.emoji, preco: 0 })))
 const categoriasOcultas = ref([])
+const modoLancamentoCaderneta = ref('categorias')
+const produtosVenda = ref([])
+const categoriaProdutoSelecionada = ref('')
 const qtds          = reactive({})
+const qtdProdutos   = reactive({})
 // Outros valores: linhas extras de uma categoria vendida por outro preço (ex.: Trufa a R$ 8,00).
 // Cada linha tem id próprio (cat-trufa@800) e guarda o preço dela.
 const linhasExtras  = ref([])
@@ -2539,7 +2621,41 @@ const idExtra = (catId, preco, nome = '') => {
   return `${catId}@${cents}@${slug}-${hash}`
 }
 const nomeExtra = (nome, preco, descricao = '') => descricao ? `${nome} — ${descricao}` : `${nome} (R$ ${fmt(preco)})`
-const extrasDa  = (catId) => linhasExtras.value.filter(l => l.catId === catId)
+// Variantes automáticas: produtos do Cardápio cujo preço é diferente do padrão da categoria
+// (ex.: Trufa padrão R$ 7,00 e "Meio Amargo" R$ 9,00). Saem sozinhas do Cardápio/receitas.
+const itensPorCategoria = ref({}) // catId -> [{ nome, preco }]
+function nomeVariante(nomeProduto, nomeCategoria) {
+  const partes = String(nomeProduto || '').trim().split(/\s+/).filter(Boolean)
+  if (partes.length > 1 && familiaCategoria(partes[0]) === familiaCategoria(nomeCategoria)) partes.shift()
+  if (partes.length > 1 && /^(de|do|da|dos|das)$/i.test(partes[0])) partes.shift()
+  return partes.join(' ') || String(nomeProduto || '')
+}
+const variantesAuto = computed(() => {
+  const linhas = []
+  for (const c of categoriasVenda.value) {
+    if (!(c.preco > 0)) continue
+    const vistos = new Set()
+    for (const it of itensPorCategoria.value[c.id] || []) {
+      const preco = centavos(Number(it.preco) || 0)
+      if (!(preco > 0) || Math.abs(preco - c.preco) < 0.005) continue
+      const descricao = nomeVariante(it.nome, c.nome)
+      const id = idExtra(c.id, preco, descricao)
+      if (vistos.has(id)) continue
+      vistos.add(id)
+      linhas.push({ id, catId: c.id, nome: c.nome, descricao, emoji: c.emoji, preco, auto: true })
+    }
+  }
+  return linhas.sort((a, b) => a.preco - b.preco || a.descricao.localeCompare(b.descricao, 'pt-BR'))
+})
+// Variantes automáticas + valores avulsos digitados nesta venda (sem repetir)
+const todasLinhasExtras = computed(() => {
+  const auto = variantesAuto.value
+  const ids = new Set(auto.map(l => l.id))
+  return [...auto, ...linhasExtras.value.filter(l => !ids.has(l.id))]
+})
+const extrasDa  = (catId) => todasLinhasExtras.value.filter(l => l.catId === catId)
+const qtdCategoria = (c) => (qtds[c.id] || 0) + extrasDa(c.id).reduce((n, l) => n + (qtds[l.id] || 0), 0)
+const subtotalCategoria = (c) => centavos((qtds[c.id] || 0) * c.preco + extrasDa(c.id).reduce((n, l) => n + (qtds[l.id] || 0) * l.preco, 0))
 const atalhosExtras = (catId) => (extrasSalvos.value[catId] || []).map(item =>
   ({ preco: Number(item), nome: '' })
 ).concat((opcoesNomeadasSalvas.value[catId] || []).map(item => ({ preco: Number(item.preco || 0), nome: String(item.nome || '') })))
@@ -2620,28 +2736,49 @@ function fmtMoedaCampoDigitos(e) {
 
 const brutoLancar = computed(() =>
   centavos(
-    categoriasVenda.value.reduce((soma, c) => soma + (qtds[c.id] || 0) * c.preco, 0) +
-    linhasExtras.value.reduce((soma, l) => soma + (qtds[l.id] || 0) * l.preco, 0)
+    modoLancamentoCaderneta.value === 'produtos'
+      ? produtosVenda.value.reduce((soma, p) => soma + (qtdProdutos[p.id] || 0) * p.preco, 0)
+      : categoriasVenda.value.reduce((soma, c) => soma + (qtds[c.id] || 0) * c.preco, 0) +
+        todasLinhasExtras.value.reduce((soma, l) => soma + (qtds[l.id] || 0) * l.preco, 0)
   )
+)
+const gruposProdutosVenda = computed(() => {
+  const grupos = new Map()
+  for (const p of produtosVenda.value) {
+    const categoria = p.categoria || 'Geral'
+    if (!grupos.has(categoria)) grupos.set(categoria, [])
+    grupos.get(categoria).push(p)
+  }
+  return [...grupos.entries()]
+    .sort(([a], [b]) => prioridadeCategoria(a) - prioridadeCategoria(b) || a.localeCompare(b, 'pt-BR'))
+    .map(([categoria, produtos]) => ({ categoria, produtos }))
+})
+const gruposProdutosFiltrados = computed(() => categoriaProdutoSelecionada.value
+  ? gruposProdutosVenda.value.filter(g => g.categoria === categoriaProdutoSelecionada.value)
+  : gruposProdutosVenda.value
+)
+const produtosSelecionados = computed(() => produtosVenda.value.filter(p => (qtdProdutos[p.id] || 0) > 0))
+const totalUnidadesProdutosSelecionados = computed(() =>
+  produtosSelecionados.value.reduce((total, p) => total + qtdProdutos[p.id], 0)
 )
 const descontoLancar = computed(() => Math.min(centavos(moedaParaNumero(descontoRaw.value)), brutoLancar.value))
 const totalLancar = computed(() => centavos(brutoLancar.value - descontoLancar.value))
 
 // Sugestão de preço pra quem ainda não definiu: o preço mais comum entre os
 // itens do Cardápio "Dia a dia" cuja categoria ou nome combine com a categoria.
-async function carregarProdutosDoCardapio({ apenasAtivos = true } = {}) {
-  const config = await carregarConfigCardapio('diaadia')
+async function carregarProdutosDoCardapio({ apenasAtivos = true, cardapioId = 'diaadia' } = {}) {
+  const config = await carregarConfigCardapio(cardapioId)
   const itens = montarItensCardapio(s.receitas, config, { apenasAtivos })
   return itens.map(i => ({
     id: i.uuid, nome: i.nome, categoria: i.categoria || 'Geral',
-    preco: i.preco, emoji: i.emoji, foto: i.foto,
+    preco: i.preco, emoji: i.emoji, foto: i.foto, ativo: i.ativo,
   }))
 }
 
 function precoMaisComum(lista) {
   const cont = new Map()
   for (const p of lista) {
-    const v = Number(p.preco || 0)
+    const v = centavos(Number(p.preco || 0))
     if (v > 0) cont.set(v, (cont.get(v) || 0) + 1)
   }
   let melhor = 0, max = 0
@@ -2650,6 +2787,7 @@ function precoMaisComum(lista) {
 }
 
 async function carregarCategoriasVenda() {
+  try { modoLancamentoCaderneta.value = await getModoLancamentoCaderneta() } catch { modoLancamentoCaderneta.value = 'categorias' }
   const salvos = await getPrecosCategorias()
   try { categoriasOcultas.value = await getCategoriasOcultas() } catch { categoriasOcultas.value = [] }
   const precosExtrasSalvos = await getPrecosExtras().catch(() => ({}))
@@ -2685,38 +2823,66 @@ async function carregarCategoriasVenda() {
       console.error('Não foi possível concluir a migração dos atalhos nomeados; os dados antigos foram preservados.', err)
     }
   }
-  let itensCardapio = []
-  try { itensCardapio = await carregarProdutosDoCardapio({ apenasAtivos: false }) } catch { /* Categorias fixas continuam disponíveis sem o cardápio. */ }
-  const sugestoes = itensCardapio.filter(p => p.ativo)
-  const nomesPadrao = new Set(CATEGORIAS_VENDA.map(c => c.nome.toLocaleLowerCase('pt-BR')))
-  const categoriasCardapio = [...new Map(
-    itensCardapio
-      .map(p => ({ nome: String(p.categoria || '').trim(), emoji: p.emoji || '📦' }))
-      .filter(c => c.nome && !nomesPadrao.has(c.nome.toLocaleLowerCase('pt-BR')))
-      .map(c => [c.nome.toLocaleLowerCase('pt-BR'), c])
-  ).values()]
-  const dinamicas = categoriasCardapio.map(c => {
-    const base = c.nome.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    const slug = base.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'categoria'
-    const hash = [...base].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 0).toString(36)
-    return { id: `cat-extra-${slug}-${hash}`, nome: c.nome, emoji: c.emoji, categoriaCardapio: c.nome }
-  })
-  const definicoes = [...CATEGORIAS_VENDA, ...dinamicas]
+  let itensCardapio = [], itensFesta = []
+  try {
+    [itensCardapio, itensFesta] = await Promise.all([
+      carregarProdutosDoCardapio({ apenasAtivos: false, cardapioId: 'diaadia' }),
+      carregarProdutosDoCardapio({ apenasAtivos: false, cardapioId: 'festa' })
+    ])
+  } catch { /* Categorias fixas continuam disponíveis sem os cardápios. */ }
+  // Fonte única: só produtos ATIVOS no Cardápio (Dia a dia; Festa só entra se não estiver no Dia a dia).
+  // Tanto a lista completa quanto as categorias resumidas saem daqui.
+  const produtosAtivos = new Map()
+  itensCardapio.filter(p => p.ativo).forEach(p => produtosAtivos.set(p.id, p))
+  itensFesta.filter(p => p.ativo).forEach(p => { if (!produtosAtivos.has(p.id)) produtosAtivos.set(p.id, p) })
+  produtosVenda.value = padronizarCategoriasProdutos([...produtosAtivos.values()].map(p => ({
+    id: p.id, nome: p.nome, categoria: p.categoria || 'Geral', emoji: p.emoji || '📦', foto: p.foto, preco: Number(p.preco || 0)
+  })))
+  const trufas = gruposProdutosVenda.value.find(g => familiaCategoria(g.categoria) === 'trufa')
+  categoriaProdutoSelecionada.value = trufas?.categoria || gruposProdutosVenda.value[0]?.categoria || ''
+
+  const ativos = produtosVenda.value
+  const semCardapio = ativos.length === 0 // cardápio não carregou/está vazio: mantém as categorias fixas de sempre
+  const famFixas = new Set(CATEGORIAS_VENDA.map(c => familiaCategoria(c.nome)))
+  const rotuloDaFamilia = (fam) => ativos.find(p => familiaCategoria(p.categoria) === fam)?.categoria
+
+  const definicoes = []
+  for (const c of CATEGORIAS_VENDA) {
+    // Só a categoria do Cardápio define os itens (preço padrão e variantes). Nunca pelo NOME do produto:
+    // isso misturava categorias (trufas de Festa dentro de Trufa, "torta" dentro de Bolo).
+    const itens = ativos.filter(p => familiaCategoria(p.categoria) === familiaCategoria(c.nome))
+    if (semCardapio || itens.length) definicoes.push({ ...c, nome: rotuloDaFamilia(familiaCategoria(c.nome)) || c.nome, itens })
+  }
+  // Categorias do Cardápio que não são as fixas (uma por família, sem duplicar Barra/Barrinha)
+  const jaVistas = new Set(famFixas)
+  for (const p of ativos) {
+    const fam = familiaCategoria(p.categoria)
+    if (jaVistas.has(fam)) continue
+    jaVistas.add(fam)
+    const slug = fam.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'categoria'
+    const hash = [...fam].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 0).toString(36)
+    definicoes.push({
+      id: `cat-extra-${slug}-${hash}`, nome: p.categoria, emoji: p.emoji || '📦',
+      itens: ativos.filter(x => familiaCategoria(x.categoria) === fam),
+    })
+  }
+  definicoes.sort((a, b) => prioridadeCategoria(a.nome) - prioridadeCategoria(b.nome)) // estável: mesma ordem do modo completo
   const lista = []
+  const porCategoria = {}
   for (const c of definicoes) {
     let preco = Number(salvos[c.id] || 0)
-    if (!(preco > 0)) {
-      const itensCategoria = c.categoriaCardapio
-        ? sugestoes.filter(p => p.categoria.toLocaleLowerCase('pt-BR') === c.categoriaCardapio.toLocaleLowerCase('pt-BR'))
-        : sugestoes.filter(p => c.casa.test(p.categoria) || c.casa.test(p.nome))
-      preco = precoMaisComum(itensCategoria)
-    }
+    if (!(preco > 0)) preco = precoMaisComum(c.itens)
     lista.push({ id: c.id, nome: c.nome, emoji: c.emoji, preco })
+    porCategoria[c.id] = (c.itens || []).map(i => ({ nome: i.nome, preco: i.preco }))
   }
+  itensPorCategoria.value = porCategoria
   categoriasVenda.value = lista
 }
 
 async function iniciarLancar() {
+  Object.keys(qtds).forEach(id => { delete qtds[id] })
+  Object.keys(qtdProdutos).forEach(id => { delete qtdProdutos[id] })
+  categoriaProdutoSelecionada.value = ''
   CATEGORIAS_VENDA.forEach(c => { qtds[c.id] = 0 })
   linhasExtras.value.forEach(l => { delete qtds[l.id] })
   linhasExtras.value = []
@@ -2745,6 +2911,8 @@ function inc(c) {
   qtds[c.id] = (qtds[c.id] || 0) + 1
 }
 function dec(c) { if (qtds[c.id] > 0) qtds[c.id]-- }
+function incProduto(p) { if (p.preco > 0) qtdProdutos[p.id] = (qtdProdutos[p.id] || 0) + 1 }
+function decProduto(p) { if (qtdProdutos[p.id] > 0) qtdProdutos[p.id]-- }
 
 // ── Outros valores (mesma categoria, preço diferente) ──────
 function abrirExtra(c) {
@@ -2797,6 +2965,7 @@ async function guardarAtalhoExtra(catId, preco, nome = '') {
 }
 function incExtra(l) { qtds[l.id] = (qtds[l.id] || 0) + 1 }
 function decExtra(l) {
+  if (l.auto) { if ((qtds[l.id] || 0) > 0) qtds[l.id]--; return }
   if ((qtds[l.id] || 0) > 1) { qtds[l.id]--; return }
   // chegou a zero: a linha some (é só um valor avulso desta venda)
   delete qtds[l.id]
@@ -2915,14 +3084,18 @@ async function salvarFiado(ignorarRepetida = false) {
         f.dataVenda === dataVenda.value && Math.abs(Number(f.total) - totalLancar.value) < 0.005)
       if (igual) { avisoDuplicado.value = igual; return }
     }
-    // Cada categoria sai na ordem fixa; os outros valores dela vêm logo depois, do menor pro maior.
-    const itens = categoriasVenda.value.flatMap(c => {
-      const linhas = []
-      if (qtds[c.id] > 0) linhas.push({ id: c.id, nome: c.nome, emoji: c.emoji, qty: qtds[c.id], preco: c.preco, subtotal: centavos(qtds[c.id] * c.preco) })
-      extrasDa(c.id).filter(l => qtds[l.id] > 0).forEach(l =>
-        linhas.push({ id: l.id, nome: nomeExtra(l.nome, l.preco, l.descricao), emoji: l.emoji, qty: qtds[l.id], preco: l.preco, subtotal: centavos(qtds[l.id] * l.preco) }))
-      return linhas
-    })
+    // Preserva no fiado o identificador e a categoria de cada receita escolhida.
+    const itens = modoLancamentoCaderneta.value === 'produtos'
+      ? gruposProdutosVenda.value.flatMap(grupo => grupo.produtos
+        .filter(p => qtdProdutos[p.id] > 0)
+        .map(p => ({ id: p.id, nome: p.nome, categoria: p.categoria, emoji: p.emoji, qty: qtdProdutos[p.id], preco: p.preco, subtotal: centavos(qtdProdutos[p.id] * p.preco) })))
+      : categoriasVenda.value.flatMap(c => {
+        const linhas = []
+        if (qtds[c.id] > 0) linhas.push({ id: c.id, nome: c.nome, emoji: c.emoji, qty: qtds[c.id], preco: c.preco, subtotal: centavos(qtds[c.id] * c.preco) })
+        extrasDa(c.id).filter(l => qtds[l.id] > 0).forEach(l =>
+          linhas.push({ id: l.id, nome: nomeExtra(l.nome, l.preco, l.descricao), emoji: l.emoji, qty: qtds[l.id], preco: l.preco, subtotal: centavos(qtds[l.id] * l.preco) }))
+        return linhas
+      })
     // Nome da loja lido do cadastro na hora de gravar (nunca de uma cópia que pode estar velha).
     const nomeLojaVigente = (await getNomesLojas())[lojaAtual.value.id] || lojaAtual.value.nome
     const fiado = {
@@ -4392,6 +4565,13 @@ onMounted(async () => {
 .cad-prod-linha-nome { font-size: 14.5px; font-weight: 700; color: var(--text); }
 .cad-prod-linha-preco { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
 .cad-prod-linha-subtotal { color: var(--green); font-weight: 700; }
+.cad-nv-produto-nome { display: -webkit-box; min-height: 2.5em; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.cad-nv-produto-lista { gap: 6px; }
+.cad-nv-produto-linha { gap: 10px; padding: 10px 12px; min-height: 60px; }
+.cad-nv-produto-linha .cad-prod-linha-avatar { width: 40px; height: 40px; font-size: 20px; }
+.cad-nv-produto-info { display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.cad-nv-produto-info .cad-prod-linha-preco { margin-top: 0; line-height: 1.3; }
+.cad-nv-produto-linha .cad-stepper { margin-top: 0; }
 .cad-stepper--linha { flex-shrink: 0; }
 .cad-stepper--linha .cad-stepper-btn { width: 38px; height: 38px; font-size: 20px; }
 .cad-stepper--linha .cad-stepper-qty { min-width: 26px; font-size: 15px; }
@@ -5158,6 +5338,14 @@ onMounted(async () => {
 /* ══ NOVA VENDA — tela única simplificada ══ */
 .cad-nv-body { gap: 20px; }
 .cad-nv-bloco { display: flex; flex-direction: column; gap: 10px; }
+/* Filtros do modo completo: barra fixa entre o cabeçalho e a área que rola */
+.cad-nv-filtros {
+  flex-shrink: 0; display: flex; gap: 8px; overflow-x: auto; padding: 10px 14px;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch;
+}
+.cad-nv-filtros::-webkit-scrollbar { display: none; }
+.cad-nv-sel-resumo { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--green); font-family: var(--mono); }
 .cad-nv-label {
   display: flex; align-items: center; gap: 8px;
   font-size: 13px; font-weight: 800; color: var(--brown-dark);
@@ -5224,9 +5412,11 @@ onMounted(async () => {
 }
 .cad-nv-cat.ativo { border-color: var(--green); background: var(--green-bg); }
 .cad-nv-cat-emoji {
-  width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0;
+  width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0; overflow: hidden;
   background: var(--cream); display: flex; align-items: center; justify-content: center; font-size: 26px;
 }
+.cad-nv-cat-emoji img { width: 100%; height: 100%; object-fit: cover; }
+.cad-nv-cat-nome--produto { font-size: 16px; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .cad-nv-cat.ativo .cad-nv-cat-emoji { background: #fff; }
 .cad-nv-cat-info { flex: 1; min-width: 0; }
 .cad-nv-cat-nome { font-size: 17px; font-weight: 800; color: var(--brown-dark); }
@@ -5239,6 +5429,34 @@ onMounted(async () => {
 }
 .cad-nv-cat .cad-stepper-btn { width: 44px; height: 44px; font-size: 22px; }
 .cad-nv-cat .cad-stepper-qty { min-width: 30px; font-size: 18px; }
+
+
+/* Cartão de categoria (modo resumido): padrão + variantes + rodapé num bloco só */
+.cad-nv-card {
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--shadow); padding: 12px 12px 8px 14px; transition: border-color var(--t), background var(--t);
+}
+.cad-nv-card.ativo { border-color: var(--green); background: var(--green-bg); }
+.cad-nv-card.ativo .cad-nv-cat-emoji { background: #fff; }
+.cad-nv-card-main { display: flex; align-items: center; gap: 12px; }
+.cad-nv-card .cad-stepper-btn { width: 44px; height: 44px; font-size: 22px; }
+.cad-nv-card .cad-stepper-qty { min-width: 30px; font-size: 18px; }
+.cad-nv-cat-sub-inline { color: var(--green); font-weight: 800; }
+.cad-nv-var {
+  display: flex; align-items: center; gap: 10px; margin: 8px 0 0 58px; padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.cad-nv-var-info { flex: 1; min-width: 0; }
+.cad-nv-var-nome { font-size: 14.5px; font-weight: 800; color: var(--brown-dark); line-height: 1.25; overflow-wrap: anywhere; }
+.cad-nv-var-preco { font-size: 12.5px; color: var(--muted); font-family: var(--mono); margin-top: 1px; }
+.cad-nv-var-preco b { color: var(--green); font-weight: 800; }
+.cad-stepper--mini { flex-shrink: 0; }
+.cad-nv-card .cad-stepper--mini .cad-stepper-btn { width: 36px; height: 36px; font-size: 19px; }
+.cad-nv-card .cad-stepper--mini .cad-stepper-qty { min-width: 24px; font-size: 15px; }
+.cad-nv-card-rodape { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 0 58px; }
+.cad-nv-card-rodape .cad-nv-outro-btn { margin: 0; padding: 6px 0; font-size: 12.5px; color: var(--muted); }
+.cad-nv-card-total { font-size: 12.5px; font-weight: 800; color: var(--green); font-family: var(--mono); }
+.cad-nv-card .cad-nv-outro-painel { margin-top: 6px; }
 
 /* Outros valores (mesma categoria, outro preço) */
 .cad-nv-cat--extra { margin-left: 22px; padding: 10px 10px 10px 14px; border-style: dashed; }
