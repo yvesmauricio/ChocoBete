@@ -352,7 +352,7 @@
           </div>
 
           <div class="cad-nv-cats">
-            <template v-for="c in categoriasVenda" :key="c.id">
+            <template v-for="c in categoriasVenda.filter(c => !categoriasOcultas.includes(c.id))" :key="c.id">
             <div
               class="cad-nv-cat" :class="{ ativo: qtds[c.id] > 0 }"
             >
@@ -380,7 +380,7 @@
             <!-- Mesma categoria vendida por outro preço: cada valor vira uma linha -->
             <div v-for="l in extrasDa(c.id)" :key="l.id" class="cad-nv-cat cad-nv-cat--extra" :class="{ ativo: qtds[l.id] > 0 }">
               <div class="cad-nv-cat-info">
-                <div class="cad-nv-cat-nome">{{ l.emoji }} {{ l.nome }} a R$ {{ fmt(l.preco) }}</div>
+                <div class="cad-nv-cat-nome">{{ l.emoji }} {{ l.descricao || l.nome }} a R$ {{ fmt(l.preco) }}</div>
                 <div class="cad-nv-cat-subtotal">{{ qtds[l.id] }} × R$ {{ fmt(l.preco) }} = R$ {{ fmt(qtds[l.id] * l.preco) }}</div>
               </div>
               <div class="cad-stepper cad-stepper--linha">
@@ -395,11 +395,14 @@
               {{ c.nome }} por outro valor
             </button>
             <div v-if="extraAberto === c.id" class="cad-nv-outro-painel">
-              <div v-if="(extrasSalvos[c.id] || []).length" class="cad-nv-outro-sub">Toque no valor para somar 1:</div>
-              <div v-if="(extrasSalvos[c.id] || []).length" class="cad-chip-row" style="justify-content:flex-start">
-                <button v-for="v in extrasSalvos[c.id]" :key="v" type="button" class="chip" @click="adicionarExtra(c, v)">R$ {{ fmt(v) }}</button>
+              <div v-if="atalhosExtras(c.id).length" class="cad-nv-outro-sub">Toque numa opção para somar 1:</div>
+              <div v-if="atalhosExtras(c.id).length" class="cad-chip-row" style="justify-content:flex-start">
+                <button v-for="atalho in atalhosExtras(c.id)" :key="idExtra(c.id, atalho.preco, atalho.nome)" type="button" class="chip" @click="adicionarExtra(c, atalho.preco, atalho.nome)">
+                  {{ atalho.nome ? `${atalho.nome} · ` : '' }}R$ {{ fmt(atalho.preco) }}
+                </button>
               </div>
-              <div class="cad-nv-outro-sub">Ou digite outro valor:</div>
+              <div class="cad-nv-outro-sub">{{ c.nome }} por outro valor:</div>
+              <input type="text" class="input" style="min-width:0" placeholder="Descrição (opcional)" v-model="extraNomeDigitado">
               <div class="cad-nv-outro-linha">
                 <div class="cad-nv-preco-campo">
                   <span>R$</span>
@@ -841,9 +844,10 @@
       <!-- Modal Preços das categorias -->
       <div v-if="modalPrecos" class="cad-modal-overlay cad-modal-overlay--top" @click.self="modalPrecos=false">
         <div class="cad-modal-sheet">
-          <div class="cad-modal-header"><div class="cad-modal-titulo"><i class="fas fa-tag"></i> Preço de cada categoria</div><button class="cad-btn-fechar" @click="modalPrecos=false"><i class="fas fa-xmark"></i></button></div>
+          <div class="cad-modal-header"><div class="cad-modal-titulo"><i class="fas fa-tag"></i> Categorias e preços</div><button class="cad-btn-fechar" @click="modalPrecos=false"><i class="fas fa-xmark"></i></button></div>
           <p class="cad-nv-precos-dica">O preço de cima é o padrão e vale pra todos os sabores. Se você também vende a categoria por outros valores, cadastre embaixo — eles viram atalhos na hora de lançar a venda.</p>
           <div v-for="c in categoriasVenda" :key="c.id" class="cad-nv-preco-bloco">
+            <label class="cad-nv-extras-rot"><input v-model="categoriasOcultas" type="checkbox" :value="c.id"> Ocultar {{ c.nome }} na nova venda</label>
             <div class="cad-nv-preco-linha">
               <span class="cad-nv-preco-emoji">{{ c.emoji }}</span>
               <span class="cad-nv-preco-nome">{{ c.nome }}</span>
@@ -859,13 +863,14 @@
             </div>
             <div class="cad-nv-extras-linha">
               <span class="cad-nv-extras-rot">Outros valores:</span>
-              <button v-for="v in (extrasSalvos[c.id] || [])" :key="v" type="button" class="chip ativo cad-nv-extra-chip" @click="removerAtalhoExtra(c.id, v)" :title="`Tirar R$ ${fmt(v)}`">
-                R$ {{ fmt(v) }} <i class="fas fa-xmark"></i>
+              <button v-for="atalho in atalhosExtras(c.id)" :key="idExtra(c.id, atalho.preco, atalho.nome)" type="button" class="chip ativo cad-nv-extra-chip" @click="removerAtalhoExtra(c.id, atalho)" :title="`Tirar ${atalho.nome || 'R$ ' + fmt(atalho.preco)}`">
+                {{ atalho.nome ? `${atalho.nome} · ` : '' }}R$ {{ fmt(atalho.preco) }} <i class="fas fa-xmark"></i>
               </button>
-              <div class="cad-nv-extra-novo">
-                <input type="text" inputmode="numeric" placeholder="+ valor" :value="extraNovo[c.id]"
-                  @input="extraNovo[c.id] = fmtMoedaCampoDigitos($event)"
-                  @keyup.enter="adicionarAtalhoExtra(c)" @blur="adicionarAtalhoExtra(c)">
+              <div class="cad-nv-extra-novo" style="display:flex;gap:4px;flex-wrap:wrap">
+                <input type="text" style="width:150px;font-family:var(--font);text-align:left" placeholder="Ex.: Caixinha" v-model="extraNomeNovo[c.id]">
+                <input type="text" inputmode="numeric" placeholder="Preço" :value="extraNovo[c.id]"
+                  @input="extraNovo[c.id] = fmtMoedaCampoDigitos($event)" @keyup.enter="guardarAtalhoNomeado(c)">
+                <button type="button" class="cad-btn-primary" @click="guardarAtalhoNomeado(c)"><i class="fas fa-plus"></i></button>
               </div>
             </div>
           </div>
@@ -1701,7 +1706,7 @@ import {
   salvarFiado as dbSalvarFiado, atualizarFiado, excluirFiado as dbExcluirFiado,
   getStats,
   getTaxas, salvarTaxas,
-  getPrecosCategorias, salvarPrecosCategorias, getPrecosExtras, salvarPrecosExtras,
+  getPrecosCategorias, salvarPrecosCategorias, getCategoriasOcultas, salvarCategoriasOcultas, getPrecosExtras, salvarPrecosExtras, getOpcoesCategoria, salvarOpcoesCategoria,
   aplicarPagamento, receberParcialCliente, estornarPagamento,
   fmt, fmtBR, fmtHora, iniciais, normalizar, resumoItens,
   hoje, horaAtual
@@ -2501,7 +2506,7 @@ function escolherCliente(c) {
 }
 
 // ── Nova Venda ───────────────────────────────────────────
-// Seis categorias fixas, cada uma com preço único (vale pra todos os sabores).
+// Categorias fixas, cada uma com preço único (vale pra todos os sabores).
 const CATEGORIAS_VENDA = [
   { id: 'cat-trufa',   nome: 'Trufa',   emoji: '🟤', casa: /trufa/i },
   { id: 'cat-cone',    nome: 'Cone',    emoji: '🍦', casa: /cone/i },
@@ -2509,21 +2514,36 @@ const CATEGORIAS_VENDA = [
   { id: 'cat-bolo',    nome: 'Bolo',    emoji: '🍰', casa: /bolo/i },
   { id: 'cat-torta',   nome: 'Torta',   emoji: '🥧', casa: /torta/i },
   { id: 'cat-brownie', nome: 'Brownie', emoji: '🟫', casa: /brownie/i },
+  { id: 'cat-presentes', nome: 'Presentes', emoji: '🎁', casa: /presentes?|kits?|cestas?|lembrancinhas?/i },
 ]
 
 const clienteAtual  = ref(null)
 const categoriasVenda = ref(CATEGORIAS_VENDA.map(c => ({ id: c.id, nome: c.nome, emoji: c.emoji, preco: 0 })))
+const categoriasOcultas = ref([])
 const qtds          = reactive({})
 // Outros valores: linhas extras de uma categoria vendida por outro preço (ex.: Trufa a R$ 8,00).
 // Cada linha tem id próprio (cat-trufa@800) e guarda o preço dela.
 const linhasExtras  = ref([])
-const extrasSalvos  = ref({})      // { 'cat-trufa': [5, 8] } — atalhos guardados
+const extrasSalvos  = ref({})      // atalhos antigos por preço, mantidos como números
+const opcoesNomeadasSalvas = ref({}) // opções com descrição, em uma chave de backup separada
 const extraAberto   = ref(null)    // categoria com o painel "outro valor" aberto
 const extraDigitado = ref('')
+const extraNomeDigitado = ref('')
 const extraGuardar  = ref(true)
-const idExtra   = (catId, preco) => `${catId}@${Math.round(centavos(preco) * 100)}`
-const nomeExtra = (nome, preco) => `${nome} (R$ ${fmt(preco)})`
+const idExtra = (catId, preco, nome = '') => {
+  const cents = Math.round(centavos(preco) * 100)
+  if (!String(nome || '').trim()) return `${catId}@${cents}`
+  const base = String(nome).trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const slug = base.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item'
+  const hash = [...base].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 0).toString(36)
+  return `${catId}@${cents}@${slug}-${hash}`
+}
+const nomeExtra = (nome, preco, descricao = '') => descricao ? `${nome} — ${descricao}` : `${nome} (R$ ${fmt(preco)})`
 const extrasDa  = (catId) => linhasExtras.value.filter(l => l.catId === catId)
+const atalhosExtras = (catId) => (extrasSalvos.value[catId] || []).map(item =>
+  ({ preco: Number(item), nome: '' })
+).concat((opcoesNomeadasSalvas.value[catId] || []).map(item => ({ preco: Number(item.preco || 0), nome: String(item.nome || '') })))
+  .filter(item => item.preco > 0)
 const dataVenda     = ref(new Date().toLocaleDateString('sv'))
 const horaVenda     = ref(new Date().toTimeString().slice(0, 5))
 const dataVenc      = ref('')
@@ -2609,9 +2629,9 @@ const totalLancar = computed(() => centavos(brutoLancar.value - descontoLancar.v
 
 // Sugestão de preço pra quem ainda não definiu: o preço mais comum entre os
 // itens do Cardápio "Dia a dia" cuja categoria ou nome combine com a categoria.
-async function carregarProdutosDoCardapio() {
+async function carregarProdutosDoCardapio({ apenasAtivos = true } = {}) {
   const config = await carregarConfigCardapio('diaadia')
-  const itens = montarItensCardapio(s.receitas, config, { apenasAtivos: true })
+  const itens = montarItensCardapio(s.receitas, config, { apenasAtivos })
   return itens.map(i => ({
     id: i.uuid, nome: i.nome, categoria: i.categoria || 'Geral',
     preco: i.preco, emoji: i.emoji, foto: i.foto,
@@ -2631,20 +2651,69 @@ function precoMaisComum(lista) {
 
 async function carregarCategoriasVenda() {
   const salvos = await getPrecosCategorias()
-  let sugestoes = null
+  try { categoriasOcultas.value = await getCategoriasOcultas() } catch { categoriasOcultas.value = [] }
+  const precosExtrasSalvos = await getPrecosExtras().catch(() => ({}))
+  const opcoesSalvas = await getOpcoesCategoria().catch(() => ({}))
+  const precosExtras = {}
+  const opcoesMigradas = { ...opcoesSalvas }
+  let migrouAtalhoNomeado = false
+  for (const [catId, itens] of Object.entries(precosExtrasSalvos || {})) {
+    precosExtras[catId] = []
+    for (const item of Array.isArray(itens) ? itens : []) {
+      if (typeof item === 'number') precosExtras[catId].push(item)
+      else if (item && Number(item.preco) > 0) {
+        if (String(item.nome || '').trim()) {
+          const nome = String(item.nome).trim()
+          const atuais = Array.isArray(opcoesMigradas[catId]) ? opcoesMigradas[catId] : []
+          if (!atuais.some(v => Math.abs(Number(v.preco) - Number(item.preco)) < 0.005 && String(v.nome || '').toLocaleLowerCase('pt-BR') === nome.toLocaleLowerCase('pt-BR'))) {
+            opcoesMigradas[catId] = [...atuais, { preco: Number(item.preco), nome }]
+          }
+          migrouAtalhoNomeado = true
+        } else precosExtras[catId].push(Number(item.preco))
+      }
+    }
+  }
+  extrasSalvos.value = precosExtras
+  opcoesNomeadasSalvas.value = opcoesMigradas
+  if (migrouAtalhoNomeado) {
+    try {
+      // Primeiro grava as descrições novas; só então limpa o formato intermediário.
+      await salvarOpcoesCategoria(opcoesMigradas)
+      await salvarPrecosExtras(precosExtras)
+      s.syncImediato()
+    } catch (err) {
+      console.error('Não foi possível concluir a migração dos atalhos nomeados; os dados antigos foram preservados.', err)
+    }
+  }
+  let itensCardapio = []
+  try { itensCardapio = await carregarProdutosDoCardapio({ apenasAtivos: false }) } catch { /* Categorias fixas continuam disponíveis sem o cardápio. */ }
+  const sugestoes = itensCardapio.filter(p => p.ativo)
+  const nomesPadrao = new Set(CATEGORIAS_VENDA.map(c => c.nome.toLocaleLowerCase('pt-BR')))
+  const categoriasCardapio = [...new Map(
+    itensCardapio
+      .map(p => ({ nome: String(p.categoria || '').trim(), emoji: p.emoji || '📦' }))
+      .filter(c => c.nome && !nomesPadrao.has(c.nome.toLocaleLowerCase('pt-BR')))
+      .map(c => [c.nome.toLocaleLowerCase('pt-BR'), c])
+  ).values()]
+  const dinamicas = categoriasCardapio.map(c => {
+    const base = c.nome.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const slug = base.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'categoria'
+    const hash = [...base].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 0).toString(36)
+    return { id: `cat-extra-${slug}-${hash}`, nome: c.nome, emoji: c.emoji, categoriaCardapio: c.nome }
+  })
+  const definicoes = [...CATEGORIAS_VENDA, ...dinamicas]
   const lista = []
-  for (const c of CATEGORIAS_VENDA) {
+  for (const c of definicoes) {
     let preco = Number(salvos[c.id] || 0)
     if (!(preco > 0)) {
-      if (!sugestoes) {
-        try { sugestoes = await carregarProdutosDoCardapio() } catch { sugestoes = [] }
-      }
-      preco = precoMaisComum(sugestoes.filter(p => c.casa.test(p.categoria) || c.casa.test(p.nome)))
+      const itensCategoria = c.categoriaCardapio
+        ? sugestoes.filter(p => p.categoria.toLocaleLowerCase('pt-BR') === c.categoriaCardapio.toLocaleLowerCase('pt-BR'))
+        : sugestoes.filter(p => c.casa.test(p.categoria) || c.casa.test(p.nome))
+      preco = precoMaisComum(itensCategoria)
     }
     lista.push({ id: c.id, nome: c.nome, emoji: c.emoji, preco })
   }
   categoriasVenda.value = lista
-  try { extrasSalvos.value = await getPrecosExtras() } catch { extrasSalvos.value = {} }
 }
 
 async function iniciarLancar() {
@@ -2653,6 +2722,7 @@ async function iniciarLancar() {
   linhasExtras.value = []
   extraAberto.value = null
   extraDigitado.value = ''
+  extraNomeDigitado.value = ''
   extraGuardar.value = true
   dataVenda.value = new Date().toLocaleDateString('sv')
   horaVenda.value = new Date().toTimeString().slice(0, 5)
@@ -2680,17 +2750,19 @@ function dec(c) { if (qtds[c.id] > 0) qtds[c.id]-- }
 function abrirExtra(c) {
   extraAberto.value = extraAberto.value === c.id ? null : c.id
   extraDigitado.value = ''
+  extraNomeDigitado.value = ''
   extraGuardar.value = true
 }
 // Soma 1 unidade da categoria `c` a um preço específico. Se o preço é igual ao padrão,
 // cai na linha normal; senão cria (ou reaproveita) a linha daquele valor.
-function adicionarExtra(c, preco) {
+function adicionarExtra(c, preco, descricao = '') {
   preco = centavos(Number(preco) || 0)
   if (!(preco > 0)) return
-  if (Math.abs(preco - c.preco) < 0.005) { qtds[c.id] = (qtds[c.id] || 0) + 1; return }
-  const id = idExtra(c.id, preco)
+  descricao = String(descricao || '').trim()
+  if (!descricao && Math.abs(preco - c.preco) < 0.005) { qtds[c.id] = (qtds[c.id] || 0) + 1; return }
+  const id = idExtra(c.id, preco, descricao)
   if (!linhasExtras.value.some(l => l.id === id)) {
-    linhasExtras.value.push({ id, catId: c.id, nome: c.nome, emoji: c.emoji, preco })
+    linhasExtras.value.push({ id, catId: c.id, nome: c.nome, descricao, emoji: c.emoji, preco })
     linhasExtras.value.sort((a, b) => a.preco - b.preco)
   }
   qtds[id] = (qtds[id] || 0) + 1
@@ -2698,20 +2770,29 @@ function adicionarExtra(c, preco) {
 async function adicionarExtraDigitado(c) {
   const v = moedaParaNumero(extraDigitado.value)
   if (!(v > 0)) { s.notify('Digite o valor, por exemplo 8,00', 'warning'); return }
-  adicionarExtra(c, v)
-  if (extraGuardar.value) await guardarAtalhoExtra(c.id, v)
+  const nome = extraNomeDigitado.value.trim()
+  adicionarExtra(c, v, nome)
+  if (extraGuardar.value) await guardarAtalhoExtra(c.id, v, nome)
   extraDigitado.value = ''
+  extraNomeDigitado.value = ''
   extraAberto.value = null
 }
-async function guardarAtalhoExtra(catId, preco) {
+async function guardarAtalhoExtra(catId, preco, nome = '') {
   preco = centavos(preco)
+  nome = String(nome || '').trim()
   const cat = categoriasVenda.value.find(c => c.id === catId)
-  if (cat && Math.abs(preco - cat.preco) < 0.005) return
-  const atuais = (extrasSalvos.value[catId] || []).map(Number)
-  if (atuais.some(v => Math.abs(v - preco) < 0.005)) return
-  const novos = { ...extrasSalvos.value, [catId]: [...atuais, preco].sort((a, b) => a - b).slice(-6) }
-  extrasSalvos.value = novos
-  await salvarPrecosExtras(novos)
+  if (!nome && cat && Math.abs(preco - cat.preco) < 0.005) return
+  const atuais = atalhosExtras(catId)
+  if (atuais.some(v => Math.abs(v.preco - preco) < 0.005 && v.nome.toLocaleLowerCase('pt-BR') === nome.toLocaleLowerCase('pt-BR'))) return
+  if (nome) {
+    const nomeadas = [...(opcoesNomeadasSalvas.value[catId] || []), { preco, nome }].sort((a, b) => a.preco - b.preco)
+    opcoesNomeadasSalvas.value = { ...opcoesNomeadasSalvas.value, [catId]: nomeadas }
+    await salvarOpcoesCategoria(opcoesNomeadasSalvas.value)
+  } else {
+    const valores = [...(extrasSalvos.value[catId] || []), preco].sort((a, b) => a - b).slice(-6)
+    extrasSalvos.value = { ...extrasSalvos.value, [catId]: valores }
+    await salvarPrecosExtras(extrasSalvos.value)
+  }
   s.syncImediato()
 }
 function incExtra(l) { qtds[l.id] = (qtds[l.id] || 0) + 1 }
@@ -2744,26 +2825,41 @@ function onInputPreco(id, e) {
 
 // Atalhos de "outros valores" dentro do modal de Preços
 const extraNovo = reactive({})
-async function adicionarAtalhoExtra(c) {
+const extraNomeNovo = reactive({})
+async function guardarAtalhoNomeado(c) {
   const v = moedaParaNumero(extraNovo[c.id])
   if (!(v > 0)) return
-  await guardarAtalhoExtra(c.id, v)
+  await guardarAtalhoExtra(c.id, v, extraNomeNovo[c.id] || '')
   extraNovo[c.id] = ''
+  extraNomeNovo[c.id] = ''
 }
-async function removerAtalhoExtra(catId, preco) {
-  const novos = { ...extrasSalvos.value, [catId]: (extrasSalvos.value[catId] || []).filter(v => Math.abs(v - preco) >= 0.005) }
-  extrasSalvos.value = novos
-  await salvarPrecosExtras(novos)
+async function removerAtalhoExtra(catId, atalho) {
+  if (atalho.nome) {
+    opcoesNomeadasSalvas.value = {
+      ...opcoesNomeadasSalvas.value,
+      [catId]: (opcoesNomeadasSalvas.value[catId] || []).filter(v =>
+        !(Math.abs(Number(v.preco) - atalho.preco) < 0.005 && v.nome === atalho.nome)
+      )
+    }
+    await salvarOpcoesCategoria(opcoesNomeadasSalvas.value)
+  } else {
+    extrasSalvos.value = {
+      ...extrasSalvos.value,
+      [catId]: (extrasSalvos.value[catId] || []).filter(v => Math.abs(Number(v) - atalho.preco) >= 0.005)
+    }
+    await salvarPrecosExtras(extrasSalvos.value)
+  }
   s.syncImediato()
 }
 
 async function salvarPrecos_() {
-  const precos = {}
+  const precos = await getPrecosCategorias()
   for (const c of categoriasVenda.value) {
     const v = parseFloat(String(formPrecos[c.id] || '').replace(/[^\d,]/g, '').replace(',', '.')) || 0
     precos[c.id] = v
   }
   await salvarPrecosCategorias(precos)
+  await salvarCategoriasOcultas(categoriasOcultas.value)
   categoriasVenda.value = categoriasVenda.value.map(c => ({ ...c, preco: precos[c.id] }))
   modalPrecos.value = false
   s.notify('Preços salvos!')
@@ -2824,7 +2920,7 @@ async function salvarFiado(ignorarRepetida = false) {
       const linhas = []
       if (qtds[c.id] > 0) linhas.push({ id: c.id, nome: c.nome, emoji: c.emoji, qty: qtds[c.id], preco: c.preco, subtotal: centavos(qtds[c.id] * c.preco) })
       extrasDa(c.id).filter(l => qtds[l.id] > 0).forEach(l =>
-        linhas.push({ id: l.id, nome: nomeExtra(l.nome, l.preco), emoji: l.emoji, qty: qtds[l.id], preco: l.preco, subtotal: centavos(qtds[l.id] * l.preco) }))
+        linhas.push({ id: l.id, nome: nomeExtra(l.nome, l.preco, l.descricao), emoji: l.emoji, qty: qtds[l.id], preco: l.preco, subtotal: centavos(qtds[l.id] * l.preco) }))
       return linhas
     })
     // Nome da loja lido do cadastro na hora de gravar (nunca de uma cópia que pode estar velha).

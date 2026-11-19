@@ -645,6 +645,17 @@ export async function salvarPrecosCategorias(precos) {
   await db.config.put({ chave: CHAVE_PRECOS_CAT, valor: JSON.parse(JSON.stringify(precos)) })
 }
 
+const CHAVE_CATEGORIAS_OCULTAS = 'cad_categorias_ocultas'
+
+export async function getCategoriasOcultas() {
+  const row = await db.config.get(CHAVE_CATEGORIAS_OCULTAS).catch(() => null)
+  return Array.isArray(row?.valor) ? row.valor : []
+}
+
+export async function salvarCategoriasOcultas(ids) {
+  await db.config.put({ chave: CHAVE_CATEGORIAS_OCULTAS, valor: [...new Set(ids)] })
+}
+
 // Outros valores por categoria (ex.: Trufa a R$ 5,00 e R$ 8,00, além do preço padrão).
 // Guardado à parte do preço padrão: { 'cat-trufa': [5, 8] }
 const CHAVE_PRECOS_EXTRAS = 'cad_precos_extras'
@@ -656,6 +667,18 @@ export async function getPrecosExtras() {
 
 export async function salvarPrecosExtras(extras) {
   await db.config.put({ chave: CHAVE_PRECOS_EXTRAS, valor: JSON.parse(JSON.stringify(extras)) })
+}
+
+// Opções com descrição por categoria ficam separadas dos atalhos antigos de preço.
+const CHAVE_OPCOES_CATEGORIA = 'cad_opcoes_categoria'
+
+export async function getOpcoesCategoria() {
+  const row = await db.config.get(CHAVE_OPCOES_CATEGORIA).catch(() => null)
+  return row?.valor || {}
+}
+
+export async function salvarOpcoesCategoria(opcoes) {
+  await db.config.put({ chave: CHAVE_OPCOES_CATEGORIA, valor: JSON.parse(JSON.stringify(opcoes)) })
 }
 
 // ── RESUMO ITENS ─────────────────────────────────────────────
