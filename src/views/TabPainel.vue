@@ -162,7 +162,7 @@
                 <strong>{{ R$(bancoPeriodo.saidasOp) }}</strong>
               </div>
               <div class="pn-linha">
-                <span class="pn-linha-lbl">Saídas pessoais</span>
+                <span class="pn-linha-lbl">Despesas pessoais</span>
                 <strong>{{ R$(bancoPeriodo.saidasPes) }}</strong>
               </div>
             </div>
