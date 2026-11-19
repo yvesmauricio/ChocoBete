@@ -410,7 +410,7 @@
               </div>
               <div class="mn-linha">
                 <span class="mn-ponto mn-ponto--vermelho"></span>
-                <span class="mn-linha-lbl">Despesas da casa</span>
+                <span class="mn-linha-lbl">Despesas pessoais</span>
                 <strong class="c-red">{{ R$(item.saidas_pessoais) }}</strong>
               </div>
             </div>
@@ -436,7 +436,7 @@
                 <div class="mn-grupo">
                   <div class="mn-grupo-titulo">Saídas e resultado</div>
                   <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Despesas operacionais</span><strong class="c-red">{{ R$(item.saidas_operacionais) }}</strong></div>
-                  <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Despesas da casa</span><strong class="c-red">{{ R$(item.saidas_pessoais) }}</strong></div>
+                  <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Despesas pessoais</span><strong class="c-red">{{ R$(item.saidas_pessoais) }}</strong></div>
                   <div class="mn-linha mn-linha--simples mn-linha--total"><span class="mn-linha-lbl">Saldo do negócio</span><strong :class="item.saldo_operacional >= 0 ? 'c-green' : 'c-red'">{{ R$(item.saldo_operacional) }}</strong></div>
                 </div>
               </div>
@@ -674,7 +674,7 @@
             <div class="an-linha">
               <span class="an-ponto"></span>
               <div class="an-linha-txt">
-                <div class="an-linha-nome">Saídas pessoais</div>
+                <div class="an-linha-nome">Despesas pessoais</div>
                 <div class="an-linha-sub">Moradia, transferências</div>
               </div>
               <strong class="an-linha-valor">{{ R$(totalAnual.pessoal) }}</strong>

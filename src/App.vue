@@ -225,6 +225,17 @@ async function entrarConformeAparelho() {
   }
 }
 
+// Primeira configuração do aparelho: entra no módulo assim que `aparelho` é gravado.
+// Não dá para depender só do evento `pronto` do ConfigurarAparelho: `salvarAparelho()`
+// preenche `aparelho`, o `v-if` da tela fecha e desmonta o componente ANTES de o
+// `emit('pronto')` rodar — e o Vue ignora emit de componente já desmontado. Resultado:
+// `perfil` ficava null e a tela em branco até recarregar (onMounted chamava
+// entrarConformeAparelho). Na edição (`editandoAparelho`) a tela continua montada e o
+// `pronto` chega normalmente, então não entra aqui.
+watch(aparelho, (novo) => {
+  if (novo && perfil.value === null && !editandoAparelho.value) entrarConformeAparelho()
+})
+
 // Atalho do cabeçalho do Admin (AppHeader). Aparelho Admin: abre as vendas em
 // somente consulta. Vendedor no modo Admin temporário: sai e volta para as vendas.
 const atalhoHeader = computed(() => {
