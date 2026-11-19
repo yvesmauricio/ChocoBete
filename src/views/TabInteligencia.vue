@@ -38,86 +38,17 @@
           </div>
         </div>
 
-        <!-- ══ 2. FATURAMENTO ESPERADO vs REAL ═══════════════════════════ -->
-        <div v-if="comparativoPorMes.length" class="int-bloco">
-          <div class="int-bloco-titulo"><i class="fas fa-chart-bar"></i> Eficiência mensal</div>
-          <div class="sheet-card">
-            <div class="sheet-body p-0">
-              <div v-for="m in comparativoPorMes.slice(0, 4)" :key="m.mes" class="ef-row">
-                <div class="ef-mes">{{ m.mes }}</div>
-                <div class="ef-barras">
-                  <div class="ef-bar-wrap">
-                    <div class="ef-bar ef-bar-esp" :style="{ width: (m.esperado / maxEsperado * 100) + '%' }"></div>
-                  </div>
-                  <div class="ef-bar-wrap">
-                    <div class="ef-bar ef-bar-real" :style="{ width: (m.real / maxEsperado * 100) + '%' }"></div>
-                  </div>
-                </div>
-                <div class="ef-nums">
-                  <span class="ef-pct"
-                    :class="m.eficiencia >= 80 ? 'c-green' : m.eficiencia >= 60 ? 'c-orange' : 'c-red'">
-                    {{ m.eficiencia }}%
-                  </span>
-                  <span class="ef-lucro" :class="m.lucroReal >= 0 ? 'c-green' : 'c-red'">{{ R$(m.lucroReal) }}</span>
-                </div>
-              </div>
-              <div class="ef-legenda">
-                <span><span class="ef-dot dot-esp"></span> Esperado</span>
-                <span><span class="ef-dot dot-real"></span> Real no banco</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ══ 2.5 CALIBRAÇÃO DE TEMPO (ESTIMADO vs REAL) ══════════════ -->
-        <div v-if="rankingTempo.length" class="int-bloco">
-          <div class="int-bloco-titulo"><i class="fas fa-stopwatch"></i> Calibração de Tempo</div>
-          <div class="sheet-card">
-            <div class="sheet-body p-0">
-              <div v-for="r in rankingTempo.slice(0, 5)" :key="r.id" class="ef-row">
-                <div class="ef-recipe-info">
-                  <div class="rank-nome-int" style="font-size: .75rem">{{ r.nome }}</div>
-                  <div class="ef-sub">
-                    Est: <strong>{{ r.estimado }}m</strong> · Real: <strong :class="r.status === 'atraso' ? 'c-red' : r.status === 'adianto' ? 'c-green' : ''">{{ r.real }}m</strong>
-                  </div>
-                </div>
-                <div class="ef-barras">
-                  <div class="ef-bar-wrap">
-                    <div class="ef-bar ef-bar-esp" :style="{ width: (r.estimado / maxTempoRank * 100) + '%' }"></div>
-                  </div>
-                  <div class="ef-bar-wrap">
-                    <div class="ef-bar ef-bar-real" 
-                      :style="{ 
-                        width: (r.real / maxTempoRank * 100) + '%',
-                        background: r.status === 'atraso' ? 'var(--red)' : r.status === 'adianto' ? 'var(--green)' : 'var(--blue)' 
-                      }">
-                    </div>
-                  </div>
-                </div>
-                <div class="ef-nums" style="width: 40px">
-                  <span class="ef-pct" :class="r.status === 'atraso' ? 'c-red' : r.status === 'adianto' ? 'c-green' : ''" style="font-size: .7rem">
-                    {{ Math.round(r.pct) }}%
-                  </span>
-                </div>
-              </div>
-              <div class="ef-legenda">
-                <span><span class="ef-dot dot-esp"></span> Planejado</span>
-                <span><span class="ef-dot dot-real" style="background: var(--blue)"></span> Real médio</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ══ 2.7 TENDÊNCIA RECENTE (últimos 30 dias) ═══════════════════ -->
+        <!-- ══ 2. TENDÊNCIA RECENTE (últimos 30 dias) ═══════════════════ -->
         <div v-if="tendenciaRecente.length" class="int-bloco">
           <div class="int-bloco-titulo"><i class="fas fa-fire"></i> Em alta agora</div>
-          <p class="hint mb-8" style="padding: 0 2px">Comparado aos 30 dias anteriores — pode não bater com o ranking geral, e tudo bem: o queridinho muda com o tempo.</p>
+          <p class="hint mb-8" style="padding: 0 2px">Produtos com mais movimento nos últimos 30 dias, comparados aos 30 dias anteriores.</p>
           <div class="sheet-card">
             <div class="sheet-body p-0">
-              <div v-for="t in tendenciaRecente" :key="t.id" class="ef-row">
-                <div class="ef-recipe-info">
-                  <div class="rank-nome-int" style="font-size: .8rem">{{ t.nome }}</div>
-                  <div class="ef-sub">{{ t.recente }} un nos últimos 30 dias</div>
+              <div v-for="(t, idx) in tendenciaRecente" :key="t.id" class="rank-row-int">
+                <span class="rank-pos-int" :class="idx === 0 ? 'rp-ouro' : idx === 1 ? 'rp-prata' : idx === 2 ? 'rp-bronze' : 'rp-n'">{{ idx + 1 }}</span>
+                <div class="rank-body-int">
+                  <span class="rank-nome-int">{{ t.nome }}</span>
+                  <span class="ef-sub">{{ t.recente }} un nos últimos 30 dias</span>
                 </div>
                 <span class="alerta-badge" :class="t.variacao === null || t.variacao > 0 ? 'badge-tendencia-cima' : 'badge-tendencia-baixo'">
                   {{ t.variacao === null ? 'novo' : (t.variacao > 0 ? '+' : '') + Math.round(t.variacao) + '%' }}
