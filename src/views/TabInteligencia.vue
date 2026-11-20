@@ -17,180 +17,17 @@
       </div>
       <template v-else>
 
-        <!-- ══ 1. ALERTAS CRÍTICOS ════════════════════════════════════════ -->
-        <div v-if="estrategiasAutomaticas.length" class="int-bloco">
-          <div class="int-bloco-titulo"><i class="fas fa-triangle-exclamation"></i> Ações prioritárias</div>
-          <div class="alertas-lista">
-            <div v-for="e in estrategiasAutomaticas" :key="e.titulo" class="alerta-card"
-              :class="'alerta-' + e.urgencia">
-              <div class="alerta-topo">
-                <div class="alerta-ico-wrap" :class="'ico-' + e.urgencia">
-                  <i class="fas" :class="e.icone"></i>
-                </div>
-                <div class="alerta-info">
-                  <div class="alerta-titulo">{{ e.titulo }}</div>
-                  <div v-if="e.ganho > 0" class="alerta-ganho">+{{ R$(e.ganho) }} potencial</div>
-                </div>
-                <span class="alerta-badge" :class="'badge-' + e.urgencia">{{ e.urgencia }}</span>
-              </div>
-              <div class="alerta-desc">{{ e.descricao }}</div>
-            </div>
-          </div>
-        </div>
+        <!-- ══ GUIA DO NEGÓCIO: vendas reais, clientes, produtos e próximos passos ══ -->
+        <GuiaNegocio />
 
-        <!-- ══ 2. TENDÊNCIA RECENTE (últimos 30 dias) ═══════════════════ -->
-        <div v-if="tendenciaRecente.length" class="int-bloco">
-          <div class="int-bloco-titulo"><i class="fas fa-fire"></i> Em alta agora</div>
-          <p class="hint mb-8" style="padding: 0 2px">Produtos com mais movimento nos últimos 30 dias, comparados aos 30 dias anteriores.</p>
-          <div class="sheet-card">
-            <div class="sheet-body p-0">
-              <div v-for="(t, idx) in tendenciaRecente" :key="t.id" class="rank-row-int">
-                <span class="rank-pos-int" :class="idx === 0 ? 'rp-ouro' : idx === 1 ? 'rp-prata' : idx === 2 ? 'rp-bronze' : 'rp-n'">{{ idx + 1 }}</span>
-                <div class="rank-body-int">
-                  <span class="rank-nome-int">{{ t.nome }}</span>
-                  <span class="ef-sub">{{ t.recente }} un nos últimos 30 dias</span>
-                </div>
-                <span class="alerta-badge" :class="t.variacao === null || t.variacao > 0 ? 'badge-tendencia-cima' : 'badge-tendencia-baixo'">
-                  {{ t.variacao === null ? 'novo' : (t.variacao > 0 ? '+' : '') + Math.round(t.variacao) + '%' }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- ══ PREÇO CERTO: uma conta só, com os custos reais do negócio ══ -->
+        <PrecoCerto />
 
-        <!-- ══ 3. RANKING DE PRODUTOS ════════════════════════════════════ -->
-        <div v-if="rankingRentabilidade.length" class="int-bloco">
-          <div class="int-bloco-titulo"><i class="fas fa-medal"></i> Ranking por margem</div>
-          <div class="sheet-card">
-            <div class="sheet-body p-0">
-              <div v-for="(p, idx) in rankingRentabilidade.slice(0, 6)" :key="p.id" class="rank-row-int">
-                <span class="rank-pos-int"
-                  :class="idx === 0 ? 'rp-ouro' : idx === 1 ? 'rp-prata' : idx === 2 ? 'rp-bronze' : 'rp-n'">{{ idx + 1
-                  }}</span>
-                <div class="rank-body-int">
-                  <span class="rank-nome-int">{{ p.nome }}</span>
-                  <div class="rank-bar-bg-int">
-                    <div class="rank-bar-fill-int"
-                      :style="{ width: p.margem + '%', background: p.margem >= 50 ? 'var(--green)' : p.margem >= 35 ? 'var(--gold)' : 'var(--orange)' }">
-                    </div>
-                  </div>
-                </div>
-                <div class="rank-nums-int">
-                  <span :class="p.margem >= 35 ? 'c-green' : 'c-red'" style="font-weight:800;font-size:.82rem">{{
-                    p.margem.toFixed(0) }}%</span>
-                  <span class="rank-lucro-int">{{ R$(p.lucroTotal) }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ══ 4. ANALISAR PRODUTO ════════════════════════════════════════ -->
+        <!-- ══ CONSULTAR IA ══ -->
         <div class="int-bloco">
-          <div class="int-bloco-titulo"><i class="fas fa-search"></i> Analisar produto</div>
-          <div class="sheet-card">
-            <div class="sheet-body">
-              <!-- Picker -->
-              <div class="fg mb-10">
-                <label class="label">Produto</label>
-                <select v-model="produtoSelecionadoId" class="input">
-                  <optgroup v-if="produtosFinais.length" label="Produtos Finais">
-                    <option v-for="p in produtosFinais" :key="p.id" :value="p.id">{{ p.nome }}</option>
-                  </optgroup>
-                  <optgroup v-if="produtosBases.length" label="Receitas Base">
-                    <option v-for="p in produtosBases" :key="p.id" :value="p.id">{{ p.nome }}</option>
-                  </optgroup>
-                </select>
-              </div>
-
-              <!-- Preço + Quantidade -->
-              <div class="form-inline-2">
-                <div class="fg" style="flex: 1.5">
-                  <label class="label">{{ isPrecoTotal ? 'Preço total do lote' : 'Preço de venda' }}</label>
-                  <input class="input" type="text" inputmode="decimal"
-                    :value="precoProposto ? maskMoney(precoProposto) : ''"
-                    @change="e => precoProposto = parseMoney(e.target.value)" />
-                  <div v-if="!isPrecoTotal && precoAutoCalculado" class="hint c-green">
-                    Mín. sugerido: {{ R$(precoAutoCalculado) }}
-                  </div>
-                </div>
-                <div class="fg">
-                  <label class="label">Quantidade</label>
-                  <input class="input" type="number" v-model.number="quantidade" min="1" />
-                </div>
-              </div>
-
-              <div class="fg mb-16">
-                <label class="incluir-pessoal-toggle-modern">
-                  <input type="checkbox" v-model="isPrecoTotal" />
-                  <span>O preço informado é o <strong>total</strong> para {{ quantidade === 1 ? 'a unidade' : 'as ' + quantidade + ' unidades' }}</span>
-                </label>
-              </div>
-
-              <!-- Diagnóstico -->
-              <div v-if="analiseProduto" class="diagnostico-card" :class="'diag-' + analiseProduto.status">
-                <div class="diag-topo">
-                  <i class="fas" :class="statusIcon"></i>
-                  <span class="diag-titulo">{{ statusLabel }}</span>
-                  <span class="diag-margem">{{ analiseProduto.margemPercentual }}% margem</span>
-                </div>
-                <div class="diag-metricas">
-                  <div class="diag-m">
-                    <span class="diag-m-lbl">Custo unit.</span>
-                    <strong class="c-red">{{ R$(analiseProduto.custoPorUnidade) }}</strong>
-                  </div>
-                  <div class="diag-m">
-                    <span class="diag-m-lbl">Lucro unit.</span>
-                    <strong :class="analiseProduto.lucroPorUnidade >= 0 ? 'c-green' : 'c-red'">{{
-                      R$(analiseProduto.lucroPorUnidade) }}</strong>
-                  </div>
-                  <div class="diag-m">
-                    <span class="diag-m-lbl">Lucro total</span>
-                    <strong :class="analiseProduto.lucroTotal >= 0 ? 'c-green' : 'c-red'">{{
-                      R$(analiseProduto.lucroTotal) }}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Preço mínimo com salário -->
-              <div v-if="precoMinimoSalario" class="preco-min-card">
-                <div class="preco-min-hdr">
-                  <i class="fas fa-hand-holding-dollar"></i>
-                  <span>Para pagar sua retirada ({{ R$(metaSalarioMensal) }}/mês)</span>
-                </div>
-                <div class="preco-min-nums">
-                  <div class="preco-min-item">
-                    <span class="preco-min-lbl">Preço mínimo</span>
-                    <strong>{{ R$(precoMinimoSalario.precoMinimoComSalario) }}</strong>
-                  </div>
-                  <div v-if="qtdMinimaParaSalario" class="preco-min-item">
-                    <span class="preco-min-lbl">Se fosse seu único produto</span>
-                    <strong>{{ Math.ceil(qtdMinimaParaSalario.quantidade) }} un/mês</strong>
-                  </div>
-                </div>
-                <p v-if="qtdMinimaParaSalario" class="hint" style="margin-top: 2px">
-                  Simulação: quanto precisaria vender <strong>só</strong> desse produto pra cobrir sozinho sua retirada + fixos do mês. Na prática, seu faturamento vem de vários produtos — não é uma meta real pra esse item.
-                </p>
-                <div v-if="precoProposto > 0 && precoMinimoSalario.precoMinimoComSalario > precoProposto"
-                  class="hint c-red mt-4">
-                  <i class="fas fa-circle-exclamation"></i> Preço atual abaixo do mínimo para pagar sua retirada.
-                </div>
-              </div>
-
-              <!-- Botão atualizar preço -->
-              <button v-if="produtoSelecionado && analiseProduto?.precoProposto !== produtoSelecionado.preco"
-                class="btn btn-primary btn-full mt-10" @click="atualizarPreco(produtoSelecionado)">
-                <i class="fas fa-save"></i> Atualizar preço na Receita
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- ══ 6. CONSULTAR IA ════════════════════════════════════════════ -->
-        <div class="int-bloco">
-          <div class="int-bloco-titulo"><i class="fas fa-robot"></i> Consultar IA com seus dados</div>
+          <div class="int-bloco-titulo"><i class="fas fa-robot"></i> Conversar com uma IA sobre o meu negócio</div>
           <div class="ia-grid-int">
-            <button v-for="p in promptsIA" :key="p.id" class="ia-btn-int" @click="dispararPrompt(p)">
+            <button v-for="p in PROMPTS" :key="p.id" class="ia-btn-int" :disabled="preparandoIA" @click="dispararPrompt(p)">
               <div class="ia-btn-ico-int" :style="{ background: p.bg, color: p.cor }">
                 <i :class="p.icon"></i>
               </div>
@@ -203,17 +40,17 @@
           </div>
           <div class="ia-hint-int">
             <i class="fas fa-info-circle"></i>
-            Prompt copiado com seus dados — cole no Claude ou ChatGPT.
+            O texto sai com seus números (vendas, margens, custos). Clientes vão só com iniciais — nomes e telefones não são enviados.
           </div>
         </div>
 
       </template>
 
-      <!-- ══ MODAL SELETOR DE IA ══════════════════════════════════════ -->
+      <!-- ══ MODAL SELETOR DE IA ══ -->
       <BaseModal v-if="modalIA" title="Abrir na sua IA preferida" @close="modalIA = false">
         <div class="modal-inner">
-          <p class="hint mb-16">O prompt com seus dados foi copiado! Escolha onde deseja colar para analisar:</p>
-          
+          <p class="hint mb-16">O texto com seus dados foi copiado! Escolha onde deseja colar para analisar:</p>
+
           <div class="ia-selector-grid">
             <button v-for="ai in listaAIs" :key="ai.id" class="ia-choice-btn" @click="abrirIA(ai)">
               <div class="ia-choice-ico" :class="ai.id">
@@ -224,596 +61,97 @@
           </div>
           <div class="ia-hint-int mt-24">
             <i class="fas fa-info-circle"></i>
-            Se o texto não carregar sozinho, basta <strong>Colar (Paste)</strong> no chat.
+            Se o texto não aparecer sozinho, basta <strong>Colar</strong> no chat.
           </div>
         </div>
       </BaseModal>
     </section>
   </div>
 </template>
+
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useStore } from '../store.js'
-import { R$, maskMoney, parseMoney, getMesRef } from '../utils.js'
-import { useConfirm } from '../composables/useConfirm.js'
+import { db } from '../db.js'
 import BaseModal from '../components/BaseModal.vue'
+import GuiaNegocio from '../components/GuiaNegocio.vue'
+import PrecoCerto from '../components/PrecoCerto.vue'
+import { hoje, getLojas } from '../composables/useCaderneta.js'
 import {
-  analisarProduto,
-  aprenderComVendas,
-  gerarSugestoes,
-  priorizarProdutos,
-  calcularEstoqueDisponivel, // Renamed from calcularEstoqueProducoes
-  calcularPrecoMinimoComSalario,
-  snapToSmartPrice,
-  calcularQuantidadeMinima
-} from '../modules/salesIntelligence.js'
+  criarCustoDoItem, analisarClientes, clientesQueSumiram, analisarProdutos,
+  combosFrequentes, resumoDoMes, analisarLojas,
+} from '../modules/guiaNegocio.js'
+import { baseFinanceira, riscoFiado, listaPrecoCerto } from '../modules/precoCerto.js'
+import { PROMPTS, montarContexto, gerarPrompt } from '../modules/promptsIA.js'
 
 const s = useStore()
-const confirm = useConfirm()
-const quantidade = ref(1)
-const produtoSelecionadoId = ref('')
-const precoProposto = ref(0)
-const isPrecoTotal = ref(false)
 
-// ─── Produtos disponíveis para análise ───────────────────────
-const produtosInteligencia = computed(() =>
-  s.receitas
-    .filter(r => !r.eh_intermediaria)
-    .map(r => ({
-      id: r.uuid,
-      nome: r.nome,
-      custo: s.getCustoTotal(r) / (r.rendimento || 1),
-      preco: r.preco_sugerido || 0
-    }))
-    .filter(p => p.custo > 0 && p.preco > 0)
-)
+// ── Seletor de IA ───────────────────────────────────────────
+const modalIA = ref(false)
+const preparandoIA = ref(false)
+const promptGerado = ref('')
+// URLs com o texto inteiro podem ser cortadas em textos longos: nesses casos abre só a IA e a pessoa cola.
+const LIMITE_URL = 6000
+const listaAIs = [
+  { id: 'gemini',   nome: 'Gemini',   icon: 'fas fa-wand-magic-sparkles', base: 'https://gemini.google.com/app', url: p => `https://gemini.google.com/app?q=${encodeURIComponent(p)}` },
+  { id: 'chatgpt',  nome: 'ChatGPT',  icon: 'fas fa-comment-dots',        base: 'https://chatgpt.com/',          url: p => `https://chatgpt.com/?q=${encodeURIComponent(p)}` },
+  { id: 'claude',   nome: 'Claude',   icon: 'fas fa-robot',               base: 'https://claude.ai/new',         url: p => `https://claude.ai/new?q=${encodeURIComponent(p)}` },
+  { id: 'deepseek', nome: 'DeepSeek', icon: 'fas fa-brain',               base: 'https://chat.deepseek.com/',    url: () => 'https://chat.deepseek.com/' },
+]
 
-const produtosOrdenados = computed(() =>
-  [...produtosInteligencia.value].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
-)
-
-// Grupos separados para o picker
-const produtosFinais = computed(() =>
-  produtosOrdenados.value.filter(p => {
-    const r = s.receitas.find(x => x.uuid === p.id)
-    return !r?.eh_intermediaria
+// Junta os mesmos números do Guia e do Preço certo num texto só
+async function montarPrompt(id) {
+  const [fiados, clientes, lojasBase, historicoPrecos] = await Promise.all([
+    db.cad_fiados.toArray(), db.cad_clientes.toArray(), getLojas({ incluirArquivadas: true }), db.historico_precos_venda.toArray(),
+  ])
+  const hj = hoje()
+  const receitas = s.receitas.filter(r => !r.eh_intermediaria).map(r => ({
+    uuid: r.uuid, nome: r.nome, categoria: r.categoria, tamanho: r.tamanho,
+    custoUnit: s.getCustoTotal(r) / (r.rendimento || 1), preco: Number(r.preco_sugerido || 0),
+  }))
+  const custoDoItem = criarCustoDoItem(receitas)
+  const metaRetirada = Number(s.company?.meta_salario_mensal || 0)
+  const base = baseFinanceira({ relatorio: s.relatorioMensalMei, hoje: hj, metaRetirada })
+  const risco = riscoFiado({ fiados, hoje: hj })
+  const analise = analisarClientes({ fiados, clientes, lojas: lojasBase, hoje: hj })
+  const contexto = montarContexto({
+    empresa: s.company?.nome || '', hoje: hj,
+    mes: resumoDoMes({ fiados, custoDoItem, hoje: hj }),
+    base, risco,
+    precos: listaPrecoCerto({ receitas, base, risco, fiados, historicoPrecos, hoje: hj }),
+    produtos: analisarProdutos({ fiados, custoDoItem, hoje: hj }),
+    clientes: analise, sumiram: clientesQueSumiram(analise),
+    combosJuntos: combosFrequentes(fiados),
+    lojas: analisarLojas({ fiados, lojas: lojasBase, hoje: hj }),
+    metaRetirada, tetoMei: Number(s.company?.teto_mei_anual || 81000), faturadoAno: Number(s.totalRecebidoAnoAtual || 0),
   })
-)
-const produtosBases = computed(() =>
-  produtosOrdenados.value.filter(p => {
-    const r = s.receitas.find(x => x.uuid === p.id)
-    return !!r?.eh_intermediaria
-  })
-)
-
-// ─── Available stock (produced minus sold) ─────────────────────
-const estoqueDisponivel = computed(() =>
-  calcularEstoqueDisponivel(s.producoes, historicoVendas.value, 90) // Pass sales data
-)
-
-// ─── Meta de salário a partir do financeiro ──────────────────
-const metaSalarioMensal = computed(() => {
-  // Prefere a meta configurada em Ajustes; fallback: média das saídas pessoais
-  if (s.company?.meta_salario_mensal > 0) return s.company.meta_salario_mensal
-  const relatorio = s.relatorioMensalMei
-  if (!relatorio.length) return 0
-  const ultimos = relatorio.slice(0, 3)
-  const total = ultimos.reduce((acc, m) => acc + (m.saidas_pessoais || 0), 0)
-  return total > 0 ? Math.round(total / ultimos.length) : 0
-})
-
-// ─── Eficiência de tempo (Comparativo Estimado x Real) ───────
-const rankingTempo = computed(() => {
-  return s.receitas
-    .map(r => {
-      const real = s.getMediaTempoReceita(r.uuid)
-      if (real <= 0) return null
-      const estimado = r.tempo_preparo_min || 0
-      const pct = estimado > 0 ? (real / estimado) * 100 : 100
-      
-      return {
-        id: r.uuid,
-        nome: r.nome,
-        estimado,
-        real: Math.round(real),
-        diff: real - estimado,
-        pct,
-        status: pct > 115 ? 'atraso' : pct < 85 ? 'adianto' : 'ok'
-      }
-    })
-    .filter(Boolean)
-    .sort((a, b) => Math.abs(b.pct - 100) - Math.abs(a.pct - 100))
-})
-
-const maxTempoRank = computed(() => {
-  const list = rankingTempo.value.slice(0, 5)
-  if (!list.length) return 1
-  return Math.max(...list.flatMap(r => [r.estimado, r.real]))
-})
-
-// ─── Overhead calculado ──────────────────────────────────────
-const overheadRate = computed(() => {
-  const relatorio = s.relatorioMensalMei
-  if (!relatorio.length) return 0.1
-  const ultimos = relatorio.slice(0, 3)
-  const totalReceita = ultimos.reduce((acc, m) => acc + (m.receitas_mei || 0), 0)
-  if (totalReceita <= 0) return 0.1
-  const custoFixoPeriodo = 350 * ultimos.length
-  return Math.min(0.5, custoFixoPeriodo / totalReceita)
-})
-
-// ─── Faturamento médio mensal ─────────────────────────────────
-const faturamentoMedioMensal = computed(() => {
-  const relatorio = s.relatorioMensalMei
-  if (!relatorio.length) return 0
-  const ultimos = relatorio.slice(0, 3)
-  const total = ultimos.reduce((acc, m) => acc + (m.receitas_mei || 0), 0)
-  return ultimos.length > 0 ? total / ultimos.length : 0
-})
-
-// ═══════════════════════════════════════════════════════════════════
-// MOTOR DE ESTRATÉGIAS — cruza producoes × financeiro × receitas
-// ═══════════════════════════════════════════════════════════════════
-
-// Faturamento esperado por mês: quanto você DEVERIA ter recebido
-const faturamentoEsperadoPorMes = computed(() => {
-  const meses = new Map()
-  s.producoes.forEach(p => {
-    if (!p.data_producao) return
-    const mesRef = getMesRef(p.data_producao)
-    if (!mesRef) return
-    const receita = s.receitas.find(r => r.uuid === p.receita_id)
-    if (!receita || receita.eh_intermediaria) return
-    const qtd = Number(p.quantidade_produzida || 0)
-    const preco = Number(p.preco_unitario_snapshot || receita.preco_sugerido || 0)
-    const custoUnit = s.getCustoTotal(receita) / (receita.rendimento || 1)
-    const prev = meses.get(mesRef) || { mes: mesRef, esperado: 0, custo: 0, qtd: 0, porProduto: {} }
-    prev.esperado += qtd * preco
-    prev.custo += qtd * custoUnit
-    prev.qtd += qtd
-    prev.porProduto[p.receita_id] = (prev.porProduto[p.receita_id] || 0) + qtd
-    meses.set(mesRef, prev)
-  })
-  return [...meses.values()].sort((a, b) => {
-    const [ma, ya] = a.mes.split('/'); const [mb, yb] = b.mes.split('/')
-    return `${yb}${mb}`.localeCompare(`${ya}${ma}`)
-  })
-})
-
-// Receita real de vendas registrada no financeiro por mês
-const receitaRealPorMes = computed(() => {
-  const meses = new Map()
-  s.financeiro
-    .filter(f => f.natureza === 'entrada' && Number(f.valor || 0) > 0)
-    .forEach(f => {
-      const mesRef = getMesRef(f.data)
-      if (!mesRef) return
-      meses.set(mesRef, (meses.get(mesRef) || 0) + Number(f.valor))
-    })
-  return meses
-})
-
-// Comparativo cruzado: esperado × real × lucro
-const comparativoPorMes = computed(() =>
-  faturamentoEsperadoPorMes.value.slice(0, 6).map(m => {
-    const real = receitaRealPorMes.value.get(m.mes) || 0
-    const lucroEstimado = m.esperado - m.custo
-    const lucroReal = real - m.custo
-    const eficiencia = m.esperado > 0 ? Math.round((real / m.esperado) * 100) : 0
-    return { ...m, real, lucroEstimado, lucroReal, eficiencia }
-  })
-)
-
-// Valor máximo para normalizar as barras do comparativo
-const maxEsperado = computed(() =>
-  Math.max(...comparativoPorMes.value.slice(0, 4).map(m => Math.max(m.esperado, m.real)), 1)
-)
-
-// Ranking de produtos por rentabilidade cruzando todas as produções
-const rankingRentabilidade = computed(() => {
-  const map = new Map()
-  s.producoes.forEach(p => {
-    const receita = s.receitas.find(r => r.uuid === p.receita_id)
-    if (!receita || receita.eh_intermediaria) return
-    const qtd = Number(p.quantidade_produzida || 0)
-    const preco = Number(p.preco_unitario_snapshot || receita.preco_sugerido || 0)
-    const custoUnit = s.getCustoTotal(receita) / (receita.rendimento || 1)
-    const margem = preco > 0 ? ((preco - custoUnit) / preco) * 100 : 0
-    const prev = map.get(p.receita_id) || {
-      id: p.receita_id, nome: receita.nome,
-      qtdTotal: 0, faturamento: 0, custo: 0,
-      preco, custoUnit, margem
-    }
-    prev.qtdTotal += qtd
-    prev.faturamento += qtd * preco
-    prev.custo += qtd * custoUnit
-    map.set(p.receita_id, prev)
-  })
-  return [...map.values()]
-    .map(p => ({ ...p, lucroTotal: p.faturamento - p.custo }))
-    .sort((a, b) => b.margem - a.margem)
-})
-
-// ─── Tendência recente ────────────────────────────────────────
-// Complementa o ranking geral (que é acumulado desde sempre) com um
-// recorte dos últimos 30 dias vs os 30 anteriores. No seu modelo (porta
-// a porta, sob pedido) o "queridinho" muda com o tempo — esse recorte
-// pega esse produto que está em alta agora, mesmo que no acumulado
-// geral ele não apareça entre os primeiros.
-const tendenciaRecente = computed(() => {
-  const JANELA = 30 * 86400000
-  const agora = Date.now()
-  const inicioRecente = agora - JANELA
-  const inicioAnterior = agora - 2 * JANELA
-  const map = new Map()
-
-  s.producoes.forEach(p => {
-    if (!p.data_producao || !p.receita_id) return
-    const t = new Date(p.data_producao).getTime()
-    if (Number.isNaN(t) || t < inicioAnterior) return
-    const receita = s.receitas.find(r => r.uuid === p.receita_id)
-    if (!receita || receita.eh_intermediaria) return
-    const qtd = Number(p.quantidade_produzida || 0)
-    if (!map.has(p.receita_id)) map.set(p.receita_id, { id: p.receita_id, nome: receita.nome, recente: 0, anterior: 0 })
-    const entry = map.get(p.receita_id)
-    if (t >= inicioRecente) entry.recente += qtd
-    else entry.anterior += qtd
-  })
-
-  return [...map.values()]
-    .filter(e => e.recente > 0)
-    .map(e => ({
-      ...e,
-      variacao: e.anterior > 0 ? ((e.recente - e.anterior) / e.anterior) * 100 : null // null = produto novo no período, sem base de comparação
-    }))
-    .sort((a, b) => {
-      const va = a.variacao === null ? 999 : a.variacao
-      const vb = b.variacao === null ? 999 : b.variacao
-      return vb - va || b.recente - a.recente
-    })
-    .slice(0, 5)
-})
-
-// Motor de estratégias automáticas
-const estrategiasAutomaticas = computed(() => {
-  const estrategias = []
-  const produtos = rankingRentabilidade.value
-  if (!produtos.length) return estrategias
-
-  const melhorMargem = produtos[0]
-  const maiorVolume = [...produtos].sort((a, b) => b.qtdTotal - a.qtdTotal)[0]
-
-  // E1: Produto mais rentável sendo pouco produzido em relação ao carro-chefe.
-  // No seu modelo, produção alta normalmente reflete pedido/demanda real
-  // (porta a porta, encomenda) — então "produzir mais" é uma ação válida
-  // quando o produto de maior margem ainda tem espaço pra crescer.
-  if (melhorMargem && maiorVolume && melhorMargem.id !== maiorVolume.id
-    && maiorVolume.qtdTotal > 0 && melhorMargem.qtdTotal < maiorVolume.qtdTotal * 0.6) {
-    const ganho = Math.round(melhorMargem.qtdTotal * 0.3 * (melhorMargem.preco - melhorMargem.custoUnit))
-    estrategias.push({
-      tipo: 'aumentar_producao', urgencia: 'alta',
-      titulo: `Produzir mais ${melhorMargem.nome}`,
-      descricao: `Margem de ${melhorMargem.margem.toFixed(0)}% — a mais alta dos seus produtos — mas ele aparece bem menos que ${maiorVolume.nome} na sua produção. Se tiver espaço na demanda, 30% a mais desse item já somaria +${R$(ganho)}/ciclo, sem mudar preço.`,
-      ganho, icone: 'fa-arrow-trend-up'
-    })
-  }
-
-  // E2: Gap entre esperado e real (produto perdido ou lançamento faltando)
-  const ultimos = comparativoPorMes.value.slice(0, 3)
-  if (ultimos.length) {
-    const gapMedio = ultimos.reduce((acc, m) => acc + Math.max(0, m.esperado - m.real), 0) / ultimos.length
-    if (gapMedio > 50) {
-      estrategias.push({
-        tipo: 'gap_receita', urgencia: 'alta',
-        titulo: 'Receita esperada não chegou ao caixa',
-        descricao: `Em média, ${R$(Math.round(gapMedio))}/mês da sua produção não aparece como receita no financeiro. Possíveis causas: venda abaixo do preço cadastrado, lançamento de entrada faltando ou produto sem saída. Investigar pode recuperar até ${R$(Math.round(gapMedio * 12))}/ano.`,
-        ganho: Math.round(gapMedio * 12), icone: 'fa-triangle-exclamation'
-      })
-    }
-  }
-
-  // E3: Produtos com margem abaixo de 35% — sugestão de reajuste, mas
-  // suave: pode ser um produto que já virou hábito de compra recorrente
-  // pra algum cliente, então subir de uma vez pro preço "ideal" arrisca
-  // perder essa venda fiel. Sugere um primeiro passo menor, gradual.
-  produtos.filter(p => p.margem < 35 && p.qtdTotal > 0).slice(0, 2).forEach(p => {
-    const precoIdeal = Math.ceil((p.custoUnit / 0.65) * 100) / 100
-    const diff = precoIdeal - p.preco
-    if (diff > 0.3) {
-      const precoGradual = Math.round((p.preco + diff * 0.4) * 100) / 100
-      const ganho = Math.round(diff * p.qtdTotal)
-      estrategias.push({
-        tipo: 'ajuste_preco', urgencia: 'baixa',
-        titulo: `Reajustar aos poucos: ${p.nome}`,
-        descricao: `Margem atual: ${p.margem.toFixed(0)}% — abaixo do saudável de 35%. Se for um produto que clientes já pegam sempre, evite pular direto pro preço ideal (${R$(precoIdeal)}) — um primeiro passo de ${R$(precoGradual)} já reduz o aperto sem arriscar a recorrência. Reajuste completo valeria +${R$(ganho)}/ciclo.`,
-        ganho, icone: 'fa-coins'
-      })
-    }
-  })
-
-  // E5: Projeção: se reajustar o pior preço, qual seria o lucro mensal?
-  // (fica como projeção hipotética mesmo — não é recomendação de ação
-  // imediata, por isso a urgência já era "baixa")
-  const piorMargem = [...produtos].sort((a, b) => a.margem - b.margem)[0]
-  if (piorMargem && piorMargem.margem < melhorMargem.margem - 20 && piorMargem.qtdTotal > 0) {
-    const precoAlvo = Math.ceil((piorMargem.custoUnit / 0.6) * 100) / 100
-    const ganhoMensal = Math.round((precoAlvo - piorMargem.preco) * piorMargem.qtdTotal)
-    if (ganhoMensal > 20) {
-      estrategias.push({
-        tipo: 'projecao', urgencia: 'baixa',
-        titulo: `Projeção: se ${piorMargem.nome} tivesse margem de 40%`,
-        descricao: `Preço atual: ${R$(piorMargem.preco)}/un — preço para 40% de margem: ${R$(precoAlvo)}/un. Com o volume que já sai (${piorMargem.qtdTotal} un), esse ajuste valeria +${R$(ganhoMensal)}/ciclo. É só uma simulação — se esse produto for uma isca ou hábito de cliente fiel, o valor de mantê-lo como está pode valer mais que a diferença de preço.`,
-        ganho: ganhoMensal, icone: 'fa-chart-line'
-      })
-    }
-  }
-
-  // E6: Desvio de tempo (identifica receitas que demoram mais que o planejado)
-  rankingTempo.value.filter(r => r.status === 'atraso' && r.diff > 10).slice(0, 1).forEach(r => {
-    estrategias.push({
-      tipo: 'tempo_preparo', urgencia: 'media',
-      titulo: `Calibrar tempo de ${r.nome}`,
-      descricao: `Essa receita leva em média ${r.real} min, mas está estimada em ${r.estimado} min (${Math.round(r.pct)}% do esperado). Isso pode estar subestimando seu custo real de mão de obra.`,
-      ganho: 0, icone: 'fa-stopwatch'
-    })
-  })
-
-  return estrategias.sort((a, b) => ({ alta: 0, media: 1, baixa: 2 }[a.urgencia] - { alta: 0, media: 1, baixa: 2 }[b.urgencia]))
-})
-
-// ─── Produto selecionado ──────────────────────────────────────
-watch(produtosOrdenados, (lista) => {
-  if (!lista.length) { produtoSelecionadoId.value = ''; precoProposto.value = 0; return }
-  const atual = lista.find(i => i.id === produtoSelecionadoId.value)
-  const produtoBase = atual || lista[0]
-  produtoSelecionadoId.value = produtoBase.id
-  if (!precoProposto.value) precoProposto.value = produtoBase.preco
-}, { immediate: true })
-
-const produtoSelecionado = computed(() =>
-  produtosInteligencia.value.find(i => i.id === produtoSelecionadoId.value) || null
-)
-
-watch(produtoSelecionado, (produto) => {
-  if (!produto) return
-  // Usa o preço sugerido da receita; se for 0, deixa o campo vazio para o usuário preencher
-  precoProposto.value = produto.preco || 0
-}, { immediate: true })
-
-// Preço auto-calculado (mínimo viável com salário) quando campo está zerado
-const precoAutoCalculado = computed(() => {
-  if (precoProposto.value > 0) return null
-  if (!precoMinimoSalario.value) return null
-  return snapToSmartPrice(precoMinimoSalario.value.precoMinimoComSalario)
-})
-
-// ─── Análise do produto selecionado ──────────────────────────
-const analiseProduto = computed(() => {
-  if (!produtoSelecionado.value) return null
-
-  const resultado = analisarProduto(produtoSelecionado.value, isPrecoTotal.value ? null : precoProposto.value, {
-    quantidade: quantidade.value,
-    overheadRate: overheadRate.value,
-    valorCliente: isPrecoTotal.value ? precoProposto.value : 0
-  })
-
-  return resultado
-})
-
-// ─── Preço mínimo com salário ─────────────────────────────────
-const precoMinimoSalario = computed(() => {
-  if (!produtoSelecionado.value) return null
-  return calcularPrecoMinimoComSalario(produtoSelecionado.value.custo, {
-    quantidade: quantidade.value,
-    overheadRate: overheadRate.value,
-    metaSalarioMensal: metaSalarioMensal.value,
-    faturamentoMedioMensal: faturamentoMedioMensal.value
-  })
-})
-
-// ─── Quantidade mínima para cobrir tudo ──────────────────────
-const qtdMinimaParaSalario = computed(() => {
-  if (!produtoSelecionado.value || !precoMinimoSalario.value) return null
-  const custoFixo = overheadRate.value * faturamentoMedioMensal.value
-  return calcularQuantidadeMinima(
-    produtoSelecionado.value.custo,
-    precoMinimoSalario.value.precoMinimoComSalario,
-    { custoFixoMensal: custoFixo, metaSalarioMensal: metaSalarioMensal.value }
-  )
-})
-
-// ─── Histórico e aprendizado ──────────────────────────────────
-const historicoVendas = computed(() =>
-  s.producoes
-    .filter(p => {
-      const receita = s.receitas.find(r => r.uuid === p.receita_id)
-      return receita && !receita.eh_intermediaria
-    })
-    .map(p => {
-      const receita = s.receitas.find(r => r.uuid === p.receita_id)
-      return {
-        produtoId: p.receita_id,
-        quantidade: p.quantidade_produzida || 0,
-        precoVendido: p.preco_unitario_snapshot ?? (receita?.preco_sugerido || 0),
-        data: p.data_producao
-      }
-    })
-)
-
-const inteligencia = computed(() =>
-  aprenderComVendas(historicoVendas.value, produtosInteligencia.value)
-)
-
-// ─── Labels e ícones ─────────────────────────────────────────
-const statusLabel = computed(() => {
-  if (!analiseProduto.value) return ''
-  const labels = {
-    ok: 'Saudável',
-    margem_baixa: 'Margem no Limite',
-    abaixo_do_minimo: 'Margem Crítica',
-    prejuizo: 'Prejuízo'
-  }
-  return labels[analiseProduto.value.status] || 'Análise'
-})
-
-const statusIcon = computed(() => {
-  if (!analiseProduto.value) return 'fa-circle-info'
-  const icons = {
-    ok: 'fa-check-circle',
-    margem_baixa: 'fa-circle-exclamation',
-    abaixo_do_minimo: 'fa-triangle-exclamation',
-    prejuizo: 'fa-circle-xmark'
-  }
-  return icons[analiseProduto.value.status] || 'fa-circle-info'
-})
-
-// ─── Ações ────────────────────────────────────────────────────
-async function atualizarPreco() {
-  const r = s.receitas.find(x => x.uuid === produtoSelecionadoId.value)
-  if (!r) return
-
-  const precoUnitarioCalculado = analiseProduto.value.precoProposto
-
-  const ok = await confirm.ask(
-    `Deseja atualizar o preço unitário de "${r.nome}" para ${R$(precoUnitarioCalculado)}? Isso afetará os cálculos de lucro no painel.`,
-    { title: 'Atualizar Receita', confirmLabel: 'Atualizar', type: 'primary' }
-  )
-
-  if (ok) {
-    await s.salvarReceita({ ...r, preco_sugerido: precoUnitarioCalculado })
-  }
+  return gerarPrompt(id, contexto)
 }
 
-  // ── Seletor de IA ─────────────────────────────────────────────────────────
-  const modalIA = ref(false)
-  const promptGerado = ref('')
-  const listaAIs = [
-    { id: 'gemini',   nome: 'Gemini',   icon: 'fas fa-wand-magic-sparkles', url: p => `https://gemini.google.com/app?q=${encodeURIComponent(p)}` },
-    { id: 'chatgpt',  nome: 'ChatGPT',  icon: 'fas fa-comment-dots', url: p => `https://chatgpt.com/?q=${encodeURIComponent(p)}` },
-    { id: 'claude',   nome: 'Claude',   icon: 'fas fa-robot', url: p => `https://claude.ai/new?q=${encodeURIComponent(p)}` },
-    { id: 'deepseek', nome: 'DeepSeek', icon: 'fas fa-brain', url: p => `https://chat.deepseek.com/` }
-  ]
-
-  // ── IA Consultora ─────────────────────────────────────────────────────────
-
-  const promptsIA = [
-    {
-      id: 'precificacao',
-      titulo: 'Análise de Precificação',
-      sub: 'Margem, preço mínimo e posicionamento',
-      icon: 'fas fa-tag',
-      bg: '#E6F1FB', cor: '#185FA5'
-    },
-    {
-      id: 'lucro',
-      titulo: 'Estratégia de Lucro',
-      sub: 'O que produzir mais para bater a meta',
-      icon: 'fas fa-chart-line',
-      bg: '#EAF3DE', cor: '#3B6D11'
-    },
-    {
-      id: 'geral',
-      titulo: 'Diagnóstico Geral',
-      sub: 'Análise completa do negócio',
-      icon: 'fas fa-stethoscope',
-      bg: '#EEEDFE', cor: '#3C3489'
-    }
-  ]
-
-  function buildContexto() {
-    const mes = comparativoPorMes.value[0]
-    const meta = metaSalarioMensal.value
-
-    // Resumo de Esforço vs Resultado (Todos os produtos com produção registrada)
-    const resumoProducao = rankingRentabilidade.value
-      .map(p => {
-        const r = s.receitas.find(rec => rec.uuid === p.id)
-        const cat = r?.categoria || 'Outros'
-        return `  - [${cat}] ${p.nome}: ${p.qtdTotal} un produzidas | Lucro Total: R$${p.lucroTotal.toFixed(2)} | Margem: ${p.margem.toFixed(0)}%`
-      }).join('\n')
-
-    // Financeiro
-    const finMes = mes
-      ? `Mês atual: faturamento esperado R$${mes.esperado.toFixed(2)}, receita bancária R$${mes.real.toFixed(2)}, lucro estimado R$${mes.lucroReal.toFixed(2)}, eficiência ${mes.eficiencia}%`
-      : 'Sem dados financeiros do mês'
-
-    const dasInfo = s.company?.das_mei_mensal
-      ? `DAS-MEI mensal: R$${Number(s.company.das_mei_mensal).toFixed(2)}`
-      : ''
-
-    return `CONTEXTO DO NEGÓCIO (${s.company?.nome || 'confeitaria'}):
-Negócio: confeitaria artesanal MEI - Vendas Porta-a-porta e encomendas
-Meta de retirada mensal: R$${meta.toFixed(2)}
-${dasInfo}
-
-HISTÓRICO DE PRODUÇÃO (Esforço vs Lucro):
-${resumoProducao}
-
-FINANCEIRO:
-${finMes}
-${comparativoPorMes.value.slice(1, 4).map(m => `  ${m.mes}: esperado R$${m.esperado.toFixed(2)}, real R$${m.real.toFixed(2)}, lucro R$${m.lucroReal.toFixed(2)}`).join('\n')}`
+async function dispararPrompt(p) {
+  if (preparandoIA.value) return
+  preparandoIA.value = true
+  try {
+    promptGerado.value = await montarPrompt(p.id)
+  } catch (e) {
+    console.error(e); s.notify('Não deu para montar o texto agora.', 'error'); preparandoIA.value = false; return
   }
-
-  function gerarPrompt(id) {
-    const ctx = buildContexto()
-
-    const prompts = {
-      precificacao: `${ctx}
-
-TAREFA:
-Analise a precificação focando na relação entre esforço de produção e lucro.
-- Identifique quais produtos estão com margem baixa (< 35%) e avalie se faz sentido reajustar aos poucos (alguns produtos de margem baixa podem ser intencionais — isca pra criar hábito de compra recorrente, não necessariamente erro)
-- Avalie se o volume produzido justifica a margem atual
-- Sugira novos preços de venda para equilibrar o lucro pelo tempo gasto
-- Considere que sou MEI com meta de retirada de R$${metaSalarioMensal.value.toFixed(2)}/mês
-Seja direto e prático, com valores concretos.`,
-
-      lucro: `${ctx}
-
-TAREFA:
-Analise minha produção e finanças e me diga como aumentar meu lucro para atingir a meta de R$${metaSalarioMensal.value.toFixed(2)}/mês.
-- Quais produtos devo priorizar produzir mais (menos esforço, mais lucro)?
-- Identifique "vampiros de tempo": produtos que produzo muito mas que rendem pouco lucro total.
-- Quanto preciso vender a mais dos meus produtos mais rentáveis para compensar os de baixa margem?
-- Sugira uma meta de produção semanal baseada nos itens de melhor retorno, mas considere que a maior parte da minha produção é sob encomenda/porta a porta — então "produzir mais" só faz sentido pro que tem demanda real.
-Quero um plano de ação prático com números.`,
-
-      geral: `${ctx}
-
-TAREFA:
-Faça um diagnóstico completo do meu negócio de confeitaria artesanal como consultora especializada em MEI.
-- Pontos fortes e fracos da operação atual
-- Análise de mix: Onde estou gastando muito esforço (quantidade) e tendo pouco retorno (lucro)?
-- Alguns produtos de margem mais baixa podem ser intencionais (isca pra criar hábito de compra recorrente) — não assuma que margem baixa é sempre erro a corrigir.
-- Como melhorar a eficiência bancária (atualmente ${comparativoPorMes.value[0]?.eficiencia ?? 0}%)?
-Seja honesta e direta. Quero saber o que parar de fazer e o que começar a priorizar agora.`
-    }
-
-    return prompts[id] || ''
+  preparandoIA.value = false
+  // Copia primeiro (essencial no celular)
+  try {
+    await navigator.clipboard.writeText(promptGerado.value)
+    s.notify('Texto copiado! Escolha a IA abaixo.')
+  } catch {
+    s.notify('Escolha a IA e cole o texto.', 'warning')
   }
+  modalIA.value = true
+}
 
-  async function dispararPrompt(p) {
-    const prompt = gerarPrompt(p.id)
-    if (!prompt) return
-    
-    promptGerado.value = prompt
-
-    // Copia para o clipboard primeiro (essencial para mobile)
-    try {
-      await navigator.clipboard.writeText(prompt)
-      s.notify('Dados copiados! Escolha a IA abaixo.')
-    } catch {
-      s.notify('Escolha a IA para colar os dados.', 'warning')
-    }
-
-    modalIA.value = true
-  }
-
-  function abrirIA(ai) {
-    const url = ai.url(promptGerado.value)
-    window.open(url, '_blank')
-    modalIA.value = false
-  }
+function abrirIA(ai) {
+  const comTexto = ai.url(promptGerado.value)
+  window.open(comTexto.length > LIMITE_URL ? ai.base : comTexto, '_blank')
+  modalIA.value = false
+}
 </script>
 
 <style scoped>

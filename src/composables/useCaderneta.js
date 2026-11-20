@@ -232,6 +232,9 @@ export async function getClientes(lojaId, { incluirArquivados = false } = {}) {
   const todos = await db.cad_clientes.where('lojaId').equals(lojaId).sortBy('nome')
   return incluirArquivados ? todos : todos.filter(c => !c.arquivado)
 }
+export async function getCliente(id) {
+  return id == null ? null : (await db.cad_clientes.get(id)) || null
+}
 export async function getTodosClientes() {
   return db.cad_clientes.toArray()
 }

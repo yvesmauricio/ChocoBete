@@ -327,6 +327,30 @@
 
       <div class="cad-lancar-body cad-nv-body">
 
+        <!-- Perfil da cliente: confiabilidade e pontos de atenção (vem da análise da aba Inteligência) -->
+        <div v-if="perfilCliente" class="cad-nv-perfil" :class="'st-' + perfilCliente.status">
+          <button type="button" class="cad-nv-perfil-topo" @click="perfilExpandido = !perfilExpandido" :aria-expanded="perfilExpandido">
+            <span class="cad-nv-perfil-badge">{{ ROTULO_STATUS[perfilCliente.status] }}</span>
+            <span class="cad-nv-perfil-resumo">
+              <template v-if="perfilCliente.saldoAtrasado > 0">Vencido: R$ {{ fmt(perfilCliente.saldoAtrasado) }} ({{ perfilCliente.diasAtrasoAtual }}d)</template>
+              <template v-else-if="perfilCliente.pctEmDia !== null">{{ perfilCliente.pctEmDia }}% pago no prazo · {{ perfilCliente.compras }} {{ perfilCliente.compras === 1 ? 'compra' : 'compras' }}</template>
+              <template v-else>{{ perfilCliente.compras }} {{ perfilCliente.compras === 1 ? 'compra' : 'compras' }} · R$ {{ fmt(perfilCliente.totalComprado) }}</template>
+            </span>
+            <i class="fas" :class="perfilExpandido ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div class="cad-nv-perfil-conselho">{{ perfilCliente.conselho.texto }}</div>
+          <div v-if="perfilCliente.obs" class="cad-nv-perfil-obs"><i class="fas fa-note-sticky"></i> {{ perfilCliente.obs }}</div>
+          <ul v-if="perfilExpandido" class="cad-nv-perfil-fatos">
+            <li v-for="f in perfilCliente.fatos" :key="f">{{ f }}</li>
+            <li v-if="perfilCliente.saldoAberto > 0">Em aberto agora: R$ {{ fmt(perfilCliente.saldoAberto) }}</li>
+            <li v-if="perfilCliente.freqDias">Costuma comprar a cada ~{{ perfilCliente.freqDias }} dias</li>
+          </ul>
+          <div v-if="perfilAlertaLimite" class="cad-nv-perfil-alerta"><i class="fas fa-triangle-exclamation"></i> {{ perfilAlertaLimite }}</div>
+        </div>
+        <div v-else-if="clienteAtual && !comprasCliente.length && comprasCarregadas" class="cad-nv-perfil st-novo">
+          <div class="cad-nv-perfil-topo"><span class="cad-nv-perfil-badge">Primeira compra</span><span class="cad-nv-perfil-resumo">Ainda sem histórico — comece com um valor pequeno.</span></div>
+        </div>
+
         <!-- Já lançado: só aparece se o cliente tem compras em aberto -->
         <button v-if="ultimasAbertas.length" type="button" class="cad-nv-jalancado" @click="modalJaLancadas = true">
           <i class="fas fa-clock-rotate-left"></i>
@@ -1065,6 +1089,15 @@
               <button type="button" class="cad-btn-agenda" @click="confirmarNovaFuncao" title="Usar esta função"><i class="fas fa-check"></i></button>
             </div>
           </div>
+          <div class="cad-form-group">
+            <label class="cad-form-label">Como ela costuma pagar? <span class="cad-form-label-aux">(só você vê; ajuda a decidir o fiado)</span></label>
+            <div class="cad-funcao-chips">
+              <button v-for="t in [{ id: 'confiavel', n: 'Confiável' }, { id: 'enrola', n: 'Enrola' }, { id: 'evitar', n: 'Evitar fiado' }]" :key="t.id" type="button" class="cad-funcao-chip"
+                :class="{ ativo: formCliente.perfilManual === t.id }" @click="formCliente.perfilManual = formCliente.perfilManual === t.id ? '' : t.id">{{ t.n }}</button>
+            </div>
+            <textarea class="cad-form-input" v-model="formCliente.obs" rows="3" maxlength="600" style="margin-top:8px;resize:vertical"
+              placeholder="Anotações: desculpas, combinados, dia que costuma pagar…"></textarea>
+          </div>
           <div v-if="editandoCliente && lojas.length > 1" class="cad-form-group">
             <label class="cad-form-label">Loja</label>
             <select class="cad-form-input" v-model="formCliente.lojaId">
@@ -1751,7 +1784,7 @@ import {
   resumoCliente, arquivarCliente, listarDuplicados, juntarClientes, juntarLojas,
   validarTelefone, centavos,
   getFuncoes, FUNCOES_PADRAO, limparFuncao, mesmaFuncao, observarSaldosClientes,
-  getFiados, getFiadosAbertos, getFiadosVencendoHoje, getFiadosDoCliente,
+  getFiados, getFiadosAbertos, getFiadosVencendoHoje, getFiadosDoCliente, getCliente,
   salvarFiado as dbSalvarFiado, atualizarFiado, excluirFiado as dbExcluirFiado,
   getStats,
   getTaxas, salvarTaxas,
@@ -1761,6 +1794,7 @@ import {
   fmt, fmtBR, fmtHora, iniciais, normalizar, resumoItens,
   hoje, horaAtual
 } from '../composables/useCaderneta.js'
+import { analisarClientes, ROTULO_STATUS } from '../modules/guiaNegocio.js'
 import { useStore } from '../store.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import {
@@ -2319,7 +2353,7 @@ const clientes       = ref([])
 const lojaAtual      = ref(null)
 const buscaClientes  = ref('')
 const modalCliente   = ref(null)
-const formCliente    = ref({ nome: '', telefone: '', funcao: '', lojaId: null })
+const formCliente    = ref({ nome: '', telefone: '', funcao: '', lojaId: null, obs: '', perfilManual: '' })
 
 // ── Função da cliente (Vendedor(a), Gerente, Estoquista… ou uma nova) ──
 const funcoesOpcoes     = ref([...FUNCOES_PADRAO])
@@ -2401,7 +2435,7 @@ function abrirModalCliente(c = null) {
     lojaAtual.value = { ...lojas.value[0] }
   }
   editandoCliente.value = c ? c.id : null
-  formCliente.value = { nome: c?.nome || '', telefone: c?.telefone || '', funcao: c?.funcao || '', lojaId: c?.lojaId ?? lojaAtual.value?.id }
+  formCliente.value = { nome: c?.nome || '', telefone: c?.telefone || '', funcao: c?.funcao || '', lojaId: c?.lojaId ?? lojaAtual.value?.id, obs: c?.obs || '', perfilManual: c?.perfilManual || '' }
   lojaOriginalCliente.value = c?.lojaId ?? null
   novaFuncaoAberta.value = false
   funcoesOpcoes.value = [...FUNCOES_PADRAO]
@@ -2431,6 +2465,8 @@ async function salvarCliente_() {
     telefone: formCliente.value.telefone.trim(),
     funcao: limparFuncao(formCliente.value.funcao),
     lojaId: lojaDestinoId,
+    obs: String(formCliente.value.obs || '').trim(),
+    perfilManual: formCliente.value.perfilManual || '',
   }
   if (editando) obj.id = editandoCliente.value
 
@@ -2679,10 +2715,33 @@ const comprasAbertasCliente = computed(() =>
     .sort((a, b) => chaveRecente(b).localeCompare(chaveRecente(a)))
 )
 const ultimasAbertas = computed(() => comprasAbertasCliente.value.slice(0, 5))
+const comprasCarregadas = ref(false)
+const fichaCliente = ref(null) // cadastro completo (anotações e marcação manual)
 async function carregarComprasCliente() {
-  try { comprasCliente.value = await getFiadosDoCliente(clienteAtual.value?.id) }
-  catch (e) { console.error(e); comprasCliente.value = [] }
+  try {
+    comprasCliente.value = await getFiadosDoCliente(clienteAtual.value?.id)
+    fichaCliente.value = await getCliente(clienteAtual.value?.id)
+  } catch (e) { console.error(e); comprasCliente.value = [] }
+  finally { comprasCarregadas.value = true }
 }
+
+// ── Perfil da cliente (confiabilidade) — mesma análise da aba Inteligência ──
+const perfilCliente = computed(() => {
+  const base = fichaCliente.value || clienteAtual.value
+  if (!base || !comprasCliente.value.length) return null
+  return analisarClientes({ fiados: comprasCliente.value, clientes: [{ ...base, id: clienteAtual.value.id }], lojas: [], hoje: hoje() })[0] || null
+})
+const perfilExpandido = ref(false)
+// Aviso ao passar do limite sugerido de fiado (só quando há valor lançado)
+const perfilAlertaLimite = computed(() => {
+  const p = perfilCliente.value
+  if (!p || !(totalLancar.value > 0)) return ''
+  const lim = p.conselho.limite
+  if (lim === null || lim === undefined) return ''
+  if (lim === 0) return 'Esta cliente está marcada para venda só à vista (ou depois de receber o atrasado).'
+  const depois = centavos(p.saldoAberto + totalLancar.value)
+  return depois > lim ? `Com esta venda ela fica devendo R$ ${fmt(depois)} — acima do limite sugerido de R$ ${fmt(lim)}.` : ''
+})
 
 function descFiado(f) {
   return resumoItens(f.itens) || f.descricaoLivre || ''
@@ -2901,6 +2960,9 @@ async function iniciarLancar() {
   modalJaLancadas.value = false
   avisoDuplicado.value = null
   comprasCliente.value = []
+  comprasCarregadas.value = false
+  fichaCliente.value = null
+  perfilExpandido.value = false
   carregarComprasCliente()
   setChip('fim') // pré-seleciona fim do mês
   await carregarCategoriasVenda()
@@ -5430,6 +5492,28 @@ onMounted(async () => {
 .cad-nv-cat .cad-stepper-btn { width: 44px; height: 44px; font-size: 22px; }
 .cad-nv-cat .cad-stepper-qty { min-width: 30px; font-size: 18px; }
 
+
+
+/* Perfil da cliente na Nova Venda */
+.cad-nv-perfil { margin-bottom: 14px; padding: 10px 12px; border-radius: var(--r-md); border: 1.5px solid var(--border); background: var(--surface); box-shadow: var(--shadow); border-left-width: 5px; }
+.cad-nv-perfil.st-bom { border-left-color: var(--green); background: var(--green-bg); }
+.cad-nv-perfil.st-atencao { border-left-color: var(--orange); background: var(--orange-bg); }
+.cad-nv-perfil.st-problema { border-left-color: var(--red); background: #FCEBEB; }
+.cad-nv-perfil.st-novo { border-left-color: var(--gold-dark); background: var(--cream); }
+.cad-nv-perfil-topo { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0; border: 0; background: none; text-align: left; font-family: var(--font); color: inherit; }
+button.cad-nv-perfil-topo { cursor: pointer; }
+.cad-nv-perfil-badge { flex-shrink: 0; padding: 2px 10px; border-radius: 99px; font-size: .72rem; font-weight: 800; background: #fff; color: var(--brown-dark); }
+.cad-nv-perfil.st-bom .cad-nv-perfil-badge { color: var(--green); }
+.cad-nv-perfil.st-atencao .cad-nv-perfil-badge { color: var(--orange); }
+.cad-nv-perfil.st-problema .cad-nv-perfil-badge { color: var(--red); }
+.cad-nv-perfil-resumo { flex: 1; min-width: 0; font-size: .82rem; font-weight: 700; color: var(--brown-dark); }
+.cad-nv-perfil-topo > i { font-size: .7rem; color: var(--muted); }
+.cad-nv-perfil-conselho { margin-top: 5px; font-size: .8rem; color: var(--brown-mid); line-height: 1.4; }
+.cad-nv-perfil-obs { margin-top: 5px; font-size: .78rem; color: var(--brown-dark); font-style: italic; }
+.cad-nv-perfil-obs i { margin-right: 4px; color: var(--gold-dark); font-size: .7rem; }
+.cad-nv-perfil-fatos { margin: 8px 0 0; padding-left: 18px; font-size: .78rem; color: var(--brown-dark); line-height: 1.5; }
+.cad-nv-perfil-alerta { margin-top: 8px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--red); color: #fff; font-size: .8rem; font-weight: 700; line-height: 1.35; }
+.cad-nv-perfil-alerta i { margin-right: 6px; }
 
 /* Cartão de categoria (modo resumido): padrão + variantes + rodapé num bloco só */
 .cad-nv-card {
