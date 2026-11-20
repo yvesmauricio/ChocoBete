@@ -23,6 +23,9 @@
         <!-- ══ PREÇO CERTO: uma conta só, com os custos reais do negócio ══ -->
         <PrecoCerto />
 
+        <!-- ══ PIX MEI: proposta de investimento com os números do negócio ══ -->
+        <PropostaInvestimento :coletar="coletarDados" @prompt-ia="entregarPrompt" />
+
         <!-- ══ CONSULTAR IA ══ -->
         <div class="int-bloco">
           <div class="int-bloco-titulo"><i class="fas fa-robot"></i> Conversar com uma IA sobre o meu negócio</div>
@@ -76,6 +79,7 @@ import { db } from '../db.js'
 import BaseModal from '../components/BaseModal.vue'
 import GuiaNegocio from '../components/GuiaNegocio.vue'
 import PrecoCerto from '../components/PrecoCerto.vue'
+import PropostaInvestimento from '../components/PropostaInvestimento.vue'
 import { hoje, getLojas } from '../composables/useCaderneta.js'
 import {
   criarCustoDoItem, analisarClientes, clientesQueSumiram, analisarProdutos,
@@ -83,6 +87,7 @@ import {
 } from '../modules/guiaNegocio.js'
 import { baseFinanceira, riscoFiado, listaPrecoCerto } from '../modules/precoCerto.js'
 import { conciliar } from '../modules/conciliacao.js'
+import { analisarProducao } from '../modules/producaoSemanal.js'
 import { PROMPTS, montarContexto, gerarPrompt } from '../modules/promptsIA.js'
 
 const s = useStore()
@@ -100,10 +105,10 @@ const listaAIs = [
   { id: 'deepseek', nome: 'DeepSeek', icon: 'fas fa-brain',               base: 'https://chat.deepseek.com/',    url: () => 'https://chat.deepseek.com/' },
 ]
 
-// Junta os mesmos números do Guia e do Preço certo num texto só
-async function montarPrompt(id) {
-  const [fiados, clientes, lojasBase, historicoPrecos, financeiro] = await Promise.all([
-    db.cad_fiados.toArray(), db.cad_clientes.toArray(), getLojas({ incluirArquivadas: true }), db.historico_precos_venda.toArray(), db.financeiro.toArray(),
+// Junta os mesmos números do Guia e do Preço certo (usado pelos prompts e pela proposta do Pix MEI)
+async function coletarDados() {
+  const [fiados, clientes, lojasBase, historicoPrecos, financeiro, producoes] = await Promise.all([
+    db.cad_fiados.toArray(), db.cad_clientes.toArray(), getLojas({ incluirArquivadas: true }), db.historico_precos_venda.toArray(), db.financeiro.toArray(), db.producoes.toArray(),
   ])
   const entradas = financeiro.filter(e => e.categoria === 'Receita de Vendas' && Number(e.valor) > 0)
   const conc = conciliar({ entradas, fiados, clientes, hoje: hoje() })
@@ -113,42 +118,62 @@ async function montarPrompt(id) {
     custoUnit: s.getCustoTotal(r) / (r.rendimento || 1), preco: Number(r.preco_sugerido || 0),
   }))
   const custoDoItem = criarCustoDoItem(receitas)
+  // Produção semanal: usa TODAS as receitas (para reconhecer e descartar as intermediárias)
+  const producao = analisarProducao({
+    producoes, fiados, hoje: hj,
+    receitas: s.receitas.map(r => ({ uuid: r.uuid, nome: r.nome, categoria: r.categoria, unidade_rendimento: r.unidade_rendimento, eh_intermediaria: !!r.eh_intermediaria })),
+  })
   const metaRetirada = Number(s.company?.meta_salario_mensal || 0)
+  const tetoMei = Number(s.company?.teto_mei_anual) || 0
+  const faturadoAno = Number(s.totalRecebidoAnoAtual || 0)
   const base = baseFinanceira({ relatorio: s.relatorioMensalMei, hoje: hj, metaRetirada })
   const risco = riscoFiado({ fiados, hoje: hj })
   const analise = analisarClientes({ fiados, clientes, lojas: lojasBase, hoje: hj })
+  const mes = resumoDoMes({ fiados, custoDoItem, hoje: hj })
+  const produtos = analisarProdutos({ fiados, custoDoItem, hoje: hj })
   const contexto = montarContexto({
     empresa: s.company?.nome || '', hoje: hj,
-    mes: resumoDoMes({ fiados, custoDoItem, hoje: hj }),
-    base, risco,
+    mes, base, risco,
     precos: listaPrecoCerto({ receitas, base, risco, fiados, historicoPrecos, hoje: hj }),
-    produtos: analisarProdutos({ fiados, custoDoItem, hoje: hj }),
+    produtos,
     clientes: analise, sumiram: clientesQueSumiram(analise),
     combosJuntos: combosFrequentes(fiados),
     lojas: analisarLojas({ fiados, lojas: lojasBase, hoje: hj }),
     canais: { meses: conc.meses, pagadores: conc.pagadoresAvista },
-    metaRetirada, tetoMei: Number(s.company?.teto_mei_anual) || 0, faturadoAno: Number(s.totalRecebidoAnoAtual || 0),
+    metaRetirada, tetoMei, faturadoAno,
   })
+  return { hj, base, mes, produtos, tetoMei, faturadoAno, contexto, producao }
+}
+
+async function montarPrompt(id) {
+  const { contexto } = await coletarDados()
   return gerarPrompt(id, contexto)
 }
 
-async function dispararPrompt(p) {
-  if (preparandoIA.value) return
-  preparandoIA.value = true
-  try {
-    promptGerado.value = await montarPrompt(p.id)
-  } catch (e) {
-    console.error(e); s.notify('Não deu para montar o texto agora.', 'error'); preparandoIA.value = false; return
-  }
-  preparandoIA.value = false
+// Copia o texto e abre o seletor de IA (usado pelos botões da aba e pela proposta do Pix MEI)
+async function entregarPrompt(texto) {
+  promptGerado.value = texto
   // Copia primeiro (essencial no celular)
   try {
-    await navigator.clipboard.writeText(promptGerado.value)
+    await navigator.clipboard.writeText(texto)
     s.notify('Texto copiado! Escolha a IA abaixo.')
   } catch {
     s.notify('Escolha a IA e cole o texto.', 'warning')
   }
   modalIA.value = true
+}
+
+async function dispararPrompt(p) {
+  if (preparandoIA.value) return
+  preparandoIA.value = true
+  let texto
+  try {
+    texto = await montarPrompt(p.id)
+  } catch (e) {
+    console.error(e); s.notify('Não deu para montar o texto agora.', 'error'); preparandoIA.value = false; return
+  }
+  preparandoIA.value = false
+  await entregarPrompt(texto)
 }
 
 function abrirIA(ai) {

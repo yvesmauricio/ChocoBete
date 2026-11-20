@@ -6,6 +6,8 @@
  * DASN-SIMEI   — IN RFB nº 2.110/2022 / LC nº 123/2006 art. 18-A § 15
  */
 
+import { rotuloTipo } from '../modules/propostaInvestimento.js'
+
 // ── Helpers (local para o composable) ────────────────────────────────────────────────────────
 const BRL = (v) =>
   Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -951,6 +953,201 @@ export function gerarRelatorioProducao({ empresa, grupos, periodo }) {
 </html>`
 
   abrirJanela(html, `Relatório de Produção`)
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PROPOSTA DE INVESTIMENTO — Pix MEI (Prospera MEI)
+// Documento do próprio MEI (não é formulário oficial). Números vêm do app.
+// ══════════════════════════════════════════════════════════════════
+export function gerarPropostaInvestimento({ empresa, proposta, resumo, retorno, total, limite, producao = null }) {
+  const nomeEmpresa = empresa?.razao_social || empresa?.nome || 'Microempreendedor Individual'
+  const itens = (proposta?.itens || []).filter(i => i.descricao.trim() || i.valor > 0)
+  const txt = (v) => escHtml(v).replace(/\n/g, '<br>')
+  const vazio = '<em style="color:#777">não informado</em>'
+  const dinheiro = (v) => (v > 0 ? 'R$ ' + BRL(v) : '—')
+  const r = resumo || {}
+
+  const linhasItens = itens.map((i, n) => `
+      <tr>
+        <td class="cen">${n + 1}</td>
+        <td><strong>${escHtml(i.descricao) || vazio}</strong><br><span style="font-size:8.5pt;color:#444">${escHtml(rotuloTipo(i.tipo))}</span></td>
+        <td>${i.motivo.trim() ? txt(i.motivo) : vazio}</td>
+        <td class="num">${BRL(i.valor)}</td>
+      </tr>`).join('')
+
+  const linhasProdutos = (r.produtos || []).map(p => `
+      <tr>
+        <td>${escHtml(p.nome)}</td>
+        <td class="num">${p.qtd}</td>
+        <td class="num">${BRL(p.faturamento)}</td>
+        <td class="cen">${p.margem === null || p.margem === undefined ? '—' : p.margem + '%'}</td>
+      </tr>`).join('')
+
+  const ddmm = (iso) => `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}`
+  const temProducao = !!(producao && producao.semanas > 0)
+  const blocoProducao = temProducao ? `
+  <table class="tabela" style="margin-top:6pt">
+    <thead>
+      <tr>
+        <th>Produção registrada (${producao.semanas} ${producao.semanas === 1 ? 'semana' : 'semanas'}, ${ddmm(producao.periodo.de)} a ${ddmm(producao.periodo.ate)})</th>
+        <th>Média por semana</th>
+        <th>Melhor semana</th>
+        <th>Vendas registradas por semana</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>${producao.categorias.map(c => escHtml(c.rotulo) + ' ' + String(c.mediaSemana).replace('.', ',') + '/sem').join(' · ')}</td>
+        <td class="cen">${String(producao.mediaSemana).replace('.', ',')} un</td>
+        <td class="cen">${producao.melhorSemana.qtd} un</td>
+        <td class="cen">${producao.vendas ? String(producao.vendas.mediaSemana).replace('.', ',') + ' un' : '—'}</td>
+      </tr>
+    </tbody>
+  </table>` : ''
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Proposta de Investimento – ${escHtml(nomeEmpresa)}</title>
+<style>${CSS_BASE}
+  .pi-titulo { font-size: 17pt; font-weight: 700; margin-bottom: 2pt; }
+  .pi-sub { font-size: 9pt; color: #444; margin-bottom: 10pt; border-bottom: 1.5pt solid #000; padding-bottom: 6pt; }
+  .pi-texto { font-size: 10pt; line-height: 1.45; margin: 4pt 0 8pt; }
+  .pi-lista { margin: 4pt 0 8pt 16pt; font-size: 9.5pt; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div class="toolbar-flutuante no-print">
+  <button onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+  <button class="btn-fechar" onclick="window.close()">✕ Fechar</button>
+</div>
+
+<div class="pagina">
+
+  <div class="pi-titulo">Proposta de Investimento</div>
+  <div class="pi-sub">Programa Pix MEI (Prospera MEI) · elaborada pelo próprio microempreendedor, com base nas informações divulgadas — sujeita ao edital oficial</div>
+
+  <div class="quadro-titulo">Quadro 1 — Identificação</div>
+  <table class="id-box">
+    <tr>
+      <th style="width:50%">Nome / Razão social</th>
+      <th style="width:25%">CNPJ (MEI)</th>
+      <th style="width:25%">Atividade (CNAE)</th>
+    </tr>
+    <tr>
+      <td><strong>${escHtml(nomeEmpresa)}</strong></td>
+      <td><strong>${escHtml(empresa?.cnpj || 'Não informado')}</strong></td>
+      <td><strong>${escHtml(empresa?.cnae || '1091-1/01')}</strong></td>
+    </tr>
+    <tr>
+      <th colspan="2">Município / UF</th>
+      <th>Abertura do MEI</th>
+    </tr>
+    <tr>
+      <td colspan="2"><strong>${escHtml(empresa?.municipio || '—')} / ${escHtml(empresa?.uf || '—')}</strong></td>
+      <td><strong>${empresa?.mei_data_abertura ? fmtData(empresa.mei_data_abertura) : '—'}</strong></td>
+    </tr>
+  </table>
+
+  <div class="quadro-titulo" style="margin-top:12pt">Quadro 2 — O negócio e a necessidade</div>
+  <div class="quadro-subtitulo">O que produzo e vendo</div>
+  <div class="pi-texto">${proposta?.oQueFaz?.trim() ? txt(proposta.oQueFaz) : vazio}</div>
+  <div class="quadro-subtitulo">Problema de hoje que o investimento resolve</div>
+  <div class="pi-texto">${proposta?.problema?.trim() ? txt(proposta.problema) : vazio}</div>
+
+  <div class="quadro-titulo" style="margin-top:12pt">Quadro 3 — Situação atual do negócio (dados do meu controle)</div>
+  <table class="tabela">
+    <thead>
+      <tr>
+        <th>Faturamento médio mensal${r.registrado ? ` (${r.meses} ${r.meses === 1 ? 'mês' : 'meses'})` : ''}</th>
+        <th>Lucro estimado médio por mês</th>
+        <th>Sobra média por unidade vendida</th>
+        <th>Faturado no ano${r.tetoMei > 0 ? ' / teto MEI' : ''}</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="num">${r.registrado ? dinheiro(r.faturamentoMedio) : '—'}</td>
+        <td class="num">${dinheiro(r.lucroMedio)}</td>
+        <td class="num">${dinheiro(r.sobraUnit)}</td>
+        <td class="num">${dinheiro(r.faturadoAno)}${r.tetoMei > 0 ? ' de R$ ' + BRL(r.tetoMei) + (r.pctTeto !== null ? ` (${r.pctTeto}%)` : '') : ''}</td>
+      </tr>
+    </tbody>
+  </table>
+  ${linhasProdutos ? `
+  <table class="tabela" style="margin-top:6pt">
+    <thead><tr><th>Principais produtos (últimos 90 dias)</th><th>Unidades</th><th>Faturado (R$)</th><th>Margem</th></tr></thead>
+    <tbody>${linhasProdutos}</tbody>
+  </table>` : ''}
+  ${blocoProducao}
+  <div class="nota-legal" style="margin-top:6pt">
+    Valores registrados no meu sistema de controle. Parte das vendas e da produção pode ocorrer fora do registro, de modo que os números acima não representam, necessariamente, o total do negócio.
+  </div>
+
+  <div class="quadro-titulo" style="margin-top:12pt">Quadro 4 — Investimento pretendido</div>
+  <table class="tabela">
+    <thead>
+      <tr><th style="width:6%">Nº</th><th style="width:34%">Item</th><th>Por que preciso dele</th><th style="width:16%">Valor (R$)</th></tr>
+    </thead>
+    <tbody>
+      ${linhasItens || '<tr><td colspan="4" class="cen">Nenhum item informado</td></tr>'}
+      <tr>
+        <td colspan="3" style="text-align:right"><strong>Total do investimento</strong></td>
+        <td class="num"><strong>${BRL(total)}</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  ${total > limite ? `<div class="nota-legal" style="margin-top:6pt"><strong>Atenção:</strong> o total supera o valor máximo divulgado (R$ ${BRL(limite)}). A diferença ficará por conta do próprio MEI.</div>` : ''}
+
+  <div class="quadro-titulo" style="margin-top:12pt">Quadro 5 — Resultado esperado</div>
+  <div class="pi-texto">${proposta?.resultado?.trim() ? txt(proposta.resultado) : vazio}</div>
+  ${retorno ? `
+  <table class="tabela">
+    <thead>
+      <tr><th>Unidades a mais por semana (estimativa)</th><th>Ganho extra estimado por mês</th><th>Prazo estimado para o investimento se pagar</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="cen">${proposta.aumentoUnidSemana} (≈ ${retorno.aumentoUnidMes} por mês)</td>
+        <td class="num">R$ ${BRL(retorno.ganhoMes)}</td>
+        <td class="cen">${String(retorno.paybackMeses).replace('.', ',')} ${retorno.paybackMeses === 1 ? 'mês' : 'meses'}</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="nota-legal" style="margin-top:6pt">
+    Estimativa simples: unidades a mais por semana × 4,33 semanas × sobra média por unidade (preço − custo das receitas). Depende de a produção adicional ser de fato vendida.
+  </div>` : ''}
+
+  <div class="quadro-titulo" style="margin-top:12pt">Quadro 6 — Compromissos</div>
+  <ul class="pi-lista">
+    <li>Aplicar o recurso somente nos itens descritos no Quadro 4.</li>
+    <li>Guardar as notas fiscais de compra e apresentá-las como comprovação.</li>
+    <li>Aceitar o acompanhamento técnico previsto no programa.</li>
+  </ul>
+
+  <div class="assinatura-area">
+    <div class="assinatura-campo">
+      Local e data: _________________________________, ${hoje()}
+    </div>
+    <div class="assinatura-campo">
+      Assinatura do Microempreendedor Individual
+      <div style="margin-top:18pt">_____________________________________________</div>
+      <div style="margin-top:4pt">${escHtml(nomeEmpresa)}</div>
+    </div>
+  </div>
+
+  <div class="rodape">
+    Documento gerado em ${hoje()} · Rascunho elaborado com base em informações divulgadas pela imprensa sobre o Pix MEI (pacote Prospera MEI).
+    As regras, o formulário e os prazos oficiais serão os do edital, quando publicado. Acompanhe em <strong>gov.br</strong>.
+  </div>
+
+</div>
+</body>
+</html>`
+
+  abrirJanela(html, 'Proposta de Investimento')
 }
 
 // Escape HTML helper
