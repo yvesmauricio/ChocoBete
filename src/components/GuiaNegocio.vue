@@ -91,6 +91,22 @@
         </div>
       </div>
 
+      <!-- ══ 3b. QUEM PAGA À VISTA (do extrato) ═════════════════════ -->
+      <div v-if="pagadoresAvista.length" class="gn-bloco">
+        <div class="gn-titulo"><i class="fas fa-user-check"></i> Quem paga à vista (pelo extrato)</div>
+        <div class="gn-lista">
+          <div v-for="p in pagadoresAvista" :key="p.chave" class="gn-loja">
+            <div class="gn-loja-nome">{{ p.nome }}<small v-if="p.tambemClienteFiado" class="mudo"> · também é cliente de fiado</small></div>
+            <div class="gn-loja-nums">
+              <span><b>{{ R$(p.total) }}</b> · {{ p.vezes }} {{ p.vezes === 1 ? 'pagamento' : 'pagamentos' }}</span>
+              <span class="mudo">ticket {{ R$(p.ticket) }}</span>
+              <span v-if="p.intervaloMedio" class="mudo">a cada ~{{ p.intervaloMedio }} dias</span>
+            </div>
+          </div>
+        </div>
+        <p class="gn-dica">Veja a lista completa e a separação fiado × à vista em Financeiro › Fiado × À vista.</p>
+      </div>
+
       <!-- ══ 4. PRODUTOS ════════════════════════════════════════════ -->
       <div id="gn-produtos" class="gn-bloco">
         <div class="gn-titulo"><i class="fas fa-cookie-bite"></i> O que vende e o que sobra</div>
@@ -227,6 +243,7 @@ import { db } from '../db.js'
 import BaseModal from './BaseModal.vue'
 import { fmtBR, hoje, iniciais, getLojas } from '../composables/useCaderneta.js'
 import { urlWhatsapp } from '../services/contatoService.js'
+import { conciliar } from '../modules/conciliacao.js'
 import {
   criarCustoDoItem, analisarClientes, clientesQueSumiram, analisarProdutos, produtosDoCliente,
   comboParaCliente, combosFrequentes, resumoDoMes, analisarLojas, proximosPassos,
@@ -241,11 +258,13 @@ const carregando = ref(true)
 const fiados = ref([])
 const clientesBase = ref([])
 const lojasBase = ref([])
+const entradasExtrato = ref([])
 
 async function carregar() {
   try {
-    const [f, c, l] = await Promise.all([db.cad_fiados.toArray(), db.cad_clientes.toArray(), getLojas({ incluirArquivadas: true })])
+    const [f, c, l, fin] = await Promise.all([db.cad_fiados.toArray(), db.cad_clientes.toArray(), getLojas({ incluirArquivadas: true }), db.financeiro.toArray()])
     fiados.value = f; clientesBase.value = c; lojasBase.value = l
+    entradasExtrato.value = fin.filter(e => e.categoria === 'Receita de Vendas' && Number(e.valor) > 0)
   } catch (e) { console.error('Guia: não deu para ler as vendas', e) }
   finally { carregando.value = false }
 }
@@ -271,6 +290,8 @@ const analise = computed(() => analisarClientes({ fiados: fiados.value, clientes
 const sumiram = computed(() => clientesQueSumiram(analise.value))
 const produtos = computed(() => analisarProdutos({ fiados: fiados.value, custoDoItem: custoDoItem.value, hoje: hojeIso.value }))
 const combosJuntos = computed(() => combosFrequentes(fiados.value))
+// Quem paga à vista (vem do extrato: Pix que não são pagamento de nenhum fiado)
+const pagadoresAvista = computed(() => conciliar({ entradas: entradasExtrato.value, fiados: fiados.value, clientes: clientesBase.value, hoje: hojeIso.value }).pagadoresAvista.slice(0, 5))
 const lojasAnalise = computed(() => analisarLojas({ fiados: fiados.value, lojas: lojasBase.value, hoje: hojeIso.value }))
 const passos = computed(() => proximosPassos({
   resumo: mes.value, clientes: analise.value, produtos: produtos.value, sumiram: sumiram.value,
@@ -377,7 +398,7 @@ function executarAcao(a) {
 </script>
 
 <style scoped>
-.gn-bloco { margin-bottom: 18px; }
+.gn-bloco { margin-bottom: 16px; }
 .gn-titulo { display: flex; align-items: center; gap: 6px; padding: 0 2px; margin-bottom: 8px; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
 .gn-dica { margin: 4px 2px 10px; font-size: .78rem; color: var(--muted); line-height: 1.45; }
 .gn-nada { padding: 18px 14px; text-align: center; font-size: .85rem; color: var(--muted); background: var(--surface); border: 1px dashed var(--border); border-radius: var(--r-md); }
@@ -474,7 +495,7 @@ function executarAcao(a) {
 .gn-loja-nums b { font-family: var(--mono); color: var(--brown-dark); }
 
 /* Ficha */
-.gn-ficha { padding: 14px 16px 40px; display: flex; flex-direction: column; gap: 4px; }
+.gn-ficha { padding: 16px 16px max(32px, calc(24px + env(safe-area-inset-bottom))); display: flex; flex-direction: column; gap: 4px; }
 .gn-ficha-topo { display: flex; align-items: center; gap: 12px; }
 .gn-ficha-sub { margin-top: 4px; font-size: .82rem; color: var(--muted); }
 .gn-conselho { margin-top: 10px; padding: 10px 12px; border-radius: var(--r-md); font-size: .86rem; font-weight: 700; line-height: 1.4; background: var(--cream-deep); color: var(--brown-dark); }

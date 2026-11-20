@@ -436,26 +436,30 @@ export async function getStats() {
 }
 
 // ── PAGAMENTO ────────────────────────────────────────────────
-export function dadosPagamento(valor, saldoAntes, saldoDepois) {
+// `extra` (opcional): { data, financeiroHash } — usado quando a baixa vem da conciliação com o extrato:
+// grava a DATA REAL do Pix e a ligação com o lançamento do Financeiro (para não sugerir de novo).
+export function dadosPagamento(valor, saldoAntes, saldoDepois, extra = {}) {
+  const dataReal = /^\d{4}-\d{2}-\d{2}$/.test(String(extra.data || '')) ? extra.data : null
   return {
     valor,
-    data: hoje(),
-    hora: horaAtual(),
+    data: dataReal || hoje(),
+    hora: dataReal ? '12:00' : horaAtual(),
     saldoAntes,
     saldoDepois,
-    criadoEm: new Date().toISOString()
+    criadoEm: new Date().toISOString(),
+    ...(extra.financeiroHash ? { financeiroHash: String(extra.financeiroHash) } : {})
   }
 }
-export function aplicarPagamento(fiado, pago) {
+export function aplicarPagamento(fiado, pago, extra = {}) {
   pago = centavos(Math.min(Number(pago) || 0, fiado.saldo))
   const novoSaldo = centavos(Math.max(0, fiado.saldo - pago))
-  const pagamentos = [...(fiado.pagamentos || []), dadosPagamento(pago, fiado.saldo, novoSaldo)]
+  const pagamentos = [...(fiado.pagamentos || []), dadosPagamento(pago, fiado.saldo, novoSaldo, extra)]
   const quitado = novoSaldo <= 0.01
   return {
     saldo: novoSaldo,
     status: quitado ? 'pago' : 'aberto',
     pagamentos,
-    pagoEm: quitado ? new Date().toISOString() : (fiado.pagoEm || null)
+    pagoEm: quitado ? (extra.data ? `${extra.data}T12:00:00.000Z` : new Date().toISOString()) : (fiado.pagoEm || null)
   }
 }
 
@@ -475,7 +479,7 @@ export function aplicarPagamento(fiado, pago) {
  *   • Não muda o esquema do banco: nenhuma migração necessária.
  *
  *  `novaDataVenc` (AAAA-MM-DD): vencimento do que sobrar. Obrigatório quando sobra saldo. */
-export async function receberParcialCliente(ids, valor, novaDataVenc = null) {
+export async function receberParcialCliente(ids, valor, novaDataVenc = null, extra = {}) {
   const pedido = centavos(valor)
   if (!(pedido > 0)) throw new Error('Informe um valor maior que zero.')
   const idsLimpos = [...new Set((ids || []).filter(i => i !== null && i !== undefined))]
@@ -509,7 +513,7 @@ export async function receberParcialCliente(ids, valor, novaDataVenc = null) {
       const parte = centavos(Math.min(faltaAbater, Number(f.saldo)))
       let mud = {}
       if (parte > 0) {
-        mud = aplicarPagamento(f, parte)
+        mud = aplicarPagamento(f, parte, extra)
         faltaAbater = centavos(faltaAbater - parte)
       }
       const continuaAberta = (mud.saldo ?? Number(f.saldo)) > 0.01

@@ -21,7 +21,7 @@ const pct = (n) => (n === null || n === undefined ? 'n/d' : `${n}%`)
 const iniciaisAnon = (nome) => String(nome || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase() + '.').join('')
 
 /** Texto de contexto com os números do negócio. */
-export function montarContexto({ empresa, hoje, mes, base, risco, precos, produtos, clientes, sumiram, combosJuntos, lojas, metaRetirada, tetoMei, faturadoAno }) {
+export function montarContexto({ empresa, hoje, mes, base, risco, precos, produtos, clientes, sumiram, combosJuntos, lojas, metaRetirada, tetoMei, faturadoAno, canais = null }) {
   const L = []
   L.push(`CONTEXTO DO NEGÓCIO${empresa ? ` (${empresa})` : ''} — dados de ${hoje}`)
   L.push('- Sou MEI, confeiteira(o) artesanal. Eu produzo; minha esposa vende de porta em porta. Vendemos principalmente FIADO, anotado numa caderneta digital.')
@@ -45,6 +45,18 @@ export function montarContexto({ empresa, hoje, mes, base, risco, precos, produt
   L.push(`- Reserva para fiado que demora: ${Math.round(risco.pct * 100)}% do preço (${risco.fonte === 'fiados' ? `há ${R(risco.parado)} parados há mais de 60 dias` : 'valor padrão, pouco histórico'})`)
   if (tetoMei > 0) L.push(`- Faturado no ano: ${R(faturadoAno)} de um teto MEI de ${R(tetoMei)} (${Math.round((faturadoAno / tetoMei) * 100)}%)`)
   L.push('')
+
+  if (canais && canais.meses.length) {
+    L.push('VENDAS POR CANAL (pelo extrato bancário: Pix recebidos como venda)')
+    for (const m of canais.meses.slice(0, 3)) {
+      L.push(`- ${m.mes}: entrou ${R(m.total)} — fiado recebido ${R(m.fiado)}, possível fiado ${R(m.provavel)}, à vista estimado ${R(m.avista)}`)
+    }
+    L.push('- (À vista = Pix que não corresponde a nenhuma cobrança da caderneta; dinheiro vivo não aparece no extrato.)')
+    if (canais.pagadores.length) {
+      L.push('- Quem paga à vista (anonimizado): ' + canais.pagadores.slice(0, 5).map((p, i) => `Pagador ${i + 1} (${iniciaisAnon(p.nome)}): ${plural(p.vezes, 'pagamento', 'pagamentos')}, ticket ${R(p.ticket)}${p.intervaloMedio ? `, a cada ~${p.intervaloMedio}d` : ''}`).join('; '))
+    }
+    L.push('')
+  }
 
   const top = produtos.slice(0, 10)
   if (top.length) {

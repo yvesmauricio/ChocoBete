@@ -311,6 +311,13 @@
     </template>
 
     <!-- ═══ ABA: MENSAL ═══ -->
+    <!-- ═══ ABA: FIADO × À VISTA (conciliação do extrato com a Caderninho) ═══ -->
+    <template v-else-if="abaAtiva === 'vendas'">
+      <div class="relatorio-wrap">
+        <ConciliacaoVendas />
+      </div>
+    </template>
+
     <template v-else-if="abaAtiva === 'mensal'">
       <div class="relatorio-wrap mn-pagina">
 
@@ -1124,6 +1131,7 @@ import ImportadorItau from '../components/ImportadorItau.vue'
 import ImportadorBancoBrasil from '../components/ImportadorBancoBrasil.vue'
 
 import FinanceListRow from '../components/FinanceListRow.vue'
+import ConciliacaoVendas from '../components/ConciliacaoVendas.vue'
 import EditarCategoriaModal from '../components/EditarCategoriaModal.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
 import { useStore } from '../store.js'
@@ -1180,6 +1188,7 @@ const { stripEl: grupoStripEl, setTabRef: setGrupoRef } = useTabScroll(grupoAtiv
 const abas = [
   { id: 'importar',    label: 'Importar',       icon: 'fas fa-file-import',   grupo: 'diaadia' },
   { id: 'lancamentos', label: 'Movimentações', icon: 'fas fa-list',          grupo: 'diaadia' },
+  { id: 'vendas',      label: 'Fiado × À vista', icon: 'fas fa-code-compare', grupo: 'diaadia' },
   { id: 'mensal',      label: 'Resumo Mensal',  icon: 'fas fa-calendar',      grupo: 'diaadia' },
   { id: 'mao-de-obra', label: 'Meta de Retirada', icon: 'fas fa-bullseye',    grupo: 'diaadia' },
   { id: 'anual',       label: 'Resumo Anual',   icon: 'fas fa-chart-bar',     grupo: 'mei' },

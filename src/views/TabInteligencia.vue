@@ -82,6 +82,7 @@ import {
   combosFrequentes, resumoDoMes, analisarLojas,
 } from '../modules/guiaNegocio.js'
 import { baseFinanceira, riscoFiado, listaPrecoCerto } from '../modules/precoCerto.js'
+import { conciliar } from '../modules/conciliacao.js'
 import { PROMPTS, montarContexto, gerarPrompt } from '../modules/promptsIA.js'
 
 const s = useStore()
@@ -101,9 +102,11 @@ const listaAIs = [
 
 // Junta os mesmos números do Guia e do Preço certo num texto só
 async function montarPrompt(id) {
-  const [fiados, clientes, lojasBase, historicoPrecos] = await Promise.all([
-    db.cad_fiados.toArray(), db.cad_clientes.toArray(), getLojas({ incluirArquivadas: true }), db.historico_precos_venda.toArray(),
+  const [fiados, clientes, lojasBase, historicoPrecos, financeiro] = await Promise.all([
+    db.cad_fiados.toArray(), db.cad_clientes.toArray(), getLojas({ incluirArquivadas: true }), db.historico_precos_venda.toArray(), db.financeiro.toArray(),
   ])
+  const entradas = financeiro.filter(e => e.categoria === 'Receita de Vendas' && Number(e.valor) > 0)
+  const conc = conciliar({ entradas, fiados, clientes, hoje: hoje() })
   const hj = hoje()
   const receitas = s.receitas.filter(r => !r.eh_intermediaria).map(r => ({
     uuid: r.uuid, nome: r.nome, categoria: r.categoria, tamanho: r.tamanho,
@@ -123,6 +126,7 @@ async function montarPrompt(id) {
     clientes: analise, sumiram: clientesQueSumiram(analise),
     combosJuntos: combosFrequentes(fiados),
     lojas: analisarLojas({ fiados, lojas: lojasBase, hoje: hj }),
+    canais: { meses: conc.meses, pagadores: conc.pagadoresAvista },
     metaRetirada, tetoMei: Number(s.company?.teto_mei_anual || 81000), faturadoAno: Number(s.totalRecebidoAnoAtual || 0),
   })
   return gerarPrompt(id, contexto)
@@ -157,7 +161,7 @@ function abrirIA(ai) {
 <style scoped>
 /* ── Estrutura base ── */
 .tab-content {
-  padding: 12px 16px 100px;
+  padding: 14px 16px max(96px, calc(72px + env(safe-area-inset-bottom)));
   display: flex;
   flex-direction: column;
   gap: 0;

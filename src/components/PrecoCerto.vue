@@ -189,7 +189,7 @@ async function aplicar(p, novoPreco) {
 </script>
 
 <style scoped>
-.pc { margin-bottom: 18px; }
+.pc { margin-bottom: 16px; }
 .pc-titulo { display: flex; align-items: center; gap: 6px; padding: 0 2px; margin-bottom: 8px; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
 .pc-nada { padding: 18px 14px; text-align: center; font-size: .85rem; color: var(--muted); background: var(--surface); border: 1px dashed var(--border); border-radius: var(--r-md); }
 .pc-base { padding: 12px 14px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); }
