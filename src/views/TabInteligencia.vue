@@ -127,7 +127,7 @@ async function montarPrompt(id) {
     combosJuntos: combosFrequentes(fiados),
     lojas: analisarLojas({ fiados, lojas: lojasBase, hoje: hj }),
     canais: { meses: conc.meses, pagadores: conc.pagadoresAvista },
-    metaRetirada, tetoMei: Number(s.company?.teto_mei_anual || 81000), faturadoAno: Number(s.totalRecebidoAnoAtual || 0),
+    metaRetirada, tetoMei: Number(s.company?.teto_mei_anual) || 0, faturadoAno: Number(s.totalRecebidoAnoAtual || 0),
   })
   return gerarPrompt(id, contexto)
 }

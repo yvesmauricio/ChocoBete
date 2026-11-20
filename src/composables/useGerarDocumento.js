@@ -286,6 +286,7 @@ export function gerarLivroCaixa({
   saidas,
   totais,
   acumulado,
+  tetoAnual,
   incluirNaoMei = true
 }) {
   const nomeEmpresa = empresa?.razao_social || empresa?.nome || 'Microempreendedor Individual'
@@ -490,7 +491,7 @@ export function gerarLivroCaixa({
         <th>Faturamento MEI acumulado (Receita Bruta)</th>
         <th>Despesas operacionais acumuladas</th>
         <th>Resultado operacional acumulado</th>
-        <th>Utilização do Teto MEI (R$ 81.000,00)</th>
+        <th>Utilização do Teto MEI${tetoAnual > 0 ? ` (R$ ${BRL(tetoAnual)})` : ''}</th>
       </tr>
     </thead>
     <tbody>
@@ -510,7 +511,7 @@ export function gerarLivroCaixa({
     <strong>Nota:</strong> Este Livro Caixa é elaborado em conformidade com o art. 26-A da Resolução CGSN nº 140, de 22 de maio de 2018. 
     O MEI está dispensado de escrituração contábil formal, devendo manter este registro por 5 (cinco) anos para fins de fiscalização. 
     Os valores de receita aqui consignados são a base de cálculo para verificação do limite de faturamento previsto no art. 18-A, 
-    § 1º, da Lei Complementar nº 123/2006 (R$ 81.000,00 no ano-calendário).
+    § 1º, da Lei Complementar nº 123/2006${tetoAnual > 0 ? ` (R$ ${BRL(tetoAnual)} no ano-calendário)` : ''}.
   </div>
 
   <!-- ── Assinatura ── -->
@@ -748,8 +749,8 @@ export function gerarDASNSIMEI({
       <strong>${BRL(totais.saldo || 0)}</strong>
     </div>
     <div class="resumo-linha">
-      <span>Limite anual de faturamento MEI (Res. CGSN — Portaria CGSN nº 3/2023)</span>
-      <strong>R$ ${BRL(tetoAnual || 81000)}</strong>
+      <span>Limite anual de faturamento MEI (LC nº 123/2006, art. 18-A)</span>
+      <strong>${tetoAnual > 0 ? 'R$ ' + BRL(tetoAnual) : 'não definido (ver Ajustes)'}</strong>
     </div>
     <div class="resumo-linha destaque">
       <span>Percentual do teto MEI utilizado em ${ano}</span>

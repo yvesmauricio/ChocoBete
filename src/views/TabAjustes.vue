@@ -247,7 +247,7 @@
                 <label class="label" for="aj-hora">Valor da sua hora de trabalho</label>
                 <div class="input-with-prefix">
                   <span class="input-prefix">R$</span>
-                  <input id="aj-hora" v-model.number="company.custo_hora_trabalho" type="number" inputmode="decimal" class="input" placeholder="Ex: 25.00" />
+                  <CampoMoeda id="aj-hora" v-model="company.custo_hora_trabalho" class="input" placeholder="Ex: 25,00" />
                 </div>
                 <span class="aj-nota">Usado para calcular o custo de mão de obra nas receitas.</span>
               </div>
@@ -255,7 +255,7 @@
                 <label class="label" for="aj-salario">Meta de retirada mensal (salário)</label>
                 <div class="input-with-prefix">
                   <span class="input-prefix">R$</span>
-                  <input id="aj-salario" v-model.number="company.meta_salario_mensal" type="number" inputmode="decimal" class="input" placeholder="Ex: 1500.00" />
+                  <CampoMoeda id="aj-salario" v-model="company.meta_salario_mensal" class="input" placeholder="Ex: 1.500,00" />
                 </div>
                 <span class="aj-nota">Define o preço mínimo e as metas de venda na Inteligência. Mudar aqui vale do mês atual em diante: os meses passados continuam com o valor da época.</span>
               </div>
@@ -263,7 +263,7 @@
                 <label class="label" for="aj-giro">Giro de segurança fixo <span class="label-opt">(opcional)</span></label>
                 <div class="input-with-prefix">
                   <span class="input-prefix">R$</span>
-                  <input id="aj-giro" v-model.number="company.reserva_operacional_fixa" type="number" inputmode="decimal" class="input" placeholder="Ex: 600.00" />
+                  <CampoMoeda id="aj-giro" v-model="company.reserva_operacional_fixa" class="input" placeholder="Ex: 600,00" />
                 </div>
                 <span class="aj-nota">Valor reservado para compras (ex.: R$ 600 para 2 semanas). Mesma regra: vale de agora em diante.</span>
               </div>
@@ -271,7 +271,7 @@
                 <label class="label" for="aj-mei">Teto de faturamento MEI anual</label>
                 <div class="input-with-prefix">
                   <span class="input-prefix">R$</span>
-                  <input id="aj-mei" v-model.number="company.teto_mei_anual" type="number" inputmode="decimal" class="input" />
+                  <CampoMoeda id="aj-mei" v-model="company.teto_mei_anual" class="input" placeholder="Ex: 110.000,00" />
                 </div>
               </div>
               <div class="fg">
@@ -892,6 +892,7 @@ import { versaoInstalada, dataBuild, descreverFalhaVersao } from '../services/ve
 import { novaVersao, buscarAtualizacaoAgora, aplicarAtualizacao, forcarAtualizacaoCompleta } from '../services/atualizacaoApp.js'
 import { statusBackupLocal, escolherPastaBackupLocal, reautorizarPastaBackupLocal, desconectarPastaBackupLocal } from '../services/localBackup.js'
 import BaseModal from '../components/BaseModal.vue'
+import CampoMoeda from '../components/CampoMoeda.vue'
 import PinDialog from '../components/PinDialog.vue'
 import ConfigurarAparelho from './ConfigurarAparelho.vue'
 import { aparelho, temPin, removerPin } from '../store/aparelho.js'

@@ -1540,7 +1540,8 @@ async function handleExcluirPorBanco(banco) {
 
 // ── Helpers ──
 // ── Relatórios ──────────────────────────────────────────────
-const TETO_BASE_ANUAL = computed(() => s.company.teto_mei_anual || 81000)
+// Fonte única do teto: Ajustes (company.teto_mei_anual). Sem fallback fixo aqui.
+const TETO_BASE_ANUAL = computed(() => Number(s.company.teto_mei_anual) || 0)
 // No ano de abertura o teto é proporcional: teto ÷ 12 × meses de atividade (mês da abertura conta inteiro).
 const mesesAtividadeNoAno = computed(() => {
   const ab = String(s.company.mei_data_abertura || '')
@@ -1643,6 +1644,7 @@ function gerarDocLivroCaixa() {
     saidas:   lancMensalSaidasParaDoc.value,
     totais:   dadosRelMensal.value || {},
     acumulado: acumuladoAteMes.value,
+    tetoAnual: TETO_MEI_ANUAL.value,
     incluirNaoMei: incluirRendasPessoais.value
   })
 }
