@@ -109,127 +109,53 @@
 
     <template v-else-if="abaAtiva === 'lancamentos'">
 
-      <!-- ── Bloco sticky: resumo + filtros ── -->
-      <div class="lancamentos-sticky">
+      <!-- ── Resumo do mês: navegação de mês + totais (rola junto com a lista) ── -->
+      <div class="mv-resumo">
+        <div v-if="mesesDisponiveis.length" class="mv-mes">
+          <button class="mv-mes-btn" :disabled="!temMesMaisAntigo" aria-label="Mês anterior" @click="irParaMesMaisAntigo"><i class="fas fa-chevron-left"></i></button>
+          <div class="mv-mes-centro">
+            <span>{{ rotuloMes(filtroMes) }}</span><i class="fas fa-chevron-down mv-mes-caret"></i>
+            <select v-model="filtroMes" aria-label="Escolher mês">
+              <option value="">Todos os períodos</option>
+              <option v-for="m in mesesDisponiveis" :key="m" :value="m">{{ rotuloMes(m) }}</option>
+            </select>
+          </div>
+          <button class="mv-mes-btn" :disabled="!temMesMaisNovo" aria-label="Próximo mês" @click="irParaMesMaisNovo"><i class="fas fa-chevron-right"></i></button>
+        </div>
+        <div class="mv-tot">
+          <div><span>Entradas</span><b class="c-green">{{ R$(totalEntradas) }}</b></div>
+          <div><span>Saídas</span><b class="c-red">{{ R$(totalSaidas) }}</b></div>
+          <div><span>Saldo</span><b :class="saldoFiltrado >= 0 ? 'c-green' : 'c-red'">{{ R$(saldoFiltrado) }}</b></div>
+        </div>
+      </div>
 
-        <!-- Resumo -->
-        <div class="resumo-modern" v-if="lancamentosFiltrados.length">
-          <div class="rm-item">
-            <span class="rm-lbl">Entradas</span>
-            <span class="rm-val c-green">{{ R$(totalEntradas) }}</span>
-          </div>
-          <div class="rm-sep"></div>
-          <div class="rm-item">
-            <span class="rm-lbl">Saídas</span>
-            <span class="rm-val c-red">{{ R$(totalSaidas) }}</span>
-          </div>
-          <div class="rm-sep"></div>
-          <div class="rm-item">
-            <span class="rm-lbl">Saldo</span>
-            <span class="rm-val" :class="saldoFiltrado >= 0 ? 'c-green' : 'c-red'">{{ R$(saldoFiltrado) }}</span>
-          </div>
+      <!-- ── Tipo de lançamento (atalho rápido) ── -->
+      <div class="mv-seg" role="group" aria-label="Tipo de lançamento">
+        <button v-for="t in TIPOS_MOV" :key="t.id" type="button" class="mv-seg-btn" :class="{ ativo: filtroNatureza === t.id }" :aria-pressed="filtroNatureza === t.id" @click="escolherTipo(t.id)">{{ t.nome }}</button>
+      </div>
+
+      <!-- ── Busca + Filtros: única linha que fica fixa ao rolar ── -->
+      <div class="lancamentos-sticky">
+        <div class="mv-bar">
+          <label class="mv-busca">
+            <i class="fas fa-search"></i>
+            <input v-model.trim="buscaDescricao" type="search" inputmode="search" enterkeyhint="search" placeholder="Buscar lançamento" autocomplete="off" />
+            <button v-if="buscaDescricao" type="button" class="mv-busca-x" aria-label="Limpar busca" @click.prevent="buscaDescricao = ''"><i class="fas fa-xmark"></i></button>
+          </label>
+          <button type="button" class="mv-btn-filtros" :class="{ ativo: nFiltrosPainel > 0 }" aria-label="Abrir filtros" @click="painelFiltros = true">
+            <i class="fas fa-sliders"></i><span>Filtros</span>
+            <span v-if="nFiltrosPainel" class="mv-badge">{{ nFiltrosPainel }}</span>
+          </button>
         </div>
 
-        <!-- Barra de filtros compacta: uma única linha de chips + popover contextual -->
-        <div class="filtros-bar">
-          <div class="fbar-row">
-            <button class="fbar-search-btn" :class="{ active: popoverAtivo === 'busca' }" aria-label="Buscar por descrição" @click="togglePopover('busca')">
-              <i class="fas fa-search"></i>
-            </button>
-            <div class="fbar-scroll">
-              <button v-if="mesesDisponiveis.length" class="fbar-chip" :class="{ active: filtroMes, open: popoverAtivo === 'periodo' }" @click="togglePopover('periodo')">
-                {{ filtroMes || 'Período' }} <i class="fas fa-chevron-down fbar-chip-caret"></i>
-              </button>
-              <button v-if="filtrosBanco.length > 2" class="fbar-chip" :class="{ active: filtroBanco, open: popoverAtivo === 'banco' }" @click="togglePopover('banco')">
-                {{ bancoAtivoLabel }} <i class="fas fa-chevron-down fbar-chip-caret"></i>
-              </button>
-              <button class="fbar-chip" :class="{ active: filtroNatureza, open: popoverAtivo === 'tipo' }" @click="togglePopover('tipo')">
-                {{ tipoAtivoLabel }} <i class="fas fa-chevron-down fbar-chip-caret"></i>
-              </button>
-              <button class="fbar-chip" :class="{ active: filtroCategoria, open: popoverAtivo === 'categoria' }" @click="togglePopover('categoria')">
-                {{ filtroCategoria || 'Categoria' }} <i class="fas fa-chevron-down fbar-chip-caret"></i>
-              </button>
-            </div>
-            <button v-if="filtrosAtivosCount" class="fbar-limpar" aria-label="Limpar filtros" @click="limparFiltros">
-              <span class="fbar-limpar-badge">{{ filtrosAtivosCount }}</span> <i class="fas fa-xmark"></i>
-            </button>
+        <!-- Filtros aplicados: contagem + etiquetas removíveis -->
+        <div v-if="filtrosAtivosCount" class="mv-ativos">
+          <span class="mv-count">{{ lancamentosFiltrados.length }} {{ lancamentosFiltrados.length === 1 ? 'lançamento' : 'lançamentos' }}</span>
+          <div class="mv-pills">
+            <button v-if="filtroBanco" type="button" class="mv-pill" @click="filtroBanco = ''">{{ bancoAtivoLabel }} <i class="fas fa-xmark"></i></button>
+            <button v-if="filtroCategoria" type="button" class="mv-pill" @click="filtroCategoria = ''">{{ filtroCategoria }} <i class="fas fa-xmark"></i></button>
           </div>
-
-          <!-- Popover: Buscar -->
-          <Transition name="fade-slide">
-            <div v-if="popoverAtivo === 'busca'" class="filtro-popover">
-              <div class="fbusca-wrap">
-                <i class="fas fa-search fbusca-icon"></i>
-                <input v-model.trim="buscaDescricao" class="fbusca-input" type="search" placeholder="Buscar por descrição..." autofocus />
-                <button v-if="buscaDescricao" class="fbusca-clear" aria-label="Limpar busca" @click="buscaDescricao = ''"><i class="fas fa-xmark"></i></button>
-              </div>
-            </div>
-          </Transition>
-
-          <!-- Popover: Período -->
-          <Transition name="fade-slide">
-            <div v-if="popoverAtivo === 'periodo'" class="filtro-popover">
-              <div class="periodo-inline">
-                <button class="pnav-mini-btn" :disabled="!temMesMaisNovo" @click="irParaMesMaisNovo"><i class="fas fa-chevron-left"></i></button>
-                <div class="pnav-mini-centro">
-                  <select v-model="filtroMes"><option value="">Todos</option><option v-for="m in mesesDisponiveis" :key="m" :value="m">{{ m }}</option></select>
-                  <span>{{ filtroMes || 'Todos os períodos' }}</span>
-                </div>
-                <button class="pnav-mini-btn" :disabled="!temMesMaisAntigo" @click="irParaMesMaisAntigo"><i class="fas fa-chevron-right"></i></button>
-              </div>
-            </div>
-          </Transition>
-
-          <!-- Popover: Banco -->
-          <Transition name="fade-slide">
-            <div v-if="popoverAtivo === 'banco'" class="filtro-popover">
-              <div class="fchips">
-                <button v-for="b in filtrosBanco" :key="b.id" class="fchip" :class="{ active: filtroBanco === b.id }"
-                  @click="filtroBanco = b.id; popoverAtivo = ''">{{ b.label }}</button>
-              </div>
-            </div>
-          </Transition>
-
-          <!-- Popover: Tipo de gasto -->
-          <Transition name="fade-slide">
-            <div v-if="popoverAtivo === 'tipo'" class="filtro-popover">
-              <div class="fchips">
-                <button class="fchip" :class="{ active: !filtroNatureza }" @click="filtroNatureza = ''; popoverAtivo = ''">Todos</button>
-                <button class="fchip" :class="{ active: filtroNatureza === 'entrada' }" @click="selecionarNatureza('entrada'); popoverAtivo = ''">Receitas</button>
-                <button class="fchip" :class="{ active: filtroNatureza === 'operacional' }" @click="selecionarNatureza('operacional'); popoverAtivo = ''">Custos</button>
-                <button class="fchip" :class="{ active: filtroNatureza === 'pessoal' }" @click="selecionarNatureza('pessoal'); popoverAtivo = ''">Pessoal</button>
-              </div>
-            </div>
-          </Transition>
-
-          <!-- Popover: Categoria -->
-          <Transition name="fade-slide">
-            <div v-if="popoverAtivo === 'categoria'" class="filtro-popover filtro-popover-scroll">
-              <div class="cat-list">
-                <button class="cat-list-item" :class="{ active: !filtroCategoria }"
-                  @click="selecionarCategoria('')">
-                  <i class="fas fa-layer-group cat-list-icon"></i>
-                  <span>Todas as categorias</span>
-                  <i v-if="!filtroCategoria" class="fas fa-check cat-list-check"></i>
-                </button>
-                <template v-for="grupo in gruposCategoriasFiltro" :key="grupo.nome">
-                  <div class="cat-list-grupo">{{ grupo.nome }}</div>
-                  <button v-for="cat in grupo.categorias" :key="cat.nome"
-                    class="cat-list-item" :class="{ active: filtroCategoria === cat.nome }"
-                    @click="selecionarCategoria(cat.nome)">
-                    <i class="fas cat-list-icon" :class="cat.icon"></i>
-                    <span>{{ cat.nome }}</span>
-                    <i v-if="filtroCategoria === cat.nome" class="fas fa-check cat-list-check"></i>
-                  </button>
-                </template>
-              </div>
-            </div>
-          </Transition>
-        </div><!-- fim .filtros-bar -->
-
-        <!-- Contagem de resultados (só quando algum filtro ativo) -->
-        <div v-if="filtrosAtivosCount" class="fm-status-bar">
-          <span class="fm-count">{{ lancamentosFiltrados.length }} {{ lancamentosFiltrados.length === 1 ? 'lançamento encontrado' : 'lançamentos encontrados' }}</span>
+          <button type="button" class="mv-limpar" @click="limparFiltros">Limpar</button>
         </div>
       </div><!-- fim .lancamentos-sticky -->
 
@@ -308,6 +234,46 @@
           </div>
         </FinanceListRow>
       </div>
+
+      <!-- ── Painel de filtros ── -->
+      <BaseModal v-if="painelFiltros" title="Filtros" @close="painelFiltros = false">
+        <div class="mv-painel">
+          <div class="mv-sec">
+            <div class="mv-sec-tit">Tipo</div>
+            <div class="mv-chips">
+              <button v-for="t in TIPOS_MOV" :key="t.id" type="button" class="mv-chip" :class="{ ativo: filtroNatureza === t.id }" @click="escolherTipo(t.id)">{{ t.nome }}</button>
+            </div>
+          </div>
+
+          <div v-if="filtrosBanco.length > 2" class="mv-sec">
+            <div class="mv-sec-tit">Banco</div>
+            <div class="mv-chips">
+              <button v-for="b in filtrosBanco" :key="b.id" type="button" class="mv-chip" :class="{ ativo: filtroBanco === b.id }" @click="filtroBanco = b.id">{{ b.label }}</button>
+            </div>
+          </div>
+
+          <div class="mv-sec mv-sec--lista">
+            <div class="mv-sec-tit">Categoria</div>
+            <div class="cat-list mv-cats">
+              <button class="cat-list-item" :class="{ active: !filtroCategoria }" @click="selecionarCategoria('')">
+                <i class="fas fa-layer-group cat-list-icon"></i><span>Todas as categorias</span>
+                <i v-if="!filtroCategoria" class="fas fa-check cat-list-check"></i>
+              </button>
+              <template v-for="grupo in gruposCategoriasFiltro" :key="grupo.nome">
+                <div class="cat-list-grupo">{{ grupo.nome }}</div>
+                <button v-for="cat in grupo.categorias" :key="cat.nome" class="cat-list-item" :class="{ active: filtroCategoria === cat.nome }" @click="selecionarCategoria(cat.nome)">
+                  <i class="fas cat-list-icon" :class="cat.icon"></i><span>{{ cat.nome }}</span>
+                  <i v-if="filtroCategoria === cat.nome" class="fas fa-check cat-list-check"></i>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+        <template #foot>
+          <button type="button" class="btn btn-secondary" :disabled="!filtrosAtivosCount" @click="limparFiltros">Limpar</button>
+          <button type="button" class="btn btn-primary mv-foot-ver" @click="painelFiltros = false">Ver {{ lancamentosFiltrados.length }} {{ lancamentosFiltrados.length === 1 ? 'lançamento' : 'lançamentos' }}</button>
+        </template>
+      </BaseModal>
     </template>
 
     <!-- ═══ ABA: MENSAL ═══ -->
@@ -1140,6 +1106,7 @@ import ImportadorBancoBrasil from '../components/ImportadorBancoBrasil.vue'
 import FinanceListRow from '../components/FinanceListRow.vue'
 import ConciliacaoVendas from '../components/ConciliacaoVendas.vue'
 import SaudeFinanceira from '../components/SaudeFinanceira.vue'
+import BaseModal from '../components/BaseModal.vue'
 import EditarCategoriaModal from '../components/EditarCategoriaModal.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
 import { useStore } from '../store.js'
@@ -1157,6 +1124,26 @@ const mostrarExcluirBanco = ref(false)
 const popoverAtivo = ref('')
 function togglePopover(nome) {
   popoverAtivo.value = popoverAtivo.value === nome ? '' : nome
+}
+
+// Painel de filtros (tela cheia) e atalhos de tipo da aba Movimentações
+const painelFiltros = ref(false)
+const TIPOS_MOV = [
+  { id: '',            nome: 'Todos' },
+  { id: 'entrada',     nome: 'Receitas' },
+  { id: 'operacional', nome: 'Custos' },
+  { id: 'pessoal',     nome: 'Pessoal' },
+]
+function escolherTipo(id) {
+  if (!id) { filtroNatureza.value = ''; return }
+  if (filtroNatureza.value !== id) selecionarNatureza(id) // mesma regra de antes: limpa a categoria ao escolher um tipo
+}
+// Filtros que moram no painel (a busca tem campo próprio e o mês tem navegação própria)
+const nFiltrosPainel = computed(() => (filtroBanco.value ? 1 : 0) + (filtroCategoria.value ? 1 : 0) + (filtroNatureza.value ? 1 : 0))
+const NOMES_MES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+function rotuloMes(ref) { // '11/2026' -> 'Novembro 2026'
+  const [m, a] = String(ref || '').split('/')
+  return NOMES_MES[Number(m) - 1] ? `${NOMES_MES[Number(m) - 1]} ${a}` : 'Todos os períodos'
 }
 
 const filtrosAtivosCount = computed(() => {
@@ -1705,8 +1692,8 @@ onMounted(() => s.carregarFinanceiro())
 /* ── Painel excluir por banco ─────────────────────────────── */
 
 /* Transição painel excluir */
-.fade-slide-enter-active, .fade-slide-leave-active { transition: all .18s ease; }
-.fade-slide-enter-from, .fade-slide-leave-to { opacity: 0; transform: translateY(-6px); }
+
+
 
 /* ── Barra discreta de ações da lista ─── */
 .lista-acoes-bar {
@@ -1788,67 +1775,48 @@ onMounted(() => s.carregarFinanceiro())
 }
 
 .periodo-mini-nav { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.periodo-inline { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-.pnav-mini-btn { width: 38px; height: 40px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg); font-size: .75rem; color: var(--brown-mid); flex-shrink: 0; }
-.pnav-mini-centro { flex: 1; position: relative; height: 40px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--cream); display: flex; align-items: center; justify-content: center; min-width: 0; overflow: hidden; }
-.pnav-mini-centro select { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
-.pnav-mini-centro span { font-size: .82rem; font-weight: 700; color: var(--brown-dark); }
+
+
+
+
+
 
 /* ── Barra de filtros compacta (Movimentações): uma linha de chips + popover ── */
-.filtros-bar { background: var(--surface); border-bottom: 1px solid var(--border); }
-.fbar-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
-.fbar-search-btn { flex-shrink: 0; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); color: var(--brown-mid); display: flex; align-items: center; justify-content: center; font-size: .95rem; transition: all var(--t); }
-.fbar-search-btn.active { border-color: var(--brown); color: var(--brown); background: var(--gold-bg); }
-.fbar-scroll { flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-.fbar-scroll::-webkit-scrollbar { display: none; }
-.fbar-chip { flex-shrink: 0; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--bg); color: var(--brown-mid); font-size: .84rem; font-weight: 700; white-space: nowrap; transition: all var(--t); }
-.fbar-chip-caret { font-size: .62rem; opacity: .7; }
-.fbar-chip.active { border-color: var(--brown); color: var(--brown-dark); background: var(--gold-bg); }
-.fbar-chip.open { border-color: var(--brown); box-shadow: 0 0 0 2px var(--gold-bg) inset; }
-.fbar-limpar { flex-shrink: 0; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 10px; border: none; background: transparent; color: var(--red); font-weight: 800; font-size: .86rem; }
-.fbar-limpar-badge { background: var(--red); color: #fff; font-size: .72rem; min-width: 20px; height: 20px; border-radius: 10px; padding: 0 5px; display: flex; align-items: center; justify-content: center; font-weight: 800; }
 
-.filtro-popover { padding: 12px; border-top: 1px solid var(--border); background: var(--bg); touch-action: pan-y; }
-.filtro-popover-scroll {
-  padding: 0;
-  max-height: min(48vh, 360px);
-  overflow-y: scroll;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-}
-.fbusca-wrap { position: relative; }
-.fbusca-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .95rem; }
-.fbusca-input { width: 100%; min-height: 48px; padding: 10px 40px 10px 38px; border: 1.5px solid var(--border); border-radius: var(--r-md); background: var(--surface); font-size: 1rem; }
-.fbusca-clear {
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-  width: 22px; height: 22px; border: none; border-radius: 50%;
-  background: var(--border2); color: var(--muted); font-size: .65rem;
-  display: flex; align-items: center; justify-content: center;
-}
-.fchips { display: flex; gap: 8px; flex-wrap: wrap; }
-.fchip { min-height: 44px; padding: 0 18px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--brown-mid); font-size: .9rem; font-weight: 700; transition: all var(--t); }
-.fchip.active { background: var(--brown); color: #fff; border-color: var(--brown); }
 
-.resumo-modern { display: flex; align-items: stretch; background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 8px; justify-content: space-between; }
-.rm-item { display: flex; flex-direction: column; flex: 1; min-width: 0; align-items: center; gap: 3px; }
-.rm-lbl { font-size: .78rem; color: var(--muted); font-weight: 700; }
-.rm-val { font-family: var(--mono); font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.rm-sep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 0; }
 
-.fm-status-bar { display: flex; justify-content: center; align-items: center; padding: 8px 16px; background: var(--cream); border-top: 1px solid var(--border); }
-.fm-count { font-size: .84rem; color: var(--brown-mid); font-weight: 700; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Transições */
-.fade-slide-enter-active, .fade-slide-leave-active { 
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
-  max-height: 400px; 
-  overflow: hidden; 
-}
-.fade-slide-enter-from, .fade-slide-leave-to { 
-  opacity: 0; 
-  max-height: 0; 
-  transform: translateY(-10px); 
-}
+
+
 
 /* ── Aviso transferência interna ─── */
 .trans-interna-hint { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 16px; background: none; border: none; border-top: 1px solid var(--border); font-size: .84rem; font-weight: 700; color: var(--gold-dark); cursor: pointer; text-align: left; }
@@ -2536,7 +2504,7 @@ onMounted(() => s.carregarFinanceiro())
 .lancamentos-list .fl-banco-sigla { display: none; }
 html.is-desktop .lancamentos-list .fl-banco-nome { display: none; }
 html.is-desktop .lancamentos-list .fl-banco-sigla { display: inline; }
-.fchip:focus-visible, .fbar-chip:focus-visible, .fbar-search-btn:focus-visible, .cat-list-item:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: -3px; }
+
 
 /* ══ Financeiro › Importar (classes im-*) ══ */
 .im-pagina { gap: 20px; }
@@ -2686,4 +2654,67 @@ html.is-desktop .lancamentos-list .fl-banco-sigla { display: inline; }
 .mtr-retirado { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 10px 0 2px; padding: 9px 12px; border-radius: var(--r-sm); background: var(--cream); font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .mtr-retirado strong { margin-left: 4px; font-family: var(--mono); }
 .lc-estorno { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--muted); }
+
+/* Animação usada pelos blocos que abrem/fecham (Transition name="fade-slide") */
+.fade-slide-enter-active, .fade-slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 400px;
+  overflow: hidden;
+}
+.fade-slide-enter-from, .fade-slide-leave-to {
+  opacity: 0;
+  max-height: 0;
+  transform: translateY(-10px);
+}
+
+/* ───────── Movimentações ───────── */
+.mv-resumo { margin: 12px 12px 0; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); overflow: hidden; }
+.mv-mes { display: flex; align-items: center; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+.mv-mes-btn { flex-shrink: 0; width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--brown-mid); font-size: .85rem; cursor: pointer; }
+.mv-mes-btn:active:not(:disabled) { background: var(--cream-deep); }
+.mv-mes-btn:disabled { opacity: .25; cursor: default; }
+.mv-mes-centro { position: relative; flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1rem; font-weight: 800; color: var(--brown-dark); }
+.mv-mes-caret { font-size: .62rem; color: var(--muted); }
+.mv-mes-centro select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
+.mv-tot { display: grid; grid-template-columns: repeat(3, 1fr); }
+.mv-tot > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px 11px; min-width: 0; }
+.mv-tot > div + div { border-left: 1px solid var(--border); }
+.mv-tot span { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.mv-tot b { max-width: 100%; font-family: var(--mono); font-size: .98rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.mv-seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 10px 12px 0; padding: 4px; background: var(--cream-deep); border-radius: var(--r-full); }
+.mv-seg-btn { min-height: 40px; padding: 0 4px; border: 0; border-radius: var(--r-full); background: transparent; font-family: var(--font); font-size: .84rem; font-weight: 700; color: var(--muted); cursor: pointer; white-space: nowrap; transition: background var(--t), color var(--t); }
+.mv-seg-btn.ativo { background: var(--surface); color: var(--brown-dark); box-shadow: 0 1px 3px rgba(61,31,7,.12); }
+
+.lancamentos-sticky { position: sticky; top: 0; z-index: var(--z-sticky); margin-top: 10px; background: var(--bg); box-shadow: 0 2px 8px rgba(61,31,7,.07); }
+.mv-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.mv-busca { flex: 1; min-width: 0; position: relative; display: flex; align-items: center; margin: 0; }
+.mv-busca > i { position: absolute; left: 13px; font-size: .9rem; color: var(--muted); pointer-events: none; }
+.mv-busca input { width: 100%; height: 44px; padding: 0 40px 0 38px; border: 1.5px solid var(--border); border-radius: var(--r-full); background: var(--bg); font-family: var(--font); font-size: 16px; color: var(--brown-dark); outline: none; }
+.mv-busca input:focus { border-color: var(--brown); background: var(--surface); }
+.mv-busca-x { position: absolute; right: 6px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: .8rem; cursor: pointer; }
+.mv-btn-filtros { position: relative; flex-shrink: 0; height: 44px; padding: 0 14px; display: inline-flex; align-items: center; gap: 7px; border: 1.5px solid var(--border); border-radius: var(--r-full); background: var(--bg); color: var(--brown-mid); font-family: var(--font); font-size: .86rem; font-weight: 800; cursor: pointer; }
+.mv-btn-filtros.ativo { border-color: var(--brown); background: var(--gold-bg); color: var(--brown-dark); }
+.mv-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--brown); color: #fff; font-size: .7rem; display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 360px) { .mv-btn-filtros span:not(.mv-badge) { display: none; } .mv-btn-filtros { padding: 0 12px; } }
+
+.mv-ativos { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--cream); border-bottom: 1px solid var(--border); }
+.mv-count { flex-shrink: 0; font-size: .78rem; font-weight: 800; color: var(--brown-mid); }
+.mv-pills { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.mv-pills::-webkit-scrollbar { display: none; }
+.mv-pill { flex-shrink: 0; max-width: 170px; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--brown); border-radius: var(--r-full); background: var(--gold-bg); color: var(--brown-dark); font-family: var(--font); font-size: .76rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.mv-pill i { font-size: .62rem; opacity: .7; }
+.mv-limpar { flex-shrink: 0; min-height: 36px; padding: 0 4px; border: 0; background: none; font-family: var(--font); font-size: .78rem; font-weight: 800; color: var(--red); cursor: pointer; }
+
+/* Painel de filtros */
+.mv-painel { padding: 0 0 24px; }
+.mv-sec { padding: 16px 16px 4px; }
+.mv-sec--lista { padding-left: 0; padding-right: 0; }
+.mv-sec--lista .mv-sec-tit { padding: 0 16px; }
+.mv-sec-tit { margin-bottom: 10px; font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.mv-chips { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 12px; }
+.mv-chip { min-height: 44px; padding: 0 18px; border: 1.5px solid var(--border); border-radius: var(--r-full); background: var(--surface); font-family: var(--font); font-size: .9rem; font-weight: 700; color: var(--brown-mid); cursor: pointer; }
+.mv-chip.ativo { background: var(--brown); border-color: var(--brown); color: #fff; }
+.mv-cats { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.mv-foot-ver { flex: 1; }
 </style>
