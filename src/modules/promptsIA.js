@@ -21,7 +21,7 @@ const pct = (n) => (n === null || n === undefined ? 'n/d' : `${n}%`)
 const iniciaisAnon = (nome) => String(nome || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase() + '.').join('')
 
 /** Texto de contexto com os números do negócio. */
-export function montarContexto({ empresa, hoje, mes, base, risco, precos, produtos, clientes, sumiram, combosJuntos, lojas, metaRetirada, tetoMei, faturadoAno, canais = null }) {
+export function montarContexto({ empresa, hoje, mes, base, risco, precos, produtos, clientes, sumiram, combosJuntos, lojas, metaRetirada, tetoMei, faturadoAno, canais = null, saude = null }) {
   const L = []
   L.push(`CONTEXTO DO NEGÓCIO${empresa ? ` (${empresa})` : ''} — dados de ${hoje}`)
   L.push('- Sou MEI, confeiteira(o) artesanal. Eu produzo; minha esposa vende de porta em porta. Vendemos principalmente FIADO, anotado numa caderneta digital.')
@@ -55,6 +55,17 @@ export function montarContexto({ empresa, hoje, mes, base, risco, precos, produt
     if (canais.pagadores.length) {
       L.push('- Quem paga à vista (anonimizado): ' + canais.pagadores.slice(0, 5).map((p, i) => `Pagador ${i + 1} (${iniciaisAnon(p.nome)}): ${plural(p.vezes, 'pagamento', 'pagamentos')}, ticket ${R(p.ticket)}${p.intervaloMedio ? `, a cada ~${p.intervaloMedio}d` : ''}`).join('; '))
     }
+    L.push('')
+  }
+
+  if (saude) {
+    L.push('CAIXA E CUSTOS (pelo extrato bancário)')
+    const f = saude.folego
+    if (f.temBase) L.push(`- Mês típico: entram ~${R(f.entradaEsperada)} e saem ~${R(f.saidas)} (insumos ${R(f.insumos)} + custos fixos e DAS ${R(f.fixos)}); sobra ~${R(f.liquidoEsperado)}. Num mês fraco sobra ${R(f.liquidoCauteloso)}.`)
+    if (saude.das.temHistorico) L.push(`- DAS (por competência, vence dia 20 ou próximo dia útil): ${saude.das.estado === 'atrasado' ? `${saude.das.atrasadas.length} em aberto (o mais antigo venceu há ${saude.das.diasAtraso} dias)` : saude.das.estado === 'a-vencer' ? `em dia; o próximo vence em ${saude.das.diasParaVencer} dias` : 'todos em dia'}.`)
+    if (saude.recorrentes.itens.length) L.push(`- Custos que se repetem: ${saude.recorrentes.itens.slice(0, 5).map(i => `${i.nome} ${R(i.mediaMensal)}`).join('; ')} (total ${R(saude.recorrentes.total)}/mês).`)
+    const cr = saude.custoReal
+    if (cr) L.push(`- Insumos: gasto real ${R(cr.insumos)}/mês${cr.insumosPct !== null ? ` (${cr.insumosPct}% do que entra)` : ''}; as produções registradas explicam ${cr.cobertura ?? 'n/d'}% disso${cr.sobraCaixaPct !== null ? `; sobra de caixa de ${cr.sobraCaixaPct}% da receita` : ''}.`)
     L.push('')
   }
 

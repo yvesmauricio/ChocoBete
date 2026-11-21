@@ -10,7 +10,7 @@
 
     <template v-else>
       <!-- ══ 1. COMO ESTÁ O MÊS ═════════════════════════════════════ -->
-      <div id="gn-mes" class="gn-bloco">
+      <div v-if="mostra('resumo')" id="gn-mes" class="gn-bloco">
         <div class="gn-kpi">
           <div class="gn-kpi-topo">
             <div>
@@ -50,7 +50,7 @@
       </div>
 
       <!-- ══ 2. PRÓXIMOS PASSOS ═════════════════════════════════════ -->
-      <div v-if="passos.length" class="gn-bloco">
+      <div v-if="mostra('resumo') && passos.length" class="gn-bloco">
         <div class="gn-titulo"><i class="fas fa-route"></i> Próximos passos</div>
         <div class="gn-passos">
           <div v-for="(p, i) in passos" :key="p.id" class="gn-passo" :class="'u-' + p.urgencia">
@@ -67,7 +67,7 @@
       </div>
 
       <!-- ══ 3. CLIENTES ════════════════════════════════════════════ -->
-      <div id="gn-clientes" class="gn-bloco">
+      <div v-if="mostra('clientes')" id="gn-clientes" class="gn-bloco">
         <div class="gn-titulo"><i class="fas fa-users"></i> Meus clientes de fiado</div>
         <div class="gn-chips" role="group" aria-label="Filtrar clientes">
           <button v-for="f in filtrosClientes" :key="f.id" type="button" class="chip" :class="{ ativo: filtroCliente === f.id }" @click="filtroCliente = f.id">
@@ -76,7 +76,7 @@
         </div>
         <div v-if="!clientesFiltrados.length" class="gn-nada">{{ textoNenhumCliente }}</div>
         <div v-else class="gn-lista">
-          <button v-for="c in clientesFiltrados" :key="c.id" type="button" class="gn-cli" @click="abrirCliente(c)">
+          <button v-for="c in clientesVisiveis" :key="c.id" type="button" class="gn-cli" @click="abrirCliente(c)">
             <span class="gn-avatar" :class="'st-' + c.status">{{ iniciais(c.nome) }}</span>
             <span class="gn-cli-info">
               <span class="gn-cli-nome">{{ c.nome }}<small v-if="c.loja"> · {{ c.loja }}</small></span>
@@ -89,10 +89,14 @@
             </span>
           </button>
         </div>
+        <button v-if="clientesFiltrados.length > LIMITE_LISTA" type="button" class="gn-mais" @click="verTodosClientes = !verTodosClientes">
+          {{ verTodosClientes ? 'Mostrar menos' : `Ver mais ${clientesFiltrados.length - LIMITE_LISTA}` }}
+          <i class="fas" :class="verTodosClientes ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </button>
       </div>
 
       <!-- ══ 3b. QUEM PAGA À VISTA (do extrato) ═════════════════════ -->
-      <div v-if="pagadoresAvista.length" class="gn-bloco">
+      <div v-if="mostra('clientes') && pagadoresAvista.length" class="gn-bloco">
         <div class="gn-titulo"><i class="fas fa-user-check"></i> Quem paga à vista (pelo extrato)</div>
         <div class="gn-lista">
           <div v-for="p in pagadoresAvista" :key="p.chave" class="gn-loja">
@@ -108,9 +112,45 @@
       </div>
 
       <!-- ══ 4. PRODUTOS ════════════════════════════════════════════ -->
-      <div id="gn-produtos" class="gn-bloco">
+      <div v-if="mostra('produtos')" id="gn-produtos" class="gn-bloco">
         <div class="gn-titulo"><i class="fas fa-cookie-bite"></i> O que vende e o que sobra</div>
         <p class="gn-dica">Baseado nas vendas dos últimos 90 dias. "Sobra" é o preço menos o custo da receita.</p>
+
+        <!-- Matriz: quanto vende × quanto sobra (cada bolinha é um produto; maior = fatura mais) -->
+        <div v-if="matriz" class="gn-matriz">
+          <svg :viewBox="`0 0 ${matriz.w} ${matriz.h}`" class="gn-matriz-svg" role="img" aria-label="Matriz de produtos: quanto vende por quanto sobra">
+            <rect class="q q-divulgar" :x="matriz.L" :y="matriz.T" :width="matriz.xThr - matriz.L" :height="matriz.yThr - matriz.T" />
+            <rect class="q q-chefe" :x="matriz.xThr" :y="matriz.T" :width="matriz.L + matriz.W - matriz.xThr" :height="matriz.yThr - matriz.T" />
+            <rect class="q q-repensar" :x="matriz.L" :y="matriz.yThr" :width="matriz.xThr - matriz.L" :height="matriz.T + matriz.H - matriz.yThr" />
+            <rect class="q q-reajustar" :x="matriz.xThr" :y="matriz.yThr" :width="matriz.L + matriz.W - matriz.xThr" :height="matriz.T + matriz.H - matriz.yThr" />
+            <text class="qt" :x="matriz.L + 5" :y="matriz.T + 12">Divulgar mais</text>
+            <text class="qt" :x="matriz.L + matriz.W - 5" :y="matriz.T + 12" text-anchor="end">Carro-chefe</text>
+            <text class="qt" :x="matriz.L + 5" :y="matriz.T + matriz.H - 6">Repensar</text>
+            <text class="qt" :x="matriz.L + matriz.W - 5" :y="matriz.T + matriz.H - 6" text-anchor="end">Reajustar preço</text>
+            <text class="ax" :x="matriz.L - 6" :y="matriz.yThr + 3" text-anchor="end">{{ matriz.limMargem }}%</text>
+            <text class="ax" :x="matriz.L - 6" :y="matriz.T + 8" text-anchor="end">{{ matriz.yMax }}%</text>
+            <text class="ax" :x="matriz.L - 6" :y="matriz.T + matriz.H" text-anchor="end">{{ matriz.yMin }}%</text>
+            <text class="ax" :x="matriz.L + matriz.W / 2" :y="matriz.h - 4" text-anchor="middle">vende mais →</text>
+            <text class="ax" :x="10" :y="matriz.T + matriz.H / 2" text-anchor="middle" :transform="`rotate(-90 10 ${matriz.T + matriz.H / 2})`">sobra mais →</text>
+            <g v-for="pt in matriz.pontos" :key="pt.chave" class="pt" :class="'g-' + pt.grupo" @click="selecionarPonto(pt.chave)">
+              <circle :cx="pt.x" :cy="pt.y" :r="pt.r + 9" class="hit" />
+              <circle :cx="pt.x" :cy="pt.y" :r="pt.r" class="dot" :class="{ sel: pontoSel === pt.chave }" />
+              <text v-if="pt.rotulo || pontoSel === pt.chave" :x="pt.x" :y="pt.y - pt.r - 3" class="lb" text-anchor="middle">{{ pt.curto }}</text>
+            </g>
+          </svg>
+          <div v-if="pontoSelecionado" class="gn-matriz-det">
+            <div class="gn-matriz-det-topo">
+              <b>{{ pontoSelecionado.nome }}</b>
+              <span class="gn-grupo" :class="'g-' + pontoSelecionado.grupo">{{ ROTULO_GRUPO[pontoSelecionado.grupo] }}</span>
+            </div>
+            <div class="gn-matriz-det-nums">
+              <span><b>{{ pontoSelecionado.qtd }}</b> un · {{ R$(pontoSelecionado.faturamento) }}</span>
+              <span>sobra <b :class="pontoSelecionado.margem >= 35 ? 'verde' : 'red'">{{ R$(pontoSelecionado.sobra) }}</b> ({{ pontoSelecionado.margem }}%)</span>
+            </div>
+          </div>
+          <p v-else class="gn-dica gn-matriz-dica">Toque numa bolinha para ver o produto. Quanto maior a bolinha, mais ele fatura.</p>
+        </div>
+
         <div class="gn-chips">
           <button v-for="g in filtrosProdutos" :key="g.id" type="button" class="chip" :class="{ ativo: filtroProduto === g.id }" @click="filtroProduto = g.id">
             {{ g.nome }}<span v-if="g.n" class="gn-chip-n">{{ g.n }}</span>
@@ -118,7 +158,7 @@
         </div>
         <div v-if="!produtosFiltrados.length" class="gn-nada">Nenhum produto neste grupo.</div>
         <div v-else class="gn-lista">
-          <div v-for="p in produtosFiltrados" :key="p.chave" class="gn-prod" :class="{ destaque: destaqueProduto === p.chave }">
+          <div v-for="p in produtosVisiveis" :key="p.chave" class="gn-prod" :class="{ destaque: destaqueProduto === p.chave }">
             <div class="gn-prod-topo">
               <span class="gn-prod-nome">{{ p.nome }}</span>
               <span class="gn-grupo" :class="'g-' + p.grupo">{{ ROTULO_GRUPO[p.grupo] }}</span>
@@ -135,6 +175,11 @@
           </div>
         </div>
 
+        <button v-if="produtosFiltrados.length > LIMITE_LISTA" type="button" class="gn-mais" @click="verTodosProdutos = !verTodosProdutos">
+          {{ verTodosProdutos ? 'Mostrar menos' : `Ver mais ${produtosFiltrados.length - LIMITE_LISTA}` }}
+          <i class="fas" :class="verTodosProdutos ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </button>
+
         <div v-if="combosJuntos.length" class="gn-combos">
           <div class="gn-sub">Costumam ser comprados juntos</div>
           <div v-for="c in combosJuntos" :key="c.a + c.b" class="gn-combo-par">
@@ -145,7 +190,7 @@
       </div>
 
       <!-- ══ 5. PONTOS DE VENDA ═════════════════════════════════════ -->
-      <div v-if="lojasAnalise.length > 1" class="gn-bloco">
+      <div v-if="mostra('clientes') && lojasAnalise.length > 1" class="gn-bloco">
         <div class="gn-titulo"><i class="fas fa-store"></i> Pontos de venda (90 dias)</div>
         <div class="gn-lista">
           <div v-for="l in lojasAnalise" :key="l.id" class="gn-loja">
@@ -244,6 +289,8 @@ import BaseModal from './BaseModal.vue'
 import { fmtBR, hoje, iniciais, getLojas } from '../composables/useCaderneta.js'
 import { urlWhatsapp } from '../services/contatoService.js'
 import { conciliar } from '../modules/conciliacao.js'
+import { analisarSaude } from '../modules/saudeFinanceira.js'
+import { carregarAtribuicoesDas } from '../composables/useDasAtribuicoes.js'
 import {
   criarCustoDoItem, analisarClientes, clientesQueSumiram, analisarProdutos, produtosDoCliente,
   comboParaCliente, combosFrequentes, resumoDoMes, analisarLojas, proximosPassos,
@@ -253,17 +300,25 @@ import {
 // R$ do app devolve só o número formatado; aqui sempre queremos o símbolo
 const R$ = (v) => 'R$ ' + numeroBR(v)
 
+const props = defineProps({ secao: { type: String, default: 'tudo' } }) // 'resumo' | 'clientes' | 'produtos' | 'tudo'
+const emit = defineEmits(['secao'])
+const mostra = (nome) => props.secao === 'tudo' || props.secao === nome
+
 const s = useStore()
 const carregando = ref(true)
 const fiados = ref([])
 const clientesBase = ref([])
 const lojasBase = ref([])
 const entradasExtrato = ref([])
+const financeiroTodos = ref([])
+const dasAtribuicoes = ref({})
 
 async function carregar() {
   try {
     const [f, c, l, fin] = await Promise.all([db.cad_fiados.toArray(), db.cad_clientes.toArray(), getLojas({ incluirArquivadas: true }), db.financeiro.toArray()])
     fiados.value = f; clientesBase.value = c; lojasBase.value = l
+    financeiroTodos.value = fin
+    dasAtribuicoes.value = await carregarAtribuicoesDas()
     entradasExtrato.value = fin.filter(e => e.categoria === 'Receita de Vendas' && Number(e.valor) > 0)
   } catch (e) { console.error('Guia: não deu para ler as vendas', e) }
   finally { carregando.value = false }
@@ -293,7 +348,14 @@ const combosJuntos = computed(() => combosFrequentes(fiados.value))
 // Quem paga à vista (vem do extrato: Pix que não são pagamento de nenhum fiado)
 const pagadoresAvista = computed(() => conciliar({ entradas: entradasExtrato.value, fiados: fiados.value, clientes: clientesBase.value, hoje: hojeIso.value }).pagadoresAvista.slice(0, 5))
 const lojasAnalise = computed(() => analisarLojas({ fiados: fiados.value, lojas: lojasBase.value, hoje: hojeIso.value }))
+// Alertas de caixa: DAS, fôlego dos próximos 30 dias e custo real (vêm do extrato)
+const saude = computed(() => analisarSaude({
+  financeiro: financeiroTodos.value, fiados: fiados.value, relatorio: s.relatorioMensalMei, producoes: s.producoes,
+  receitas: s.receitas.map(r => ({ uuid: r.uuid, intermediaria: !!r.eh_intermediaria, custoUnit: s.getCustoTotal(r) / (r.rendimento || 1), preco: Number(r.preco_sugerido || 0) })),
+  hoje: hojeIso.value, metaRetirada: metaRetirada.value, dasAtribuicoes: dasAtribuicoes.value,
+}))
 const passos = computed(() => proximosPassos({
+  extras: saude.value.passos,
   resumo: mes.value, clientes: analise.value, produtos: produtos.value, sumiram: sumiram.value,
   metaRetirada: metaRetirada.value, comboDe: (c) => comboParaCliente(c, custoDoItem.value),
 }))
@@ -345,6 +407,41 @@ const GRUPOS = [
 const filtrosProdutos = computed(() => GRUPOS.map(g => ({ ...g, n: g.id === 'todos' ? 0 : produtos.value.filter(p => p.grupo === g.id).length })))
 const produtosFiltrados = computed(() => filtroProduto.value === 'todos' ? produtos.value : produtos.value.filter(p => p.grupo === filtroProduto.value))
 
+// ── Listas curtas: mostra as primeiras e deixa "ver mais" ─────
+const LIMITE_LISTA = 6
+const verTodosClientes = ref(false)
+const verTodosProdutos = ref(false)
+watch(filtroCliente, () => { verTodosClientes.value = false })
+watch(filtroProduto, () => { verTodosProdutos.value = false })
+const clientesVisiveis = computed(() => verTodosClientes.value ? clientesFiltrados.value : clientesFiltrados.value.slice(0, LIMITE_LISTA))
+const produtosVisiveis = computed(() => verTodosProdutos.value ? produtosFiltrados.value : produtosFiltrados.value.slice(0, LIMITE_LISTA))
+
+// ── Matriz de produtos: quanto vende × quanto sobra ──────────
+const pontoSel = ref('')
+const matriz = computed(() => {
+  const itens = produtos.value.filter(p => p.margem !== null && p.qtd > 0)
+  if (itens.length < 3) return null
+  const w = 340, h = 232, L = 36, T = 8, W = 296, H = 190
+  const maxQ = Math.max(...itens.map(p => p.qtd)) * 1.12
+  const qs = itens.map(p => p.qtd).sort((a, b) => a - b)
+  const med = qs.length % 2 ? qs[(qs.length - 1) / 2] : (qs[qs.length / 2 - 1] + qs[qs.length / 2]) / 2
+  const limQtd = Math.max(3, med)
+  const limMargem = 35
+  const yMax = Math.max(70, Math.ceil((Math.max(...itens.map(p => p.margem)) + 5) / 10) * 10)
+  const yMin = Math.min(0, Math.floor((Math.min(...itens.map(p => p.margem)) - 5) / 10) * 10)
+  const X = (q) => L + Math.min(1, q / maxQ) * W
+  const Y = (m) => T + H - ((Math.min(yMax, Math.max(yMin, m)) - yMin) / (yMax - yMin)) * H
+  const maxF = Math.max(...itens.map(p => p.faturamento)) || 1
+  const topNomes = new Set([...itens].sort((a, b) => b.faturamento - a.faturamento).slice(0, 4).map(p => p.chave))
+  const pontos = itens.map(p => ({
+    chave: p.chave, grupo: p.grupo, x: X(p.qtd), y: Y(p.margem), r: 4 + 7 * Math.sqrt(p.faturamento / maxF),
+    rotulo: topNomes.has(p.chave), curto: p.nome.length > 14 ? p.nome.slice(0, 13) + '…' : p.nome,
+  }))
+  return { w, h, L, T, W, H, xThr: X(limQtd), yThr: Y(limMargem), limMargem, yMax, yMin, pontos }
+})
+const pontoSelecionado = computed(() => produtos.value.find(p => p.chave === pontoSel.value) || null)
+function selecionarPonto(chave) { pontoSel.value = pontoSel.value === chave ? '' : chave }
+
 // ── Ficha do cliente ─────────────────────────────────────────
 const selecionadoId = ref(null)
 const formPerfil = ref('')
@@ -389,11 +486,12 @@ function cobrarWhats(c) {
 // ── Ações dos passos ─────────────────────────────────────────
 function rolarPara(id) { nextTick(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
 function executarAcao(a) {
-  if (a.tipo === 'filtro') { filtroCliente.value = a.filtro; rolarPara('gn-clientes') }
+  if (a.tipo === 'filtro') { filtroCliente.value = a.filtro; emit('secao', 'clientes'); rolarPara('gn-clientes') }
   else if (a.tipo === 'cliente') { const c = analise.value.find(x => x.id === a.clienteId); if (c) abrirCliente(c) }
-  else if (a.tipo === 'produto') { filtroProduto.value = 'todos'; destaqueProduto.value = a.chave; rolarPara('gn-produtos'); setTimeout(() => { destaqueProduto.value = '' }, 2500) }
-  else if (a.tipo === 'meta') rolarPara('gn-mes')
+  else if (a.tipo === 'produto') { filtroProduto.value = 'todos'; destaqueProduto.value = a.chave; pontoSel.value = a.chave; emit('secao', 'produtos'); rolarPara('gn-produtos'); setTimeout(() => { destaqueProduto.value = '' }, 2500) }
+  else if (a.tipo === 'meta') { emit('secao', 'resumo'); rolarPara('gn-mes') }
   else if (a.tipo === 'receitas') s.setTab('receitas')
+  else if (a.tipo === 'financeiro') s.setTab('financeiro')
 }
 </script>
 
@@ -536,4 +634,30 @@ function executarAcao(a) {
 .gn-tag.ativo.st-atencao { background: var(--orange); border-color: var(--orange); color: #fff; }
 .gn-tag.ativo.st-problema { background: var(--red); border-color: var(--red); color: #fff; }
 .gn-obs { width: 100%; resize: vertical; font-family: var(--font); }
+
+/* Ver mais */
+.gn-mais { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 10px; padding: 11px; border: 1.5px dashed var(--border); border-radius: var(--r-md); background: transparent; font-family: var(--font); font-size: .82rem; font-weight: 700; color: var(--brown); cursor: pointer; }
+.gn-mais i { font-size: .7rem; }
+
+/* Matriz de produtos */
+.gn-matriz { margin-bottom: 12px; padding: 10px 10px 12px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); }
+.gn-matriz-svg { display: block; width: 100%; height: auto; font-family: var(--font); }
+.gn-matriz-svg .q { opacity: .1; }
+.gn-matriz-svg .q-chefe { fill: var(--green); } .gn-matriz-svg .q-divulgar { fill: #185FA5; }
+.gn-matriz-svg .q-reajustar { fill: var(--orange); } .gn-matriz-svg .q-repensar { fill: var(--red); }
+.gn-matriz-svg .qt { font-size: 9.5px; font-weight: 800; fill: var(--muted); }
+.gn-matriz-svg .ax { font-size: 9px; fill: var(--muted); }
+.gn-matriz-svg .pt { cursor: pointer; }
+.gn-matriz-svg .hit { fill: transparent; }
+.gn-matriz-svg .dot { fill: var(--muted); fill-opacity: .75; stroke: var(--surface); stroke-width: 1.5; }
+.gn-matriz-svg .g-chefe .dot { fill: var(--green); } .gn-matriz-svg .g-divulgar .dot { fill: #185FA5; }
+.gn-matriz-svg .g-reajustar .dot { fill: var(--orange); } .gn-matriz-svg .g-repensar .dot { fill: var(--red); }
+.gn-matriz-svg .dot.sel { stroke: var(--brown-dark); stroke-width: 2.5; fill-opacity: 1; }
+.gn-matriz-svg .lb { font-size: 9px; font-weight: 700; fill: var(--brown-dark); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+.gn-matriz-dica { margin: 6px 2px 0; text-align: center; }
+.gn-matriz-det { margin-top: 8px; padding: 9px 12px; background: var(--cream); border-radius: var(--r-sm); }
+.gn-matriz-det-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gn-matriz-det-topo b { font-size: .92rem; color: var(--brown-dark); }
+.gn-matriz-det-nums { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: .8rem; color: var(--muted); }
+.gn-matriz-det-nums b { font-family: var(--mono); }
 </style>

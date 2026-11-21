@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="tab-inteligencia">
     <div class="tab-hdr">
       <div class="tab-hdr-top">
         <h2 class="tab-title"><i class="fas fa-brain"></i> Inteligência</h2>
@@ -9,6 +9,14 @@
           </button>
         </div>
       </div>
+
+      <!-- ── Seções da aba (mesmo padrão de navegação do Financeiro) ── -->
+      <div ref="abaStripEl" class="aba-nav">
+        <button v-for="a in ABAS" :key="a.id" type="button" class="aba-btn"
+          :ref="el => setAbaRef(el, a.id)" :class="{ active: secao === a.id }" :data-id="a.id" @click="secao = a.id">
+          <i :class="a.icon"></i> {{ a.label }}
+        </button>
+      </div>
     </div>
 
     <section class="tab-content">
@@ -17,17 +25,19 @@
       </div>
       <template v-else>
 
-        <!-- ══ GUIA DO NEGÓCIO: vendas reais, clientes, produtos e próximos passos ══ -->
-        <GuiaNegocio />
+        <div id="int-topo" class="int-topo"></div>
 
-        <!-- ══ PREÇO CERTO: uma conta só, com os custos reais do negócio ══ -->
-        <PrecoCerto />
+        <!-- ══ RESUMO · CLIENTES · PRODUTOS: o Guia do negócio mostra uma parte de cada vez ══ -->
+        <GuiaNegocio v-show="SECOES_GUIA.includes(secao)" :secao="secao" @secao="secao = $event" />
 
-        <!-- ══ PIX MEI: proposta de investimento com os números do negócio ══ -->
-        <PropostaInvestimento :coletar="coletarDados" @prompt-ia="entregarPrompt" />
+        <!-- ══ PREÇOS: uma conta só, com os custos reais do negócio ══ -->
+        <PrecoCerto v-show="secao === 'precos'" />
+
+        <!-- ══ INVESTIR: proposta Pix MEI com os números do negócio ══ -->
+        <PropostaInvestimento v-show="secao === 'investir'" :coletar="coletarDados" @prompt-ia="entregarPrompt" />
 
         <!-- ══ CONSULTAR IA ══ -->
-        <div class="int-bloco">
+        <div v-show="secao === 'ia'" class="int-bloco">
           <div class="int-bloco-titulo"><i class="fas fa-robot"></i> Conversar com uma IA sobre o meu negócio</div>
           <div class="ia-grid-int">
             <button v-for="p in PROMPTS" :key="p.id" class="ia-btn-int" :disabled="preparandoIA" @click="dispararPrompt(p)">
@@ -73,8 +83,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { useStore } from '../store.js'
+import { useTabScroll } from '../composables/useTabScroll.js'
 import { db } from '../db.js'
 import BaseModal from '../components/BaseModal.vue'
 import GuiaNegocio from '../components/GuiaNegocio.vue'
@@ -87,10 +98,28 @@ import {
 } from '../modules/guiaNegocio.js'
 import { baseFinanceira, riscoFiado, listaPrecoCerto } from '../modules/precoCerto.js'
 import { conciliar } from '../modules/conciliacao.js'
+import { analisarSaude } from '../modules/saudeFinanceira.js'
+import { carregarAtribuicoesDas } from '../composables/useDasAtribuicoes.js'
 import { analisarProducao } from '../modules/producaoSemanal.js'
+import { analisarRealidade } from '../modules/realidadeExtrato.js'
 import { PROMPTS, montarContexto, gerarPrompt } from '../modules/promptsIA.js'
 
 const s = useStore()
+
+// ── Seções da aba ───────────────────────────────────────────
+const ABAS = [
+  { id: 'resumo',   label: 'Resumo',   icon: 'fas fa-gauge-high' },
+  { id: 'clientes', label: 'Clientes', icon: 'fas fa-users' },
+  { id: 'produtos', label: 'Produtos', icon: 'fas fa-cookie-bite' },
+  { id: 'precos',   label: 'Preços',   icon: 'fas fa-tag' },
+  { id: 'investir', label: 'Investir', icon: 'fas fa-hand-holding-dollar' },
+  { id: 'ia',       label: 'IA',       icon: 'fas fa-robot' },
+]
+const SECOES_GUIA = ['resumo', 'clientes', 'produtos']
+const secao = ref('resumo')
+const { stripEl: abaStripEl, setTabRef: setAbaRef } = useTabScroll(secao)
+// Ao trocar de seção, volta para o começo do conteúdo
+watch(secao, () => nextTick(() => document.getElementById('int-topo')?.scrollIntoView({ block: 'start' })))
 
 // ── Seletor de IA ───────────────────────────────────────────
 const modalIA = ref(false)
@@ -131,6 +160,8 @@ async function coletarDados() {
   const analise = analisarClientes({ fiados, clientes, lojas: lojasBase, hoje: hj })
   const mes = resumoDoMes({ fiados, custoDoItem, hoje: hj })
   const produtos = analisarProdutos({ fiados, custoDoItem, hoje: hj })
+  // Extrato = verdade em dinheiro; Caderneta e produção = amostra para converter em unidades
+  const realidade = analisarRealidade({ relatorio: s.relatorioMensalMei, conc, produtos, producao, fiados, hoje: hj })
   const contexto = montarContexto({
     empresa: s.company?.nome || '', hoje: hj,
     mes, base, risco,
@@ -140,9 +171,13 @@ async function coletarDados() {
     combosJuntos: combosFrequentes(fiados),
     lojas: analisarLojas({ fiados, lojas: lojasBase, hoje: hj }),
     canais: { meses: conc.meses, pagadores: conc.pagadoresAvista },
+    saude: analisarSaude({
+      financeiro, fiados, relatorio: s.relatorioMensalMei, producoes, hoje: hj, metaRetirada, dasAtribuicoes: await carregarAtribuicoesDas(),
+      receitas: s.receitas.map(r => ({ uuid: r.uuid, intermediaria: !!r.eh_intermediaria, custoUnit: s.getCustoTotal(r) / (r.rendimento || 1), preco: Number(r.preco_sugerido || 0) })),
+    }),
     metaRetirada, tetoMei, faturadoAno,
   })
-  return { hj, base, mes, produtos, tetoMei, faturadoAno, contexto, producao }
+  return { hj, base, mes, produtos, tetoMei, faturadoAno, contexto, producao, realidade }
 }
 
 async function montarPrompt(id) {
@@ -184,6 +219,8 @@ function abrirIA(ai) {
 </script>
 
 <style scoped>
+.tab-inteligencia .aba-btn { flex: 0 0 auto; padding-left: 14px; padding-right: 14px; }
+.int-topo { scroll-margin-top: 112px; height: 0; }
 /* ── Estrutura base ── */
 .tab-content {
   padding: 14px 16px max(96px, calc(72px + env(safe-area-inset-bottom)));

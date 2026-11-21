@@ -429,8 +429,8 @@ export function analisarLojas({ fiados, lojas, hoje, janela = 90 }) {
 const R = (n) => 'R$ ' + c2(n).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 const lista3 = (arr) => arr.length <= 1 ? arr.join('') : arr.slice(0, -1).join(', ') + ' e ' + arr[arr.length - 1]
 
-export function proximosPassos({ resumo, clientes, produtos, sumiram, metaRetirada, comboDe = () => null, maxPassos = 3 }) {
-  const cand = []
+export function proximosPassos({ resumo, clientes, produtos, sumiram, metaRetirada, comboDe = () => null, extras = [], maxPassos = 3 }) {
+  const cand = [...extras]
   const vencidos = clientes.filter(c => c.saldoAtrasado > 0 && !c.arquivado).sort((a, b) => b.saldoAtrasado - a.saldoAtrasado)
   const totalVencido = c2(vencidos.reduce((s, c) => s + c.saldoAtrasado, 0))
   if (totalVencido > 0) {

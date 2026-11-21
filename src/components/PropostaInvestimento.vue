@@ -130,6 +130,44 @@
         </div>
         <div v-else class="pi-nota">Não deu para carregar os números agora. Você ainda pode gerar o documento.</div>
 
+        <!-- Realidade pelo extrato: dinheiro (fato) → volume provável (estimativa) -->
+        <div v-if="!carregandoDados && realidade && realidade.disponivel" class="pi-base pi-real">
+          <div class="pi-base-tit">
+            <span><i class="fas fa-building-columns"></i> O que o extrato mostra</span>
+            <span class="pi-conf" :class="'pi-conf--' + realidade.nivel">confiança {{ ROTULO_NIVEL_REAL[realidade.nivel] }}</span>
+          </div>
+          <div class="pi-base-nums">
+            <div><span>Entradas/mês</span><strong>{{ R(realidade.receitaMedia) }}</strong></div>
+            <div><span>Saídas/mês</span><strong>{{ R(realidade.saidasMedia) }}</strong></div>
+            <div><span>Resultado de caixa</span><strong>{{ R(realidade.resultadoCaixaMedio) }}</strong></div>
+          </div>
+          <div class="pi-nota">Média de {{ realidade.meses }} {{ realidade.meses === 1 ? 'mês' : 'meses' }} · entradas de {{ R(realidade.receitaMin) }} a {{ R(realidade.receitaMax) }}. Dinheiro do extrato: é o fato.</div>
+
+          <template v-if="realidade.volume">
+            <div class="pi-base-tit"><span>Volume provável: ≈ {{ num(realidade.volume.totalSem) }} un/semana <small class="pi-opt">(faixa {{ num(realidade.volume.minSem) }} a {{ num(realidade.volume.maxSem) }})</small></span></div>
+            <div class="pi-chips">
+              <span v-for="c in realidade.volume.categorias" :key="c.fam" class="pi-chip">
+                {{ c.rotulo }} ≈ {{ num(c.unSem) }}/sem<template v-if="c.producaoSem !== null"> · produz {{ num(c.producaoSem) }} ({{ c.coberturaPct }}%)</template>
+              </span>
+            </div>
+          </template>
+
+          <ul class="pi-base-lista">
+            <li v-if="realidade.composicao">De tudo que entrou, <strong>{{ realidade.composicao.avistaPct }}% foi à vista</strong> (fora da Caderneta) e {{ realidade.composicao.fiadoPct + realidade.composicao.provavelPct }}% pagou vendas anotadas na Caderneta.</li>
+            <li v-if="realidade.cobertura && realidade.cobertura.vendasPct !== null">A Caderneta registra cerca de {{ realidade.cobertura.vendasPct }}% do volume provável em vendas.</li>
+            <li v-if="realidade.cobertura && realidade.cobertura.producaoPct !== null" :class="{ 'pi-atencao': realidade.cobertura.producaoPct < 85 || realidade.cobertura.producaoPct > 115 }">
+              A produção registrada cobre ≈ {{ realidade.cobertura.producaoPct }}% do volume provável das categorias que você registra.
+              <template v-if="realidade.cobertura.producaoPct < 85">O extrato sugere que você vende mais do que registra produzir, coerente com produção feita fora do sistema. Registrar mais deixa a proposta mais forte.</template>
+              <template v-else-if="realidade.cobertura.producaoPct > 115">Você registra produzir mais do que o extrato sugere vender: pode haver sobra, brindes ou preço médio menor nas vendas à vista.</template>
+              <template v-else>Produção e extrato estão coerentes.</template>
+            </li>
+            <li v-if="peso" :class="{ 'pi-atencao': peso.pct > 50 }">
+              Seu aumento de {{ proposta.aumentoUnidSemana }} un/sem equivale a <strong>+{{ peso.pct }}%</strong> sobre o volume provável atual.<template v-if="peso.pct > 50"> É um salto grande: vale explicar de onde virá a demanda.</template>
+            </li>
+            <li v-for="a in realidade.avisos" :key="a">{{ a }}</li>
+          </ul>
+        </div>
+
         <div v-if="retorno" class="pi-retorno">
           <i class="fas fa-chart-line"></i>
           <span>
@@ -167,6 +205,7 @@ import { useStore } from '../store.js'
 import { configGet, configSet } from '../db.js'
 import CampoMoeda from './CampoMoeda.vue'
 import { ROTULO_NIVEL } from '../modules/producaoSemanal.js'
+import { ROTULO_NIVEL_REAL, pesoDoAumento } from '../modules/realidadeExtrato.js'
 import { gerarPropostaInvestimento } from '../composables/useGerarDocumento.js'
 import {
   LIMITE_PIX_MEI, CHAVE_PROPOSTA, TIPOS_ITEM, novoItem, normalizarProposta, propostaVazia,
@@ -194,6 +233,8 @@ const num = (n) => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 
 const total = computed(() => totalInvestimento(proposta.itens))
 const resumo = computed(() => (dados.value ? resumoParaProposta(dados.value) : null))
 const producao = computed(() => dados.value?.producao || null)
+const realidade = computed(() => dados.value?.realidade || null)
+const peso = computed(() => pesoDoAumento(proposta.aumentoUnidSemana, realidade.value))
 const retorno = computed(() => retornoEstimado({
   total: total.value, aumentoUnidSemana: proposta.aumentoUnidSemana, sobraUnit: resumo.value?.sobraUnit,
 }))
@@ -259,7 +300,7 @@ async function gerarDocumento() {
     gerarPropostaInvestimento({
       empresa: s.company, proposta: JSON.parse(JSON.stringify(proposta)),
       resumo: resumo.value, retorno: retorno.value, total: total.value, limite: LIMITE_PIX_MEI,
-      producao: producao.value,
+      producao: producao.value, realidade: realidade.value, peso: peso.value,
     })
   } finally { gerando.value = false }
 }
@@ -272,7 +313,7 @@ async function pedirIA() {
     if (!dados.value) { s.notify('Não deu para montar o texto agora.', 'error'); return }
     emit('prompt-ia', montarPromptProposta({
       contexto: dados.value.contexto, proposta: JSON.parse(JSON.stringify(proposta)), total: total.value,
-      producao: producao.value,
+      producao: producao.value, realidade: realidade.value,
     }))
   } finally { gerando.value = false }
 }
@@ -327,6 +368,7 @@ async function pedirIA() {
 .pi-base-lista { margin: 0; padding-left: 18px; font-size: .76rem; line-height: 1.45; color: var(--brown-dark); display: flex; flex-direction: column; gap: 3px; }
 .pi-atencao { color: var(--orange); }
 .pi-usar { align-self: flex-start; }
+.pi-real { margin-top: 2px; }
 .pi-nums { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .pi-num { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
 .pi-num span { font-size: .72rem; color: var(--muted); font-weight: 600; }

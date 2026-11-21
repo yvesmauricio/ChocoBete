@@ -318,6 +318,13 @@
       </div>
     </template>
 
+    <!-- ═══ ABA: CAIXA E CUSTOS (fôlego, DAS, custos fixos reais, custo real) ═══ -->
+    <template v-else-if="abaAtiva === 'caixa'">
+      <div class="relatorio-wrap">
+        <SaudeFinanceira />
+      </div>
+    </template>
+
     <template v-else-if="abaAtiva === 'mensal'">
       <div class="relatorio-wrap mn-pagina">
 
@@ -1132,6 +1139,7 @@ import ImportadorBancoBrasil from '../components/ImportadorBancoBrasil.vue'
 
 import FinanceListRow from '../components/FinanceListRow.vue'
 import ConciliacaoVendas from '../components/ConciliacaoVendas.vue'
+import SaudeFinanceira from '../components/SaudeFinanceira.vue'
 import EditarCategoriaModal from '../components/EditarCategoriaModal.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
 import { useStore } from '../store.js'
@@ -1189,6 +1197,7 @@ const abas = [
   { id: 'importar',    label: 'Importar',       icon: 'fas fa-file-import',   grupo: 'diaadia' },
   { id: 'lancamentos', label: 'Movimentações', icon: 'fas fa-list',          grupo: 'diaadia' },
   { id: 'vendas',      label: 'Fiado × À vista', icon: 'fas fa-code-compare', grupo: 'diaadia' },
+  { id: 'caixa',       label: 'Caixa e Custos',  icon: 'fas fa-heart-pulse',  grupo: 'diaadia' },
   { id: 'mensal',      label: 'Resumo Mensal',  icon: 'fas fa-calendar',      grupo: 'diaadia' },
   { id: 'mao-de-obra', label: 'Meta de Retirada', icon: 'fas fa-bullseye',    grupo: 'diaadia' },
   { id: 'anual',       label: 'Resumo Anual',   icon: 'fas fa-chart-bar',     grupo: 'mei' },
@@ -1540,8 +1549,7 @@ async function handleExcluirPorBanco(banco) {
 
 // ── Helpers ──
 // ── Relatórios ──────────────────────────────────────────────
-// Fonte única do teto: Ajustes (company.teto_mei_anual). Sem fallback fixo aqui.
-const TETO_BASE_ANUAL = computed(() => Number(s.company.teto_mei_anual) || 0)
+const TETO_BASE_ANUAL = computed(() => s.company.teto_mei_anual || 81000)
 // No ano de abertura o teto é proporcional: teto ÷ 12 × meses de atividade (mês da abertura conta inteiro).
 const mesesAtividadeNoAno = computed(() => {
   const ab = String(s.company.mei_data_abertura || '')
@@ -1644,7 +1652,6 @@ function gerarDocLivroCaixa() {
     saidas:   lancMensalSaidasParaDoc.value,
     totais:   dadosRelMensal.value || {},
     acumulado: acumuladoAteMes.value,
-    tetoAnual: TETO_MEI_ANUAL.value,
     incluirNaoMei: incluirRendasPessoais.value
   })
 }

@@ -10,6 +10,7 @@
 // LIMITE_PIX_MEI e os TIPOS_ITEM abaixo.
 
 import { linhasProducao } from './producaoSemanal.js'
+import { linhasRealidade } from './realidadeExtrato.js'
 
 const c2 = (n) => Math.round((Number(n) || 0) * 100) / 100
 
@@ -133,10 +134,12 @@ export function pendencias(proposta, resumo, limite = LIMITE_PIX_MEI) {
 }
 
 /** Texto para pedir a uma IA que REDIJA a proposta (os números vão junto; clientes anonimizados). */
-export function montarPromptProposta({ contexto, proposta, total, producao = null }) {
+export function montarPromptProposta({ contexto, proposta, total, producao = null, realidade = null }) {
   const R = (n) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(n) || 0).replace(/\s/g, ' ')
   const L = []
   L.push(contexto)
+  L.push('')
+  L.push(...linhasRealidade(realidade))
   L.push('')
   L.push(...linhasProducao(producao))
   L.push('')
@@ -159,14 +162,14 @@ export function montarPromptProposta({ contexto, proposta, total, producao = nul
 Contexto: o governo federal anunciou o Pix MEI (pacote Prospera MEI): repasse a fundo perdido de até R$ 5 mil, uma única vez, para investimento produtivo (máquinas, ferramentas, equipamentos, melhorias estruturais), com proposta de investimento, acompanhamento técnico do Sebrae e comprovação do gasto por nota fiscal. O edital com as regras definitivas AINDA NÃO saiu; não afirme regras que eu não citei.
 1. Escreva o texto "Sobre o meu negócio" (5 a 7 linhas, primeira pessoa), usando só os números acima.
 2. Para cada item, escreva a justificativa em 2 ou 3 frases: que gargalo resolve e o que muda na produção.
-3. Escreva "Resultado esperado" com números honestos (use minha sobra por unidade e minha estimativa de unidades a mais; mostre a conta). Compare minha estimativa com a PRODUÇÃO REGISTRADA acima: diga se parece realista, e se as vendas registradas acompanham a produção (se vendo menos do que produzo, avise que o gargalo pode não ser a produção). Se faltar dado, diga qual.
+3. Escreva "Resultado esperado" com números honestos (use minha sobra por unidade e minha estimativa de unidades a mais; mostre a conta). Trate o dinheiro do EXTRATO como fato e o volume em unidades como estimativa. Compare minha estimativa com o VOLUME PROVÁVEL e com a PRODUÇÃO REGISTRADA acima: diga se o aumento é proporcional (quantos % sobre o volume atual) e se parece realista, e se as vendas registradas acompanham a produção (se vendo menos do que produzo, avise que o gargalo pode não ser a produção). Se faltar dado, diga qual.
 4. Aponte o que um técnico do Sebrae provavelmente perguntaria e que eu ainda não respondi.
 5. Avise se algum item parece NÃO ser investimento produtivo (ex.: ingredientes, embalagens, contas) ou se o total passa de R$ 5 mil.
 
 COMO RESPONDER
 - Português simples, sem jargão, em primeira pessoa.
 - Use SOMENTE os números acima. Não invente faturamento, clientes ou prazos.
-- Parte da produção e das vendas acontece fora do sistema: não trate os números registrados como o total do negócio.
+- Parte da produção e das vendas acontece fora do sistema: não trate os números registrados como o total do negócio; o extrato é a referência de dinheiro.
 - Não prometa aprovação nem valor; é um rascunho para eu revisar.`)
   return L.join('\n')
 }

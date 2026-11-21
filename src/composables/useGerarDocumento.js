@@ -959,7 +959,7 @@ export function gerarRelatorioProducao({ empresa, grupos, periodo }) {
 // PROPOSTA DE INVESTIMENTO — Pix MEI (Prospera MEI)
 // Documento do próprio MEI (não é formulário oficial). Números vêm do app.
 // ══════════════════════════════════════════════════════════════════
-export function gerarPropostaInvestimento({ empresa, proposta, resumo, retorno, total, limite, producao = null }) {
+export function gerarPropostaInvestimento({ empresa, proposta, resumo, retorno, total, limite, producao = null, realidade = null, peso = null }) {
   const nomeEmpresa = empresa?.razao_social || empresa?.nome || 'Microempreendedor Individual'
   const itens = (proposta?.itens || []).filter(i => i.descricao.trim() || i.valor > 0)
   const txt = (v) => escHtml(v).replace(/\n/g, '<br>')
@@ -1004,6 +1004,32 @@ export function gerarPropostaInvestimento({ empresa, proposta, resumo, retorno, 
       </tr>
     </tbody>
   </table>` : ''
+
+  const n1 = (v) => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+  const temReal = !!(realidade && realidade.disponivel)
+  const blocoReal = temReal ? `
+  <table class="tabela" style="margin-top:6pt">
+    <thead>
+      <tr>
+        <th>Entradas de vendas no extrato (média/mês, ${realidade.meses} ${realidade.meses === 1 ? 'mês' : 'meses'})</th>
+        <th>Saídas operacionais (média/mês)</th>
+        <th>Resultado de caixa (média/mês)</th>
+        <th>Volume provável de vendas</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="num">R$ ${BRL(realidade.receitaMedia)}<br><span style="font-size:8pt;color:#444">de R$ ${BRL(realidade.receitaMin)} a R$ ${BRL(realidade.receitaMax)}</span></td>
+        <td class="num">R$ ${BRL(realidade.saidasMedia)}</td>
+        <td class="num">R$ ${BRL(realidade.resultadoCaixaMedio)}</td>
+        <td class="cen">${realidade.volume ? '≈ ' + n1(realidade.volume.totalSem) + ' un/semana<br><span style="font-size:8pt;color:#444">faixa ' + n1(realidade.volume.minSem) + ' a ' + n1(realidade.volume.maxSem) + '</span>' : '—'}</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="nota-legal" style="margin-top:6pt">
+    Entradas e saídas apuradas dos extratos bancários${realidade.parcial ? ' (mês em andamento)' : ''}, que podem ser apresentados para conferência.${realidade.composicao ? ` Das entradas, ${realidade.composicao.avistaPct}% são vendas pagas à vista (fora da minha caderneta) e ${realidade.composicao.fiadoPct + realidade.composicao.provavelPct}% são pagamentos de vendas anotadas na caderneta.` : ''}
+    ${realidade.volume ? `O volume em unidades é uma <strong>estimativa</strong>: entradas do extrato ÷ preço médio por unidade das vendas registradas (R$ ${BRL(realidade.volume.precoMedio)}), supondo a mesma mistura de produtos nas vendas não registradas.` : ''}
+  </div>` : ''
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1062,7 +1088,7 @@ export function gerarPropostaInvestimento({ empresa, proposta, resumo, retorno, 
     <thead>
       <tr>
         <th>Faturamento médio mensal${r.registrado ? ` (${r.meses} ${r.meses === 1 ? 'mês' : 'meses'})` : ''}</th>
-        <th>Lucro estimado médio por mês</th>
+        ${temReal ? '' : '<th>Lucro estimado médio por mês</th>'}
         <th>Sobra média por unidade vendida</th>
         <th>Faturado no ano${r.tetoMei > 0 ? ' / teto MEI' : ''}</th>
       </tr>
@@ -1070,7 +1096,7 @@ export function gerarPropostaInvestimento({ empresa, proposta, resumo, retorno, 
     <tbody>
       <tr>
         <td class="num">${r.registrado ? dinheiro(r.faturamentoMedio) : '—'}</td>
-        <td class="num">${dinheiro(r.lucroMedio)}</td>
+        ${temReal ? '' : `<td class="num">${dinheiro(r.lucroMedio)}</td>`}
         <td class="num">${dinheiro(r.sobraUnit)}</td>
         <td class="num">${dinheiro(r.faturadoAno)}${r.tetoMei > 0 ? ' de R$ ' + BRL(r.tetoMei) + (r.pctTeto !== null ? ` (${r.pctTeto}%)` : '') : ''}</td>
       </tr>
@@ -1081,6 +1107,7 @@ export function gerarPropostaInvestimento({ empresa, proposta, resumo, retorno, 
     <thead><tr><th>Principais produtos (últimos 90 dias)</th><th>Unidades</th><th>Faturado (R$)</th><th>Margem</th></tr></thead>
     <tbody>${linhasProdutos}</tbody>
   </table>` : ''}
+  ${blocoReal}
   ${blocoProducao}
   <div class="nota-legal" style="margin-top:6pt">
     Valores registrados no meu sistema de controle. Parte das vendas e da produção pode ocorrer fora do registro, de modo que os números acima não representam, necessariamente, o total do negócio.
@@ -1117,7 +1144,7 @@ export function gerarPropostaInvestimento({ empresa, proposta, resumo, retorno, 
     </tbody>
   </table>
   <div class="nota-legal" style="margin-top:6pt">
-    Estimativa simples: unidades a mais por semana × 4,33 semanas × sobra média por unidade (preço − custo das receitas). Depende de a produção adicional ser de fato vendida.
+    Estimativa simples: unidades a mais por semana × 4,33 semanas × sobra média por unidade (preço − custo das receitas). Depende de a produção adicional ser de fato vendida.${peso ? ` O aumento estimado equivale a cerca de ${peso.pct}% do volume provável atual (≈ ${n1(peso.base)} un/semana).` : ''}
   </div>` : ''}
 
   <div class="quadro-titulo" style="margin-top:12pt">Quadro 6 — Compromissos</div>
