@@ -128,16 +128,47 @@
 
         <div class="sheet-card mt-16">
           <div class="sheet-body">
-            <div class="section-label"><i class="fas fa-mortar-pestle"></i> Total para pesar (Consolidado)</div>
-            <div class="checklist">
-              <div v-for="ing in ingredientesAgrupados" :key="ing.id" class="check-item" :class="{ 'done': s.cozinhaChecklist[ing.id] }" @click="toggleCheck(ing.id)">
-                <div class="check-box"><i class="fas" :class="s.cozinhaChecklist[ing.id] ? 'fa-check-square' : 'fa-square'"></i></div>
-                <div class="check-info">
-                  <div class="check-main">
-                    <div class="check-name">{{ ing.nome }}</div>
-                    <div class="check-val">{{ fmtQ(ing.total, ing.unidade) }}</div>
+            <div class="pz-head">
+              <div class="pz-titulo">
+                <span class="pz-titulo-ico"><i class="fas fa-scale-balanced"></i></span>
+                <div>
+                  <h3>Total para pesar</h3>
+                  <p>Consolidado do lote</p>
+                </div>
+              </div>
+              <button type="button" class="pz-expandir" @click="painelPesagemAberto = true">
+                <i class="fas fa-expand"></i> Tela cheia
+              </button>
+            </div>
+
+            <div class="pz-prog">
+              <div class="pz-prog-txt">
+                <span><b>{{ pesadosCount }}</b> de {{ ingredientesParaPesar.length }} pesados</span>
+                <span v-if="pesadosCount && pesadosCount === ingredientesParaPesar.length" class="pz-prog-ok"><i class="fas fa-circle-check"></i> Tudo pesado</span>
+              </div>
+              <div class="pz-bar"><span :style="{ width: pesadosPct + '%' }"></span></div>
+            </div>
+
+            <div class="pz-lista">
+              <div
+                v-for="ing in ingredientesParaPesar"
+                :key="ing.id"
+                class="pz-item"
+                :class="{ 'pz-item--feito': s.cozinhaChecklist[ing.id] }"
+                role="checkbox"
+                tabindex="0"
+                :aria-checked="!!s.cozinhaChecklist[ing.id]"
+                @click="toggleCheck(ing.id)"
+                @keydown.space.prevent="toggleCheck(ing.id)"
+                @keydown.enter.prevent="toggleCheck(ing.id)"
+              >
+                <span class="pz-check"><i class="fas fa-check"></i></span>
+                <div class="pz-corpo">
+                  <div class="pz-linha">
+                    <span class="pz-nome"><i v-if="ing.tipo === 'receita'" class="fas fa-mortar-pestle pz-nome-ico"></i>{{ ing.nome }}</span>
+                    <span class="pz-qtd"><b>{{ fmtQ(ing.total) }}</b><small>{{ ing.unidade }}</small></span>
                   </div>
-                  <SubComposicao :subs="ing.subIngredientes" style="margin-left:0; margin-top:6px;" />
+                  <SubComposicao :subs="ing.subIngredientes" class="pz-sub" />
                 </div>
               </div>
             </div>
@@ -202,57 +233,17 @@
   >{{ fb.text }}</div>
 </Teleport>
 
-<!-- ── Painel de pesagem — somente leitura ── -->
-<Teleport to="body">
-  <Transition name="fade">
-    <div v-if="painelPesagemAberto" class="painel-pesar-overlay" @click.self="painelPesagemAberto = false">
-      <div class="painel-pesar">
-        <div class="painel-pesar-hdr">
-          <div class="painel-pesar-titulo">
-            <i class="fas fa-scale-balanced"></i>
-            Total para pesar (Consolidado)
-          </div>
-          <div class="painel-pesar-timer" v-if="s.timerDisplay">
-            <i class="fas fa-stopwatch" :class="{ 'fa-beat-fade': s.timer.isRunning }"></i>
-            {{ s.timerDisplay }}
-          </div>
-          <button class="painel-pesar-fechar" @click="painelPesagemAberto = false">
-            <i class="fas fa-xmark"></i>
-          </button>
-        </div>
-        <div class="painel-pesar-receitas" v-if="s.cozinhaLote.length">
-          <span
-            v-for="item in s.cozinhaLote"
-            :key="item.receita_id"
-            class="painel-pesar-receita-chip"
-          >{{ item.qtd_produzir }}× {{ item.nome }}<span v-if="formasParaItem(item)"> ({{ formasParaItem(item) }})</span></span>
-        </div>
-        <div class="painel-pesar-lista">
-          <div
-            v-for="(ing, idx) in ingredientesParaPesar"
-            :key="ing.id"
-            class="painel-pesar-item"
-            :class="{ 'painel-pesar-destaque': idx === 0 }"
-          >
-            <div class="painel-pesar-item-main">
-              <span class="painel-pesar-nome"><i v-if="ing.tipo === 'receita'" class="fas fa-mortar-pestle insumo-tipo-ico"></i> {{ ing.nome }}</span>
-              <span class="painel-pesar-qtd">{{ fmtQ(ing.total, ing.unidade) }}</span>
-            </div>
-            <SubComposicao :subs="ing.subIngredientes" class="painel-pesar-composicao" />
-          </div>
-          <div v-if="!ingredientesParaPesar.length" class="painel-pesar-vazio">
-            Nenhum ingrediente no lote ainda.
-          </div>
-        </div>
-        <div class="painel-pesar-footer">
-          <span class="painel-pesar-nota">
-            <i class="fas fa-eye"></i> Somente visualização — edite o lote na tela Produzir
-          </span>
-        </div>
-      </div>
-    </div>
-  </Transition>
-</Teleport>
+<!-- ── Painel de pesagem — somente leitura (componente compartilhado com Produções) ── -->
+<PainelPesagem
+  :aberto="painelPesagemAberto"
+  :receitas="receitasPainel"
+  :ingredientes="ingredientesParaPesar"
+  :checklist="s.cozinhaChecklist"
+  :timer-display="s.timerDisplay || ''"
+  :timer-rodando="!!s.timer.isRunning"
+  nota="Somente visualização — edite o lote na tela Produzir"
+  @fechar="painelPesagemAberto = false"
+/>
 
   </div>
 </template>
@@ -262,6 +253,8 @@ import '../assets/checklist.css'
 import { ref, computed, watch, nextTick, onMounted, inject } from 'vue'
 import { useStore } from '../store.js'
 import SubComposicao from '../components/SubComposicao.vue'
+import PainelPesagem from '../components/PainelPesagem.vue'
+import { ordenarParaPesagem } from '../modules/ordemPesagem.js'
 import { fmtQtd as fmtQ, getNowLocal, normalizar, dataHoraBR } from '../utils.js' // Corrected import
 import { useConfirm } from '../composables/useConfirm.js'
 
@@ -671,32 +664,21 @@ const ingredientesAgrupados = computed(() => {
   }).sort((a, b) => a.nome.localeCompare(b.nome));
 });
 
-// ── Painel de pesagem — somente leitura, chocolate sempre primeiro ──
-const ORDEM_PESAGEM = [
-  'chocolate', 'cacau', 'manteiga', 'gordura',
-  'leite condensado', 'creme de leite', 'leite',
-  'acucar', 'açúcar', 'farinha', 'amido', 'bicarbonato', 'fermento',
-  'granulado', 'confeito', 'castanha', 'amendoim', 'ninho', 'nutella'
-]
-
-function prioridadePesagem(nome) {
-  const n = normalizar(nome)
-  for (let i = 0; i < ORDEM_PESAGEM.length; i++) {
-    if (n.includes(ORDEM_PESAGEM[i])) return i
-  }
-  return ORDEM_PESAGEM.length // no fim, ordem alfabética
-}
-
-const ingredientesParaPesar = computed(() =>
-  [...ingredientesAgrupados.value].sort((a, b) => {
-    const pa = prioridadePesagem(a.nome)
-    const pb = prioridadePesagem(b.nome)
-    if (pa !== pb) return pa - pb
-    return a.nome.localeCompare(b.nome)
-  })
-)
+// ── Ordem de pesagem: chocolates → recheios (A–Z) → demais insumos (A–Z) ──
+const ingredientesParaPesar = computed(() => ordenarParaPesagem(ingredientesAgrupados.value))
 
 const painelPesagemAberto = ref(false)
+
+// Progresso da pesagem (barra na lista) e receitas mostradas no painel
+const pesadosCount = computed(() => ingredientesParaPesar.value.filter(i => s.cozinhaChecklist[i.id]).length)
+const pesadosPct = computed(() => ingredientesParaPesar.value.length
+  ? Math.round((pesadosCount.value / ingredientesParaPesar.value.length) * 100) : 0)
+const receitasPainel = computed(() => s.cozinhaLote.map(item => ({
+  id: item.receita_id,
+  nome: item.nome,
+  qtd: item.qtd_produzir,
+  formas: formasParaItem(item) || ''
+})))
 const produtosNecessariosLote = computed(() => {
   const mapa = {}
   s.cozinhaLote.forEach(item => {
@@ -919,9 +901,6 @@ watch(catAtiva, () => {
 
 /* ── Checklist (pesagem — variante sem transição, exclusiva desta tela) ── */
 
-.check-item.done .check-box { color: var(--green); }
-.check-item.done .check-name { text-decoration: line-through; color: var(--muted); }
-.check-item.done .check-val { color: var(--muted); opacity: 0.6; }
 
 /* ── Feedback flutuante (+N un) ── */
 .feedback-float { position:fixed; transform:translateX(-50%); background:var(--brown-dark); color:#fff; font-size:.8rem; font-weight:800; padding:4px 10px; border-radius:20px; pointer-events:none; z-index:var(--z-critical); animation:floatUp .75s ease forwards; white-space:nowrap; }
@@ -985,101 +964,41 @@ watch(catAtiva, () => {
 </style>
 
 <style scoped>
-/* ── Painel de pesagem ────────────────────────────────── */
-.painel-pesar-overlay {
-  position: fixed; inset: 0;
-  background: rgba(30,18,8,.6);
-  z-index: calc(var(--z-modal) + 500);
-  display: flex; align-items: flex-end;
-}
-.painel-pesar {
-  width: 100%; max-height: 92vh;
-  background: var(--surface);
-  border-radius: 20px 20px 0 0;
-  display: flex; flex-direction: column;
-  will-change: transform;
-  animation: slideUp .25s var(--t-spring);
-}
-.painel-pesar-hdr {
-  display: flex; align-items: center; gap: 10px;
-  padding: 16px 20px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--brown-dark);
-  border-radius: 20px 20px 0 0;
-}
-.painel-pesar-titulo {
-  flex: 1; font-size: 1rem; font-weight: 800;
-  color: #fff; display: flex; align-items: center; gap: 8px;
-}
-.painel-pesar-timer {
-  font-size: .9rem; font-weight: 700; font-family: var(--mono);
-  color: var(--gold-light); display: flex; align-items: center; gap: 6px;
-}
-.painel-pesar-fechar {
-  width: 36px; height: 36px; border-radius: 50%;
-  border: none; background: rgba(255,255,255,.15);
-  color: #fff; font-size: 1rem; display: flex; align-items: center; justify-content: center;
-}
-.painel-pesar-lista {
-  flex: 1; overflow-y: auto;
-  padding: 8px 0;
-  -webkit-overflow-scrolling: touch;
-}
-.painel-pesar-item {
-  display: flex; flex-direction: column;
-  padding: 14px 24px;
-  border-bottom: 1px solid var(--border);
-}
-.painel-pesar-item:last-child { border-bottom: none; }
-.painel-pesar-item-main {
-  display: flex; align-items: center; justify-content: space-between;
-}
-.painel-pesar-composicao {
-  margin-top: 8px;
-}
-.painel-pesar-destaque {
-  background: var(--gold-bg);
-  border-left: 4px solid var(--brown);
-  padding-left: 20px;
-}
-.painel-pesar-nome {
-  font-size: 1.05rem; font-weight: 500; color: var(--text);
-}
-.painel-pesar-receitas {
-  display: flex; flex-wrap: wrap; gap: 6px;
-  padding: 12px 20px 4px;
-  border-bottom: 1px solid var(--border);
-}
-.painel-pesar-receita-chip {
-  font-size: .72rem; font-weight: 700;
-  color: var(--brown-dark);
-  background: var(--gold-bg);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 4px 10px;
-}
-.painel-pesar-destaque .painel-pesar-nome {
-  font-weight: 800; color: var(--brown-dark);
-}
-.painel-pesar-qtd {
-  font-size: 1.15rem; font-weight: 800;
-  font-family: var(--mono); color: var(--brown-dark);
-  flex-shrink: 0;
-}
-.painel-pesar-destaque .painel-pesar-qtd {
-  font-size: 1.3rem; color: var(--brown-dark);
-}
-.painel-pesar-vazio {
-  text-align: center; color: var(--muted);
-  padding: 32px 20px; font-size: .85rem;
-}
-.painel-pesar-footer {
-  padding: 10px 20px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--cream);
-}
-.painel-pesar-nota {
-  font-size: .72rem; color: var(--muted);
-  display: flex; align-items: center; gap: 6px;
-}
+
+/* ── Total para pesar (lista com checks) ─────────────────── */
+.pz-head   { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+.pz-titulo { display:flex; align-items:center; gap:10px; min-width:0; }
+.pz-titulo h3 { margin:0; font-size:1rem; font-weight:800; color:var(--brown-dark); line-height:1.2; }
+.pz-titulo p  { margin:1px 0 0; font-size:.72rem; font-weight:600; color:var(--muted); }
+.pz-titulo-ico { flex:none; width:38px; height:38px; border-radius:12px; background:var(--gold-bg); color:var(--gold-dark); display:flex; align-items:center; justify-content:center; }
+.pz-expandir { flex:none; display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 12px; border:1.5px solid var(--border2); border-radius:var(--r-full); background:#fff; color:var(--brown-mid); font-family:var(--font); font-size:.74rem; font-weight:800; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.pz-expandir i { font-size:.7rem; }
+.pz-expandir:active { background:var(--cream-deep); }
+
+.pz-prog     { margin-bottom:12px; }
+.pz-prog-txt { display:flex; justify-content:space-between; align-items:center; font-size:.78rem; font-weight:600; color:var(--muted); margin-bottom:6px; }
+.pz-prog-txt b { color:var(--brown-dark); font-weight:800; }
+.pz-prog-ok  { color:var(--green); font-weight:800; display:inline-flex; align-items:center; gap:5px; }
+.pz-bar      { height:6px; border-radius:6px; background:var(--cream-deep); overflow:hidden; }
+.pz-bar span { display:block; height:100%; border-radius:6px; background:var(--green); transition:width .25s ease; }
+
+.pz-lista { display:flex; flex-direction:column; gap:8px; }
+.pz-item  { display:flex; align-items:flex-start; gap:12px; padding:12px 14px; min-height:60px; background:var(--bg); border:1px solid var(--border); border-radius:var(--r-md); cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent; transition:opacity var(--t), background var(--t), border-color var(--t); }
+.pz-item:active { background:var(--cream-deep); }
+.pz-item:focus-visible { outline:2px solid var(--gold-dark); outline-offset:2px; }
+.pz-check { flex:none; width:30px; height:30px; border-radius:50%; border:2px solid var(--border2); background:#fff; color:transparent; display:flex; align-items:center; justify-content:center; font-size:.8rem; transition:all var(--t); }
+.pz-corpo { flex:1; min-width:0; }
+.pz-linha { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:30px; }
+.pz-nome  { min-width:0; font-size:1rem; font-weight:700; line-height:1.25; color:var(--brown); overflow-wrap:anywhere; }
+.pz-nome-ico { font-size:.75rem; margin-right:6px; color:var(--gold-dark); opacity:.85; }
+.pz-qtd   { flex:none; display:inline-flex; align-items:baseline; gap:4px; font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.pz-qtd b { font-size:1.2rem; font-weight:800; color:var(--brown-dark); }
+.pz-qtd small { font-size:.76rem; font-weight:700; color:var(--muted); }
+.pz-sub   { margin-top:8px; padding-left:10px; border-left:2px solid var(--border); }
+.pz-sub :deep(.c-brown) { display:none; }
+.pz-sub :deep(.plan-sub-item) { font-size:.78rem; }
+
+.pz-item--feito { opacity:.55; background:#fff; }
+.pz-item--feito .pz-check { background:var(--green); border-color:var(--green); color:#fff; }
+.pz-item--feito .pz-nome  { text-decoration:line-through; color:var(--muted); }
 </style>

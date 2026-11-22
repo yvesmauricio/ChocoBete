@@ -34,7 +34,7 @@
 
         <header class="im-cab">
           <h3 class="im-titulo">Importar extrato</h3>
-          <p class="im-desc">Traga os lançamentos do seu banco para o app enviando o arquivo do extrato.</p>
+          <p class="im-desc">O app só enxerga o que foi importado. Veja abaixo o que está em dia e o que precisa de um extrato novo.</p>
         </header>
 
         <div v-if="!temAlgumBancoConfigurado" class="im-card im-vazio">
@@ -44,28 +44,47 @@
         </div>
 
         <template v-else>
-          <!-- Passo 1: banco (só aparece quando há mais de um) -->
-          <section v-if="bancosImportacaoDisponiveis.length > 1" class="im-bloco">
-            <div class="im-passo-cab"><span class="im-passo">1</span><h4>Escolha o banco</h4></div>
-            <div class="im-bancos" role="radiogroup" aria-label="Banco do extrato">
-              <button v-if="temContasPagbank" class="im-banco" :class="{ active: bancoImport === 'pagbank' }" role="radio" :aria-checked="bancoImport === 'pagbank'" @click="bancoImport = 'pagbank'">
-                <i class="fas fa-file-csv"></i><strong>PagBank</strong><span>arquivo CSV</span>
+          <!-- Passo 1: situação de cada banco (e escolha de qual importar) -->
+          <section class="im-bloco">
+            <div class="im-passo-cab">
+              <span v-if="situacaoBancos.length > 1" class="im-passo">1</span>
+              <h4>{{ situacaoBancos.length > 1 ? 'Escolha o banco' : 'Situação do extrato' }}</h4>
+            </div>
+            <div class="ib-lista" role="radiogroup" aria-label="Banco do extrato">
+              <button v-for="b in situacaoBancos" :key="b.id" type="button" class="ib-banco" :class="['e-' + b.estado, { active: bancoImport === b.id }]"
+                role="radio" :aria-checked="bancoImport === b.id" @click="bancoImport = b.id">
+                <span class="ib-ico"><i class="fas" :class="b.icone"></i></span>
+                <span class="ib-info">
+                  <span class="ib-topo"><strong>{{ b.nome }}</strong><span class="ib-selo" :class="'e-' + b.estado">{{ b.selo }}</span></span>
+                  <span v-if="b.total" class="ib-linha">Último lançamento em {{ b.ultimaBr }} · {{ b.total }} {{ b.total === 1 ? 'lançamento' : 'lançamentos' }}</span>
+                  <span v-else class="ib-linha">Nada importado ainda. Envie o extrato em {{ b.formato }}.</span>
+                  <span v-if="b.total" class="ib-linha ib-periodo">{{ b.periodo }}</span>
+                  <span v-if="b.dica" class="ib-dica"><i class="fas fa-lightbulb"></i> {{ b.dica }}</span>
+                </span>
+                <i v-if="situacaoBancos.length > 1" class="fas ib-radio" :class="bancoImport === b.id ? 'fa-circle-dot' : 'fa-circle'"></i>
               </button>
-              <button v-if="temContasItau" class="im-banco" :class="{ active: bancoImport === 'itau' }" role="radio" :aria-checked="bancoImport === 'itau'" @click="bancoImport = 'itau'">
-                <i class="fas fa-file-pdf"></i><strong>Itaú</strong><span>arquivo PDF</span>
-              </button>
-              <button v-if="temContasBb" class="im-banco" :class="{ active: bancoImport === 'bb' }" role="radio" :aria-checked="bancoImport === 'bb'" @click="bancoImport = 'bb'">
-                <i class="fas fa-file-csv"></i><strong>BB</strong><span>arquivo CSV</span>
-              </button>
+            </div>
+          </section>
+
+          <!-- Lançamentos sem categoria: contam como despesa até serem classificados -->
+          <section v-if="pendClassificar.qtd" class="im-bloco">
+            <div class="im-card ib-pend">
+              <i class="fas fa-circle-question ib-pend-ico"></i>
+              <div class="ib-pend-txt">
+                <strong>{{ pendClassificar.qtd }} {{ pendClassificar.qtd === 1 ? 'lançamento sem categoria' : 'lançamentos sem categoria' }}</strong>
+                <span>Somam {{ Rs(pendClassificar.valor) }} e contam como despesa do negócio até você classificar.</span>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" @click="abrirAClassificar()">Classificar</button>
             </div>
           </section>
 
           <!-- Passo 2: envio do arquivo (os importadores são componentes próprios, não mudam) -->
           <section class="im-bloco">
             <div class="im-passo-cab">
-              <span v-if="bancosImportacaoDisponiveis.length > 1" class="im-passo">2</span>
+              <span v-if="situacaoBancos.length > 1" class="im-passo">2</span>
               <h4>{{ bancoImport === 'itau' ? 'Envie o PDF do Itaú' : bancoImport === 'bb' ? 'Envie o CSV do Banco do Brasil' : 'Envie o CSV do PagBank' }}</h4>
             </div>
+            <p v-if="bancoSelecionadoInfo?.total" class="ib-obs">Pode baixar o período inteiro ou só a partir de {{ bancoSelecionadoInfo.ultimaBr }}: lançamentos repetidos são ignorados.</p>
             <div class="im-card im-card--painel">
               <div class="importador-panel">
                 <ImportadorExtrato v-if="bancoImport === 'pagbank'" @editar-lancamento="abrirModalEdicao" />
@@ -454,156 +473,135 @@
 
     <!-- ═══ ABA: META DE RETIRADA ═══ -->
     <template v-else-if="abaAtiva === 'mao-de-obra'">
-      <div class="relatorio-wrap mo-pagina">
-          <div class="mo-corpo">
+      <div class="relatorio-wrap mt-pagina">
 
-            <header class="mo-cab">
-              <h3 class="mo-titulo">Retirada e mão de obra</h3>
-              <p class="mo-desc">Quanto você pode retirar com segurança em cada mês e quanto vale a sua hora de trabalho.</p>
-            </header>
+        <div v-if="!itemMeta" class="mo-vazio"><i class="fas fa-chart-simple"></i><strong>Nenhum dado financeiro ainda</strong><span>Importe um extrato para ver aqui a retirada segura de cada mês.</span></div>
 
-            <!-- Cabeçalho: as duas métricas globais, com o mesmo peso visual -->
-            <div class="mtr-kpis">
-              <div class="mtr-kpi">
-                <div class="mtr-kpi-ico"><i class="fas fa-bullseye"></i></div>
-                <div class="mtr-kpi-txt">
-                  <span class="mtr-label">Meta de retirada</span>
-                  <strong class="mtr-valor">{{ R$(s.company.meta_salario_mensal) }}</strong>
-                  <span class="mtr-sub">Quanto você quer tirar por mês</span>
-                </div>
-              </div>
-              <div class="mtr-kpi mtr-kpi--giro">
-                <div class="mtr-kpi-ico"><i class="fas fa-shield-halved"></i></div>
-                <div class="mtr-kpi-txt">
-                  <span class="mtr-label">Giro de segurança</span>
-                  <strong class="mtr-valor c-orange">{{ R$(s.sugestaoProvisionamentoSemanal) }}</strong>
-                  <span class="mtr-sub">Reservado p/ próxima compra de insumos</span>
-                </div>
-              </div>
+        <template v-else>
+          <!-- Mês (o mesmo das Movimentações e do Resumo) -->
+          <div class="mt-nav">
+            <button type="button" class="mt-nav-btn" :disabled="!temMetaAnterior" aria-label="Mês anterior" @click="metaAnterior"><i class="fas fa-chevron-left"></i></button>
+            <div class="mt-nav-centro">
+              <span>{{ rotuloMes(mesMeta) }}</span><i class="fas fa-chevron-down mt-nav-caret"></i>
+              <select v-model="mesMeta" aria-label="Escolher mês">
+                <option v-for="m in mesesMeta" :key="m" :value="m">{{ rotuloMes(m) }}</option>
+              </select>
             </div>
+            <button type="button" class="mt-nav-btn" :disabled="!temMetaProximo" aria-label="Próximo mês" @click="metaProximo"><i class="fas fa-chevron-right"></i></button>
+          </div>
 
-            <!-- Lista de meses -->
-            <div v-if="s.resumoProducaoPorMes.length" class="mtr-lista">
-              <div v-for="mes in s.resumoProducaoPorMes" :key="mes.mes_ref" class="mtr-card">
-
-                <!-- Linha topo: mês + selo de status -->
-                <div class="mtr-card-topo">
-                  <span class="mtr-card-mes">{{ mes.mes_ref }}</span>
-                  <span class="mtr-badge"
-                    :class="retirSegura(mes) >= (s.metaSalarioEm(mes.mes_ref) || 0) ? 'mtr-badge--ok' : retirSegura(mes) > 0 ? 'mtr-badge--parcial' : 'mtr-badge--baixo'">
-                    {{ retirSegura(mes) >= (s.metaSalarioEm(mes.mes_ref) || 0) ? 'Meta atingida' : retirSegura(mes) > 0 ? 'Abaixo da meta' : 'Sem margem' }}
-                  </span>
-                </div>
-
-                <!-- Número principal: o que realmente importa nesse card -->
-                <div class="mtr-card-principal">
-                  <span class="mtr-card-principal-lbl">Retirada segura</span>
-                  <strong class="mtr-card-retirada" :class="retirSegura(mes) >= (s.metaSalarioEm(mes.mes_ref) || 0) ? 'c-green' : retirSegura(mes) > 0 ? 'c-orange' : 'c-red'">
-                    {{ R$(Math.max(0, retirSegura(mes))) }}
-                  </strong>
-                </div>
-
-                <div v-if="retiradoMes(mes) > 0" class="mtr-retirado">
-                  <span>Já retirado no mês <strong>{{ R$(retiradoMes(mes)) }}</strong></span>
-                  <span>Ainda disponível <strong :class="aindaDisponivel(mes) > 0 ? 'c-green' : 'c-red'">{{ R$(Math.max(0, aindaDisponivel(mes))) }}</strong></span>
-                </div>
-                <div v-if="mes.a_classificar_qtd > 0" class="fin-aviso fin-aviso--mini">
-                  <i class="fas fa-circle-question"></i>
-                  <span>{{ mes.a_classificar_qtd }} {{ mes.a_classificar_qtd === 1 ? 'lançamento' : 'lançamentos' }} ({{ R$(mes.a_classificar_valor) }}) em "A classificar" contam como despesa. Se forem retiradas, mude para Pró-labore / Retirada.</span>
-                </div>
-
-                <!-- Barra de progresso em relação à meta -->
-                <div class="mtr-bar-row">
-                  <div class="mtr-bar-bg" aria-hidden="true">
-                    <div class="mtr-bar-fill"
-                      :style="{
-                        width: s.metaSalarioEm(mes.mes_ref)
-                          ? Math.min(100, Math.max(0, retirSegura(mes)) / s.metaSalarioEm(mes.mes_ref) * 100) + '%'
-                          : '0%',
-                        background: retirSegura(mes) >= (s.metaSalarioEm(mes.mes_ref) || 0) ? 'var(--green)' : 'var(--accent)'
-                      }">
-                    </div>
-                  </div>
-                  <span class="mtr-bar-pct">
-                    {{ s.metaSalarioEm(mes.mes_ref) ? Math.round(Math.min(100, Math.max(0, retirSegura(mes)) / s.metaSalarioEm(mes.mes_ref) * 100)) : 0 }}%
-                  </span>
-                </div>
-
-                <!-- Indicador de mão de obra (só aparece se horas foram registradas) -->
-                <div v-if="mes.total_tempo_horas > 0" class="mtr-labor">
-                  <i class="fas fa-clock"></i>
-                  <span>{{ mes.total_tempo_horas.toFixed(1) }}h registradas</span>
-                  <span class="mtr-labor-sep">·</span>
-                  <span :class="mes.valor_hora_real >= s.company.custo_hora_trabalho ? 'c-green' : 'c-red'">
-                    {{ R$(mes.valor_hora_real) }}/h real
-                  </span>
-                  <span class="mtr-labor-meta">(meta {{ R$(s.company.custo_hora_trabalho) }}/h)</span>
-                </div>
-
-                <!-- Detalhes do cálculo — escondido por padrão pra não poluir o card -->
-                <button class="mtr-detalhes-toggle" @click="toggleDetalhesMes(mes.mes_ref)">
-                  <span><i class="fas fa-calculator"></i> Ver como foi calculado</span>
-                  <i class="fas" :class="detalhesAbertos[mes.mes_ref] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-                </button>
-                <Transition name="fade-slide">
-                  <div v-if="detalhesAbertos[mes.mes_ref]" class="mtr-equacao">
-                    <div class="mtr-eq-row">
-                      <span>Vendas</span>
-                      <strong class="c-green">{{ R$(mes.receitas_reais_banco) }}</strong>
-                    </div>
-                    <div class="mtr-eq-row mtr-eq-row--sub">
-                      <span>− Despesas</span>
-                      <strong class="c-red">{{ R$(mes.despesas_reais_banco) }}</strong>
-                    </div>
-                    <div class="mtr-eq-row mtr-eq-row--sub">
-                      <span>− Reserva (giro)</span>
-                      <strong class="c-orange">{{ R$(s.reservaGiroEm(mes.mes_ref)) }}</strong>
-                    </div>
-                    <div class="mtr-eq-row mtr-eq-row--result">
-                      <span>= Retirada segura</span>
-                      <strong :class="retirSegura(mes) >= 0 ? 'c-green' : 'c-red'">{{ R$(retirSegura(mes)) }}</strong>
-                    </div>
-                    <template v-if="retiradoMes(mes) > 0">
-                      <div class="mtr-eq-row mtr-eq-row--sub">
-                        <span>− Já retirado no mês</span>
-                        <strong class="c-orange">{{ R$(retiradoMes(mes)) }}</strong>
-                      </div>
-                      <div class="mtr-eq-row mtr-eq-row--result">
-                        <span>= Ainda disponível</span>
-                        <strong :class="aindaDisponivel(mes) >= 0 ? 'c-green' : 'c-red'">{{ R$(aindaDisponivel(mes)) }}</strong>
-                      </div>
-                    </template>
-                  </div>
-                </Transition>
-
-              </div>
+          <!-- Resultado do mês -->
+          <section class="mt-hero" :class="'s-' + statusMeta">
+            <div class="mt-hero-topo">
+              <span class="mt-hero-rot">Retirada segura</span>
+              <span class="mt-selo">{{ ROTULO_STATUS_META[statusMeta] }}</span>
             </div>
-            <div v-else class="mo-vazio"><i class="fas fa-chart-simple"></i><strong>Nenhum dado financeiro ainda</strong><span>Importe um extrato para ver aqui a retirada segura de cada mês.</span></div>
+            <div class="mt-hero-val">{{ Rs(Math.max(0, seguraMes)) }}</div>
+            <template v-if="metaDoMes > 0">
+              <div class="mt-barra" role="img" :aria-label="`${pctMeta}% da meta`"><div class="mt-barra-fill" :style="{ width: pctMeta + '%' }"></div></div>
+              <div class="mt-meta-linha">
+                <span>{{ pctMeta }}% da meta de {{ Rs(metaDoMes) }}</span>
+                <b v-if="seguraMes < metaDoMes">Falta {{ Rs(metaDoMes - Math.max(0, seguraMes)) }}</b>
+                <b v-else>Meta batida</b>
+              </div>
+            </template>
+            <div v-else class="mt-meta-linha"><span>Defina a meta para acompanhar o progresso.</span></div>
+            <p class="mt-msg">{{ mensagemMeta }}</p>
+            <div v-if="metaEmAndamento" class="mt-andamento"><i class="fas fa-hourglass-half"></i> Mês em andamento: o valor sobe conforme as vendas entram.</div>
+          </section>
 
-            <!-- Explicação do tempo de produção — colapsável, fica fora do caminho -->
-            <button class="mtr-explainer-toggle" @click="explicacaoAberta = !explicacaoAberta">
-              <span><i class="fas fa-lightbulb"></i> Para que serve registrar o tempo de produção?</span>
-              <i class="fas" :class="explicacaoAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          <div v-if="retiradoMesSel > 0" class="mt-duo">
+            <div><span>Já retirado</span><b>{{ Rs(retiradoMesSel) }}</b></div>
+            <div><span>Ainda disponível</span><b :class="disponivelMes > 0 ? 'c-green' : 'c-red'">{{ Rs(Math.max(0, disponivelMes)) }}</b></div>
+          </div>
+
+          <div v-if="itemMeta.a_classificar_qtd > 0" class="mt-classif">
+            <i class="fas fa-circle-question"></i>
+            <span>{{ itemMeta.a_classificar_qtd }} {{ itemMeta.a_classificar_qtd === 1 ? 'lançamento' : 'lançamentos' }} ({{ Rs(itemMeta.a_classificar_valor) }}) em "A classificar" contam como despesa. Se forem retiradas, mude para Pró-labore / Retirada.</span>
+            <button type="button" class="btn btn-secondary btn-sm" @click="abrirAClassificar(mesMeta)">Classificar</button>
+          </div>
+
+          <!-- A conta, escondida até pedir -->
+          <section class="mt-card">
+            <button type="button" class="mt-toggle" :aria-expanded="!!detalhesAbertos[itemMeta.mes_ref]" @click="toggleDetalhesMes(itemMeta.mes_ref)">
+              <span><i class="fas fa-calculator"></i> Ver como foi calculado</span>
+              <i class="fas" :class="detalhesAbertos[itemMeta.mes_ref] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
             </button>
             <Transition name="fade-slide">
-              <div v-if="explicacaoAberta" class="mtr-explainer">
-                <div class="mtr-exp-item">
-                  <strong>Planejar o mês</strong>
-                  <span>Sabendo quantos minutos cada receita leva, você consegue estimar quantas unidades é possível fazer em um dia ou semana — e se vai dar conta do volume necessário para atingir a meta.</span>
-                </div>
-                <div class="mtr-exp-item">
-                  <strong>Medir a saúde do negócio</strong>
-                  <span>O <em>R$/h real</em> mostra quanto cada hora trabalhada gerou de lucro real (sobra no banco). Se ficar abaixo da sua meta, o volume de vendas precisa subir ou os custos de insumos precisam ser revistos.</span>
-                </div>
-                <div class="mtr-exp-aviso">
-                  <i class="fas fa-triangle-exclamation"></i>
-                  Como nem toda produção é cronometrada, o R$/h real costuma ser maior do que aparece — o que é positivo. A referência principal para retirada sempre é o saldo do banco, não a estimativa de produção.
-                </div>
+              <div v-if="detalhesAbertos[itemMeta.mes_ref]" class="mt-conta">
+                <div class="mt-conta-linha"><span>Vendas</span><b class="c-green">{{ Rs(itemMeta.receitas_reais_banco) }}</b></div>
+                <div class="mt-conta-linha sub"><span>− Despesas do negócio</span><b class="c-red">{{ Rs(itemMeta.despesas_reais_banco) }}</b></div>
+                <div class="mt-conta-linha sub"><span>− Reserva (giro)</span><b class="c-orange">{{ Rs(s.reservaGiroEm(itemMeta.mes_ref)) }}</b></div>
+                <div class="mt-conta-linha total"><span>= Retirada segura</span><b :class="seguraMes >= 0 ? 'c-green' : 'c-red'">{{ Rs(seguraMes) }}</b></div>
+                <template v-if="retiradoMesSel > 0">
+                  <div class="mt-conta-linha sub"><span>− Já retirado no mês</span><b class="c-orange">{{ Rs(retiradoMesSel) }}</b></div>
+                  <div class="mt-conta-linha total"><span>= Ainda disponível</span><b :class="disponivelMes >= 0 ? 'c-green' : 'c-red'">{{ Rs(disponivelMes) }}</b></div>
+                </template>
+                <p class="mt-nota">A retirada segura não é o saldo do banco: é o que o negócio gerou no mês (vendas − despesas do negócio) menos a reserva para a próxima compra de insumos.</p>
               </div>
             </Transition>
+          </section>
 
+          <!-- Histórico: toque numa barra para abrir o mês -->
+          <section v-if="graficoMeta" class="mt-bloco">
+            <div class="mt-bloco-tit">Últimos meses</div>
+            <div class="mt-grafico-box">
+              <svg :viewBox="`0 0 ${graficoMeta.W} ${graficoMeta.H}`" class="mt-grafico" role="img" aria-label="Retirada segura de cada mês comparada com a meta">
+                <text class="max" x="4" y="10">{{ Rs(graficoMeta.max) }}</text>
+                <line class="base" x1="0" :x2="graficoMeta.W" :y1="graficoMeta.base" :y2="graficoMeta.base" />
+                <g v-for="g in graficoMeta.barras" :key="g.ref" class="col" :class="{ sel: g.ref === mesMeta }" @click="mesMeta = g.ref">
+                  <rect class="hit" :x="g.slotX" y="0" :width="g.slot" :height="graficoMeta.H" />
+                  <rect class="bar" :class="'s-' + g.status" :x="g.x" :y="g.y" :width="g.w" :height="Math.max(g.h, 1)" rx="2" />
+                  <line v-if="g.meta > 0" class="meta" :x1="g.x - 3" :x2="g.x + g.w + 3" :y1="g.yMeta" :y2="g.yMeta" />
+                  <text class="mes" :x="g.cx" :y="graficoMeta.H - 6" text-anchor="middle">{{ g.rotulo }}</text>
+                </g>
+              </svg>
+              <div class="mt-leg">
+                <span><i class="b-ok"></i> Meta batida</span>
+                <span><i class="b-parcial"></i> Abaixo da meta</span>
+                <span><i class="tracinho"></i> Meta do mês</span>
+              </div>
+            </div>
+            <p v-if="resumoHistorico" class="mt-hist">{{ resumoHistorico }}</p>
+          </section>
+        </template>
+
+        <!-- Meta e giro: onde se ajusta (vale do mês atual em diante) -->
+        <section class="mt-bloco">
+          <div class="mt-bloco-tit">Meta e reserva</div>
+          <div class="mt-config">
+            <div class="mt-cfg-linha">
+              <div><span>Meta de retirada</span><small>Quanto você quer tirar por mês</small></div>
+              <b>{{ Rs(s.company.meta_salario_mensal) }}</b>
+            </div>
+            <div class="mt-cfg-linha">
+              <div><span>Giro de segurança</span><small>{{ giroTexto }}</small></div>
+              <b class="c-orange">{{ Rs(giroValor) }}</b>
+            </div>
+            <button type="button" class="mt-cfg-btn" @click="abrirModalMeta"><i class="fas fa-pen"></i> Ajustar meta e giro</button>
           </div>
+        </section>
+
       </div>
+
+      <BaseModal v-if="modalMeta" title="Meta e giro" @close="modalMeta = false">
+        <div class="mt-modal">
+          <div class="mt-campo">
+            <label for="mt-meta">Meta de retirada mensal</label>
+            <div class="mt-input"><span>R$</span><CampoMoeda id="mt-meta" v-model="formMeta.meta" placeholder="0,00" /></div>
+            <small>Quanto você quer tirar por mês. Vale do mês atual em diante: os meses passados continuam com o valor da época.</small>
+          </div>
+          <div class="mt-campo">
+            <label for="mt-giro">Giro de segurança fixo <em>(opcional)</em></label>
+            <div class="mt-input"><span>R$</span><CampoMoeda id="mt-giro" v-model="formMeta.giro" placeholder="0,00" /></div>
+            <small>Valor reservado para a próxima compra de insumos. Deixe vazio para o app calcular pela média dos seus gastos com insumos. Mesma regra: vale de agora em diante.</small>
+          </div>
+        </div>
+        <template #foot>
+          <button type="button" class="btn btn-secondary" @click="modalMeta = false">Cancelar</button>
+          <button type="button" class="btn btn-primary mt-foot-salvar" @click="salvarMeta"><i class="fas fa-check"></i> Salvar</button>
+        </template>
+      </BaseModal>
     </template>
 
     <!-- ═══ ABA: ANUAL ═══ -->
@@ -1112,6 +1110,8 @@ import FinanceListRow from '../components/FinanceListRow.vue'
 import ConciliacaoVendas from '../components/ConciliacaoVendas.vue'
 import SaudeFinanceira from '../components/SaudeFinanceira.vue'
 import BaseModal from '../components/BaseModal.vue'
+import CampoMoeda from '../components/CampoMoeda.vue'
+import { proximoHistorico } from '../modules/historicoValores.js'
 import EditarCategoriaModal from '../components/EditarCategoriaModal.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
 import { useStore } from '../store.js'
@@ -1807,7 +1807,146 @@ const detalhesAbertos = reactive({})
 function toggleDetalhesMes(mesRef) {
   detalhesAbertos[mesRef] = !detalhesAbertos[mesRef]
 }
-const explicacaoAberta = ref(false)
+
+// ── Importar: situação de cada banco ─────────────────────────
+const BANCOS_IMPORT = [
+  { id: 'pagbank', nome: 'PagBank', formato: 'CSV', icone: 'fa-file-csv', tem: temContasPagbank },
+  { id: 'itau',    nome: 'Itaú',    formato: 'PDF', icone: 'fa-file-pdf', tem: temContasItau },
+  { id: 'bb',      nome: 'Banco do Brasil', formato: 'CSV', icone: 'fa-file-csv', tem: temContasBb },
+]
+const ISO_OK = /^\d{4}-\d{2}-\d{2}$/
+const brDe = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+const ymCurto = (ym) => `${NOMES_MES[Number(ym.slice(5, 7)) - 1].slice(0, 3)}/${ym.slice(2, 4)}`
+const diasDesde = (iso) => Math.max(0, Math.round((Date.parse(`${hoje()}T12:00:00Z`) - Date.parse(`${iso}T12:00:00Z`)) / 86400000))
+const situacaoBancos = computed(() => BANCOS_IMPORT.filter(b => b.tem.value).map(b => {
+  const itens = s.financeiro.filter(i => (i.banco || 'pagbank') === b.id)
+  const datas = itens.map(i => String(i.data || '').slice(0, 10)).filter(d => ISO_OK.test(d)).sort()
+  const base = { id: b.id, nome: b.nome, formato: b.formato, icone: b.icone, total: itens.length }
+  if (!datas.length) return { ...base, estado: 'vazio', selo: 'Sem dados', ultimaBr: '', periodo: '', dica: '' }
+  const primeira = datas[0], ultima = datas[datas.length - 1], dias = diasDesde(ultima)
+  // meses do meio do período sem nenhum lançamento (pode ser normal, mas vale conferir)
+  const comLanc = new Set(datas.map(d => d.slice(0, 7)))
+  const faltam = []
+  let [a, m] = primeira.slice(0, 7).split('-').map(Number)
+  const fim = ultima.slice(0, 7)
+  for (let k = 0; k < 240; k++) {
+    const ym = `${a}-${String(m).padStart(2, '0')}`
+    if (ym > fim) break
+    if (!comLanc.has(ym)) faltam.push(ym)
+    if (++m > 12) { m = 1; a++ }
+  }
+  const estado = dias <= 7 ? 'em-dia' : dias <= 30 ? 'atencao' : 'defasado'
+  let periodo = `${ymCurto(primeira)} a ${ymCurto(ultima)}`
+  if (faltam.length) periodo += ` · sem lançamentos em ${faltam.slice(0, 3).map(ymCurto).join(', ')}${faltam.length > 3 ? ` +${faltam.length - 3}` : ''}`
+  let dica = ''
+  if (dias > 7) dica = `Baixe o extrato a partir de ${brDe(ultima)}.`
+  else if (faltam.length) dica = 'Há meses sem lançamentos no meio do período. Se faltou importar, envie o extrato desses meses.'
+  return { ...base, estado, selo: estado === 'em-dia' ? 'Em dia' : `Há ${dias} dias`, ultimaBr: brDe(ultima), periodo, dica }
+}))
+const bancoSelecionadoInfo = computed(() => situacaoBancos.value.find(b => b.id === bancoImport.value) || null)
+// Lançamentos sem categoria (contam como despesa do negócio até serem classificados)
+const pendClassificar = computed(() => {
+  let qtd = 0, valor = 0
+  for (const i of s.financeiro) if (i.categoria === 'A classificar') { qtd++; valor += Math.abs(Number(i.valor) || 0) }
+  return { qtd, valor }
+})
+function abrirAClassificar(mes = '') {
+  limparFiltros()
+  filtroCategoria.value = 'A classificar'
+  filtroMes.value = mes
+  abaAtiva.value = 'lancamentos'
+  nextTick(() => window.scrollTo?.({ top: 0 }))
+}
+
+// ── Meta de Retirada ─────────────────────────────────────────
+const ROTULO_STATUS_META = { ok: 'Meta atingida', parcial: 'Abaixo da meta', baixo: 'Sem margem', 'sem-meta': 'Sem meta definida' }
+const mesAtualRef = `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`
+const mesesMeta = computed(() => s.resumoProducaoPorMes.map(m => m.mes_ref)) // mais recente primeiro
+// O mês é o MESMO filtro de mês das Movimentações e do Resumo: navegar numa aba vale nas outras
+const mesMeta = computed({
+  get: () => (mesesMeta.value.includes(filtroMes.value) ? filtroMes.value : (mesesMeta.value[0] || '')),
+  set: (v) => { if (v) filtroMes.value = v },
+})
+const itemMeta = computed(() => s.resumoProducaoPorMes.find(m => m.mes_ref === mesMeta.value) || null)
+const idxMeta = computed(() => mesesMeta.value.indexOf(mesMeta.value))
+const temMetaAnterior = computed(() => idxMeta.value >= 0 && idxMeta.value < mesesMeta.value.length - 1)
+const temMetaProximo = computed(() => idxMeta.value > 0)
+function metaAnterior() { if (temMetaAnterior.value) mesMeta.value = mesesMeta.value[idxMeta.value + 1] }
+function metaProximo() { if (temMetaProximo.value) mesMeta.value = mesesMeta.value[idxMeta.value - 1] }
+
+const metaDoMes = computed(() => (itemMeta.value ? Number(s.metaSalarioEm(itemMeta.value.mes_ref) || 0) : 0))
+const seguraMes = computed(() => (itemMeta.value ? retirSegura(itemMeta.value) : 0))
+const retiradoMesSel = computed(() => (itemMeta.value ? retiradoMes(itemMeta.value) : 0))
+const disponivelMes = computed(() => seguraMes.value - retiradoMesSel.value)
+const pctMeta = computed(() => (metaDoMes.value > 0 ? Math.round(Math.min(100, Math.max(0, seguraMes.value) / metaDoMes.value * 100)) : 0))
+const statusMeta = computed(() => {
+  if (!(metaDoMes.value > 0)) return 'sem-meta'
+  return seguraMes.value >= metaDoMes.value ? 'ok' : seguraMes.value > 0 ? 'parcial' : 'baixo'
+})
+const metaEmAndamento = computed(() => mesMeta.value === mesAtualRef)
+const mensagemMeta = computed(() => {
+  if (!itemMeta.value) return ''
+  const ret = retiradoMesSel.value
+  if (seguraMes.value <= 0) return `Depois de separar a reserva, o negócio ainda não gerou margem para retirada neste mês.${ret > 0 ? ` Você já retirou ${Rs(ret)}.` : ''}`
+  if (ret > seguraMes.value) return `Você já retirou ${Rs(ret - seguraMes.value)} a mais do que a retirada segura deste mês.`
+  if (disponivelMes.value > 0) return `Ainda dá para retirar até ${Rs(disponivelMes.value)} sem faltar dinheiro para os insumos.`
+  return 'Você já retirou tudo o que o mês permite.'
+})
+
+// Histórico dos últimos 12 meses: barra = retirada segura; traço = meta daquele mês
+const graficoMeta = computed(() => {
+  const lista = s.resumoProducaoPorMes.slice(0, 12).reverse()
+  if (lista.length < 2) return null
+  const W = 340, H = 150, Lm = 4, T = 18, B = 22, ch = H - T - B
+  const dados = lista.map(m => ({ ref: m.mes_ref, segura: Math.max(0, retirSegura(m)), meta: Number(s.metaSalarioEm(m.mes_ref) || 0) }))
+  const max = Math.max(1, ...dados.map(d => Math.max(d.segura, d.meta)))
+  const slot = (W - 2 * Lm) / dados.length, bw = Math.min(20, slot - 6)
+  const barras = dados.map((d, i) => {
+    const cx = Lm + i * slot + slot / 2, h = (d.segura / max) * ch
+    return {
+      ref: d.ref, meta: d.meta, cx, slotX: cx - slot / 2, slot, w: bw, x: cx - bw / 2, h, y: T + ch - h,
+      yMeta: T + ch - (d.meta / max) * ch, status: d.meta > 0 && d.segura >= d.meta ? 'ok' : 'parcial',
+      rotulo: NOMES_MES[Number(d.ref.split('/')[0]) - 1].slice(0, 3),
+    }
+  })
+  return { W, H, max, base: T + ch, barras }
+})
+const resumoHistorico = computed(() => {
+  const fechados = s.resumoProducaoPorMes.filter(m => m.mes_ref !== mesAtualRef).slice(0, 6)
+  if (!fechados.length) return ''
+  const media = fechados.reduce((a, m) => a + Math.max(0, retirSegura(m)), 0) / fechados.length
+  const comMeta = fechados.filter(m => Number(s.metaSalarioEm(m.mes_ref) || 0) > 0)
+  const bateu = comMeta.filter(m => retirSegura(m) >= Number(s.metaSalarioEm(m.mes_ref))).length
+  const plural = fechados.length === 1 ? 'mês fechado' : 'meses fechados'
+  return comMeta.length
+    ? `Meta batida em ${bateu} dos últimos ${fechados.length} ${plural} · retirada segura média de ${Rs(media)}.`
+    : `Retirada segura média dos últimos ${fechados.length} ${plural}: ${Rs(media)}.`
+})
+
+// Meta e giro (versionados: mudar hoje não reescreve os meses passados)
+const giroValor = computed(() => Number(s.reservaGiroEm(mesAtualRef) || 0))
+const giroTexto = computed(() => (Number(s.company.reserva_operacional_fixa || 0) > 0
+  ? 'Valor fixo definido por você'
+  : 'Calculado pela média dos seus gastos com insumos'))
+const modalMeta = ref(false)
+const formMeta = reactive({ meta: 0, giro: 0 })
+function abrirModalMeta() {
+  formMeta.meta = Number(s.company.meta_salario_mensal || 0)
+  formMeta.giro = Number(s.company.reserva_operacional_fixa || 0)
+  modalMeta.value = true
+}
+function salvarMeta() {
+  const meta = Number(formMeta.meta) || 0
+  const giro = Number(formMeta.giro) || 0
+  s.saveCompany({
+    meta_salario_mensal: meta,
+    meta_salario_historico: proximoHistorico(s.company.meta_salario_historico, s.company.meta_salario_mensal, meta, mesAtualRef),
+    reserva_operacional_fixa: giro,
+    reserva_operacional_historico: proximoHistorico(s.company.reserva_operacional_historico, s.company.reserva_operacional_fixa, giro, mesAtualRef),
+  })
+  modalMeta.value = false
+  s.notify('Meta atualizada! Vale do mês atual em diante.')
+}
 
 // ── Resumo Mensal: accordion da composição de cada card de mês ──
 // Mesmo princípio: o card mostra só o resultado (o que sobrou + 2
@@ -2313,67 +2452,67 @@ onMounted(() => s.carregarFinanceiro())
 /* Cabeçalho — duas métricas com o mesmo peso visual, empilhadas no
    celular estreito (padrão do app, ver .mei-grid) e lado a lado a
    partir de 420px. */
-.mtr-kpis { display: flex; flex-direction: column; gap: 10px; }
-@media (min-width: 420px) { .mtr-kpis { flex-direction: row; } }
-.mtr-kpi { flex: 1; display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: var(--surface); border-radius: var(--r-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
-.mtr-kpi-ico { width: 42px; height: 42px; flex-shrink: 0; border-radius: var(--r-md); background: var(--cream); color: var(--brown); display: flex; align-items: center; justify-content: center; font-size: 1.05rem; }
-.mtr-kpi--giro .mtr-kpi-ico { background: var(--orange-bg); color: var(--orange); }
-.mtr-kpi-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.mtr-label { font-size: .8rem; font-weight: 700; color: var(--muted); }
-.mtr-valor { font-size: 1.35rem; font-weight: 800; color: var(--brown-dark); font-family: var(--mono); line-height: 1.2; }
-.mtr-sub { font-size: .78rem; color: var(--muted); line-height: 1.4; margin-top: 1px; }
 
-.mtr-lista { display: flex; flex-direction: column; gap: 12px; }
 
-.mtr-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; background: var(--surface); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 14px; }
+
+
+
+
+
+
+
+
+
+
+
 
 /* Mês + selo de status — dá pra escanear a lista inteira sem ler números */
-.mtr-card-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.mtr-card-mes { font-weight: 800; font-size: 1.08rem; color: var(--brown-dark); }
-.mtr-badge { font-size: .76rem; font-weight: 800; padding: 5px 11px; border-radius: var(--r-full); white-space: nowrap; }
-.mtr-badge--ok      { background: var(--green-bg);  color: var(--green); }
-.mtr-badge--parcial { background: var(--orange-bg); color: var(--orange); }
-.mtr-badge--baixo   { background: var(--red-bg);    color: var(--red); }
+
+
+
+
+
+
 
 /* Número principal do card — o que a pessoa realmente veio ver */
-.mtr-card-principal { display: flex; flex-direction: column; gap: 2px; }
-.mtr-card-principal-lbl { font-size: .84rem; font-weight: 700; color: var(--muted); }
-.mtr-card-retirada { font-size: 1.8rem; font-weight: 800; font-family: var(--mono); line-height: 1.15; font-variant-numeric: tabular-nums; }
 
-.mtr-bar-row { display: flex; align-items: center; gap: 8px; }
-.mtr-bar-bg { flex: 1; height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
-.mtr-bar-fill { height: 100%; border-radius: 5px; transition: width .6s ease; }
-.mtr-bar-pct { font-size: .84rem; color: var(--brown-mid); font-weight: 800; flex-shrink: 0; min-width: 38px; text-align: right; }
 
-.mtr-labor { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: .84rem; color: var(--muted); padding: 10px 12px; background: var(--bg); border-radius: var(--r-md); }
-.mtr-labor i { color: var(--brown-light); }
-.mtr-labor-sep { opacity: .4; }
-.mtr-labor-meta { opacity: .75; }
+
+
+
+
+
+
+
+
+
+
+
 
 /* Detalhes do cálculo — escondido por padrão, abre em lista vertical
    (evita o wrap quebrado que operadores soltos causavam em telas estreitas) */
-.mtr-detalhes-toggle { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--cream); color: var(--brown-mid); font-size: .88rem; font-weight: 700; text-align: left; cursor: pointer; }
-.mtr-detalhes-toggle span { display: flex; align-items: center; gap: 6px; }
-.mtr-detalhes-toggle i:last-child { font-size: .62rem; }
-.mtr-detalhes-toggle:active { background: var(--cream-deep); }
 
-.mtr-equacao { display: flex; flex-direction: column; gap: 4px; padding: 6px 4px 0; }
-.mtr-eq-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 38px; font-size: .92rem; color: var(--brown); }
-.mtr-eq-row--sub { color: var(--muted); }
-.mtr-eq-row strong { font-family: var(--mono); font-weight: 800; font-size: .92rem; }
-.mtr-eq-row--result { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--border2); font-weight: 800; color: var(--brown-dark); }
-.mtr-eq-row--result strong { font-size: 1.02rem; }
+
+
+
+
+
+
+
+
+
+
 
 /* Explicação do tempo de produção — accordion, some do caminho até que
    a pessoa peça por ele */
-.mtr-explainer-toggle { width: 100%; min-height: 52px; margin-top: 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: var(--r-lg); background: var(--blue-bg); border: 1px solid var(--blue-dim, #bfdbfe); color: var(--blue); font-size: .88rem; font-weight: 800; text-align: left; cursor: pointer; }
-.mtr-explainer-toggle span { display: flex; align-items: center; gap: 8px; }
-.mtr-explainer { margin-top: -6px; padding: 16px; border-radius: var(--r-lg); background: var(--blue-bg); border: 1px solid var(--blue-dim, #bfdbfe); display: flex; flex-direction: column; gap: 12px; }
-.mtr-exp-item { display: flex; flex-direction: column; gap: 3px; }
-.mtr-exp-item strong { font-size: .9rem; color: var(--brown-dark); }
-.mtr-exp-item span { font-size: .84rem; color: var(--brown); line-height: 1.55; }
-.mtr-exp-aviso { display: flex; gap: 8px; padding: 10px 12px; border-radius: var(--r-md); background: var(--gold-bg); color: var(--gold-dark); font-size: .82rem; line-height: 1.5; }
-.mtr-exp-aviso i { flex-shrink: 0; margin-top: 1px; }
+
+
+
+
+
+
+
+
 
 @media (min-width: 420px) {
   .mei-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
@@ -2646,16 +2785,13 @@ html.is-desktop .lancamentos-list .fl-banco-sigla { display: inline; }
 .im-vazio span { font-size: .86rem; line-height: 1.5; color: var(--muted); }
 
 /* Escolha do banco */
-.im-bancos { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
-.im-banco {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 76px; padding: 10px 8px;
-  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-lg); color: var(--brown-mid); cursor: pointer; transition: all var(--t);
-}
-.im-banco i { font-size: 1.25rem; margin-bottom: 2px; }
-.im-banco strong { font-size: .95rem; font-weight: 800; color: var(--brown-dark); }
-.im-banco span { font-size: .76rem; font-weight: 600; color: var(--muted); }
-.im-banco.active { background: var(--brown); border-color: var(--brown); color: #fff; box-shadow: var(--shadow-sm); }
-.im-banco.active strong, .im-banco.active span { color: #fff; }
+
+
+
+
+
+
+
 .im-banco:focus-visible, .im-admin-toggle:focus-visible, .im-excluir-btn:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: -3px; }
 
 /* Excluir extratos */
@@ -2677,18 +2813,18 @@ html.is-desktop .lancamentos-list .fl-banco-sigla { display: inline; }
 .im-excluir-btn--todos .im-excluir-nome, .im-excluir-btn--todos .im-excluir-qtd { color: var(--red); }
 
 /* ══ Financeiro › Retirada e mão de obra (mo-*) ══ */
-.mo-pagina { gap: 0; }
+
 /* A barra de progresso usava var(--accent), que não existe: sem isso a barra aparecia vazia quando a meta não era atingida */
-.mtr-bar-row { --accent: var(--orange); }
-.mo-corpo { display: flex; flex-direction: column; gap: 16px; }
-.mo-cab { padding: 0 2px; }
-.mo-titulo { margin: 0; font-size: 1.3rem; font-weight: 800; line-height: 1.2; color: var(--brown-dark); }
-.mo-desc { margin: 4px 0 0; font-size: .88rem; line-height: 1.5; color: var(--muted); }
+
+
+
+
+
 .mo-vazio { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 20px; text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
 .mo-vazio i { font-size: 1.6rem; color: var(--muted); margin-bottom: 4px; }
 .mo-vazio strong { font-size: 1rem; color: var(--brown-dark); }
 .mo-vazio span { font-size: .86rem; line-height: 1.5; color: var(--muted); }
-.mtr-detalhes-toggle:focus-visible, .mtr-explainer-toggle:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 1px; }
+
 
 /* ══ Financeiro › Anual (classes an-*) ══ */
 .an-pagina { gap: 20px; }
@@ -2772,8 +2908,8 @@ html.is-desktop .lancamentos-list .fl-banco-sigla { display: inline; }
 .fin-aviso { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; padding: 11px 13px; border-radius: var(--r-md); background: var(--orange-bg, #fff4e5); color: var(--orange, #b45309); font-size: 13px; font-weight: 600; line-height: 1.4; }
 .fin-aviso i { margin-top: 2px; }
 .fin-aviso--mini { font-size: 12px; padding: 9px 11px; }
-.mtr-retirado { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 10px 0 2px; padding: 9px 12px; border-radius: var(--r-sm); background: var(--cream); font-size: 12.5px; font-weight: 600; color: var(--muted); }
-.mtr-retirado strong { margin-left: 4px; font-family: var(--mono); }
+
+
 .lc-estorno { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--muted); }
 
 /* Animação usada pelos blocos que abrem/fecham (Transition name="fade-slide") */
@@ -2944,4 +3080,104 @@ html.is-desktop .lancamentos-list .fl-banco-sigla { display: inline; }
 .rs-banco-nome i { margin-right: 5px; }
 .rs-banco b { font-family: var(--mono); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 .rs-banco small { font-size: .74rem; color: var(--muted); }
+
+/* ───────── Importar: situação dos bancos ───────── */
+.ib-lista { display: flex; flex-direction: column; gap: 8px; }
+.ib-banco { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px 14px; text-align: left; background: var(--surface); border: 1.5px solid var(--border); border-left-width: 4px; border-radius: var(--r-md); box-shadow: var(--shadow); font-family: var(--font); cursor: pointer; }
+.ib-banco.e-em-dia { border-left-color: var(--green); } .ib-banco.e-atencao { border-left-color: var(--orange); } .ib-banco.e-defasado { border-left-color: var(--red); }
+.ib-banco.active { border-top-color: var(--brown); border-right-color: var(--brown); border-bottom-color: var(--brown); background: var(--cream); }
+.ib-ico { flex-shrink: 0; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--cream-deep); color: var(--brown-mid); font-size: 1.1rem; }
+.ib-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ib-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ib-topo strong { font-size: .98rem; color: var(--brown-dark); }
+.ib-selo { padding: 2px 10px; border-radius: 99px; font-size: .68rem; font-weight: 800; white-space: nowrap; background: var(--cream-deep); color: var(--brown-mid); }
+.ib-selo.e-em-dia { background: var(--green-bg); color: var(--green); } .ib-selo.e-atencao { background: var(--orange-bg); color: var(--orange); } .ib-selo.e-defasado { background: #FCEBEB; color: var(--red); }
+.ib-linha { font-size: .78rem; color: var(--muted); line-height: 1.4; }
+.ib-periodo { font-size: .74rem; }
+.ib-dica { margin-top: 4px; padding: 6px 9px; border-radius: var(--r-sm); background: var(--cream-deep); font-size: .76rem; line-height: 1.4; color: var(--brown-dark); }
+.ib-dica i { margin-right: 4px; color: var(--gold-dark); }
+.ib-radio { flex-shrink: 0; align-self: center; font-size: 1.15rem; color: var(--border); }
+.ib-banco.active .ib-radio { color: var(--brown); }
+.ib-pend { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-left: 4px solid var(--orange); }
+.ib-pend-ico { flex-shrink: 0; font-size: 1.25rem; color: var(--orange); }
+.ib-pend-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ib-pend-txt strong { font-size: .9rem; color: var(--brown-dark); } .ib-pend-txt span { font-size: .76rem; line-height: 1.4; color: var(--muted); }
+.ib-obs { margin: 0 2px 10px; font-size: .78rem; line-height: 1.45; color: var(--muted); }
+
+/* ───────── Meta de Retirada ───────── */
+.mt-pagina { gap: 14px; }
+.mt-nav { display: flex; align-items: center; padding: 4px 6px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); }
+.mt-nav-btn { flex-shrink: 0; width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--brown-mid); font-size: .85rem; cursor: pointer; }
+.mt-nav-btn:active:not(:disabled) { background: var(--cream-deep); } .mt-nav-btn:disabled { opacity: .25; cursor: default; }
+.mt-nav-centro { position: relative; flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1.05rem; font-weight: 800; color: var(--brown-dark); }
+.mt-nav-caret { font-size: .62rem; color: var(--muted); }
+.mt-nav-centro select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
+
+.mt-hero { padding: 16px; border-radius: var(--r-md); color: #fff; box-shadow: var(--shadow); background: linear-gradient(135deg, var(--brown-dark), var(--brown)); }
+.mt-hero.s-ok { background: linear-gradient(135deg, var(--green), #2f6b3e); }
+.mt-hero.s-baixo { background: linear-gradient(135deg, #b23b2e, var(--red)); }
+.mt-hero-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mt-hero-rot { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.8); }
+.mt-selo { padding: 3px 11px; border-radius: 99px; background: rgba(255,255,255,.2); font-size: .7rem; font-weight: 800; white-space: nowrap; }
+.mt-hero-val { margin-top: 2px; font-family: var(--mono); font-size: 2rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.mt-barra { height: 10px; margin-top: 12px; border-radius: 99px; background: rgba(255,255,255,.22); overflow: hidden; }
+.mt-barra-fill { height: 100%; border-radius: 99px; background: #fff; transition: width .4s; }
+.mt-meta-linha { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: .78rem; color: rgba(255,255,255,.85); }
+.mt-meta-linha b { color: #fff; }
+.mt-msg { margin: 10px 0 0; font-size: .84rem; line-height: 1.45; color: rgba(255,255,255,.94); }
+.mt-andamento { margin-top: 10px; padding: 6px 10px; border-radius: var(--r-sm); background: rgba(0,0,0,.16); font-size: .74rem; }
+.mt-andamento i { margin-right: 5px; }
+
+.mt-duo { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); }
+.mt-duo > div { display: flex; flex-direction: column; gap: 2px; padding: 11px 14px; min-width: 0; }
+.mt-duo > div + div { border-left: 1px solid var(--border); }
+.mt-duo span { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.mt-duo b { font-family: var(--mono); font-size: 1rem; font-variant-numeric: tabular-nums; }
+.mt-classif { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md); background: var(--orange-bg); font-size: .78rem; line-height: 1.4; color: var(--brown-dark); }
+.mt-classif > i { flex-shrink: 0; color: var(--orange); font-size: 1.1rem; }
+.mt-classif > span { flex: 1; min-width: 0; }
+
+.mt-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); overflow: hidden; }
+.mt-toggle { width: 100%; min-height: 48px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 0; background: none; font-family: var(--font); font-size: .84rem; font-weight: 700; color: var(--brown); cursor: pointer; }
+.mt-toggle i:first-child, .mt-toggle span i { margin-right: 6px; color: var(--gold-dark); } .mt-toggle > i { font-size: .68rem; color: var(--muted); }
+.mt-conta { padding: 0 14px 12px; border-top: 1px solid var(--border); }
+.mt-conta-linha { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: .85rem; color: var(--brown-dark); }
+.mt-conta-linha.sub { padding-left: 12px; font-size: .8rem; color: var(--muted); }
+.mt-conta-linha.total { border-top: 1px dashed var(--border); font-weight: 800; }
+.mt-conta-linha b { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.mt-nota { margin: 6px 0 0; font-size: .74rem; line-height: 1.45; color: var(--muted); }
+
+.mt-bloco-tit { padding: 0 2px; margin-bottom: 8px; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.mt-grafico-box { padding: 10px 10px 8px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); }
+.mt-grafico { display: block; width: 100%; height: auto; font-family: var(--font); }
+.mt-grafico .max { font-size: 9px; fill: var(--muted); font-family: var(--mono); }
+.mt-grafico .base { stroke: var(--border); stroke-width: 1; }
+.mt-grafico .mes { font-size: 9px; font-weight: 700; fill: var(--muted); }
+.mt-grafico .hit { fill: transparent; } .mt-grafico .col { cursor: pointer; }
+.mt-grafico .bar.s-ok { fill: var(--green); } .mt-grafico .bar.s-parcial { fill: var(--orange); }
+.mt-grafico .meta { stroke: var(--brown-dark); stroke-width: 1.6; stroke-linecap: round; }
+.mt-grafico .col.sel .bar { stroke: var(--brown-dark); stroke-width: 2; } .mt-grafico .col.sel .mes { fill: var(--brown-dark); font-weight: 800; }
+.mt-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: .72rem; color: var(--muted); }
+.mt-leg span { display: inline-flex; align-items: center; gap: 5px; }
+.mt-leg i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.mt-leg i.b-ok { background: var(--green); } .mt-leg i.b-parcial { background: var(--orange); }
+.mt-leg i.tracinho { width: 12px; height: 2px; border-radius: 2px; background: var(--brown-dark); }
+.mt-hist { margin: 8px 2px 0; font-size: .8rem; line-height: 1.45; color: var(--brown-dark); }
+
+.mt-config { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); padding: 2px 14px 4px; }
+.mt-cfg-linha { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.mt-cfg-linha > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mt-cfg-linha span { font-size: .92rem; font-weight: 700; color: var(--brown-dark); } .mt-cfg-linha small { font-size: .74rem; color: var(--muted); line-height: 1.35; }
+.mt-cfg-linha b { flex-shrink: 0; font-family: var(--mono); font-size: 1rem; font-variant-numeric: tabular-nums; }
+.mt-cfg-btn { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; background: none; font-family: var(--font); font-size: .86rem; font-weight: 800; color: var(--brown); cursor: pointer; }
+
+.mt-modal { padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 18px; }
+.mt-campo { display: flex; flex-direction: column; gap: 6px; }
+.mt-campo label { font-size: .875rem; font-weight: 700; color: var(--brown-dark); } .mt-campo label em { font-style: normal; font-weight: 500; color: var(--muted); }
+.mt-campo small { font-size: .76rem; line-height: 1.45; color: var(--muted); }
+.mt-input { display: flex; align-items: stretch; border: 1.5px solid var(--border); border-radius: var(--r-sm); overflow: hidden; background: var(--surface); }
+.mt-input:focus-within { border-color: var(--brown-mid); box-shadow: 0 0 0 3px rgba(122,69,32,.12); }
+.mt-input span { display: flex; align-items: center; padding: 0 12px; background: var(--bg); border-right: 1px solid var(--border); font-weight: 800; color: var(--muted); }
+.mt-input input { flex: 1; min-width: 0; height: 48px; padding: 0 12px; border: 0; outline: 0; background: transparent; font-family: var(--mono); font-size: 16px; font-weight: 800; color: var(--brown-dark); }
+.mt-foot-salvar { flex: 1; }
 </style>

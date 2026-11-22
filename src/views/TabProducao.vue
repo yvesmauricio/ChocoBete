@@ -340,62 +340,16 @@
       </template>
     </BaseModal>
 
-    <!-- Painel de pesagem consolidado do lote — somente leitura -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="painelPesagemAberto" class="painel-pesar-overlay" @click.self="fecharPainelPesagem">
-          <div class="painel-pesar">
-            <div class="painel-pesar-hdr">
-              <div class="painel-pesar-titulo">
-                <i class="fas fa-scale-balanced"></i>
-                Total para pesar (Consolidado)
-              </div>
-              <div class="painel-pesar-timer" v-if="loteParaPesar && s.timer.activeLoteId === loteParaPesar.id && s.timerDisplay">
-                <i class="fas fa-stopwatch" :class="{ 'fa-beat-fade': s.timer.isRunning }"></i>
-                {{ s.timerDisplay }}
-              </div>
-              <button class="painel-pesar-fechar" @click="fecharPainelPesagem">
-                <i class="fas fa-xmark"></i>
-              </button>
-            </div>
-            <div class="painel-pesar-receitas" v-if="loteParaPesar">
-              <span
-                v-for="item in loteParaPesar.itens"
-                :key="item.uuid || item.receita_id"
-                class="painel-pesar-receita-chip"
-                  >{{ item.quantidade_produzida || item.quantidade }}× {{ limpar(item.nome_receita || item.receita_nome) }}</span>
-            </div>
-            <div class="painel-pesar-lista">
-              <div
-                v-for="(ing, idx) in ingredientesPesagemLote"
-                :key="ing.id"
-                class="painel-pesar-item"
-                :class="{ 'painel-pesar-destaque': idx === 0 }"
-              >
-                <div class="painel-pesar-item-main">
-                  <span class="painel-pesar-nome"><i v-if="ing.tipo === 'receita'" class="fas fa-mortar-pestle insumo-tipo-ico"></i> {{ ing.nome }}</span>
-                  <span class="painel-pesar-qtd">{{ fmtQ(ing.total, ing.unidade) }}</span>
-                </div>
-                <div v-if="ing.subIngredientes?.length" class="plan-sub-list painel-pesar-composicao">
-                  <div v-for="sub in ing.subIngredientes" :key="sub.id" class="plan-sub-item">
-                    <span><span class="c-brown">└</span> {{ sub.nome }}</span>
-                    <span>{{ fmtQ(sub.total, sub.unidade) }}</span>
-                  </div>
-                </div>
-              </div>
-              <div v-if="!ingredientesPesagemLote.length" class="painel-pesar-vazio">
-                Nenhum ingrediente encontrado para este lote.
-              </div>
-            </div>
-            <div class="painel-pesar-footer">
-              <span class="painel-pesar-nota">
-                <i class="fas fa-eye"></i> Somente visualização
-              </span>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- Painel de pesagem consolidado do lote — somente leitura (componente compartilhado com Produzir) -->
+    <PainelPesagem
+      :aberto="painelPesagemAberto"
+      :receitas="receitasPainel"
+      :ingredientes="ingredientesPesagemLote"
+      :timer-display="timerPainel"
+      :timer-rodando="!!s.timer.isRunning"
+      vazio="Nenhum ingrediente encontrado para este lote."
+      @fechar="fecharPainelPesagem"
+    />
 
   </div>
 </template>
@@ -406,6 +360,8 @@ import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { useStore } from '../store.js';
 import { R$, dataHoraBR, fmtQtd as fmtQ, getNowLocal, normalizar, textoEtiquetaReceita, limparApenasSabor } from '../utils.js'; // Corrected import
 import BaseModal from '../components/BaseModal.vue'
+import PainelPesagem from '../components/PainelPesagem.vue'
+import { ordenarParaPesagem } from '../modules/ordemPesagem.js'
 import AppListRow from '../components/AppListRow.vue'
 import SwipeRow from '../components/SwipeRow.vue'
 import { useSwipe } from '../composables/useSwipe.js'
@@ -513,21 +469,6 @@ async function confirmStopTimer() {
 const loteParaPesar = ref(null)
 const painelPesagemAberto = ref(false)
 
-const ORDEM_PESAGEM = [
-  'chocolate', 'cacau', 'manteiga', 'gordura',
-  'leite condensado', 'creme de leite', 'leite',
-  'acucar', 'açúcar', 'farinha', 'amido', 'bicarbonato', 'fermento',
-  'granulado', 'confeito', 'castanha', 'amendoim', 'ninho', 'nutella'
-]
-
-function prioridadePesagem(nome) {
-  const n = normalizar(nome)
-  for (let i = 0; i < ORDEM_PESAGEM.length; i++) {
-    if (n.includes(ORDEM_PESAGEM[i])) return i
-  }
-  return ORDEM_PESAGEM.length
-}
-
 // formasParaItem logic intentionally removed from TabProducao — kept only in TabCozinha pesagem panel
 
 function abrirPainelPesagem(grupo) {
@@ -539,6 +480,15 @@ function fecharPainelPesagem() {
   painelPesagemAberto.value = false
   loteParaPesar.value = null
 }
+
+// Dados do painel de pesagem (componente compartilhado)
+const receitasPainel = computed(() => (loteParaPesar.value?.itens || []).map(item => ({
+  id: item.uuid || item.receita_id,
+  nome: limpar(item.nome_receita || item.receita_nome),
+  qtd: item.quantidade_produzida || item.quantidade
+})))
+const timerPainel = computed(() =>
+  loteParaPesar.value && s.timer.activeLoteId === loteParaPesar.value.id ? (s.timerDisplay || '') : '')
 
 const ingredientesPesagemLote = computed(() => {
   const grupo = loteParaPesar.value
@@ -579,17 +529,12 @@ const ingredientesPesagemLote = computed(() => {
     }
   })
 
-  return Object.values(acumulador)
-    .map(ing => {
+  return ordenarParaPesagem(
+    Object.values(acumulador).map(ing => {
       if (ing.unidade === 'un') ing.total = Math.ceil(ing.total - 0.001)
       return ing
     })
-    .sort((a, b) => {
-      const pa = prioridadePesagem(a.nome)
-      const pb = prioridadePesagem(b.nome)
-      if (pa !== pb) return pa - pb
-      return a.nome.localeCompare(b.nome)
-    })
+  )
 })
 
 function fmtTime(minutos) {
@@ -1040,21 +985,6 @@ onMounted(() => {
 
 .card-locked { opacity: 0.8; border-style: dashed; }
 
-/* ── Painel de pesagem (somente leitura) ─────────────────── */
-.painel-pesar-overlay {
-  position: fixed; inset: 0;
-  background: rgba(30,18,8,.6);
-  z-index: calc(var(--z-modal) + 500);
-  display: flex; align-items: flex-end;
-}
-.painel-pesar {
-  width: 100%; max-height: 92vh;
-  background: var(--surface);
-  border-radius: 20px 20px 0 0;
-  display: flex; flex-direction: column;
-  will-change: transform;
-  animation: slideUp .25s var(--t-spring);
-}
 /* Tabela de detalhamento de custo — alinhada ao padrão visual do app (cartão, cabeçalho creme) */
 .tabela-wrap {
   border: 1px solid var(--border);
@@ -1080,89 +1010,7 @@ onMounted(() => {
 }
 .tabela tr.total:first-of-type td { border-top: 1px solid var(--border2); }
 
-.painel-pesar-hdr {
-  display: flex; align-items: center; gap: 10px;
-  padding: 16px 20px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--brown-dark);
-  border-radius: 20px 20px 0 0;
-}
-.painel-pesar-titulo {
-  flex: 1; font-size: 1rem; font-weight: 800;
-  color: #fff; display: flex; align-items: center; gap: 8px;
-}
-.painel-pesar-timer {
-  font-size: .9rem; font-weight: 700; font-family: var(--mono);
-  color: var(--gold-light); display: flex; align-items: center; gap: 6px;
-}
-.painel-pesar-fechar {
-  width: 36px; height: 36px; border-radius: 50%;
-  border: none; background: rgba(255,255,255,.15);
-  color: #fff; font-size: 1rem; display: flex; align-items: center; justify-content: center;
-}
-.painel-pesar-lista {
-  flex: 1; overflow-y: auto;
-  padding: 8px 0;
-  -webkit-overflow-scrolling: touch;
-}
-.painel-pesar-item {
-  display: flex; flex-direction: column;
-  padding: 14px 24px;
-  border-bottom: 1px solid var(--border);
-}
-.painel-pesar-item:last-child { border-bottom: none; }
-.painel-pesar-item-main {
-  display: flex; align-items: center; justify-content: space-between;
-}
-.painel-pesar-composicao {
-  margin-top: 8px;
-}
-.painel-pesar-destaque {
-  background: var(--gold-bg);
-  border-left: 4px solid var(--brown);
-  padding-left: 20px;
-}
-.painel-pesar-nome {
-  font-size: 1.05rem; font-weight: 500; color: var(--text);
-}
 .insumo-tipo-ico { color:var(--gold-dark); font-size:.78em; }
-.painel-pesar-receitas {
-  display: flex; flex-wrap: wrap; gap: 6px;
-  padding: 12px 20px 4px;
-  border-bottom: 1px solid var(--border);
-}
-.painel-pesar-receita-chip {
-  font-size: .72rem; font-weight: 700;
-  color: var(--brown-dark);
-  background: var(--gold-bg);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 4px 10px;
-}
-.painel-pesar-destaque .painel-pesar-nome {
-  font-weight: 800; color: var(--brown-dark);
-}
-.painel-pesar-qtd {
-  font-size: 1.15rem; font-weight: 800;
-  font-family: var(--mono); color: var(--brown-dark);
-  flex-shrink: 0;
-}
-.painel-pesar-destaque .painel-pesar-qtd {
-  font-size: 1.3rem; color: var(--brown-dark);
-}
-.painel-pesar-vazio {
-  text-align: center; color: var(--muted);
-  padding: 32px 20px; font-size: .85rem;
-}
-.painel-pesar-footer {
-  padding: 10px 20px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--cream);
-}
-.painel-pesar-nota {
-  font-size: .72rem; color: var(--muted);
-  display: flex; align-items: center; gap: 6px;
-}
 .fade-enter-active, .fade-leave-active { transition: opacity .2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
