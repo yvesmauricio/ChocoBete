@@ -334,7 +334,7 @@ export async function configSet(chave, valor) {
 // ─── Pedidos do balcão (cardápio interativo em tela cheia) ────────────────
 /** Salva um pedido fechado ao vivo, no balcão — cliente, itens, valores e
  *  status "pendente" (ainda não agendado nem entregue). Essa tela não tem
- *  nenhuma ligação com a produção (isso fica na aba Produção); "agendado"
+ *  nenhuma ligação com a produção (isso fica na aba Produções); "agendado"
  *  aqui é só o combinado de data/hora com o cliente pra esse pedido, e
  *  "entregue" marca que ele já foi retirado/entregue. */
 export async function salvarPedidoCardapio(pedido) {

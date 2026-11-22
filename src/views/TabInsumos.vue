@@ -191,7 +191,7 @@
             <input v-model.number="form.estoque_minimo" class="input" type="number" inputmode="decimal" step="any" />
           </div>
         </div>
-        <p class="hint mt-8">O estoque é baixado automaticamente ao finalizar produções na Cozinha.</p>
+        <p class="hint mt-8">O estoque é baixado automaticamente ao finalizar produções na tela Produzir.</p>
       </div>
 
       <template #foot>

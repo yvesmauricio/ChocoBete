@@ -63,7 +63,7 @@ function onKeydown(e) {
 
 // ── Altura do cabeçalho fixo da aba ativa (--tab-hdr-h) ──────────────────
 // Blocos que precisam "grudar" logo abaixo do cabeçalho (resumo/filtros do
-// Financeiro, passos das Etiquetas, painel do lote na Cozinha) usam essa
+// Financeiro, passos das Etiquetas, painel do lote em Produzir) usam essa
 // variável como `top`, em vez de 0 — assim empilham em vez de se cobrirem.
 let _hdrH = -1
 function medirCabecalho() {

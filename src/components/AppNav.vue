@@ -55,14 +55,14 @@ function abrirPedidosAdmin() {
 
 const navPrincipal = [
   { id: 'painel',     icon: 'fas fa-chart-pie',           label: 'Painel' },
-  { id: 'cozinha',    icon: 'fas fa-utensils',             label: 'Cozinha' },
+  { id: 'cozinha',    icon: 'fas fa-utensils',             label: 'Produzir' },
   { id: 'receitas',   icon: 'fas fa-book-open',            label: 'Receitas' },
   { id: 'insumos',    icon: 'fas fa-boxes',                label: 'Estoque' },
   { id: 'financeiro', icon: 'fas fa-money-check-dollar',   label: 'Financeiro' },
 ]
 
 const navExtra = [
-  { id: 'producao',     icon: 'fas fa-clock-rotate-left',  label: 'Histórico' },
+  { id: 'producao',     icon: 'fas fa-industry',           label: 'Produções' },
   { id: 'inteligencia', icon: 'fas fa-brain',              label: 'Inteligência' },
   { id: 'etiquetas',    icon: 'fas fa-tags',               label: 'Etiquetas' },
   { id: 'cardapio',     icon: 'fas fa-book-bookmark',      label: 'Cardápio' },

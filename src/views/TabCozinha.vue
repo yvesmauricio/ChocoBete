@@ -2,7 +2,7 @@
   <div class="tab-cozinha">
     <div class="tab-hdr">
       <div class="tab-hdr-top">
-        <h2 class="tab-title"><i class="fas fa-utensils"></i> Cozinha</h2>
+        <h2 class="tab-title"><i class="fas fa-utensils"></i> Produzir</h2>
         <div class="tab-actions">
           <button class="btn-icon filtro-toggle-btn" :class="{ active: buscaAberta || busca }" title="Buscar receita" @click="alternarBusca">
             <i class="fas fa-search"></i>
@@ -10,7 +10,7 @@
           <button v-if="ingredientesAgrupados.length" class="btn-icon" title="Painel de pesagem" @click="painelPesagemAberto = true">
             <i class="fas fa-scale-balanced"></i>
           </button>
-          <button class="btn-icon" @click="s.setTab('producao')" title="Histórico de Produção">
+          <button class="btn-icon" @click="s.setTab('producao')" title="Produções" aria-label="Ver produções">
             <i class="fas fa-clock-rotate-left"></i>
           </button>
           <button v-if="s.cozinhaLote.length && !s.loteOriginalEmEdicao" class="btn-icon" @click="limparLote" title="Limpar Lote">
@@ -247,7 +247,7 @@
         </div>
         <div class="painel-pesar-footer">
           <span class="painel-pesar-nota">
-            <i class="fas fa-eye"></i> Somente visualização — edite o lote na Cozinha
+            <i class="fas fa-eye"></i> Somente visualização — edite o lote na tela Produzir
           </span>
         </div>
       </div>
@@ -803,7 +803,7 @@ async function finalizarLote(apenasAgendar = false, isPresente = false) {
   }
 
   limparLote()
-  s.notify(apenasAgendar ? 'Lote agendado!' : isPresente ? 'Presente registrado!' : 'Lote registrado! Inicie o cronômetro na lista de produção.')
+  s.notify(apenasAgendar ? 'Lote agendado!' : isPresente ? 'Presente registrado!' : 'Lote registrado! Inicie o cronômetro na aba Produções.')
   s.setTab('producao')
 }
 

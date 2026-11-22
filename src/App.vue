@@ -42,7 +42,7 @@
         </button>
       </Transition>
 
-      <!-- O cronômetro de produção aparece só no card do lote em execução (aba Produção); não há mais balão flutuante. -->
+      <!-- O cronômetro de produção aparece só no card do lote em execução (aba Produções); não há mais balão flutuante. -->
 
       <!-- O indicador de sync do perfil Admin agora é um botão no próprio
            AppHeader (mesmo tamanho do botão "trocar perfil"), não mais

@@ -145,7 +145,7 @@
             <i class="fas fa-share-nodes"></i> Compartilhar lista
           </button>
           <button class="btn btn-primary btn-lg" @click="irParaCozinha">
-            <i class="fas fa-utensils"></i> Abrir Cozinha
+            <i class="fas fa-utensils"></i> Ir para Produzir
           </button>
         </div>
 

@@ -1697,12 +1697,12 @@ async function registrarProducaoFantasma(dados) {
     loteOriginalEmEdicao.value = dataProducao
     salvarCozinhaLocal()
 
-    notify('Lote carregado na Cozinha para edição!')
+    notify('Lote carregado em Produzir para edição!')
     setTab('cozinha')
   }
 
-  // Cancela a correção em andamento sem precisar entrar na Cozinha.
-  // Descarta o rascunho local (cozinhaLote) e destrava o lote no Histórico.
+  // Cancela a correção em andamento sem precisar entrar em Produzir.
+  // Descarta o rascunho local (cozinhaLote) e destrava o lote em Produções.
   function cancelarEdicaoLote() {
     cozinhaLote.value = []
     cozinhaChecklist.value = {}

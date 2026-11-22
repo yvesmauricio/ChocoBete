@@ -2,7 +2,7 @@
   <div>
     <div class="tab-hdr">
       <div class="tab-hdr-top">
-        <h2 class="tab-title"><i class="fas fa-industry"></i> Produção</h2>
+        <h2 class="tab-title"><i class="fas fa-industry"></i> Produções</h2>
         <div class="tab-actions">
           <button
             class="btn-icon filtro-toggle-btn"
@@ -133,8 +133,8 @@
                     <i class="fas fa-stop"></i>
                   </button>
                 </template>
-                <!-- Retomar na Cozinha -->
-                <button class="lote-act-btn act-retomar" @click="handleRetomar(grupo)" title="Editar na Cozinha" aria-label="Editar este lote na Cozinha">
+                <!-- Retomar em Produzir -->
+                <button class="lote-act-btn act-retomar" @click="handleRetomar(grupo)" title="Editar em Produzir" aria-label="Editar este lote na tela Produzir">
                   <i class="fas fa-utensils"></i>
                 </button>
                 <!-- Painel de pesagem consolidado -->
@@ -168,21 +168,21 @@
             <span><small>Lucro</small><b :class="grupo.vendaTotal - grupo.custoTotal < 0 ? 'c-red' : 'c-green'">{{ R$(grupo.vendaTotal - grupo.custoTotal) }}</b></span>
           </div>
 
-          <!-- Lote travado (em edição na Cozinha): sem swipe, só status + retomar -->
+          <!-- Lote travado (em edição em Produzir): sem swipe, só status + retomar -->
           <div v-else class="lote-hdr-row">
             <div class="lote-hdr" @click="toggleGrupo(grupo.id)">
               <div class="lote-dot" :class="s.timer.activeLoteId === grupo.id ? 'dot-running' : grupo.duracaoMinutos > 0 ? 'dot-done' : grupo.agendado ? 'dot-scheduled' : 'dot-pending'"></div>
               <div class="lote-info">
                 <div class="lote-titulo">{{ dataHoraBR(grupo.data) }}</div>
                 <div class="lote-meta">
-                  <span class="lbadge lbadge-scheduled"><i class="fas fa-pencil"></i> Editando na Cozinha...</span>
+                  <span class="lbadge lbadge-scheduled"><i class="fas fa-pencil"></i> Editando em Produzir...</span>
                   <span class="lbadge-sep" v-if="grupo.itens.length">·</span>
                   <span class="lbadge-info">{{ grupo.itens.length }} {{ grupo.itens.length === 1 ? 'item' : 'itens' }}</span>
                 </div>
               </div>
             </div>
             <div class="lote-acts" @click.stop>
-              <button class="lote-act-btn act-retomar" @click="continuarEdicao" title="Continuar editando na Cozinha" aria-label="Continuar editando na Cozinha">
+              <button class="lote-act-btn act-retomar" @click="continuarEdicao" title="Continuar editando em Produzir" aria-label="Continuar editando na tela Produzir">
                 <i class="fas fa-utensils"></i>
               </button>
               <button class="lote-act-btn act-cancelar" @click="cancelarEdicao" title="Cancelar edição" aria-label="Cancelar a edição">
@@ -819,7 +819,7 @@ async function irParaEtiquetas(lista) {
     return
   }
   const ok = await confirm.ask(
-    `Ir para a tela de Etiquetas com ${lista.length} sabor${lista.length > 1 ? 'es' : ''} selecionado${lista.length > 1 ? 's' : ''}? Você sairá do Histórico de Produção.`,
+    `Ir para a tela de Etiquetas com ${lista.length} sabor${lista.length > 1 ? 'es' : ''} selecionado${lista.length > 1 ? 's' : ''}? Você sairá da tela Produções.`,
     { title: 'Imprimir Etiquetas', icon: 'fas fa-tags', confirmLabel: 'Ir para Etiquetas' }
   )
   if (!ok) return
@@ -847,7 +847,7 @@ async function estornar(p) {
 async function handleRetomar(grupo) {
   if (!grupo.agendado) {
     const ok = await confirm.ask(
-      `Este lote foi finalizado em ${dataHoraBR(grupo.data)}. Deseja abri-lo na Cozinha para correções? O estoque será recomposto e re-calculado apenas quando você finalizar a nova versão.`,
+      `Este lote foi finalizado em ${dataHoraBR(grupo.data)}. Deseja abri-lo na tela Produzir para correções? O estoque será recomposto e re-calculado apenas quando você finalizar a nova versão.`,
       { title: 'Corrigir Lote Realizado', icon: 'fas fa-wrench', confirmLabel: 'Abrir para correção', type: 'warning' }
     )
     if (!ok) return
@@ -880,14 +880,14 @@ async function togglePresenteLote(grupo) {
   s.notify(marcado ? 'Lote revertido para produção normal.' : 'Lote marcado como produção de presente.')
 }
 
-// Lote já está travado em edição: só volta pra Cozinha, sem perguntar de novo
+// Lote já está travado em edição: só volta pra Produzir, sem perguntar de novo
 function continuarEdicao() {
   s.setTab('cozinha')
 }
 
 async function cancelarEdicao() {
   const ok = await confirm.ask(
-    'Cancelar a edição deste lote? As alterações feitas na Cozinha que ainda não foram salvas serão perdidas, e o lote volta ao estado original.',
+    'Cancelar a edição deste lote? As alterações feitas na tela Produzir que ainda não foram salvas serão perdidas, e o lote volta ao estado original.',
     { title: 'Cancelar Edição', icon: 'fas fa-xmark', confirmLabel: 'Cancelar edição', type: 'warning' }
   )
   if (!ok) return
