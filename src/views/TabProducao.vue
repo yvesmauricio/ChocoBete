@@ -70,7 +70,7 @@
           :class="{ 'card-agendado': grupo.agendado, 'card-locked': s.loteOriginalEmEdicao === grupo.id }">
 
           <!-- Cabeçalho do lote -->
-          <SwipeRow v-if="s.loteOriginalEmEdicao !== grupo.id" :row-id="'lote-' + grupo.id" :width="larguraAcoesLote(grupo)" class="lote-swipe">
+          <SwipeRow v-if="s.loteOriginalEmEdicao !== grupo.id" :row-id="'lote-' + grupo.id" :titulo="'Lote de ' + dataHoraBR(grupo.data)" class="lote-swipe">
             <div class="lote-hdr-row">
               <div class="lote-hdr" @click="toggleGrupo(grupo.id)">
                 <div class="lote-dot"
@@ -194,7 +194,7 @@
           <!-- Itens do lote -->
           <div v-if="isGrupoAberto(grupo.id)" class="lote-body">
             <template v-if="s.loteOriginalEmEdicao !== grupo.id">
-              <SwipeRow v-for="p in grupo.itens" :key="p.uuid || p.id" :row-id="'item-' + (p.uuid || p.id)" :width="280" class="item-swipe">
+              <SwipeRow v-for="p in grupo.itens" :key="p.uuid || p.id" :row-id="'item-' + (p.uuid || p.id)" :titulo="limpar(p.nome_receita || p.receita_nome)" class="item-swipe">
                 <div class="item-linha">
                   <div class="item-icon" :class="p.eh_intermediaria ? 'ic-blue' : 'ic-gold'">
                     <i :class="p.eh_intermediaria ? 'fas fa-blender' : 'fas fa-cookie-bite'"></i>
@@ -749,15 +749,6 @@ const tempoEstimadoGrupo = computed(() => {
 })
 
 // ── Métodos ───────────────────────────────────────────────────
-// Largura da faixa de ações do swipe do lote: cada botão (.swipe-btn) tem
-// 70px fixos no CSS. 'Presentear/Reverter' só aparece quando o lote está
-// agendado, então a largura da faixa precisa acompanhar isso — senão os
-// botões ficam desalinhados (sobra ou falta espaço na faixa revelada).
-function larguraAcoesLote(grupo) {
-  const qtdBotoes = 2 + (grupo.agendado ? 1 : 0) // Data + Etiquetas (+ Presentear/Reverter)
-  return qtdBotoes * 70
-}
-
 // Soma dos lotes do mês exibido (respeita a busca): serve só pra mostrar o resumo no topo
 const resumoMesProducao = computed(() => {
   const g = gruposProducao.value

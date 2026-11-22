@@ -1,5 +1,5 @@
 <template>
-  <SwipeRow :row-id="id" :width="actionsWidth">
+  <SwipeRow :row-id="id" :titulo="titulo">
     <div
       class="list-row"
       :class="accentClass"
@@ -34,7 +34,8 @@
 import SwipeRow from './SwipeRow.vue'
 defineProps({
   id: { type: String, required: true },
-  actionsWidth: { type: Number, default: 120 },
+  titulo: { type: String, default: '' },        // título da folha de ações (⋯)
+  actionsWidth: { type: Number, default: 0 },   // legado do swipe: ignorado
   chevron: { type: Boolean, default: true },
   accentClass: { type: String, default: '' }
 })

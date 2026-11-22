@@ -361,6 +361,78 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .swipe-btn.info{background:var(--gold)}
 .swipe-btn.prop{background:var(--teal, #0d9488)}
 
+/* ── Folha de ações das listas (botão ⋯) ──────────────────────────────
+   Reaproveita os botões que cada tela declara no slot `actions`
+   (.swipe-btn, .swipe-action-btn, .sw-btn): na folha viram linhas largas,
+   com o ícone numa pastilha colorida e o nome por extenso. */
+.acoes-sheet .lc-modal-titulo{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.acoes-sheet .lc-modal-titulo i{flex-shrink:0}
+.acoes-lista{display:flex;flex-direction:column;gap:2px;padding:8px 12px calc(16px + env(safe-area-inset-bottom,0px))}
+
+/* cor da pastilha de cada ação */
+.acoes-lista .swipe-btn{--c:var(--brown-mid)}
+.acoes-lista .swipe-btn.edit{--c:var(--gold-dark)}
+.acoes-lista .swipe-btn.copy{--c:var(--blue)}
+.acoes-lista .swipe-btn.share{--c:var(--green)}
+.acoes-lista .swipe-btn.print{--c:var(--teal)}
+.acoes-lista .swipe-btn.gift{--c:var(--brown)}
+.acoes-lista .swipe-btn.estornar{--c:var(--orange)}
+.acoes-lista .swipe-btn.festa{--c:var(--purple,#8b5cf6)}
+.acoes-lista .swipe-btn.info{--c:var(--gold)}
+.acoes-lista .swipe-btn.prop{--c:var(--teal,#0d9488)}
+.acoes-lista .swipe-btn.del{--c:#dc2626}
+.acoes-lista .sw-btn-remove{--c:#d9534f}
+.acoes-lista .sw-btn-ignore{--c:var(--brown-mid)}
+.acoes-lista .swipe-action-btn{--c:var(--brown-mid)}
+.acoes-lista .swipe-action-btn.receipt{--c:#25D366}
+.acoes-lista .swipe-action-btn.receive{--c:var(--green)}
+.acoes-lista .swipe-action-btn.edit{--c:var(--brown-light)}
+.acoes-lista .swipe-action-btn.del{--c:var(--red,#dc2626)}
+
+/* a linha de ação em si */
+.acoes-sheet .acoes-lista .swipe-btn,
+.acoes-sheet .acoes-lista .swipe-action-btn,
+.acoes-sheet .acoes-lista .sw-btn{
+  display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:14px;
+  width:100%;height:auto;min-height:56px;padding:0 10px;border:0;border-radius:12px;
+  background:transparent;color:var(--brown-dark);text-align:left;cursor:pointer;
+  font-family:var(--font);font-size:15px;font-weight:700;letter-spacing:0;text-transform:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.acoes-sheet .acoes-lista .swipe-btn:active,
+.acoes-sheet .acoes-lista .swipe-action-btn:active,
+.acoes-sheet .acoes-lista .sw-btn:active{background:var(--cream-deep,#f0e8d8);filter:none;opacity:1}
+.acoes-sheet .acoes-lista .swipe-btn span,
+.acoes-sheet .acoes-lista .swipe-action-btn span,
+.acoes-sheet .acoes-lista .sw-btn span{font-size:15px;font-weight:700;color:inherit;text-transform:none;letter-spacing:0}
+
+/* pastilha do ícone (<i> do Font Awesome ou <svg> inline) */
+.acoes-sheet .acoes-lista .swipe-btn i,
+.acoes-sheet .acoes-lista .sw-btn i{
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  width:40px;height:40px;border-radius:12px;background:var(--c);color:#fff;font-size:1rem;
+}
+.acoes-sheet .acoes-lista .swipe-action-btn svg{
+  flex-shrink:0;box-sizing:border-box;width:40px;height:40px;padding:11px;border-radius:12px;background:var(--c);color:#fff;
+}
+
+/* ações destrutivas: texto vermelho e separadas das demais */
+.acoes-sheet .acoes-lista .swipe-btn.del,
+.acoes-sheet .acoes-lista .swipe-btn.estornar,
+.acoes-sheet .acoes-lista .swipe-action-btn.del,
+.acoes-sheet .acoes-lista .sw-btn-remove{
+  color:var(--red,#dc2626);margin-top:6px;border-radius:0 0 12px 12px;border-top:1px solid var(--border);
+}
+
+/* painel de saldo da Caderneta vira um resumo no topo da folha */
+.acoes-sheet .acoes-lista .swipe-saldo{
+  flex:none;flex-direction:row;justify-content:space-between;align-items:center;gap:8px;
+  width:auto;margin:2px 0 8px;padding:12px 14px;border:0;border-radius:12px;
+}
+.acoes-sheet .acoes-lista .swipe-saldo--ok{justify-content:flex-start}
+.acoes-sheet .acoes-lista .swipe-saldo-label{font-size:11px}
+.acoes-sheet .acoes-lista .swipe-saldo-valor{font-size:17px}
+
 /* ── Transitions ── */
 .fade-enter-active,.fade-leave-active{transition:opacity .18s ease}
 .fade-enter-from,.fade-leave-to{opacity:0}
@@ -977,8 +1049,9 @@ html.is-desktop .list-row:has(.row-cols) .row-name{font-size:.92rem}
 /* ── Ações da linha: botões compactos que aparecem ao passar o mouse
       (em vez de deslizar a linha, que bagunçaria as colunas) ── */
 @media (hover:hover){
-  html.is-desktop .swipe-hint{display:none}
+  html.is-desktop .swipe-more{display:none}
   html.is-desktop .swipe-btns{
+    display:flex;
     z-index:2;left:auto;right:12px;top:50%;bottom:auto;transform:translateY(-50%);
     width:auto !important;height:auto;padding:0 0 0 28px;gap:6px;align-items:center;
     background:linear-gradient(90deg,transparent,var(--gold-bg) 28px);

@@ -1,5 +1,5 @@
 <template>
-  <SwipeRow :row-id="rowId" :width="actionsWidth">
+  <SwipeRow :row-id="rowId" :titulo="titulo">
     <div class="swipe-front" @click="$emit('click')">
       <slot />
     </div>
@@ -56,6 +56,8 @@ import { useSwipe } from '../composables/useSwipe.js'
 
 const props = defineProps({
   id: [String, Number],
+  // Título da folha de ações (⋯)
+  titulo: { type: String, default: '' },
   // Namespace opcional pra evitar colisão de rowId entre listas diferentes
   // (ex.: um cliente e uma loja podem ter o mesmo id numérico)
   scope: { type: String, default: 'cad' },
@@ -76,11 +78,6 @@ const mostrarSaldo = computed(() => props.saldo !== null && props.saldo !== unde
 const saldoFmt = computed(() =>
   Number(props.saldo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 )
-const LARGURA_SALDO = 104
-
-// Largura da área de ações proporcional ao número de botões (+ painel de saldo, quando houver)
-const actionsWidth = computed(() => props.actions.length * 72 + (mostrarSaldo.value ? LARGURA_SALDO : 0))
-
 const { openSwipeId } = useSwipe()
 
 defineExpose({

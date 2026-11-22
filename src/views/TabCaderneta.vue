@@ -196,7 +196,7 @@
           <p>{{ buscaLojas ? 'Nenhuma loja encontrada' : 'Nenhuma loja cadastrada.\nToque em + para adicionar.' }}</p>
         </div>
         <CadernetaSwipeItem
-          v-for="l in lojasFiltradas" :key="l.id" :id="l.id" scope="lojas"
+          v-for="l in lojasFiltradas" :key="l.id" :id="l.id" scope="lojas" :titulo="l.nome"
           @click="escolherLoja(l)"
           @edit="abrirModalLoja(l)"
           @delete="confirmarExcluirLoja(l)"
@@ -263,7 +263,7 @@
           <p>{{ buscaClientes ? 'Nenhum cliente encontrado' : 'Nenhuma cliente nesta loja.\nToque em + para adicionar.' }}</p>
         </div>
         <CadernetaSwipeItem
-          v-for="c in clientesFiltrados" :key="c.id" :id="c.id" scope="clientes"
+          v-for="c in clientesFiltrados" :key="c.id" :id="c.id" scope="clientes" :titulo="c.nome"
           :saldo="saldoPorCliente[c.id] || 0"
           @click="escolherCliente(c)"
           @edit="abrirModalCliente(c)"
@@ -821,6 +821,7 @@
                   <CadernetaSwipeItem
                     v-for="f in c.fiados" :key="f.id"
                     :id="f.id" scope="compras"
+                    :titulo="'Compra de ' + fmtDataHora(f)"
                     class="cad-compra-swipe"
                     :class="{ 'compra-atrasada': f.atrasada }"
                     :actions="compraSwipeActions(f)"

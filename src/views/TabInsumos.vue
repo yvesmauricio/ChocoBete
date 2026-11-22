@@ -47,7 +47,7 @@
           @touchend="lpCancel"
           @touchmove="lpCancel"
           :chevron="false"
-          :actions-width="350"
+          :titulo="p.nome"
         >
           <template #icon>
             <div class="ing-icon" :class="p.tipo === 'embalagem' ? 'badge-orange' : 'badge-muted'">

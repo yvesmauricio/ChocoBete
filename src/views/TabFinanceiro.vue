@@ -123,9 +123,9 @@
           <button class="mv-mes-btn" :disabled="!temMesMaisNovo" aria-label="Próximo mês" @click="irParaMesMaisNovo"><i class="fas fa-chevron-right"></i></button>
         </div>
         <div class="mv-tot">
-          <div><span>Entradas</span><b class="c-green">{{ R$(totalEntradas) }}</b></div>
-          <div><span>Saídas</span><b class="c-red">{{ R$(totalSaidas) }}</b></div>
-          <div><span>Saldo</span><b :class="saldoFiltrado >= 0 ? 'c-green' : 'c-red'">{{ R$(saldoFiltrado) }}</b></div>
+          <div><span>Entradas</span><b class="c-green">{{ Rs(totalEntradas) }}</b></div>
+          <div><span>Saídas</span><b class="c-red">{{ Rs(totalSaidas) }}</b></div>
+          <div><span>Saldo</span><b :class="saldoFiltrado >= 0 ? 'c-green' : 'c-red'">{{ Rs(saldoFiltrado) }}</b></div>
         </div>
       </div>
 
@@ -292,158 +292,163 @@
     </template>
 
     <template v-else-if="abaAtiva === 'mensal'">
-      <div class="relatorio-wrap mn-pagina">
+      <div class="relatorio-wrap rs-pagina">
 
-        <!-- ── Período: ano + mês, com campos visíveis e setas grandes ── -->
-        <div class="mn-periodo">
-          <div class="mn-campo mn-campo--ano">
-            <label class="mn-label" for="mn-ano">Ano</label>
-            <select id="mn-ano" v-model="anoFiltroMensal" class="mn-select">
-              <option v-for="a in anosDisponiveis" :key="a" :value="a">{{ a }}</option>
-            </select>
+        <!-- ── Período (mês compartilhado com Movimentações) ── -->
+        <div class="rs-periodo">
+          <div class="rs-seg" role="group" aria-label="Tipo de período">
+            <button type="button" class="rs-seg-btn" :class="{ ativo: modoMensal === 'mes' }" :aria-pressed="modoMensal === 'mes'" @click="modoMensal = 'mes'">Mês</button>
+            <button type="button" class="rs-seg-btn" :class="{ ativo: modoMensal === 'ano' }" :aria-pressed="modoMensal === 'ano'" @click="modoMensal = 'ano'">Ano</button>
           </div>
-          <div v-if="mesesParaFiltroMensal.length" class="mn-campo mn-campo--mes">
-            <label class="mn-label" for="mn-mes">Mês</label>
-            <div class="mn-mes">
-              <button class="mn-seta" :disabled="idxMesMensal === 0" aria-label="Mês mais recente" @click="irParaMesNovoMensal"><i class="fas fa-chevron-left"></i></button>
-              <select id="mn-mes" v-model="mesFiltroMensal" class="mn-select">
-                <option value="">Ano todo</option>
-                <option v-for="m in mesesParaFiltroMensal" :key="m" :value="m">{{ m }}</option>
+          <div class="rs-nav">
+            <button type="button" class="rs-nav-btn" :disabled="!temAnterior" aria-label="Período anterior" @click="periodoAnterior"><i class="fas fa-chevron-left"></i></button>
+            <div class="rs-nav-centro">
+              <span>{{ modoMensal === 'mes' ? rotuloMes(mesFiltroMensal) : anoFiltroMensal }}</span><i class="fas fa-chevron-down rs-nav-caret"></i>
+              <select v-if="modoMensal === 'mes'" v-model="mesFiltroMensal" aria-label="Escolher mês">
+                <option v-for="m in mesesDisponiveis" :key="m" :value="m">{{ rotuloMes(m) }}</option>
               </select>
-              <button class="mn-seta" :disabled="idxMesMensal === mesesParaFiltroMensal.length - 1" aria-label="Mês mais antigo" @click="irParaMesAntigoMensal"><i class="fas fa-chevron-right"></i></button>
+              <select v-else v-model="anoFiltroMensal" aria-label="Escolher ano">
+                <option v-for="a in anosDisponiveis" :key="a" :value="a">{{ a }}</option>
+              </select>
             </div>
+            <button type="button" class="rs-nav-btn" :disabled="!temProximo" aria-label="Próximo período" @click="periodoProximo"><i class="fas fa-chevron-right"></i></button>
           </div>
         </div>
 
-        <!-- ── Resumo por banco ── -->
-        <section class="mn-bloco">
-          <header class="mn-bloco-cab">
-            <h4 class="mn-bloco-titulo">Por banco</h4>
-            <span class="mn-bloco-sub">{{ mesFiltroMensal || ('Ano ' + anoFiltroMensal) }}</span>
-          </header>
-          <div class="mn-card">
-            <div v-if="temContasPagbank || resumoBancoPagbank.receitas || resumoBancoPagbank.saidas" class="mn-banco">
-              <div class="mn-banco-topo">
-                <div class="mn-tile mn-tile--pagbank"><i class="fas fa-mobile-screen"></i></div>
-                <div class="mn-banco-nome">PagBank</div>
-                <div class="mn-banco-saldo">
-                  <span class="mn-mini-lbl">Saldo</span>
-                  <strong :class="resumoBancoPagbank.saldo >= 0 ? 'c-green' : 'c-red'">{{ R$(resumoBancoPagbank.saldo) }}</strong>
-                </div>
-              </div>
-              <div class="mn-banco-det">
-                <div><span>Receitas PIX</span><strong class="c-green">{{ R$(resumoBancoPagbank.receitas) }}</strong></div>
-                <div><span>Saídas</span><strong class="c-red">{{ R$(resumoBancoPagbank.saidas) }}</strong></div>
-              </div>
-            </div>
-            <div v-if="temContasItau || resumoBancoItau.receitas || resumoBancoItau.saidas" class="mn-banco">
-              <div class="mn-banco-topo">
-                <div class="mn-tile mn-tile--itau"><i class="fas fa-landmark"></i></div>
-                <div class="mn-banco-nome">Itaú</div>
-                <div class="mn-banco-saldo">
-                  <span class="mn-mini-lbl">Saldo</span>
-                  <strong :class="resumoBancoItau.saldo >= 0 ? 'c-green' : 'c-red'">{{ R$(resumoBancoItau.saldo) }}</strong>
-                </div>
-              </div>
-              <div class="mn-banco-det">
-                <div><span>Receitas PIX</span><strong class="c-green">{{ R$(resumoBancoItau.receitas) }}</strong></div>
-                <div><span>Saídas</span><strong class="c-red">{{ R$(resumoBancoItau.saidas) }}</strong></div>
-              </div>
-            </div>
-            <p v-if="!(temContasPagbank || resumoBancoPagbank.receitas || resumoBancoPagbank.saidas) && !(temContasItau || resumoBancoItau.receitas || resumoBancoItau.saidas)" class="mn-vazio">
-              Nenhuma conta com movimento neste período.
-            </p>
-          </div>
-        </section>
+        <div v-if="!resumo" class="rs-vazio">
+          <i class="fas fa-inbox"></i>
+          <b>Sem lançamentos neste período</b>
+          <span>Importe um extrato ou escolha outro {{ modoMensal === 'mes' ? 'mês' : 'ano' }}.</span>
+        </div>
 
-        <!-- ── Mês a mês ── -->
-        <section v-if="relatorioMensalFiltrado.length" class="mn-bloco">
-          <header class="mn-bloco-cab">
-            <h4 class="mn-bloco-titulo">{{ mesFiltroMensal ? 'Detalhes do mês' : 'Mês a mês' }}</h4>
-            <span class="mn-bloco-sub">{{ relatorioMensalFiltrado.length }} {{ relatorioMensalFiltrado.length === 1 ? 'mês' : 'meses' }}</span>
-          </header>
+        <template v-else>
+          <!-- ── Resultado em destaque ── -->
+          <section class="rs-hero" :class="resumo.saldo_mes >= 0 ? 'ok' : 'neg'">
+            <div class="rs-hero-rot">{{ resumo.saldo_mes >= 0 ? 'Sobrou' : 'Faltou' }} em {{ modoMensal === 'mes' ? nomeMesSozinho : anoFiltroMensal }}</div>
+            <div class="rs-hero-val">{{ Rs(Math.abs(resumo.saldo_mes)) }}</div>
+            <div v-if="variacao" class="rs-var" :class="variacao.pct >= 0 ? 'sobe' : 'desce'">
+              <i class="fas" :class="variacao.pct >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'"></i>
+              Receita MEI {{ variacao.pct >= 0 ? '+' : '' }}{{ variacao.pct }}% em relação a {{ variacao.contra }}
+            </div>
+            <div v-else-if="emAndamento" class="rs-var neutro"><i class="fas fa-hourglass-half"></i> {{ modoMensal === 'mes' ? 'Mês em andamento' : 'Ano em andamento' }} — a comparação aparece quando fechar</div>
+            <p class="rs-conta">Tudo que entrou no banco − despesas do negócio − despesas pessoais.</p>
+          </section>
 
-          <article v-for="item in relatorioMensalFiltrado" :key="item.mes_ref" class="mn-card mn-mes-card">
-            <div class="mn-mes-cab">
-              <h5 class="mn-mes-nome">{{ item.mes_ref }}</h5>
-              <span class="mn-chip">{{ item.quantidade }} {{ item.quantidade === 1 ? 'lançamento' : 'lançamentos' }}</span>
+          <!-- ── Para onde foi o dinheiro ── -->
+          <section class="rs-card">
+            <div class="rs-linha">
+              <div class="rs-linha-txt">
+                <span><i class="rs-ponto verde"></i> Receita MEI</span>
+                <small v-if="canalTexto">{{ canalTexto }}</small>
+              </div>
+              <b class="c-green">{{ Rs(resumo.receitas_mei) }}</b>
+            </div>
+            <div class="rs-linha">
+              <div class="rs-linha-txt"><span><i class="rs-ponto vermelho"></i> Despesas do negócio</span></div>
+              <b class="c-red">{{ Rs(resumo.saidas_operacionais) }}</b>
+            </div>
+            <div class="rs-linha">
+              <div class="rs-linha-txt"><span><i class="rs-ponto vermelho"></i> Despesas pessoais</span></div>
+              <b class="c-red">{{ Rs(resumo.saidas_pessoais) }}</b>
             </div>
 
-            <!-- O resultado do mês vem primeiro: é o que a pessoa quer saber -->
-            <div class="mn-destaque" :class="item.saldo_mes >= 0 ? 'mn-destaque--ok' : 'mn-destaque--neg'">
-              <span class="mn-destaque-lbl">{{ item.saldo_mes >= 0 ? 'Sobrou no mês' : 'Faltou no mês' }}</span>
-              <strong class="mn-destaque-valor">{{ R$(item.saldo_mes) }}</strong>
-            </div>
-
-            <!-- Receita MEI, Despesas Operacionais (já inclui insumos) e Despesas Casa.
-                 Nas listas de lançamentos continua "Retiradas pessoais"; só aqui muda o nome. -->
-            <div class="mn-linhas">
-              <div class="mn-linha">
-                <span class="mn-ponto mn-ponto--verde"></span>
-                <span class="mn-linha-lbl">Receita MEI</span>
-                <strong class="c-green">{{ R$(item.receitas_mei) }}</strong>
+            <div v-if="uso" class="rs-uso">
+              <div class="rs-uso-barra" role="img" :aria-label="`Despesas do negócio ${uso.op}%, pessoais ${uso.pes}%, sobra ${uso.sobra}%`">
+                <span class="u-op" :style="{ width: uso.op + '%' }"></span><span class="u-pes" :style="{ width: uso.pes + '%' }"></span><span v-if="uso.sobra > 0" class="u-sobra" :style="{ width: uso.sobra + '%' }"></span>
               </div>
-              <div class="mn-linha">
-                <span class="mn-ponto mn-ponto--vermelho"></span>
-                <span class="mn-linha-lbl">Despesas operacionais</span>
-                <strong class="c-red">{{ R$(item.saidas_operacionais) }}</strong>
-              </div>
-              <div class="mn-linha">
-                <span class="mn-ponto mn-ponto--vermelho"></span>
-                <span class="mn-linha-lbl">Despesas pessoais</span>
-                <strong class="c-red">{{ R$(item.saidas_pessoais) }}</strong>
+              <div class="rs-uso-leg">
+                <span><i class="u-op"></i> Negócio {{ uso.op }}%</span>
+                <span><i class="u-pes"></i> Pessoal {{ uso.pes }}%</span>
+                <span v-if="uso.sobra > 0"><i class="u-sobra"></i> Sobrou {{ uso.sobra }}%</span>
+                <span v-if="uso.deficit" class="deficit">Gastou mais do que entrou</span>
               </div>
             </div>
 
-            <!-- Composição completa: escondida até a pessoa pedir -->
-            <button class="mn-toggle" :aria-expanded="!!detalhesMensalAbertos[item.mes_ref]" @click="toggleDetalhesMensal(item.mes_ref)">
-              <i class="fas fa-list-ul"></i>
-              <span>{{ detalhesMensalAbertos[item.mes_ref] ? 'Esconder composição' : 'Ver composição do mês' }}</span>
-              <i class="fas mn-toggle-seta" :class="detalhesMensalAbertos[item.mes_ref] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            <button type="button" class="rs-toggle" :aria-expanded="!!detalhesMensalAbertos[chaveDetalhe]" @click="toggleDetalhesMensal(chaveDetalhe)">
+              {{ detalhesMensalAbertos[chaveDetalhe] ? 'Esconder' : 'Ver' }} a conta completa <i class="fas" :class="detalhesMensalAbertos[chaveDetalhe] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
             </button>
-            <Transition name="fade-slide">
-              <div v-if="detalhesMensalAbertos[item.mes_ref]" class="mn-detalhe">
-                <div class="mn-grupo">
-                  <div class="mn-grupo-titulo">Entradas</div>
-                  <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Receita MEI (vendas)</span><strong class="c-green">{{ R$(item.receitas_mei) }}</strong></div>
-                  <div v-if="item.outras_entradas_nao_mei" class="mn-linha mn-linha--simples">
-                    <span class="mn-linha-lbl">Outras entradas (não-MEI)</span>
-                    <strong class="c-purple">{{ R$(item.outras_entradas_nao_mei) }}</strong>
-                  </div>
-                  <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Rendimento</span><strong>{{ R$(item.rendimento_financeiro) }}</strong></div>
-                  <div class="mn-linha mn-linha--simples mn-linha--total"><span class="mn-linha-lbl">Entrada bruta (banco)</span><strong class="c-blue">{{ R$(item.entradas) }}</strong></div>
-                </div>
-                <div class="mn-grupo">
-                  <div class="mn-grupo-titulo">Saídas e resultado</div>
-                  <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Despesas operacionais</span><strong class="c-red">{{ R$(item.saidas_operacionais) }}</strong></div>
-                  <div class="mn-linha mn-linha--simples"><span class="mn-linha-lbl">Despesas pessoais</span><strong class="c-red">{{ R$(item.saidas_pessoais) }}</strong></div>
-                  <div class="mn-linha mn-linha--simples mn-linha--total"><span class="mn-linha-lbl">Saldo do negócio</span><strong :class="item.saldo_operacional >= 0 ? 'c-green' : 'c-red'">{{ R$(item.saldo_operacional) }}</strong></div>
-                </div>
-              </div>
-            </Transition>
-          </article>
+            <div v-if="detalhesMensalAbertos[chaveDetalhe]" class="rs-detalhe">
+              <div class="rs-det-linha"><span>Entrou no banco</span><b>{{ Rs(resumo.entradas) }}</b></div>
+              <div class="rs-det-linha sub"><span>Receita MEI</span><b>{{ Rs(resumo.receitas_mei) }}</b></div>
+              <div v-if="resumo.rendimento_financeiro > 0" class="rs-det-linha sub"><span>Rendimento financeiro</span><b>{{ Rs(resumo.rendimento_financeiro) }}</b></div>
+              <div v-if="resumo.outras_entradas_nao_mei > 0" class="rs-det-linha sub"><span>Outras entradas (não são do MEI)</span><b>{{ Rs(resumo.outras_entradas_nao_mei) }}</b></div>
+              <div class="rs-det-linha"><span>− Despesas do negócio</span><b class="c-red">{{ Rs(resumo.saidas_operacionais) }}</b></div>
+              <div class="rs-det-linha"><span>− Despesas pessoais</span><b class="c-red">{{ Rs(resumo.saidas_pessoais) }}</b></div>
+              <div class="rs-det-linha total"><span>= {{ resumo.saldo_mes >= 0 ? 'Sobrou' : 'Faltou' }}</span><b :class="resumo.saldo_mes >= 0 ? 'c-green' : 'c-red'">{{ Rs(Math.abs(resumo.saldo_mes)) }}</b></div>
+              <div class="rs-det-sep"></div>
+              <div class="rs-det-linha"><span>Resultado do negócio</span><b :class="resumo.saldo_operacional >= 0 ? 'c-green' : 'c-red'">{{ Rs(resumo.saldo_operacional) }}</b></div>
+              <p class="rs-det-nota">É só a Receita MEI menos as despesas do negócio, sem contar entradas e gastos pessoais. Mostra se as vendas pagam o negócio.</p>
+            </div>
+          </section>
+
+          <!-- ── Ano: gráfico mês a mês ── -->
+          <section v-if="modoMensal === 'ano' && grafico" class="rs-bloco">
+            <div class="rs-bloco-tit">Mês a mês</div>
+            <div class="rs-grafico-box">
+              <svg :viewBox="`0 0 ${grafico.W} ${grafico.H}`" class="rs-grafico" role="img" aria-label="Receita MEI e despesas de cada mês do ano">
+                <text class="max" x="4" y="10">{{ Rs(grafico.max) }}</text>
+                <line class="base" x1="0" :x2="grafico.W" :y1="grafico.T + grafico.ch" :y2="grafico.T + grafico.ch" />
+                <g v-for="g in grafico.barras" :key="g.m" class="col" :class="{ vazio: !g.tem }" @click="g.tem && irParaMes(g.ref)">
+                  <rect class="hit" :x="g.slotX" y="0" :width="g.slot" :height="grafico.H" />
+                  <rect class="b-rec" :x="g.rx" :y="g.base - g.rh" :width="g.w" :height="Math.max(g.rh, g.tem ? 1 : 0)" rx="2" />
+                  <rect class="b-desp" :x="g.dx" :y="g.base - g.dh" :width="g.w" :height="Math.max(g.dh, g.tem ? 1 : 0)" rx="2" />
+                  <text class="mes" :x="g.cx" :y="grafico.H - 6" text-anchor="middle">{{ g.letra }}</text>
+                </g>
+              </svg>
+              <div class="rs-leg"><span><i class="b-rec"></i> Receita MEI</span><span><i class="b-desp"></i> Despesas</span><span class="dica">Toque num mês para abrir</span></div>
+            </div>
+            <div class="rs-meses">
+              <button v-for="m in mesesDoAnoVisiveis" :key="m.ref" type="button" class="rs-mes" @click="irParaMes(m.ref)">
+                <span class="rs-mes-nome">{{ m.nome }}</span>
+                <span class="rs-mes-rec">{{ Rs(m.receita) }}</span>
+                <span class="rs-mes-desp">{{ Rs(m.despesa) }}</span>
+                <b class="rs-mes-sobra" :class="m.sobra >= 0 ? 'c-green' : 'c-red'">{{ m.sobra >= 0 ? '+' : '−' }}{{ Rs(Math.abs(m.sobra)) }}</b>
+              </button>
+            </div>
+            <button v-if="mesesDoAno.length > 6" type="button" class="rs-mais" @click="verTodosMeses = !verTodosMeses">
+              {{ verTodosMeses ? 'Mostrar menos' : `Ver todos os ${mesesDoAno.length} meses` }} <i class="fas" :class="verTodosMeses ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            </button>
+          </section>
+        </template>
+
+        <!-- ── Categorias: maiores primeiro; toque abre as Movimentações filtradas ── -->
+        <section v-if="resumo" class="rs-bloco">
+          <div class="rs-bloco-cab">
+            <div class="rs-bloco-tit">Por categoria</div>
+            <div class="rs-seg rs-seg--mini" role="group" aria-label="Saídas ou entradas">
+              <button type="button" class="rs-seg-btn" :class="{ ativo: catTipo === 'saidas' }" @click="catTipo = 'saidas'">Saídas</button>
+              <button type="button" class="rs-seg-btn" :class="{ ativo: catTipo === 'entradas' }" @click="catTipo = 'entradas'">Entradas</button>
+            </div>
+          </div>
+          <div v-if="!catLista.length" class="rs-nada">Nada neste grupo no período.</div>
+          <div v-else class="rs-cats">
+            <button v-for="c in catVisiveis" :key="c.categoria" type="button" class="rs-cat" @click="verMovimentacoes({ categoria: c.categoria })">
+              <span class="rs-cat-info">
+                <span class="rs-cat-nome">{{ c.categoria }}</span>
+                <span class="rs-cat-sub">{{ c.quantidade }} {{ c.quantidade === 1 ? 'lançamento' : 'lançamentos' }} · {{ c.pct }}%</span>
+              </span>
+              <b class="rs-cat-valor">{{ Rs(c.total) }}</b>
+              <i class="fas fa-chevron-right rs-cat-chev"></i>
+              <span class="rs-cat-barra"><i :class="catTipo" :style="{ width: Math.max(c.pct, 2) + '%' }"></i></span>
+            </button>
+          </div>
+          <button v-if="catLista.length > 5" type="button" class="rs-mais" @click="verTodasCats = !verTodasCats">
+            {{ verTodasCats ? 'Mostrar menos' : `Ver todas (${catLista.length})` }} <i class="fas" :class="verTodasCats ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
         </section>
 
-        <!-- ── Por categoria ── -->
-        <section class="mn-bloco">
-          <header class="mn-bloco-cab">
-            <h4 class="mn-bloco-titulo">Por categoria</h4>
-            <span class="mn-bloco-sub">{{ mesFiltroMensal || anoFiltroMensal }}<template v-if="categoriasPorAno.length"> · {{ categoriasPorAno.length }}</template></span>
-          </header>
-          <div class="mn-card">
-            <p v-if="!categoriasPorAno.length" class="mn-vazio">Sem dados para o período.</p>
-            <template v-else>
-              <div v-for="item in categoriasPorAno" :key="item.categoria" class="mn-cat">
-                <span class="mn-ponto" :class="item.natureza === 'entrada' ? 'mn-ponto--verde' : 'mn-ponto--vermelho'"></span>
-                <div class="mn-cat-txt">
-                  <div class="mn-cat-nome">{{ item.categoria }}</div>
-                  <div class="mn-cat-sub">{{ item.quantidade }} {{ item.quantidade === 1 ? 'lançamento' : 'lançamentos' }}<template v-if="item.natureza"> · <span class="mn-nat">{{ item.natureza === 'entrada' ? 'Entrada' : item.natureza === 'saida' ? 'Saída' : item.natureza }}</span></template></div>
-                </div>
-                <strong class="mn-cat-valor" :class="item.natureza === 'entrada' ? 'c-green' : 'c-red'">{{ R$(item.total) }}</strong>
-              </div>
-            </template>
+        <!-- ── Por banco ── -->
+        <section v-if="resumo && bancosResumo.length" class="rs-bloco">
+          <div class="rs-bloco-tit">Por banco</div>
+          <div class="rs-bancos">
+            <button v-for="bk in bancosResumo" :key="bk.id" type="button" class="rs-banco" :class="'b-' + bk.id" @click="verMovimentacoes({ banco: bk.id })">
+              <span class="rs-banco-nome"><i class="fas" :class="bk.icon"></i> {{ bk.nome }}</span>
+              <b :class="bk.saldo >= 0 ? 'c-green' : 'c-red'">{{ Rs(bk.saldo) }}</b>
+              <small>entrou {{ Rs(bk.receitas) }} · saiu {{ Rs(bk.saidas) }}</small>
+            </button>
           </div>
         </section>
+
       </div>
     </template>
 
@@ -1098,7 +1103,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue'
 import ImportadorExtrato from '../components/ImportadorExtrato.vue'
 import ImportadorItau from '../components/ImportadorItau.vue'
 import ImportadorBancoBrasil from '../components/ImportadorBancoBrasil.vue'
@@ -1110,6 +1115,9 @@ import BaseModal from '../components/BaseModal.vue'
 import EditarCategoriaModal from '../components/EditarCategoriaModal.vue'
 import CategoryFilter from '../components/CategoryFilter.vue'
 import { useStore } from '../store.js'
+import { db, configGet } from '../db.js'
+import { conciliar } from '../modules/conciliacao.js'
+import { hoje } from '../composables/useCaderneta.js'
 import { R$, formatarData, normalizar } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { gerarLivroCaixa, gerarDASNSIMEI } from '../composables/useGerarDocumento.js'
@@ -1345,34 +1353,136 @@ const anosDisponiveis = computed(() => {
   return [...set].sort((a, b) => b.localeCompare(a))
 })
 
-// ── Mensal ──
+// ── Resumo Mensal ──
+// O mês escolhido aqui é o MESMO filtro de mês da aba Movimentações: navegar numa aba vale na outra.
+const modoMensal = ref('mes') // 'mes' | 'ano'
 const anoFiltroMensal = ref(String(new Date().getFullYear()))
-const mesFiltroMensal = ref('')
-
-const mesesParaFiltroMensal = computed(() => 
-  mesesDisponiveis.value.filter(m => m.endsWith(`/${anoFiltroMensal.value}`))
-)
-
-const idxMesMensal = computed(() => mesesParaFiltroMensal.value.indexOf(mesFiltroMensal.value))
-
-function irParaMesNovoMensal() {
-  if (idxMesMensal.value > 0) mesFiltroMensal.value = mesesParaFiltroMensal.value[idxMesMensal.value - 1]
-  else if (idxMesMensal.value === -1 && mesesParaFiltroMensal.value.length) mesFiltroMensal.value = mesesParaFiltroMensal.value[0]
-}
-
-function irParaMesAntigoMensal() {
-  if (idxMesMensal.value >= 0 && idxMesMensal.value < mesesParaFiltroMensal.value.length - 1) {
-    mesFiltroMensal.value = mesesParaFiltroMensal.value[idxMesMensal.value + 1]
-  }
-}
-
-watch(anoFiltroMensal, () => { mesFiltroMensal.value = '' })
-
-const relatorioMensalFiltrado = computed(() => {
-  const base = s.relatorioMensalMei.filter(item => item.mes_ref.endsWith(`/${anoFiltroMensal.value}`))
-  if (mesFiltroMensal.value) return base.filter(item => item.mes_ref === mesFiltroMensal.value)
-  return base
+const mesFiltroMensal = computed({
+  get: () => (modoMensal.value === 'mes' ? (filtroMes.value || mesesDisponiveis.value[0] || '') : ''),
+  set: (v) => { if (v) { filtroMes.value = v; anoFiltroMensal.value = v.split('/')[1] } },
 })
+watch(filtroMes, (v) => { if (v) anoFiltroMensal.value = v.split('/')[1] }, { immediate: true })
+
+const Rs = (v) => 'R$ ' + R$(v) // o R$ do app devolve só o número; aqui o símbolo ajuda no valor grande
+
+const idxMesMensal = computed(() => mesesDisponiveis.value.indexOf(mesFiltroMensal.value))
+const idxAnoMensal = computed(() => anosDisponiveis.value.indexOf(anoFiltroMensal.value))
+const temAnterior = computed(() => modoMensal.value === 'mes'
+  ? idxMesMensal.value >= 0 && idxMesMensal.value < mesesDisponiveis.value.length - 1
+  : idxAnoMensal.value >= 0 && idxAnoMensal.value < anosDisponiveis.value.length - 1)
+const temProximo = computed(() => (modoMensal.value === 'mes' ? idxMesMensal.value > 0 : idxAnoMensal.value > 0))
+function periodoAnterior() {
+  if (!temAnterior.value) return
+  if (modoMensal.value === 'mes') mesFiltroMensal.value = mesesDisponiveis.value[idxMesMensal.value + 1]
+  else anoFiltroMensal.value = anosDisponiveis.value[idxAnoMensal.value + 1]
+}
+function periodoProximo() {
+  if (!temProximo.value) return
+  if (modoMensal.value === 'mes') mesFiltroMensal.value = mesesDisponiveis.value[idxMesMensal.value - 1]
+  else anoFiltroMensal.value = anosDisponiveis.value[idxAnoMensal.value - 1]
+}
+function irParaMes(ref) { modoMensal.value = 'mes'; mesFiltroMensal.value = ref }
+
+const relatorioMensalFiltrado = computed(() => s.relatorioMensalMei.filter(item => item.mes_ref.endsWith(`/${anoFiltroMensal.value}`)))
+
+const CAMPOS_SOMA = ['entradas', 'receitas_mei', 'outras_entradas_nao_mei', 'rendimento_financeiro', 'saidas_operacionais', 'saidas_pessoais', 'saldo_mes', 'saldo_operacional']
+function somarItens(items) {
+  if (!items.length) return null
+  const r = {}
+  for (const c of CAMPOS_SOMA) r[c] = items.reduce((a, i) => a + Number(i[c] || 0), 0)
+  return r
+}
+const resumo = computed(() => (modoMensal.value === 'mes'
+  ? (s.relatorioMensalMei.find(i => i.mes_ref === mesFiltroMensal.value) || null)
+  : somarItens(relatorioMensalFiltrado.value)))
+const nomeMesSozinho = computed(() => NOMES_MES[Number(String(mesFiltroMensal.value).split('/')[0]) - 1] || '')
+const chaveDetalhe = computed(() => (modoMensal.value === 'mes' ? mesFiltroMensal.value : `ano-${anoFiltroMensal.value}`))
+
+// Período ainda aberto: comparar com o anterior seria injusto (faltam dias)
+const emAndamento = computed(() => {
+  const agora = new Date()
+  return modoMensal.value === 'mes'
+    ? mesFiltroMensal.value === `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`
+    : anoFiltroMensal.value === String(agora.getFullYear())
+})
+const variacao = computed(() => {
+  if (!resumo.value || emAndamento.value) return null
+  let anterior, contra
+  if (modoMensal.value === 'mes') {
+    const [m, a] = mesFiltroMensal.value.split('/').map(Number)
+    const ref = m === 1 ? `12/${a - 1}` : `${String(m - 1).padStart(2, '0')}/${a}`
+    anterior = s.relatorioMensalMei.find(i => i.mes_ref === ref) || null
+    contra = rotuloMes(ref)
+  } else {
+    const ant = String(Number(anoFiltroMensal.value) - 1)
+    anterior = somarItens(s.relatorioMensalMei.filter(i => i.mes_ref.endsWith(`/${ant}`)))
+    contra = ant
+  }
+  const base = Number(anterior?.receitas_mei || 0)
+  if (!(base > 0)) return null
+  return { pct: Math.round(((Number(resumo.value.receitas_mei || 0) - base) / base) * 100), contra }
+})
+
+// Como a entrada foi usada: negócio × pessoal × o que sobrou
+const uso = computed(() => {
+  const r = resumo.value
+  if (!r) return null
+  const op = Number(r.saidas_operacionais || 0), pes = Number(r.saidas_pessoais || 0), sobra = Math.max(0, Number(r.saldo_mes || 0))
+  const total = op + pes + sobra
+  if (total <= 0) return null
+  return { op: Math.round((op / total) * 100), pes: Math.round((pes / total) * 100), sobra: Math.round((sobra / total) * 100), deficit: Number(r.saldo_mes || 0) < 0 }
+})
+
+// ── Receita MEI: quanto foi fiado e quanto foi à vista (vem da conciliação do extrato) ──
+const canaisPorMes = ref({}) // 'AAAA-MM' -> { fiado, provavel, avista }
+async function carregarCanais() {
+  try {
+    const [f, c, ign] = await Promise.all([db.cad_fiados.toArray(), db.cad_clientes.toArray(), configGet('conciliacao_ignorados', [])])
+    const entradas = s.financeiro.filter(e => e.categoria === 'Receita de Vendas' && Number(e.valor) > 0)
+    const r = conciliar({ entradas, fiados: f, clientes: c, ignorados: Array.isArray(ign) ? ign : [], hoje: hoje() })
+    canaisPorMes.value = Object.fromEntries(r.meses.map(m => [m.mes, m]))
+  } catch (e) { console.error('Resumo mensal: não deu para separar fiado e à vista', e) }
+}
+watch(abaAtiva, (a) => { if (a === 'mensal') carregarCanais() }, { immediate: true })
+const canalTexto = computed(() => {
+  const meses = modoMensal.value === 'mes' ? [mesFiltroMensal.value] : mesesDisponiveis.value.filter(m => m.endsWith(`/${anoFiltroMensal.value}`))
+  let fiado = 0, provavel = 0, avista = 0
+  for (const m of meses) {
+    const [mm, aa] = String(m).split('/')
+    const c = canaisPorMes.value[`${aa}-${mm}`]
+    if (c) { fiado += c.fiado; provavel += c.provavel; avista += c.avista }
+  }
+  if (fiado + provavel + avista <= 0) return ''
+  const partes = []
+  if (fiado > 0) partes.push(`fiado ${Rs(fiado)}`)
+  if (avista > 0) partes.push(`à vista ${Rs(avista)}`)
+  if (provavel > 0) partes.push(`talvez fiado ${Rs(provavel)}`)
+  return partes.join(' · ')
+})
+
+// ── Ano: gráfico e lista compacta dos meses ──
+const MESES_LETRA = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']
+const grafico = computed(() => {
+  if (modoMensal.value !== 'ano') return null
+  const porMes = new Map(relatorioMensalFiltrado.value.map(i => [Number(i.mes_ref.split('/')[0]), i]))
+  const W = 340, H = 150, L = 4, Rr = 4, T = 18, B = 22
+  const slot = (W - L - Rr) / 12, bw = Math.min(10, slot / 2 - 1.5), ch = H - T - B
+  const val = (i) => [Number(i?.receitas_mei || 0), Number(i?.saidas_operacionais || 0) + Number(i?.saidas_pessoais || 0)]
+  const max = Math.max(1, ...[...porMes.values()].flatMap(val))
+  const barras = []
+  for (let m = 1; m <= 12; m++) {
+    const i = porMes.get(m); const [r, d] = val(i); const cx = L + (m - 1) * slot + slot / 2
+    barras.push({ m, ref: `${String(m).padStart(2, '0')}/${anoFiltroMensal.value}`, tem: !!i, letra: MESES_LETRA[m - 1], cx,
+      rx: cx - bw - 1, dx: cx + 1, w: bw, rh: (r / max) * ch, dh: (d / max) * ch, base: T + ch, slotX: cx - slot / 2, slot })
+  }
+  return { W, H, T, ch, max, barras }
+})
+const verTodosMeses = ref(false)
+const mesesDoAno = computed(() => [...relatorioMensalFiltrado.value]
+  .sort((a, b) => Number(b.mes_ref.split('/')[0]) - Number(a.mes_ref.split('/')[0]))
+  .map(i => ({ ref: i.mes_ref, nome: NOMES_MES[Number(i.mes_ref.split('/')[0]) - 1], receita: Number(i.receitas_mei || 0),
+    despesa: Number(i.saidas_operacionais || 0) + Number(i.saidas_pessoais || 0), sobra: Number(i.saldo_mes || 0) })))
+const mesesDoAnoVisiveis = computed(() => (verTodosMeses.value ? mesesDoAno.value : mesesDoAno.value.slice(0, 6)))
 
 function resumoBancoPorPeriodo(banco, ano, mes = '') {
   const items = s.financeiro.filter(i => {
@@ -1388,26 +1498,50 @@ function resumoBancoPorPeriodo(banco, ano, mes = '') {
   return { receitas: entradas, saidas, saldo }
 }
 
-const resumoBancoPagbank = computed(() => resumoBancoPorPeriodo('pagbank', anoFiltroMensal.value, mesFiltroMensal.value))
-const resumoBancoItau    = computed(() => resumoBancoPorPeriodo('itau',    anoFiltroMensal.value, mesFiltroMensal.value))
+// Bancos do período (só os configurados ou que tiveram movimento)
+const BANCOS_RESUMO = [
+  { id: 'pagbank', nome: 'PagBank', icon: 'fa-mobile-screen', tem: temContasPagbank },
+  { id: 'itau', nome: 'Itaú', icon: 'fa-building-columns', tem: temContasItau },
+  { id: 'bb', nome: 'Banco do Brasil', icon: 'fa-landmark', tem: temContasBb },
+]
+const bancosResumo = computed(() => BANCOS_RESUMO
+  .map(b => ({ ...b, ...resumoBancoPorPeriodo(b.id, anoFiltroMensal.value, mesFiltroMensal.value) }))
+  .filter(b => b.tem.value || b.receitas || b.saidas))
 
-const categoriasPorAno = computed(() => {
-  const map = new Map()
-  s.financeiro
-    .filter(i => {
-      const aMatch = (i.data || '').startsWith(anoFiltroMensal.value)
-      const mMatch = mesFiltroMensal.value ? i.mes_ref === mesFiltroMensal.value : true
-      return aMatch && mMatch
-    })
-    .forEach(i => {
-      const chave = i.categoria || 'Sem categoria'
-      if (!map.has(chave)) map.set(chave, { categoria: chave, total: 0, quantidade: 0, natureza: i.natureza || '' })
-      const a = map.get(chave)
-      a.total += Math.abs(i.valor)
-      a.quantidade += 1
-    })
-  return [...map.values()].sort((a, b) => b.total - a.total)
+// ── Categorias do período (transferências entre contas próprias ficam de fora) ──
+const catTipo = ref('saidas') // 'saidas' | 'entradas'
+const verTodasCats = ref(false)
+watch(catTipo, () => { verTodasCats.value = false })
+const categoriasPorDirecao = computed(() => {
+  const mapas = { entradas: new Map(), saidas: new Map() }
+  s.financeiro.forEach(i => {
+    if ((i.natureza || '') === 'interna') return
+    if (!(i.data || '').startsWith(anoFiltroMensal.value)) return
+    if (mesFiltroMensal.value && i.mes_ref !== mesFiltroMensal.value) return
+    const mapa = Number(i.valor) >= 0 ? mapas.entradas : mapas.saidas
+    const chave = i.categoria || 'Sem categoria'
+    if (!mapa.has(chave)) mapa.set(chave, { categoria: chave, total: 0, quantidade: 0 })
+    const a = mapa.get(chave); a.total += Math.abs(Number(i.valor)); a.quantidade += 1
+  })
+  const fechar = (m) => {
+    const lista = [...m.values()].sort((a, b) => b.total - a.total)
+    const soma = lista.reduce((x, c) => x + c.total, 0) || 1
+    return lista.map(c => ({ ...c, pct: Math.round((c.total / soma) * 100) }))
+  }
+  return { entradas: fechar(mapas.entradas), saidas: fechar(mapas.saidas) }
 })
+const catLista = computed(() => categoriasPorDirecao.value[catTipo.value])
+const catVisiveis = computed(() => (verTodasCats.value ? catLista.value : catLista.value.slice(0, 5)))
+
+// Abre as Movimentações já filtradas (mesmo mês, e categoria ou banco tocado)
+function verMovimentacoes({ categoria = '', banco = '' } = {}) {
+  limparFiltros()
+  filtroCategoria.value = categoria
+  filtroBanco.value = banco
+  filtroMes.value = modoMensal.value === 'mes' ? mesFiltroMensal.value : ''
+  abaAtiva.value = 'lancamentos'
+  nextTick(() => window.scrollTo?.({ top: 0 }))
+}
 
 // ── Anual ──
 const anoRelAnual = ref(String(new Date().getFullYear()))
@@ -2398,103 +2532,90 @@ onMounted(() => s.carregarFinanceiro())
 /* ══════════════════════════════════════════════════════════════
    Financeiro › Mensal — visual novo (classes mn-*, só desta aba)
 ══════════════════════════════════════════════════════════════ */
-.mn-pagina { gap: 20px; }
-.mn-pagina .c-green, .mn-pagina .c-red, .mn-pagina .c-blue, .mn-pagina .c-purple { font-variant-numeric: tabular-nums; }
+
+
 
 /* Período */
-.mn-periodo { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); }
-.mn-campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.mn-campo--ano { flex: 0 0 76px; }
-.mn-campo--mes { flex: 1 1 200px; }
-.mn-label { font-size: .78rem; font-weight: 700; color: var(--muted); }
-.mn-select {
-  width: 100%; height: 48px; padding: 0 22px 0 9px; font-family: var(--font); font-size: .9rem; font-weight: 700; color: var(--brown-dark);
-  background-color: var(--cream); border: 1.5px solid var(--border); border-radius: var(--r-sm); cursor: pointer;
-  -webkit-appearance: none; appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238c7260' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 7px center; background-size: 10px;
-}
-.mn-select:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 1px; }
-.mn-mes { display: flex; align-items: center; gap: 5px; }
-.mn-mes .mn-select { flex: 1; min-width: 0; }
-.mn-seta {
-  width: 44px; height: 48px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-  color: var(--brown-mid); font-size: .9rem; background: var(--cream); border: 1.5px solid var(--border); border-radius: var(--r-sm); cursor: pointer;
-}
-.mn-seta:active:not(:disabled) { background: var(--cream-deep); }
-.mn-seta:disabled { opacity: .35; cursor: default; }
-.mn-seta:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 1px; }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Blocos */
-.mn-bloco { display: flex; flex-direction: column; gap: 10px; }
-.mn-bloco-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 2px; }
-.mn-bloco-titulo { margin: 0; font-size: 1.02rem; font-weight: 800; color: var(--brown-dark); }
-.mn-bloco-sub { font-size: .8rem; font-weight: 600; color: var(--muted); }
-.mn-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
-.mn-vazio { margin: 0; padding: 22px 16px; text-align: center; font-size: .86rem; line-height: 1.5; color: var(--muted); }
 
-.mn-ponto { width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; background: var(--border2); }
-.mn-ponto--verde { background: var(--green); }
-.mn-ponto--vermelho { background: var(--red); }
+
+
+
+
+
+
+
+
+
 
 /* Por banco */
-.mn-banco { padding: 14px 16px; border-top: 1px solid var(--border); }
-.mn-banco:first-child { border-top: none; }
-.mn-banco-topo { display: flex; align-items: center; gap: 12px; }
-.mn-tile { width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: var(--r-md); font-size: 1.05rem; }
-.mn-tile--pagbank { background: var(--gold-bg); color: var(--gold-dark); }
-.mn-tile--itau { background: var(--orange-bg); color: var(--orange); }
-.mn-banco-nome { flex: 1; min-width: 0; font-size: .98rem; font-weight: 800; color: var(--brown-dark); }
-.mn-banco-saldo { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
-.mn-banco-saldo strong { font-family: var(--mono); font-size: 1.12rem; font-weight: 800; }
-.mn-mini-lbl { font-size: .72rem; font-weight: 700; color: var(--muted); }
-.mn-banco-det { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-.mn-banco-det > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: var(--bg); border-radius: var(--r-sm); }
-.mn-banco-det span { font-size: .76rem; font-weight: 600; color: var(--muted); }
-.mn-banco-det strong { font-family: var(--mono); font-size: .92rem; font-weight: 800; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Card do mês */
-.mn-mes-card { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-.mn-mes-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.mn-mes-nome { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--brown-dark); }
-.mn-chip { padding: 4px 10px; border-radius: var(--r-full); background: var(--cream); color: var(--muted); font-size: .76rem; font-weight: 700; white-space: nowrap; }
-.mn-destaque { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 14px 12px; border-radius: var(--r-md); text-align: center; }
-.mn-destaque--ok { background: var(--green-bg); color: var(--green); }
-.mn-destaque--neg { background: var(--red-bg); color: var(--red); }
-.mn-destaque-lbl { font-size: .84rem; font-weight: 700; }
-.mn-destaque-valor { font-family: var(--mono); font-size: 1.75rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
 
-.mn-linhas { display: flex; flex-direction: column; }
-.mn-linha { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 2px; border-top: 1px solid var(--border); }
-.mn-linhas .mn-linha:first-child { border-top: none; }
-.mn-linha-lbl { flex: 1; min-width: 0; font-size: .9rem; font-weight: 600; color: var(--text); }
-.mn-linha strong { font-family: var(--mono); font-size: .9rem; font-weight: 800; flex-shrink: 0; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Composição (aberta sob demanda) */
-.mn-toggle {
-  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 46px; padding: 10px 12px;
-  font-family: var(--font); font-size: .88rem; font-weight: 700; color: var(--brown-mid);
-  background: var(--cream); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;
-}
-.mn-toggle:active { background: var(--cream-deep); }
-.mn-toggle:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: 1px; }
-.mn-toggle-seta { font-size: .7rem; margin-left: 2px; }
-.mn-detalhe { display: flex; flex-direction: column; gap: 12px; }
-.mn-grupo { padding: 12px; background: var(--bg); border-radius: var(--r-md); }
-.mn-grupo-titulo { margin-bottom: 4px; font-size: .78rem; font-weight: 800; color: var(--muted); }
-.mn-linha--simples { min-height: 38px; padding: 6px 0; border-top: 1px solid rgba(0, 0, 0, .05); }
-.mn-grupo-titulo + .mn-linha--simples { border-top: none; }
-.mn-linha--total { margin-top: 4px; border-top: 1px solid var(--border2); }
-.mn-linha--total .mn-linha-lbl { font-weight: 800; color: var(--brown-dark); }
+
+
+
+
+
+
+
+
+
+
+
 
 /* Por categoria */
-.mn-cat { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border); }
-.mn-cat:first-child { border-top: none; }
-.mn-cat-txt { flex: 1; min-width: 0; }
-.mn-cat-nome { font-size: .94rem; font-weight: 700; color: var(--brown-dark); overflow-wrap: anywhere; }
-.mn-cat-sub { margin-top: 2px; font-size: .78rem; color: var(--muted); }
-.mn-cat-valor { flex-shrink: 0; font-family: var(--mono); font-size: .95rem; font-weight: 800; }
-@media (prefers-reduced-motion: reduce) { .mn-seta, .mn-toggle { transition: none; } }
+
+
+
+
+
+
+
 
 /* ── Movimentações: valor da linha e conta por extenso ── */
 .lancamentos-list .row-right { font-family: var(--mono); font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -2717,4 +2838,110 @@ html.is-desktop .lancamentos-list .fl-banco-sigla { display: inline; }
 .mv-chip.ativo { background: var(--brown); border-color: var(--brown); color: #fff; }
 .mv-cats { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .mv-foot-ver { flex: 1; }
+
+/* ───────── Resumo Mensal ───────── */
+.rs-pagina { gap: 14px; }
+.rs-periodo { display: flex; flex-direction: column; gap: 10px; }
+.rs-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--cream-deep); border-radius: var(--r-full); }
+.rs-seg--mini { width: 168px; flex-shrink: 0; }
+.rs-seg-btn { min-height: 40px; padding: 0 10px; border: 0; border-radius: var(--r-full); background: transparent; font-family: var(--font); font-size: .86rem; font-weight: 700; color: var(--muted); cursor: pointer; transition: background var(--t), color var(--t); }
+.rs-seg--mini .rs-seg-btn { min-height: 34px; font-size: .78rem; }
+.rs-seg-btn.ativo { background: var(--surface); color: var(--brown-dark); box-shadow: 0 1px 3px rgba(61,31,7,.12); }
+.rs-nav { display: flex; align-items: center; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); padding: 4px 6px; }
+.rs-nav-btn { flex-shrink: 0; width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--brown-mid); font-size: .85rem; cursor: pointer; }
+.rs-nav-btn:active:not(:disabled) { background: var(--cream-deep); }
+.rs-nav-btn:disabled { opacity: .25; cursor: default; }
+.rs-nav-centro { position: relative; flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1.05rem; font-weight: 800; color: var(--brown-dark); }
+.rs-nav-caret { font-size: .62rem; color: var(--muted); }
+.rs-nav-centro select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
+
+.rs-vazio { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 32px 16px; text-align: center; color: var(--muted); background: var(--surface); border: 1px dashed var(--border); border-radius: var(--r-md); font-size: .85rem; }
+.rs-vazio i { font-size: 28px; color: var(--gold-dark); } .rs-vazio b { color: var(--brown-dark); font-size: .95rem; }
+
+.rs-hero { padding: 16px; border-radius: var(--r-md); color: #fff; box-shadow: var(--shadow); background: linear-gradient(135deg, var(--green), #2f6b3e); }
+.rs-hero.neg { background: linear-gradient(135deg, #b23b2e, var(--red)); }
+.rs-hero-rot { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.8); }
+.rs-hero-val { margin-top: 2px; font-family: var(--mono); font-size: 2rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.rs-var { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 4px 11px; border-radius: 99px; font-size: .76rem; font-weight: 800; background: rgba(255,255,255,.18); }
+.rs-var.neutro { font-weight: 600; background: rgba(0,0,0,.14); }
+.rs-conta { margin: 10px 0 0; font-size: .74rem; line-height: 1.4; color: rgba(255,255,255,.78); }
+
+.rs-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); padding: 4px 14px 6px; }
+.rs-linha { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.rs-linha-txt { min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: .92rem; font-weight: 700; color: var(--brown-dark); }
+.rs-linha-txt small { font-size: .74rem; font-weight: 500; color: var(--muted); line-height: 1.35; }
+.rs-linha b { flex-shrink: 0; font-family: var(--mono); font-size: .98rem; font-variant-numeric: tabular-nums; }
+.rs-ponto { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; }
+.rs-ponto.verde { background: var(--green); } .rs-ponto.vermelho { background: var(--red); }
+
+.rs-uso { padding: 12px 0 4px; }
+.rs-uso-barra { display: flex; height: 10px; border-radius: 99px; overflow: hidden; background: var(--cream-deep); }
+.rs-uso-barra span { display: block; height: 100%; }
+.u-op { background: var(--brown); } .u-pes { background: var(--orange); } .u-sobra { background: var(--green); }
+.rs-uso-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: .74rem; color: var(--muted); }
+.rs-uso-leg span { display: inline-flex; align-items: center; gap: 5px; }
+.rs-uso-leg i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.rs-uso-leg .deficit { color: var(--red); font-weight: 800; }
+
+.rs-toggle { width: 100%; min-height: 44px; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-top: 1px solid var(--border); background: none; font-family: var(--font); font-size: .82rem; font-weight: 800; color: var(--brown); cursor: pointer; }
+.rs-toggle i { font-size: .65rem; }
+.rs-detalhe { padding: 4px 0 8px; }
+.rs-det-linha { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; font-size: .84rem; color: var(--brown-dark); }
+.rs-det-linha.sub { padding-left: 14px; font-size: .8rem; color: var(--muted); }
+.rs-det-linha b { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.rs-det-linha.total { margin-top: 2px; border-top: 1px dashed var(--border); font-weight: 800; }
+.rs-det-sep { height: 1px; margin: 6px 0; background: var(--border); }
+.rs-det-nota { margin: 4px 0 0; font-size: .74rem; line-height: 1.45; color: var(--muted); }
+
+.rs-bloco-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.rs-bloco-tit { padding: 0 2px; margin-bottom: 8px; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.rs-bloco-cab .rs-bloco-tit { margin-bottom: 0; }
+.rs-nada { padding: 16px; text-align: center; font-size: .85rem; color: var(--muted); background: var(--surface); border: 1px dashed var(--border); border-radius: var(--r-md); }
+
+.rs-grafico-box { padding: 10px 10px 8px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); }
+.rs-grafico { display: block; width: 100%; height: auto; font-family: var(--font); }
+.rs-grafico .max { font-size: 9px; fill: var(--muted); font-family: var(--mono); }
+.rs-grafico .base { stroke: var(--border); stroke-width: 1; }
+.rs-grafico .mes { font-size: 10px; font-weight: 700; fill: var(--muted); }
+.rs-grafico .hit { fill: transparent; }
+.rs-grafico .col:not(.vazio) { cursor: pointer; }
+.rs-grafico .col.vazio .mes { opacity: .4; }
+.rs-grafico .b-rec, .rs-leg i.b-rec { fill: var(--green); background: var(--green); }
+.rs-grafico .b-desp, .rs-leg i.b-desp { fill: var(--red); background: var(--red); opacity: .85; }
+.rs-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: .72rem; color: var(--muted); }
+.rs-leg span { display: inline-flex; align-items: center; gap: 5px; }
+.rs-leg i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.rs-leg .dica { margin-left: auto; font-style: italic; }
+.rs-meses { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.rs-mes { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'nome sobra' 'rec desp'; gap: 2px 10px; width: 100%; padding: 10px 12px; text-align: left; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); font-family: var(--font); cursor: pointer; }
+.rs-mes:active { background: var(--cream); }
+.rs-mes-nome { grid-area: nome; font-weight: 800; font-size: .92rem; color: var(--brown-dark); }
+.rs-mes-sobra { grid-area: sobra; text-align: right; font-family: var(--mono); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.rs-mes-rec { grid-area: rec; font-size: .76rem; color: var(--green); font-family: var(--mono); }
+.rs-mes-desp { grid-area: desp; text-align: right; font-size: .76rem; color: var(--red); font-family: var(--mono); }
+
+.rs-cats { display: flex; flex-direction: column; gap: 6px; }
+.rs-cat { display: grid; grid-template-columns: 1fr auto 14px; grid-template-areas: 'info valor chev' 'barra barra barra'; align-items: center; gap: 6px 10px; width: 100%; padding: 11px 12px 10px; text-align: left; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); font-family: var(--font); cursor: pointer; }
+.rs-cat:active { background: var(--cream); }
+.rs-cat-info { grid-area: info; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rs-cat-nome { font-weight: 800; font-size: .9rem; color: var(--brown-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rs-cat-sub { font-size: .72rem; color: var(--muted); }
+.rs-cat-valor { grid-area: valor; font-family: var(--mono); font-size: .92rem; color: var(--brown-dark); font-variant-numeric: tabular-nums; }
+.rs-cat-chev { grid-area: chev; font-size: .65rem; color: var(--muted); }
+.rs-cat-barra { grid-area: barra; display: block; height: 6px; border-radius: 99px; background: var(--cream-deep); overflow: hidden; }
+.rs-cat-barra i { display: block; height: 100%; border-radius: 99px; }
+.rs-cat-barra i.saidas { background: var(--red); opacity: .75; } .rs-cat-barra i.entradas { background: var(--green); }
+
+.rs-mais { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 8px; padding: 11px; border: 1.5px dashed var(--border); border-radius: var(--r-md); background: transparent; font-family: var(--font); font-size: .82rem; font-weight: 700; color: var(--brown); cursor: pointer; }
+.rs-mais i { font-size: .7rem; }
+
+.rs-bancos { display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 420px) { .rs-bancos { grid-template-columns: 1fr 1fr; } }
+.rs-banco { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; text-align: left; background: var(--surface); border: 1.5px solid var(--border); border-left-width: 4px; border-radius: var(--r-md); font-family: var(--font); cursor: pointer; }
+.rs-banco:active { background: var(--cream); }
+.rs-banco.b-pagbank { border-left-color: var(--green); } .rs-banco.b-itau { border-left-color: var(--orange); } .rs-banco.b-bb { border-left-color: #185FA5; }
+.rs-banco-nome { font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.rs-banco-nome i { margin-right: 5px; }
+.rs-banco b { font-family: var(--mono); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.rs-banco small { font-size: .74rem; color: var(--muted); }
 </style>

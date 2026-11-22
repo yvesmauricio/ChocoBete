@@ -62,7 +62,7 @@
           :id="r.uuid"
           @click="abrir(r)"
           :chevron="false"
-          :actions-width="ehTrufa(r) ? 420 : 350"
+          :titulo="r.nome"
         >
           <template #icon>
             <div class="recipe-icon" :class="r.eh_intermediaria ? 'badge-blue' : 'badge-gold'">
@@ -95,7 +95,7 @@
             </div>
           </template>
 
-          <!-- Ações de swipe -->
+          <!-- Ações da linha (botão ⋯ abre a folha; no desktop aparecem ao passar o mouse) -->
           <template #actions>
             <button class="swipe-btn edit" @click="abrir(r)">
               <i class="fas fa-pencil"></i>

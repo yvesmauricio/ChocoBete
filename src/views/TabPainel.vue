@@ -295,13 +295,13 @@
           Lista vazia. Toque em <strong>+</strong> para adicionar um item, ou em "Atualizar sugestões" pra puxar da sua produção recente.
         </div>
 
-        <!-- Lista com swipe -->
+        <!-- Lista com menu de ações (⋯) -->
         <div v-else class="lc-lista">
           <SwipeRow
             v-for="item in listaCompras"
             :key="item.id"
             :rowId="item.id"
-            :width="item.origem === 'auto' ? 128 : 64"
+            :titulo="item.nome"
           >
             <!-- Conteúdo principal -->
             <!-- Conteúdo principal -->
@@ -353,7 +353,7 @@
               </div>
             </div>
 
-            <!-- Ações reveladas pelo swipe -->
+            <!-- Ações da folha (⋯) -->
             <template #actions>
               <button v-if="item.origem === 'auto'" class="sw-btn sw-btn-ignore" @click.stop="ignorarSugestao(item)">
                 <i class="fas fa-eye-slash"></i>

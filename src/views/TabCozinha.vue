@@ -4,6 +4,9 @@
       <div class="tab-hdr-top">
         <h2 class="tab-title"><i class="fas fa-utensils"></i> Cozinha</h2>
         <div class="tab-actions">
+          <button class="btn-icon filtro-toggle-btn" :class="{ active: buscaAberta || busca }" title="Buscar receita" @click="alternarBusca">
+            <i class="fas fa-search"></i>
+          </button>
           <button v-if="ingredientesAgrupados.length" class="btn-icon" title="Painel de pesagem" @click="painelPesagemAberto = true">
             <i class="fas fa-scale-balanced"></i>
           </button>
@@ -16,6 +19,11 @@
         </div>
       </div>
 
+      <div v-if="buscaAberta" class="search-wrap cz-busca">
+        <i class="fas fa-search search-icon"></i>
+        <input ref="buscaEl" v-model="busca" class="search-input" type="search" placeholder="Buscar receita…" />
+      </div>
+
       <!-- Barra de categorias — dentro do header para ficar grudada -->
       <div ref="chipsEl" class="cat-chips chips-padded" style="margin: 4px -16px 0; padding-bottom: 10px;">
         <button
@@ -24,8 +32,8 @@
           class="chip"
           :class="{ active: catAtiva === c }"
           :ref="el => setChipRef(el, c)"
-          @click="catAtiva = c"
-        >{{ c }}</button>
+          @click="catAtiva = c; busca = ''"
+        >{{ c === 'No lote' ? `No lote (${s.cozinhaLote.length})` : c }}</button>
       </div>
     </div>
     <div v-if="s.loteOriginalEmEdicao" class="edit-mode-notice">
@@ -42,40 +50,62 @@
       @touchcancel="resetTouch"
     >
       <div ref="gridEl" class="quick-add-grid">
-        <button
+        <div
           v-for="r in receitasFiltradas"
           :key="r.uuid"
-          class="qa-btn no-select sticky-touch"
-          :class="{ 
-            'qa-btn--inlote': qtdNoLote[r.uuid],
-            'is-pulsing': stepper.visible && stepper.receita?.uuid === r.uuid
-          }"
-          @click="onBtnClick(r, $event)"
-          @pointerdown="iniciarLongPress(r, $event)"
-          @pointerup="cancelarLongPress"
-          @pointercancel="cancelarLongPress"
-          @contextmenu.prevent
+          class="qa-card no-select"
+          :class="[catClasse(r), { 'qa-card--inlote': qtdItem(r) }]"
+          role="button"
+          tabindex="0"
+          @click="onCardClick(r, $event)"
+          @keydown.enter.self.prevent="onCardClick(r, $event)"
         >
-          <span v-if="qtdNoLote[r.uuid]" class="qa-badge">{{ qtdNoLote[r.uuid] }}</span>
-          <span class="qa-name" :style="qaNomeEstilo(r.nome)">{{ r.nome }}</span>
-          <div v-if="normalizar(r.nome).includes('trufa')" class="badge-shortcut">+1 Forma</div>
-          <div v-else class="badge-shortcut">+{{ r.rendimento }} {{ r.unidade_rendimento }}</div>
-        </button>
+          <div class="qa-top">
+            <div class="qa-ico"><i class="fas" :class="iconeReceita(r)"></i></div>
+            <div class="qa-txt">
+              <span class="qa-name" :style="qaNomeEstilo(r.nome)">{{ r.nome }}</span>
+              <span class="qa-passo">{{ rotuloPasso(r) }}</span>
+            </div>
+          </div>
+
+          <!-- Já no lote: ajuste de quantidade no próprio card -->
+          <div v-if="qtdItem(r)" class="qa-ctrl" @click.stop>
+            <div class="qa-stepper">
+              <button type="button" class="qa-step-btn" :aria-label="`Diminuir ${getPassoProducao(r)}`" @click="diminuirPasso(r)">−{{ getPassoProducao(r) }}</button>
+              <div class="qa-qtd">
+                <input
+                  type="number"
+                  class="qa-qtd-input"
+                  :value="qtdItem(r)"
+                  inputmode="decimal"
+                  :aria-label="`Quantidade de ${r.nome}`"
+                  @focus="$event.target.select()"
+                  @change="e => editarQtdCard(r, e.target.value)"
+                />
+                <small>{{ r.unidade_rendimento || 'un' }}</small>
+              </div>
+              <button type="button" class="qa-step-btn qa-step-btn--mais" :aria-label="`Aumentar ${getPassoProducao(r)}`" @click="aumentarPasso(r, $event)">+{{ getPassoProducao(r) }}</button>
+            </div>
+            <!-- Ajuste fino: tirar uma unidade por vez -->
+            <button v-if="getPassoProducao(r) > 1" type="button" class="qa-fine" aria-label="Diminuir 1 unidade" @click="diminuirUm(r)">
+              <i class="fas fa-minus"></i> 1 {{ r.unidade_rendimento || 'un' }}
+            </button>
+          </div>
+          <div v-else class="qa-add"><i class="fas fa-plus"></i> Toque para adicionar</div>
+        </div>
+
+        <div v-if="!receitasFiltradas.length" class="qa-vazio">
+          {{ busca ? 'Nenhuma receita encontrada.' : catAtiva === 'No lote' ? 'Nenhuma receita no lote ainda.' : 'Nenhuma receita nesta categoria.' }}
+        </div>
       </div>
 
       <div v-if="s.cozinhaLote.length" class="batch-content">
-        <div class="section-label"><i class="fas fa-clipboard-list"></i> Modelagem da Produção</div>
+        <div class="section-label"><i class="fas fa-clipboard-list"></i> Ingredientes por receita</div>
 
         <div class="planned-items">
           <div v-for="(item, idx) in s.cozinhaLote" :key="idx" class="plan-group">
-            <div 
-              class="plan-card no-select sticky-touch"
-              :class="{ 'is-pulsing': stepper.visible && stepper.receita?.uuid === item.receita_id }"
-              @pointerdown="iniciarLongPress({ uuid: item.receita_id, nome: item.nome }, $event)"
-              @pointerup="cancelarLongPress"
-              @pointercancel="cancelarLongPress"
-            >
-              <div class="plan-info" @click="toggleItemProducao(item)">
+            <div class="plan-card no-select" @click="toggleItemProducao(item)">
+              <div class="plan-info">
                 <div class="plan-name">
                   <i class="fas" :class="item.aberto ? 'fa-chevron-down' : 'fa-chevron-right'" style="font-size: 0.7rem; margin-right: 4px; color: var(--gold-dark)"></i>
                   {{ item.nome }}
@@ -83,11 +113,6 @@
                 <div class="plan-sub">
                   <strong style="color: var(--brown-dark)">{{ fmtQ(item.peso_total, 'g') }}</strong> • {{ item.qtd_produzir }} {{ item.unidade }}
                 </div>
-              </div>
-              <div class="qty-ctrl-sm">
-                <button class="btn-qty-sm" @click="ajustarQtd(idx, -1)">-</button>
-                <input type="number" class="qty-input-cozinha" :value="item.qtd_produzir" @change="e => atualizarQtdManual(idx, e.target.value)" inputmode="decimal" />
-                <button class="btn-qty-sm" @click="ajustarQtd(idx, 1)">+</button>
               </div>
             </div>
             <div v-if="item.aberto" class="plan-details">
@@ -148,6 +173,18 @@
 
     <!-- ── Ações do lote — fixas no rodapé, sempre visíveis (sem depender de rolagem) ── -->
     <div v-if="s.cozinhaLote.length" :class="s.loteOriginalEmEdicao ? 'cozinha-actions-fixa' : 'cozinha-actions-fixa cozinha-actions-fixa--grid'">
+      <button type="button" class="cz-resumo" @click="painelPesagemAberto = true" aria-label="Ver total para pesar">
+        <span class="cz-resumo-txt">
+          <strong>{{ s.cozinhaLote.length }} {{ s.cozinhaLote.length === 1 ? 'receita' : 'receitas' }}</strong>
+          <small>
+            <template v-if="resumoLote.peso > 0">{{ fmtQ(resumoLote.peso, 'g') }}</template>
+            <template v-if="resumoLote.peso > 0 && tempoEstimadoLote > 0"> · </template>
+            <template v-if="tempoEstimadoLote > 0">~{{ fmtTime(tempoEstimadoLote) }}</template>
+            <template v-if="!(resumoLote.peso > 0) && !(tempoEstimadoLote > 0)">toque para ver o total a pesar</template>
+          </small>
+        </span>
+        <span class="cz-resumo-link">Ver pesagem <i class="fas fa-chevron-up"></i></span>
+      </button>
       <button v-if="!s.loteOriginalEmEdicao" class="btn btn-secondary btn-lg" @click="finalizarLote(true)">
         <i class="fas fa-calendar-plus"></i> Agendar
       </button>
@@ -164,22 +201,6 @@
     class="feedback-float"
     :style="{ left: fb.x + 'px', top: fb.y + 'px' }"
   >{{ fb.text }}</div>
-</Teleport>
-
-<!-- MELHORIA 1: Mini Stepper Flutuante (long press) -->
-<Teleport to="body">
-  <Transition name="stepper-anim">
-    <div
-      v-if="stepper.visible"
-      class="stepper-popup"
-      :class="'arrow-' + stepper.arrowDir"
-      :style="{ left: stepper.x + 'px', top: stepper.y + 'px' }"
-    >
-      <button class="stepper-btn" @pointerdown.prevent="iniciarHoldMenos" @pointerup="pararHold" @pointerleave="pararHold">−</button>
-      <span class="stepper-val">{{ stepper.qtd }}</span>
-      <button class="stepper-btn" @click="stepperAjustar(1)">+</button>
-    </div>
-  </Transition>
 </Teleport>
 
 <!-- ── Painel de pesagem — somente leitura ── -->
@@ -239,7 +260,7 @@
 
 <script setup>
 import '../assets/checklist.css'
-import { ref, computed, reactive, watch, nextTick, onUnmounted, onMounted, inject } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, inject } from 'vue'
 import { useStore } from '../store.js'
 import SubComposicao from '../components/SubComposicao.vue'
 import { fmtQtd as fmtQ, getNowLocal, normalizar, dataHoraBR } from '../utils.js' // Corrected import
@@ -284,36 +305,12 @@ const tempoEstimadoLote = computed(() => {
   return Math.round(total)
 })
 
-const categorias = ['Todas', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base', 'Presentes', 'Festa']
+const categorias = ['Todas', 'No lote', 'Trufa', 'Cone', 'Barra', 'Brownie', 'Bolo', 'Ovo', 'Base', 'Presentes', 'Festa']
 const catAtiva = ref('Trufa')
 const chipsEl = ref(null)
 const chipRefs = ref({})
 const touchStartX = ref(0)
 const touchStartY = ref(0)
-
-const holdInterval = ref(null)
-const blockClick = ref(false) 
-const holdSpeed = ref(300)
-
-function iniciarHoldMenos() {
-  if (!stepper.receita) return
-  holdSpeed.value = 300
-  holdInterval.value = -1 // Marca como ativo antes de começar
-  function tick() {
-    if (holdInterval.value === null) return // Se foi parado, não executa
-    stepperAjustar(-1)
-    if (holdInterval.value === null) return // Se o ajuste zerou a qtd e parou o hold, interrompe o loop
-    // aceleração progressiva
-    holdSpeed.value = Math.max(60, holdSpeed.value * 0.75)
-    holdInterval.value = setTimeout(tick, holdSpeed.value)
-  }
-  tick()
-}
-
-function pararHold() {
-  clearTimeout(holdInterval.value)
-  holdInterval.value = null
-}
 
 function ehTrufa(r) {
   return normalizar(r.categoria).includes('trufa') || normalizar(r.nome).includes('trufa')
@@ -341,7 +338,30 @@ function ehFesta(r) {
   return normalizar(r.tamanho) === 'festa'
 }
 
+// Busca (ícone de lupa no cabeçalho)
+const busca = ref('')
+const buscaAberta = ref(false)
+const buscaEl = ref(null)
+function alternarBusca() {
+  buscaAberta.value = !buscaAberta.value
+  if (buscaAberta.value) nextTick(() => buscaEl.value?.focus())
+  else busca.value = ''
+}
+
 const receitasFiltradas = computed(() => {
+  const termo = normalizar(busca.value || '').trim()
+  if (termo) {
+    return s.receitas
+      .filter(r => normalizar(r.nome).includes(termo))
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+  }
+
+  if (catAtiva.value === 'No lote') {
+    return s.receitas
+      .filter(r => qtdNoLote.value[r.uuid])
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+  }
+
   if (catAtiva.value === 'Todas') {
     return [...s.receitas].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
   }
@@ -372,19 +392,6 @@ const qtdNoLote = computed(() => {
 // MELHORIA 3: Estado dos feedbacks flutuantes
 const feedbacks = ref([])
 let _feedbackId = 0
-
-// MELHORIA 1: Estado do stepper flutuante
-const longPressTimer = ref(null)
-const longPressActive = ref(false)
-const stepper = reactive({
-  visible: false,
-  receita: null,
-  x: 0,
-  y: 0,
-  qtd: 0,
-  inactivityTimer: null,
-  arrowDir: 'down'
-})
 
 function setChipRef(el, categoria) {
   if (el) chipRefs.value[categoria] = el
@@ -446,7 +453,7 @@ function getPassoProducao(r) {
 
 // ─── MELHORIA 3: Feedback visual (+N un) ─────────────────────────────────
 function mostrarFeedback(r, e) {
-  const el = e.target.closest('.qa-btn')
+  const el = e.target.closest('.qa-card')
   if (!el) return
   const rect = el.getBoundingClientRect()
   const passo = getPassoProducao(r)
@@ -465,127 +472,71 @@ function mostrarFeedback(r, e) {
   }, 750)
 }
 
-// ─── MELHORIA 1: Long press → Stepper flutuante ───────────────────────────
-function onBtnClick(r, e) {
-  if (longPressActive.value || blockClick.value) {
-    e.preventDefault()
-    e.stopPropagation() // Impede que o clique se propague para outros elementos
-    return
-  }
+// ─── Cards: toque soma um passo; controles de quantidade no próprio card ───
+function qtdItem(r) { return qtdNoLote.value[r.uuid] || 0 }
+function idxNoLote(r) { return s.cozinhaLote.findIndex(i => i.receita_id === r.uuid) }
 
+function onCardClick(r, e) {
   adicionarAoLote(r)
   mostrarFeedback(r, e)
 }
 
-function iniciarLongPress(r, e) {
-  longPressActive.value = false
-
-  longPressTimer.value = setTimeout(() => {
-    longPressActive.value = true
-    abrirStepper(r, e)
-  }, 400)
-}
-
-function cancelarLongPress() {
-  clearTimeout(longPressTimer.value)
-
-  // 👇 NÃO reseta imediatamente
-  // deixa o click morrer antes
-  setTimeout(() => {
-    longPressActive.value = false
-    blockClick.value = false
-  }, 250)
-}
-
-function abrirStepper(r, e) {
-  if (navigator.vibrate) navigator.vibrate(10)
-
-  // Remove o listener anterior para evitar múltiplas ligações
-  document.removeEventListener('pointerdown', onDocPointerDown)
-
-  // Encontra o elemento interativo mais próximo (botão de adição rápida ou card do item planejado)
-  // Busca o elemento interativo (botão ou card)
-  const el = e.currentTarget || e.target.closest('.qa-btn, .plan-card')
-  if (!el) return
-
-  const rect = el.getBoundingClientRect()
-
-  stepper.receita = r
-  stepper.qtd = qtdNoLote.value[r.uuid] || 0
-
-  const popupWidth = 140 
-  const popupHeight = 54
-  const headerSafeZone = 120 // tab-hdr sticky (título + chips juntos)
-
-  stepper.x = Math.max(10, Math.min(rect.left + (rect.width / 2) - (popupWidth / 2), window.innerWidth - popupWidth - 10))
-  
-  const spaceAbove = rect.top - popupHeight - 15 // Aumentado para dar espaço à seta
-  if (spaceAbove > headerSafeZone) {
-    stepper.y = spaceAbove
-    stepper.arrowDir = 'down'
-  } else {
-    stepper.y = rect.bottom + 15
-    stepper.arrowDir = 'up'
-  }
-
-  stepper.visible = true
-  resetStepperInactivity()
-
-  document.addEventListener('pointerdown', onDocPointerDown)
-}
-
-function fecharStepper() {
-  stepper.visible = false
-  stepper.receita = null
-
-  clearTimeout(stepper.inactivityTimer)
-  document.removeEventListener('pointerdown', onDocPointerDown)
-  pararHold()
-
-  longPressActive.value = false
-
-  // 🔒 bloqueia click fantasma
-  blockClick.value = true
-  setTimeout(() => blockClick.value = false, 200)
-}
-
-function onDocPointerDown(e) {
-  if (!stepper.visible) return // 🔥 evita lixo pós-fechamento
-  if (!e.target.closest('.stepper-popup')) {
-    fecharStepper()
-  }
-}
-
-function stepperAjustar(delta) {
+function aumentarPasso(r, e) {
+  adicionarAoLote(r)
+  if (e) mostrarFeedback(r, e)
   if (navigator.vibrate) navigator.vibrate(5)
-  if (!stepper.receita) return
-  
-  // Busca a receita original para saber o "passo" (ex: 12 trufas)
-  const r = s.receitas.find(rec => rec.uuid === stepper.receita.uuid)
-  const passo = r ? getPassoProducao(r) : 1
-
-  if (delta > 0) {
-      adicionarAoLote(stepper.receita)
-  } else {
-    const idx = s.cozinhaLote.findIndex(i => i.receita_id === stepper.receita.uuid)
-    if (idx >= 0) ajustarQtd(idx, -passo) 
-  }
-  stepper.qtd = qtdNoLote.value[stepper.receita?.uuid] || 0
-  if (stepper.qtd === 0) {
-    pararHold() // 🔥 ADICIONA ISSO
-    fecharStepper()
-    return
-  }
-  resetStepperInactivity()
 }
 
-function resetStepperInactivity() {
-  clearTimeout(stepper.inactivityTimer)
-  stepper.inactivityTimer = setTimeout(fecharStepper, 2500)
+// Diminui um passo (uma forma / um rendimento). Zera → sai do lote.
+function diminuirPasso(r) {
+  const idx = idxNoLote(r)
+  if (idx >= 0) ajustarQtd(idx, -getPassoProducao(r))
+  if (navigator.vibrate) navigator.vibrate(5)
 }
+
+// Ajuste fino: tira uma unidade por vez.
+function diminuirUm(r) {
+  const idx = idxNoLote(r)
+  if (idx >= 0) ajustarQtd(idx, -1)
+  if (navigator.vibrate) navigator.vibrate(5)
+}
+
+function editarQtdCard(r, valor) {
+  const idx = idxNoLote(r)
+  if (idx >= 0) atualizarQtdManual(idx, valor)
+}
+
+// Aparência do card por categoria
+function catClasse(r) {
+  if (ehTrufa(r)) return ehFesta(r) ? 'cat-festa' : 'cat-trufa'
+  const c = normalizar(r.categoria)
+  const k = ['cone', 'barra', 'brownie', 'bolo', 'ovo', 'base', 'presentes'].find(x => c.includes(x))
+  return k ? `cat-${k}` : 'cat-outro'
+}
+
+const ICONES_CAT = {
+  'cat-trufa': 'fa-circle', 'cat-festa': 'fa-champagne-glasses', 'cat-cone': 'fa-ice-cream',
+  'cat-barra': 'fa-bars', 'cat-brownie': 'fa-cookie', 'cat-bolo': 'fa-cake-candles',
+  'cat-ovo': 'fa-egg', 'cat-base': 'fa-blender', 'cat-presentes': 'fa-gift', 'cat-outro': 'fa-cookie-bite'
+}
+function iconeReceita(r) {
+  if (r.eh_intermediaria) return 'fa-blender'
+  if (r.eh_kit) return 'fa-gift'
+  return ICONES_CAT[catClasse(r)] || 'fa-cookie-bite'
+}
+
+function rotuloPasso(r) {
+  const passo = getPassoProducao(r)
+  const un = r.unidade_rendimento || 'un'
+  return ehTrufa(r) ? `+1 forma (${passo} ${un})` : `+${passo} ${un}`
+}
+
+// Resumo do lote (barra fixa)
+const resumoLote = computed(() => ({
+  peso: s.cozinhaLote.reduce((acc, i) => acc + (i.peso_total || 0), 0)
+}))
 
 function toggleItemProducao(item) {
-  if (longPressActive.value) return
   item.aberto = !item.aberto
 }
 
@@ -874,7 +825,7 @@ watch(catAtiva, () => {
 .cozinha-body   { flex:1; }
 
 /* Reserva espaço para a barra de ações fixa não cobrir o fim do conteúdo */
-.cozinha-body--acao-fixa { padding-bottom: 150px; }
+.cozinha-body--acao-fixa { padding-bottom: 190px; }
 
 /* Barra de ações do lote — fixa no rodapé, acima da AppNav inferior,
    sempre visível (mesmo padrão usado na tela de Etiquetas). Evita que
@@ -891,6 +842,13 @@ watch(catAtiva, () => {
   z-index: calc(var(--z-header) + 1);
 }
 .cozinha-actions-fixa--grid { display: grid; grid-template-columns: 1fr 1.7fr; gap: 10px; }
+/* Resumo do lote no topo da barra fixa (abre o painel de pesagem) */
+.cz-resumo { grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; margin:0 0 10px; padding:2px 2px 8px; background:none; border:none; border-bottom:1px solid var(--border); text-align:left; cursor:pointer; font-family:var(--font); -webkit-tap-highlight-color:transparent; }
+.cz-resumo-txt { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.cz-resumo-txt strong { font-size:.95rem; font-weight:800; color:var(--brown-dark); }
+.cz-resumo-txt small { font-size:.74rem; font-weight:600; color:var(--muted); }
+.cz-resumo-link { flex:none; display:inline-flex; align-items:center; gap:6px; font-size:.78rem; font-weight:800; color:var(--gold-dark); }
+.cz-resumo-link i { font-size:.65rem; }
 .cozinha-presente-btn { flex-direction: column; gap: 2px; padding: 10px 12px; }
 .cozinha-presente-btn small { font-size: .68rem; font-weight: 600; color: var(--muted); }
 
@@ -898,18 +856,59 @@ watch(catAtiva, () => {
 
 
 /* ── Grid de adição rápida ── */
-.quick-add-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; padding:16px; border-bottom:1px solid var(--border); }
-.qa-btn         { position:relative; background:#fff; border:1px solid var(--border); border-radius:var(--r-md); padding:12px 8px; display:flex; flex-direction:column; align-items:center; gap:4px; box-shadow:var(--shadow-sm); cursor:pointer; user-select:none; -webkit-touch-callout:none; overflow:hidden; }
-.qa-btn:active  { background:var(--gold-bg); transform:scale(.97); }
-.qa-btn--inlote { border-color:var(--gold-dark); background:var(--gold-bg); }
-.qa-name        { font-size:.85rem; font-weight:700; color:var(--brown); text-align:center; line-height:1.2; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
-.qa-un          { font-size:.7rem; color:var(--gold-dark); font-weight:600; }
-.qa-badge       { position:absolute; top:6px; right:6px; min-width:20px; height:20px; padding:0 5px; border-radius:10px; background:var(--gold-dark); color:#fff; font-size:.65rem; font-weight:800; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+.quick-add-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:14px 16px 18px; border-bottom:1px solid var(--border); }
+@media (min-width: 520px) { .quick-add-grid { grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); } }
+
+.qa-card { --tint:var(--gold-bg); --cor:var(--gold-dark);
+  position:relative; display:flex; flex-direction:column; gap:10px; padding:10px;
+  background:#fff; border:1.5px solid var(--border); border-radius:var(--r-md); box-shadow:var(--shadow-sm);
+  cursor:pointer; user-select:none; -webkit-touch-callout:none; touch-action:manipulation;
+  transition:border-color var(--t), background var(--t), transform var(--t); }
+.qa-card:active { transform:scale(.98); }
+.qa-card:focus-visible { outline:2px solid var(--gold-dark); outline-offset:2px; }
+.qa-card--inlote { border-color:var(--gold-dark); background:var(--gold-bg); }
+
+.qa-card.cat-trufa, .qa-card.cat-festa { --tint:var(--purple-bg); --cor:var(--purple); }
+.qa-card.cat-cone      { --tint:var(--teal-bg);   --cor:var(--teal); }
+.qa-card.cat-barra     { --tint:var(--green-bg);  --cor:var(--green); }
+.qa-card.cat-brownie   { --tint:var(--orange-bg); --cor:var(--orange); }
+.qa-card.cat-bolo      { --tint:var(--gold-bg);   --cor:var(--gold-dark); }
+.qa-card.cat-ovo       { --tint:var(--blue-bg);   --cor:var(--blue); }
+.qa-card.cat-base      { --tint:var(--cream-deep); --cor:var(--brown-mid); }
+.qa-card.cat-presentes { --tint:var(--red-bg);    --cor:var(--red); }
+
+.qa-top  { display:flex; align-items:center; gap:10px; min-width:0; }
+.qa-ico  { flex:none; width:38px; height:38px; border-radius:11px; background:var(--tint); color:var(--cor); display:flex; align-items:center; justify-content:center; font-size:1rem; }
+.qa-card--inlote .qa-ico { background:#fff; }
+.qa-txt  { display:flex; flex-direction:column; min-width:0; gap:1px; }
+.qa-name { font-weight:800; color:var(--brown); line-height:1.2; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+.qa-passo { font-size:.7rem; font-weight:600; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.qa-add  { font-size:.72rem; font-weight:600; color:var(--text-faint); display:flex; align-items:center; gap:5px; }
+
+/* Controle de quantidade dentro do card */
+.qa-ctrl    { display:flex; flex-direction:column; gap:6px; cursor:default; }
+.qa-stepper { display:flex; align-items:center; justify-content:space-between; gap:4px; }
+.qa-step-btn { flex:none; min-width:44px; height:40px; padding:0 6px; border:1.5px solid var(--border2); border-radius:var(--r-full); background:#fff; color:var(--brown-mid); font-family:var(--mono); font-size:.82rem; font-weight:800; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.qa-step-btn:active { background:var(--cream-deep); }
+.qa-step-btn--mais { background:var(--gold-dark); border-color:var(--gold-dark); color:#fff; }
+.qa-step-btn--mais:active { background:var(--brown-mid); }
+.qa-qtd { display:flex; flex-direction:column; align-items:center; min-width:0; flex:1; line-height:1.1; }
+.qa-qtd small { font-size:.62rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; }
+.qa-qtd-input { width:100%; max-width:56px; border:none; background:transparent; text-align:center; font-family:var(--mono); font-size:1.1rem; font-weight:800; color:var(--brown-dark); padding:0; appearance:none; -moz-appearance:textfield; }
+.qa-qtd-input::-webkit-outer-spin-button,
+.qa-qtd-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.qa-qtd-input:focus { outline:none; border-bottom:2px solid var(--gold-dark); }
+.qa-fine { align-self:center; display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border:1px dashed var(--border2); border-radius:var(--r-full); background:transparent; color:var(--muted); font-size:.74rem; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.qa-fine i { font-size:.62rem; }
+.qa-fine:active { background:var(--red-bg); color:var(--red); border-color:var(--red-dim); }
+.qa-vazio { grid-column:1 / -1; text-align:center; padding:28px 12px; font-size:.85rem; color:var(--muted); }
+
+.cz-busca { margin:4px 0 8px; }
 
 /* ── Plano / itens do lote ── */
 .plan-group    { margin-bottom:8px; border:1px solid var(--border); border-radius:var(--r-md); overflow:hidden; background:#fff; }
 .planned-items { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
-.plan-card     { background:#fff; border:1px solid var(--border); border-radius:var(--r-md); padding:10px 12px; display:flex; justify-content:space-between; align-items:center; }
+.plan-card     { cursor:pointer; background:#fff; border:1px solid var(--border); border-radius:var(--r-md); padding:10px 12px; display:flex; justify-content:space-between; align-items:center; }
 .plan-details  { background:var(--bg); padding:8px 12px; border-top:1px solid var(--border); }
 .plan-ing-row  { padding:4px 0; border-bottom:1px solid rgba(0,0,0,.05); }
 .plan-ing-row:last-child { border-bottom:none; }
@@ -920,17 +919,9 @@ watch(catAtiva, () => {
 .plan-name     { font-weight:700; font-size:.9rem; color:var(--brown); }
 .plan-sub      { font-size:.75rem; color:var(--muted); }
 
-.badge-shortcut { padding:2px 10px; border-radius:var(--r-full); background:var(--gold-bg); border:1px solid #e8d5a0; color:var(--gold-dark); font-size:.68rem; font-weight:700; margin-top:4px; white-space:nowrap; }
 .batch-content  { padding:16px; }
 
 /* ── Controle de quantidade ── */
-.qty-ctrl-sm    { display:flex; align-items:center; gap:12px; background:var(--bg); border-radius:20px; padding:4px; border:1px solid var(--border); }
-.btn-qty-sm     { border:none; background:#fff; width:32px; height:32px; border-radius:50%; font-size:1.2rem; font-weight:bold; color:var(--gold-dark); box-shadow:var(--shadow-sm); cursor:pointer; }
-.qty-val        { font-family:var(--mono); font-weight:800; font-size:1rem; min-width:24px; text-align:center; }
-.qty-input-cozinha { width:60px; border:none; background:#fff; border-radius:4px; text-align:center; font-family:var(--mono); font-weight:800; font-size:1.1rem; color:var(--brown-dark); padding:0; appearance:none; -moz-appearance:textfield; }
-.qty-input-cozinha::-webkit-outer-spin-button,
-.qty-input-cozinha::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-.qty-input-cozinha:focus { outline:none; }
 
 /* ── Checklist (pesagem — variante sem transição, exclusiva desta tela) ── */
 
@@ -938,32 +929,14 @@ watch(catAtiva, () => {
 .check-item.done .check-name { text-decoration: line-through; color: var(--muted); }
 .check-item.done .check-val { color: var(--muted); opacity: 0.6; }
 
-/* ── Stepper flutuante ── */
-.stepper-popup { position:fixed; z-index:calc(var(--z-critical) - 1); display:flex; align-items:center; background:var(--brown-dark); border-radius:28px; box-shadow:0 8px 24px rgba(0,0,0,.25); padding:4px; touch-action:none; }
-.stepper-popup::after { content: ''; position: absolute; left: 50%; transform: translateX(-50%); width: 0; height: 0; border: 8px solid transparent; pointer-events: none; }
-.stepper-popup.arrow-down::after { bottom: -15px; border-top-color: var(--brown-dark); }
-.stepper-popup.arrow-up::after { top: -15px; border-bottom-color: var(--brown-dark); }
-
-.stepper-btn   { width:44px; height:44px; border:none; background:transparent; color:#fff; font-size:1.5rem; font-weight:700; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; transition:background .1s; user-select:none; -webkit-touch-callout:none; }
-.stepper-btn:active { background:rgba(255,255,255,.15); }
-.stepper-val        { min-width:36px; text-align:center; font-family:var(--mono); font-size:1.1rem; font-weight:800; color:#fff; }
-
 /* ── Feedback flutuante (+N un) ── */
 .feedback-float { position:fixed; transform:translateX(-50%); background:var(--brown-dark); color:#fff; font-size:.8rem; font-weight:800; padding:4px 10px; border-radius:20px; pointer-events:none; z-index:var(--z-critical); animation:floatUp .75s ease forwards; white-space:nowrap; }
 
 /* ── Animações ── */
-.stepper-anim-enter-active,
-.stepper-anim-leave-active { transition:opacity .15s ease, transform .15s ease; }
-.stepper-anim-enter-from,
-.stepper-anim-leave-to     { opacity:0; transform:scale(.8); }
-
 @keyframes floatUp {
   0%   { opacity:1; transform:translateX(-50%) translateY(0); }
   100% { opacity:0; transform:translateX(-50%) translateY(-40px); }
 }
-
-/* Garante que o toque longo não seja cancelado por micro-movimentos no celular */
-.sticky-touch { touch-action: pan-y; }
 
 .view-timer-chip {
   background: rgba(0,0,0,0.3);
