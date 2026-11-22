@@ -89,7 +89,7 @@
             </button>
             <Transition name="fade-slide">
               <div v-if="mostrarExcluirBanco" class="im-excluir">
-                <p class="im-excluir-aviso"><i class="fas fa-triangle-exclamation"></i> Apagar é permanente e não dá para desfazer. Antes de confirmar, o app pergunta de novo.</p>
+                <p class="im-excluir-aviso"><i class="fas fa-triangle-exclamation"></i> Excluir é permanente e não dá para desfazer. Antes de confirmar, o app pergunta de novo.</p>
                 <button v-for="b in bancosComLancamentos" :key="b.id" class="im-excluir-btn" @click="handleExcluirPorBanco(b.id)">
                   <span class="im-excluir-nome">{{ b.label }}</span>
                   <span class="im-excluir-qtd">{{ b.count }} {{ b.count === 1 ? 'lançamento' : 'lançamentos' }}</span>
@@ -277,7 +277,7 @@
     </template>
 
     <!-- ═══ ABA: MENSAL ═══ -->
-    <!-- ═══ ABA: FIADO × À VISTA (conciliação do extrato com a Caderninho) ═══ -->
+    <!-- ═══ ABA: FIADO × À VISTA (conciliação do extrato com a Caderneta) ═══ -->
     <template v-else-if="abaAtiva === 'vendas'">
       <div class="relatorio-wrap">
         <ConciliacaoVendas />
@@ -1660,7 +1660,7 @@ async function handleExcluirPorBanco(banco) {
     : s.financeiro.filter(i => (i.banco || 'pagbank') === banco).length
   const ok = await confirmar.ask(
     `Isso irá apagar permanentemente ${count} lançamento(s) de ${labels[banco] || banco}. Deseja continuar?`,
-    { title: 'Excluir Extrato', icon: 'fas fa-trash-can', confirmLabel: 'Apagar', type: 'danger' }
+    { title: 'Excluir Extrato', icon: 'fas fa-trash-can', confirmLabel: 'Excluir', type: 'danger' }
   )
   if (ok) {
     await s.limparFinanceiroPorBanco(banco)

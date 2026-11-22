@@ -1,9 +1,9 @@
 // modules/guiaNegocio.js
 // Motor do "Guia do negócio" (aba Inteligência). Funções PURAS: recebem os dados
-// (vendas da Caderninho, clientes, lojas, custos) e devolvem análises prontas.
+// (vendas da Caderneta, clientes, lojas, custos) e devolvem análises prontas.
 // Nada aqui lê banco nem mexe na tela — por isso dá para testar em Node.
 //
-// Base de tudo: as VENDAS REAIS da Caderninho (cad_fiados), não a produção.
+// Base de tudo: as VENDAS REAIS da Caderneta (cad_fiados), não a produção.
 
 const DIA = 86400000
 const c2 = (n) => Math.round((Number(n) || 0) * 100) / 100
@@ -496,7 +496,7 @@ export function proximosPassos({ resumo, clientes, produtos, sumiram, metaRetira
     cand.push({
       id: 'meta', icone: 'fa-bullseye', urgencia: 'media', score: 50,
       titulo: `Faltam ${R(falta)}/mês para sua retirada`,
-      texto: `Pelas vendas da Caderninho, sobram cerca de ${R(resumo.lucroMedio)} por mês e sua meta é ${R(metaRetirada)}. Preço melhor, combos e clientes de volta são os caminhos mais rápidos.`,
+      texto: `Pelas vendas da Caderneta, sobram cerca de ${R(resumo.lucroMedio)} por mês e sua meta é ${R(metaRetirada)}. Preço melhor, combos e clientes de volta são os caminhos mais rápidos.`,
       acao: { tipo: 'meta', rotulo: 'Ver meta' },
     })
   }

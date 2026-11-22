@@ -1,5 +1,5 @@
 // modules/saudeFinanceira.js
-// Saúde do caixa do MEI a partir do EXTRATO (Financeiro) + Caderninho + produções.
+// Saúde do caixa do MEI a partir do EXTRATO (Financeiro) + Caderneta + produções.
 //   1) custoRealVsReceitas → quanto você gasta de insumos de verdade × o que as produções registradas explicam
 //   2) custosRecorrentes   → despesas que se repetem todo mês (viram a lista de custos fixos reais)
 //   3) statusDas           → DAS do mês: pago, vence em breve ou atrasado

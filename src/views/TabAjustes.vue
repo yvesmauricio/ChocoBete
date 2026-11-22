@@ -286,7 +286,7 @@
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Taxas da máquina</h4>
-            <p class="aj-grupo-desc">Usadas na calculadora de taxas do Caderninho.</p>
+            <p class="aj-grupo-desc">Usadas na calculadora de taxas da Caderneta.</p>
           </div>
           <article class="aj-card">
             <div class="aj-form">
@@ -781,13 +781,13 @@
             <div class="aj-row">
               <div class="aj-tile aj-tile--risco"><i class="fas fa-trash-can"></i></div>
               <div class="aj-row-txt">
-                <div class="aj-row-titulo">Apagar todos os dados</div>
+                <div class="aj-row-titulo">Excluir todos os dados</div>
                 <div class="aj-row-sub">Remove para sempre receitas, produtos e histórico financeiro. Não dá para desfazer.</div>
               </div>
             </div>
             <div class="aj-acoes">
               <button class="btn aj-btn-risco" @click="zerarDados">
-                <i class="fas fa-trash-can"></i> Apagar tudo
+                <i class="fas fa-trash-can"></i> Excluir tudo
               </button>
             </div>
           </article>
@@ -956,7 +956,7 @@ const descricoesPerfil = {
 }
 const notasPerfil = {
   ym: 'Acessa tudo. Na área de Vendas só consulta (não envia alterações), para não conflitar com o banco que vai para o Google Drive.',
-  bete: 'Entra apenas na área de Vendas (Caderninho): fiados, clientes e entregas.'
+  bete: 'Entra apenas na área de Vendas (Caderneta): fiados, clientes e entregas.'
 }
 
 // ── Publicação do Cardápio Interativo ──
@@ -1196,7 +1196,7 @@ function salvarConta() {
   s.notify('Conta salva com sucesso!')
 }
 
-// ── Taxas da Máquina (usadas na Calculadora do caderninho da Bete) ──
+// ── Taxas da Máquina (usadas na Calculadora da Caderneta da Bete) ──
 // Carregadas de cara, junto com o resto dos Ajustes — não é mais um item
 // de menu à parte (o cadastro de produtos daqui saiu de uso: a Bete
 // agora lança fiado a partir do Cardápio/Receitas, então só a taxa
@@ -1295,8 +1295,8 @@ async function salvarCategoriaModal() {
 
 async function confirmarExclusaoCategoria(cat) {
   const ok = await confirmar.ask(
-    `Deseja remover a categoria "${cat.nome}"? Lançamentos que já usam essa categoria serão movidos para "Outras Despesas"/"Outras Receitas" (nada é apagado).`,
-    { title: 'Remover Categoria', confirmLabel: 'Remover', type: 'danger' }
+    `Deseja excluir a categoria "${cat.nome}"? Lançamentos que já usam essa categoria serão movidos para "Outras Despesas"/"Outras Receitas" (nada é apagado).`,
+    { title: 'Excluir Categoria', confirmLabel: 'Excluir', type: 'danger' }
   )
   if (ok) await s.excluirCategoriaFinanceiro(cat.nome)
 }
@@ -1314,9 +1314,9 @@ function nomeBanco(banco) { return NOMES_BANCO[banco] || 'Outro banco' }
 function nomeNatureza(natureza) { return natureza === 'empresarial' ? 'Empresarial' : natureza === 'pessoal' ? 'Pessoal' : (natureza || '') }
 
 async function removerConta(idx) {
-  const ok = await confirmar.ask('Deseja remover esta conta bancária? Lançamentos vinculados a ela não serão apagados.', {
-    title: 'Remover Conta',
-    confirmLabel: 'Remover',
+  const ok = await confirmar.ask('Deseja excluir esta conta bancária? Lançamentos vinculados a ela não serão apagados.', {
+    title: 'Excluir Conta',
+    confirmLabel: 'Excluir',
     type: 'danger'
   })
   if (ok) {
@@ -1340,7 +1340,7 @@ async function reclassificarLancamentos() {
 async function zerarDados() {
   const ok = await confirmar.ask('ATENÇÃO: Todos os produtos, receitas, produções e dados financeiros serão apagados permanentemente. Deseja continuar?', {
     title: 'Zerar Banco de Dados',
-    confirmLabel: 'Apagar tudo',
+    confirmLabel: 'Excluir tudo',
     type: 'danger'
   })
   if (ok) {

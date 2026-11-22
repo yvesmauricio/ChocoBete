@@ -881,7 +881,7 @@
                 </template>
                 <div class="pd-acoes-linha pd-acoes-linha--perigo">
                   <button v-if="pedidoEmAberto(pedidoDetalhe) && pedidoDetalhe.origem === 'site'" class="cp-acao cp-acao--perigo" @click="cancelarPedido(pedidoDetalhe)"><i class="fas fa-ban"></i> Cancelar pedido</button>
-                  <button class="cp-acao cp-acao--perigo" @click="removerPedido(pedidoDetalhe)"><i class="fas fa-trash"></i> Remover</button>
+                  <button class="cp-acao cp-acao--perigo" @click="removerPedido(pedidoDetalhe)"><i class="fas fa-trash"></i> Excluir</button>
                 </div>
               </div>
             </div>
@@ -1314,7 +1314,7 @@ async function cancelarPedido(pedido) {
 }
 
 async function removerPedido(pedido) {
-  if (!confirm(`Remover o pedido de ${pedido.clienteNome || (pedido.origem === 'site' ? 'site' : 'balcão')}?`)) return
+  if (!confirm(`Excluir o pedido de ${pedido.clienteNome || (pedido.origem === 'site' ? 'site' : 'balcão')}?`)) return
   await excluirPedidoCardapio(pedido.uuid)
   if (pedido.origem === 'site') apagarPedidoNoServidor(pedido.uuid) // tira do servidor também (com retentativa se estiver sem internet)
   sincronizarDepois(true)

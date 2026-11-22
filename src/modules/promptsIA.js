@@ -1,6 +1,6 @@
 // modules/promptsIA.js
 // Monta o texto que o app copia/abre na IA (Claude, ChatGPT, Gemini…).
-// Usa os mesmos números do Guia: vendas reais da Caderninho, clientes, margem por produto,
+// Usa os mesmos números do Guia: vendas reais da Caderneta, clientes, margem por produto,
 // custos fixos reais e metas. Clientes vão ANONIMIZADOS (só iniciais) — nada de nome ou telefone.
 
 import { ROTULO_STATUS, ROTULO_GRUPO, produtosDoCliente } from './guiaNegocio.js'

@@ -30,13 +30,13 @@
           <div><i class="d prov"></i><span>Pode ser fiado</span><b>{{ R$(resumo.provavel) }}</b></div>
           <div><i class="d avista"></i><span>À vista (estimado)</span><b>{{ R$(resumo.avista) }}</b></div>
         </div>
-        <p class="cv-nota">À vista = o que entrou e não corresponde a nenhuma cobrança da Caderninho. Dinheiro vivo não passa pelo banco, então não aparece aqui.</p>
+        <p class="cv-nota">À vista = o que entrou e não corresponde a nenhuma cobrança da Caderneta. Dinheiro vivo não passa pelo banco, então não aparece aqui.</p>
       </div>
 
       <!-- Sugestões de baixa -->
       <div v-if="resultado.sugestoes.length" class="cv-bloco">
         <div class="cv-titulo"><i class="fas fa-link"></i> Parecem pagamento de fiado <span class="cv-n">{{ resultado.sugestoes.length }}</span></div>
-        <p class="cv-dica">Estes Pix batem com cobranças em aberto. Confirme para dar baixa na Caderninho com a data do Pix — o app nunca baixa sozinho.</p>
+        <p class="cv-dica">Estes Pix batem com cobranças em aberto. Confirme para registrar o pagamento na Caderneta com a data do Pix — o app nunca baixa sozinho.</p>
         <div class="cv-lista">
           <div v-for="sg in resultado.sugestoes" :key="sg.chave" class="cv-sug" :class="'c-' + sg.confianca">
             <div class="cv-sug-topo">
@@ -56,7 +56,7 @@
               <input type="date" class="input" :value="datasResto[sg.chave] || padraoResto(sg)" :min="sg.dataIso" @input="datasResto[sg.chave] = $event.target.value">
             </div>
             <div class="cv-sug-acoes">
-              <button type="button" class="btn btn-primary" :disabled="processando === sg.chave" @click="darBaixa(sg)"><i class="fas fa-check"></i> Dar baixa</button>
+              <button type="button" class="btn btn-primary" :disabled="processando === sg.chave" @click="darBaixa(sg)"><i class="fas fa-check"></i> Registrar pagamento</button>
               <button type="button" class="btn btn-secondary" :disabled="processando === sg.chave" @click="ignorar(sg)">Não é fiado</button>
             </div>
           </div>
@@ -153,9 +153,9 @@ async function darBaixa(sg) {
   const parcial = !sg.quitaExato
   const novaData = parcial ? (datasResto[sg.chave] || padraoResto(sg)) : null
   const ok = await confirm.ask(
-    `Dar baixa de ${R$(sg.valor)} para ${sg.clienteNome}, com a data do Pix (${fmtBR(sg.dataIso)})?` +
+    `Registrar pagamento de ${R$(sg.valor)} de ${sg.clienteNome}, com a data do Pix (${fmtBR(sg.dataIso)})?` +
     (parcial ? ` O restante fica para ${fmtBR(novaData)}.` : ''),
-    { title: 'Dar baixa no fiado', confirmLabel: 'Dar baixa', type: 'primary' }
+    { title: 'Registrar pagamento do fiado', confirmLabel: 'Registrar pagamento', type: 'primary' }
   )
   if (!ok) return
   processando.value = sg.chave

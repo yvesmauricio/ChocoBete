@@ -103,7 +103,7 @@
             </button>
             <button class="swipe-btn copy" @click="duplicarReceita(r)">
               <i class="fas fa-copy"></i>
-              <span>Copiar</span>
+              <span>Duplicar</span>
             </button>
             <button v-if="r.ingredientes?.length > 1" class="swipe-btn prop" @click="abrirProporcao(r)">
               <i class="fas fa-scale-balanced"></i>
@@ -115,7 +115,7 @@
             </button>
             <button class="swipe-btn share" @click="compartilharReceita(r)">
               <i class="fas fa-share-nodes"></i>
-              <span>Enviar</span>
+              <span>Compartilhar</span>
             </button>
             <button class="swipe-btn del" @click="excluirDireto(r)">
               <i class="fas fa-trash"></i>

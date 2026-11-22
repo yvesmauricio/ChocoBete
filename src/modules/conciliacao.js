@@ -1,8 +1,8 @@
 // modules/conciliacao.js
-// Cruza os Pix RECEBIDOS no extrato (Financeiro › "Receita de Vendas") com a Caderninho.
+// Cruza os Pix RECEBIDOS no extrato (Financeiro › "Receita de Vendas") com a Caderneta.
 //
 // Para cada entrada do extrato, descobre se ela é:
-//   • "conciliada"  → já corresponde a um pagamento que você registrou na Caderninho
+//   • "conciliada"  → já corresponde a um pagamento que você registrou na Caderneta
 //   • "sugestao"    → parece pagamento de um fiado em aberto (você confirma a baixa)
 //   • "avista"      → o resto: venda à vista (ou algo que o app não consegue ligar a nenhum fiado)
 //
@@ -54,12 +54,12 @@ export function similaridadeNome(tokensPagador, nomeCliente) {
 
 const chaveEntrada = (e) => e.hash_duplicidade || `id-${e.id}`
 
-/** Concilia as entradas do extrato com a Caderninho. */
+/** Concilia as entradas do extrato com a Caderneta. */
 export function conciliar({ entradas = [], fiados = [], clientes = [], ignorados = [], hoje }) {
   const ign = new Set(ignorados)
   const nomeCliente = new Map(clientes.map(c => [c.id, c]))
 
-  // Pagamentos já registrados na Caderninho
+  // Pagamentos já registrados na Caderneta
   const pagamentos = []
   for (const f of fiados) for (const p of f.pagamentos || []) {
     if (Number(p.valor) > 0 && /^\d{4}-\d{2}-\d{2}/.test(String(p.data || ''))) {
@@ -74,7 +74,7 @@ export function conciliar({ entradas = [], fiados = [], clientes = [], ignorados
 
   const resultado = new Map() // chave -> { status, ... }
 
-  // 1) Já registrado na Caderninho (ligação explícita pelo hash, ou mesmo valor em data próxima)
+  // 1) Já registrado na Caderneta (ligação explícita pelo hash, ou mesmo valor em data próxima)
   for (const e of lista) {
     const exato = pagamentos.find(p => !p.usado && p.hash && p.hash === e.chave)
     if (exato) { exato.usado = true; resultado.set(e.chave, { status: 'conciliada', clienteId: exato.clienteId, fiadoId: exato.fiadoId }); }

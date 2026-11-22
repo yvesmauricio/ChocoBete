@@ -1,13 +1,13 @@
 // modules/producaoSemanal.js
 // Lê a PRODUÇÃO REGISTRADA (tabela producoes) e responde: quanto eu produzo por semana,
-// qual foi minha melhor semana e se o que produzo está saindo (vendas da Caderninho).
+// qual foi minha melhor semana e se o que produzo está saindo (vendas da Caderneta).
 // Funções PURAS: recebem os dados e devolvem números. Nada aqui lê banco nem mexe na tela.
 //
 // Limites honestos (a tela e os textos repetem isso):
 //  - só conta o que foi REGISTRADO; categorias novas (ex.: bolos) entram sozinhas quando passarem a ser registradas;
 //  - só conta receitas em UNIDADE (receitas em g/kg/ml ficam de fora e são avisadas);
 //  - receitas intermediárias (massa, ganache, recheio) não contam: não são produto vendido;
-//  - vendas à vista/dinheiro que não estão na Caderninho não aparecem na comparação.
+//  - vendas à vista/dinheiro que não estão na Caderneta não aparecem na comparação.
 
 import { familia, categoriaDoItem, norm } from './guiaNegocio.js'
 
@@ -47,7 +47,7 @@ const VAZIO = (extra = {}) => ({
 /**
  * @param producoes  linhas de db.producoes
  * @param receitas   [{ uuid, nome, categoria, unidade_rendimento, eh_intermediaria }] (TODAS, inclusive intermediárias)
- * @param fiados     vendas da Caderninho (para comparar com o que foi vendido)
+ * @param fiados     vendas da Caderneta (para comparar com o que foi vendido)
  * @param hoje       AAAA-MM-DD
  */
 export function analisarProducao({ producoes = [], receitas = [], fiados = [], hoje, janelaSemanas = 12 }) {
@@ -165,7 +165,7 @@ export function linhasProducao(prod) {
     L.push(`- Últimas 3 semanas: ${prod.tendencia.ultimas3} un/semana contra ${prod.tendencia.anteriores} antes${v !== null ? ` (${v >= 0 ? '+' : ''}${v}%)` : ''}.`)
   }
   if (prod.vendas && prod.vendas.mediaSemana >= 0) {
-    L.push(`- Vendas registradas na Caderninho das mesmas categorias: ${prod.vendas.mediaSemana} un/semana${prod.vendas.relacaoPct !== null ? ` (${prod.vendas.relacaoPct}% do produzido)` : ''}. Venda à vista/dinheiro pode não estar registrada.`)
+    L.push(`- Vendas registradas na Caderneta das mesmas categorias: ${prod.vendas.mediaSemana} un/semana${prod.vendas.relacaoPct !== null ? ` (${prod.vendas.relacaoPct}% do produzido)` : ''}. Venda à vista/dinheiro pode não estar registrada.`)
   }
   if (prod.sugestao) L.push(`- Na melhor semana produzi ${prod.sugestao} un a mais que a média (capacidade já provada; não mede demanda).`)
   L.push('- Só entram categorias já registradas (bolos e outras entram quando eu começar a registrar). Receitas em g/kg e receitas intermediárias ficam de fora.')

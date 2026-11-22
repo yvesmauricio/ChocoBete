@@ -41,7 +41,7 @@
 
         <div v-if="saude.folego.aVencer > 0 || saude.folego.atrasado > 0" class="sf-receber">
           <i class="fas fa-circle-info"></i>
-          Na Caderninho já há
+          Na Caderneta já há
           <b v-if="saude.folego.aVencer > 0">{{ R$(saude.folego.aVencer) }} a vencer</b>
           <template v-if="saude.folego.aVencer > 0 && saude.folego.atrasado > 0"> e </template>
           <b v-if="saude.folego.atrasado > 0" class="neg">{{ R$(saude.folego.atrasado) }} em atraso</b>

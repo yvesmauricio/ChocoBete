@@ -89,7 +89,7 @@
             </button>
             <button class="swipe-btn copy" @click="duplicar(p)">
               <i class="fas fa-copy"></i>
-              <span>Copiar</span>
+              <span>Duplicar</span>
             </button>
             <button class="swipe-btn del" @click="excluir(p)">
               <i class="fas fa-trash"></i>

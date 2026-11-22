@@ -200,7 +200,6 @@
           @click="escolherLoja(l)"
           @edit="abrirModalLoja(l)"
           @delete="confirmarExcluirLoja(l)"
-          delete-label="Remover"
         >
           <div class="cad-list-icon"><i class="fas fa-store"></i></div>
           <div class="cad-list-info">
@@ -268,7 +267,6 @@
           @click="escolherCliente(c)"
           @edit="abrirModalCliente(c)"
           @delete="confirmarExcluirCliente(c)"
-          delete-label="Remover"
         >
           <div class="cad-list-icon pessoa"><i class="fas fa-user"></i></div>
           <div class="cad-list-info">
@@ -1265,7 +1263,7 @@
       <div v-if="fiadoReceber" class="cad-modal-overlay cad-modal-overlay--top" @click.self="fecharReceber">
         <div class="cad-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="receber-titulo">
           <div class="cad-modal-header">
-            <div id="receber-titulo" class="cad-modal-titulo"><i class="fas fa-hand-holding-dollar"></i> Receber pagamento</div>
+            <div id="receber-titulo" class="cad-modal-titulo"><i class="fas fa-hand-holding-dollar"></i> Registrar pagamento</div>
             <button type="button" class="cad-btn-fechar" aria-label="Fechar" :disabled="salvandoReceber" @click="fecharReceber"><i class="fas fa-xmark"></i></button>
           </div>
 
@@ -1332,7 +1330,7 @@
       <div v-if="clienteQuitar" class="cad-modal-overlay cad-modal-overlay--top" @click.self="fecharQuitar">
         <div class="cad-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="quitar-titulo">
           <div class="cad-modal-header">
-            <div id="quitar-titulo" class="cad-modal-titulo"><i class="fas fa-hand-holding-dollar"></i> Receber pagamento</div>
+            <div id="quitar-titulo" class="cad-modal-titulo"><i class="fas fa-hand-holding-dollar"></i> Registrar pagamento</div>
             <button type="button" class="cad-btn-fechar" aria-label="Fechar" :disabled="salvandoQuitar" @click="fecharQuitar"><i class="fas fa-xmark"></i></button>
           </div>
 
@@ -4290,7 +4288,7 @@ onMounted(async () => {
 }
 .cad-btn-icon:active { background: var(--border); }
 
-/* ── Lombada perfurada (assinatura visual do Caderninho) ── */
+/* ── Lombada perfurada (assinatura visual da Caderneta) ── */
 .cad-spiral {
   display: flex; justify-content: space-evenly; align-items: center;
   padding: 8px 22px 0; background: var(--surface); flex-shrink: 0;
@@ -5809,7 +5807,7 @@ button.cad-nv-perfil-topo { cursor: pointer; }
 }
 
 /* ══════════════════════════════════════════════════════════════
-   Caderninho › Início do vendedor (classes cd-*)
+   Caderneta › Início do vendedor (classes cd-*)
 ══════════════════════════════════════════════════════════════ */
 .cd-tela { background: var(--bg); }
 

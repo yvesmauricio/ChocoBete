@@ -5,7 +5,7 @@
     <div v-else-if="!fiados.length" class="gn-vazio">
       <i class="fas fa-seedling"></i>
       <b>O guia começa quando as vendas aparecerem</b>
-      <p>Ele aprende com as vendas lançadas na Caderninho: quem paga em dia, o que cada cliente leva e o que dá mais lucro. Assim que houver algumas vendas, as dicas aparecem aqui.</p>
+      <p>Ele aprende com as vendas lançadas na Caderneta: quem paga em dia, o que cada cliente leva e o que dá mais lucro. Assim que houver algumas vendas, as dicas aparecem aqui.</p>
     </div>
 
     <template v-else>

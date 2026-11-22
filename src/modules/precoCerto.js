@@ -5,7 +5,7 @@
 //
 // Tudo que não é ingrediente é tratado como % do preço, calculado com os números REAIS do negócio:
 //  • custos fixos  → despesas operacionais do Financeiro (sem a compra de insumos, que já está nas receitas)
-//  • fiado         → quanto do vendido costuma ficar parado há muito tempo na Caderninho
+//  • fiado         → quanto do vendido costuma ficar parado há muito tempo na Caderneta
 //  • sua retirada  → meta de Ajustes ÷ faturamento médio
 // Funções PURAS (sem banco, sem tela).
 
