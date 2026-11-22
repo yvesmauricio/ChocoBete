@@ -992,8 +992,15 @@ async function removerDaFolha() {
   if (idx >= 0) await removerIngrediente(idx)
 }
 
+// Categorias com chip/identidade própria: nelas o nome NÃO transforma a receita
+// em "trufa" (ex.: "Caixa 6 trufas Tradicionais" é Presentes e não entra em Trufa).
+// Receitas de categoria vazia/antiga (ex.: "Festa") ainda são reconhecidas pelo nome.
+const CATEGORIAS_PROPRIAS = ['cone', 'barra', 'brownie', 'bolo', 'ovo', 'pascoa', 'base', 'presentes']
 function ehTrufa(r) {
-  return normalizar(r.categoria).includes('trufa') || normalizar(r.nome).includes('trufa')
+  const cat = normalizar(r.categoria)
+  if (cat.includes('trufa')) return true
+  if (CATEGORIAS_PROPRIAS.some(c => cat.includes(c))) return false
+  return normalizar(r.nome).includes('trufa')
 }
 
 // Escala um grupo de ingredientes (ex.: só a casca, ou só o recheio) por `fator`

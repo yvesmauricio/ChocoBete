@@ -62,11 +62,10 @@
         >
           <div class="qa-top">
             <div class="qa-ico"><i class="fas" :class="iconeReceita(r)"></i></div>
-            <div class="qa-txt">
-              <span class="qa-name" :style="qaNomeEstilo(r.nome)">{{ r.nome }}</span>
-              <span class="qa-passo">{{ rotuloPasso(r) }}</span>
-            </div>
+            <span class="qa-passo">{{ rotuloPasso(r) }}</span>
           </div>
+          <!-- Mesmo tamanho de fonte em todos os cards; até 2 linhas, sempre com a mesma altura -->
+          <span class="qa-name" :title="r.nome">{{ r.nome }}</span>
 
           <!-- Já no lote: ajuste de quantidade no próprio card -->
           <div v-if="qtdItem(r)" class="qa-ctrl" @click.stop>
@@ -88,10 +87,10 @@
             </div>
             <!-- Ajuste fino: tirar uma unidade por vez -->
             <button v-if="getPassoProducao(r) > 1" type="button" class="qa-fine" aria-label="Diminuir 1 unidade" @click="diminuirUm(r)">
-              <i class="fas fa-minus"></i> 1 {{ r.unidade_rendimento || 'un' }}
+              <i class="fas fa-minus"></i> Tirar 1 {{ r.unidade_rendimento || 'un' }}
             </button>
           </div>
-          <div v-else class="qa-add"><i class="fas fa-plus"></i> Toque para adicionar</div>
+          <div v-else class="qa-add"><i class="fas fa-plus"></i> Adicionar</div>
         </div>
 
         <div v-if="!receitasFiltradas.length" class="qa-vazio">
@@ -312,26 +311,15 @@ const chipRefs = ref({})
 const touchStartX = ref(0)
 const touchStartY = ref(0)
 
+// Categorias com chip/identidade própria: nelas o nome NÃO transforma a receita
+// em "trufa" (ex.: "Caixa 6 trufas Tradicionais" é Presentes e não entra em Trufa).
+// Receitas de categoria vazia/antiga (ex.: "Festa") ainda são reconhecidas pelo nome.
+const CATEGORIAS_PROPRIAS = ['cone', 'barra', 'brownie', 'bolo', 'ovo', 'pascoa', 'base', 'presentes']
 function ehTrufa(r) {
-  return normalizar(r.categoria).includes('trufa') || normalizar(r.nome).includes('trufa')
-}
-
-// ── Tamanho de fonte do nome na grade de seleção rápida ──────────────
-// Em vez de quebrar linha (o que deixa os cards da mesma fileira com
-// alturas diferentes) ou cortar com "...", o nome sempre fica em uma
-// linha só e a fonte encolhe conforme o texto é mais longo, até um
-// mínimo ainda legível no celular.
-function qaNomeEstilo(nome) {
-  const len = (nome || '').length
-  const MIN_LEN = 12   // até esse tamanho, usa a fonte máxima
-  const MAX_LEN = 30   // a partir daqui, usa a fonte mínima
-  const MAX_SIZE = 0.85
-  const MIN_SIZE = 0.58
-  if (len <= MIN_LEN) return { fontSize: `${MAX_SIZE}rem` }
-  if (len >= MAX_LEN) return { fontSize: `${MIN_SIZE}rem` }
-  const t = (len - MIN_LEN) / (MAX_LEN - MIN_LEN)
-  const size = MAX_SIZE - t * (MAX_SIZE - MIN_SIZE)
-  return { fontSize: `${size.toFixed(2)}rem` }
+  const cat = normalizar(r.categoria)
+  if (cat.includes('trufa')) return true
+  if (CATEGORIAS_PROPRIAS.some(c => cat.includes(c))) return false
+  return normalizar(r.nome).includes('trufa')
 }
 
 function ehFesta(r) {
@@ -441,9 +429,7 @@ function resetTouch() {
 }
 
 function getPassoProducao(r) {
-  const nome = normalizar(r.nome)
-  const categoria = normalizar(r.categoria)
-  if (nome.includes('trufa') || categoria.includes('trufa')) {
+  if (ehTrufa(r)) {
     const peso = Number(r.peso_unitario || 0)
     if (peso >= 30) return 8 // Forma de 8 cavidades
     if (peso > 0) return 12  // Forma de 12 cavidades (19g ou menor — ex: tamanho "Festa")
@@ -457,7 +443,7 @@ function mostrarFeedback(r, e) {
   if (!el) return
   const rect = el.getBoundingClientRect()
   const passo = getPassoProducao(r)
-  const texto = normalizar(r.nome).includes('trufa')
+  const texto = ehTrufa(r)
     ? '+1 Forma'
     : `+${passo} ${r.unidade_rendimento}`
   const id = _feedbackId++
@@ -860,7 +846,7 @@ watch(catAtiva, () => {
 @media (min-width: 520px) { .quick-add-grid { grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); } }
 
 .qa-card { --tint:var(--gold-bg); --cor:var(--gold-dark);
-  position:relative; display:flex; flex-direction:column; gap:10px; padding:10px;
+  position:relative; display:flex; flex-direction:column; gap:8px; padding:12px;
   background:#fff; border:1.5px solid var(--border); border-radius:var(--r-md); box-shadow:var(--shadow-sm);
   cursor:pointer; user-select:none; -webkit-touch-callout:none; touch-action:manipulation;
   transition:border-color var(--t), background var(--t), transform var(--t); }
@@ -877,28 +863,36 @@ watch(catAtiva, () => {
 .qa-card.cat-base      { --tint:var(--cream-deep); --cor:var(--brown-mid); }
 .qa-card.cat-presentes { --tint:var(--red-bg);    --cor:var(--red); }
 
-.qa-top  { display:flex; align-items:center; gap:10px; min-width:0; }
-.qa-ico  { flex:none; width:38px; height:38px; border-radius:11px; background:var(--tint); color:var(--cor); display:flex; align-items:center; justify-content:center; font-size:1rem; }
+/* Linha de cima: ícone da categoria + quanto cada toque soma */
+.qa-top  { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
+.qa-ico  { flex:none; width:36px; height:36px; border-radius:11px; background:var(--tint); color:var(--cor); display:flex; align-items:center; justify-content:center; font-size:1rem; }
 .qa-card--inlote .qa-ico { background:#fff; }
-.qa-txt  { display:flex; flex-direction:column; min-width:0; gap:1px; }
-.qa-name { font-weight:800; color:var(--brown); line-height:1.2; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
-.qa-passo { font-size:.7rem; font-weight:600; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.qa-add  { font-size:.72rem; font-weight:600; color:var(--text-faint); display:flex; align-items:center; gap:5px; }
+.qa-passo { min-width:0; padding:3px 9px; border-radius:var(--r-full); background:var(--tint); color:var(--cor); font-size:.68rem; font-weight:800; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.qa-card--inlote .qa-passo { background:#fff; }
+
+/* Nome: fonte única, até 2 linhas, altura reservada (cards sempre alinhados) */
+.qa-name { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden;
+  font-size:.9rem; font-weight:800; line-height:1.25; min-height:2.5em; color:var(--brown); overflow-wrap:anywhere; }
+
+/* Adicionar (ainda fora do lote): mesma altura do controle de quantidade */
+.qa-add  { display:flex; align-items:center; justify-content:center; gap:6px; height:44px; border:1.5px dashed var(--border2); border-radius:var(--r-full); font-size:.8rem; font-weight:800; color:var(--cor); }
+.qa-add i { font-size:.7rem; }
 
 /* Controle de quantidade dentro do card */
-.qa-ctrl    { display:flex; flex-direction:column; gap:6px; cursor:default; }
+.qa-ctrl    { display:flex; flex-direction:column; gap:8px; cursor:default; }
 .qa-stepper { display:flex; align-items:center; justify-content:space-between; gap:4px; }
-.qa-step-btn { flex:none; min-width:44px; height:40px; padding:0 6px; border:1.5px solid var(--border2); border-radius:var(--r-full); background:#fff; color:var(--brown-mid); font-family:var(--mono); font-size:.82rem; font-weight:800; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.qa-step-btn { flex:none; min-width:48px; height:44px; padding:0 8px; border:1.5px solid var(--border2); border-radius:var(--r-full); background:#fff; color:var(--brown-mid); font-family:var(--mono); font-size:.85rem; font-weight:800; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .qa-step-btn:active { background:var(--cream-deep); }
 .qa-step-btn--mais { background:var(--gold-dark); border-color:var(--gold-dark); color:#fff; }
 .qa-step-btn--mais:active { background:var(--brown-mid); }
 .qa-qtd { display:flex; flex-direction:column; align-items:center; min-width:0; flex:1; line-height:1.1; }
 .qa-qtd small { font-size:.62rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; }
-.qa-qtd-input { width:100%; max-width:56px; border:none; background:transparent; text-align:center; font-family:var(--mono); font-size:1.1rem; font-weight:800; color:var(--brown-dark); padding:0; appearance:none; -moz-appearance:textfield; }
+.qa-qtd-input { width:100%; max-width:60px; border:none; background:transparent; text-align:center; font-family:var(--mono); font-size:1.15rem; font-weight:800; color:var(--brown-dark); padding:0; appearance:none; -moz-appearance:textfield; }
 .qa-qtd-input::-webkit-outer-spin-button,
 .qa-qtd-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
 .qa-qtd-input:focus { outline:none; border-bottom:2px solid var(--gold-dark); }
-.qa-fine { align-self:center; display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border:1px dashed var(--border2); border-radius:var(--r-full); background:transparent; color:var(--muted); font-size:.74rem; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+/* Ajuste fino: largura total do card, fácil de tocar */
+.qa-fine { display:flex; align-items:center; justify-content:center; gap:6px; width:100%; height:38px; border:1px dashed var(--border2); border-radius:var(--r-full); background:transparent; color:var(--muted); font-size:.76rem; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .qa-fine i { font-size:.62rem; }
 .qa-fine:active { background:var(--red-bg); color:var(--red); border-color:var(--red-dim); }
 .qa-vazio { grid-column:1 / -1; text-align:center; padding:28px 12px; font-size:.85rem; color:var(--muted); }
