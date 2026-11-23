@@ -269,6 +269,7 @@ const onVisibilityChange = async () => {
   if (document.visibilityState === 'visible') {
     if (perfilInfo.value?.tipo === 'admin') {
       await s.iniciarSync()
+      await s.recarregarReceitas?.()
     } else if (perfilInfo.value?.tipo === 'consulta') {
       // A própria tela de consulta atualiza ao voltar (TabVendasConsulta).
     } else if (perfilInfo.value?.tipo === 'caderneta' && escondidoDesde && Date.now() - escondidoDesde > REVERIFICAR_APOS_MS) {
