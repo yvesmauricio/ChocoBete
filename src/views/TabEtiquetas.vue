@@ -172,58 +172,6 @@
               </div>
             </div>
 
-            <!-- Ajuste de impressão do PDF (celular) -->
-            <div class="etq-cal-card">
-              <button type="button" class="etq-cal-head" :aria-expanded="calAberta" @click="calAberta = !calAberta">
-                <span class="etq-cal-titulo"><i class="fas fa-ruler-combined"></i> Ajuste de impressão do PDF</span>
-                <span class="etq-cal-status" :class="{ ativo: calAtiva }">{{ calAtiva ? 'Ajustado' : 'Sem ajuste' }}</span>
-                <i class="fas" :class="calAberta ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-              </button>
-
-              <div v-if="calAberta" class="etq-cal-body">
-                <p class="hint">
-                  Se ao imprimir o PDF pelo celular a etiqueta sai menor ou deslocada, calibre uma vez
-                  (vale só para este aparelho):
-                </p>
-                <ol class="etq-cal-passos">
-                  <li>Toque em <b>Imprimir folha de teste</b> e imprima em papel comum A4, sem ajustar escala.</li>
-                  <li>Meça com régua os quatro valores abaixo, em milímetros.</li>
-                  <li>Digite e toque em <b>Calcular e salvar</b>.</li>
-                </ol>
-
-                <button type="button" class="btn btn-secondary" style="width:100%" @click="imprimirTeste">
-                  <i class="fas fa-print"></i> Imprimir folha de teste
-                </button>
-
-                <div class="etq-cal-grid">
-                  <div class="fg">
-                    <label class="label">A · Largura da moldura <span class="etq-cal-ideal">ideal 190</span></label>
-                    <input v-model="calMed.larguraMm" class="input" inputmode="decimal" placeholder="190" />
-                  </div>
-                  <div class="fg">
-                    <label class="label">B · Altura da moldura <span class="etq-cal-ideal">ideal 270</span></label>
-                    <input v-model="calMed.alturaMm" class="input" inputmode="decimal" placeholder="270" />
-                  </div>
-                  <div class="fg">
-                    <label class="label">C · Borda esquerda até a moldura <span class="etq-cal-ideal">ideal 10</span></label>
-                    <input v-model="calMed.esquerdaMm" class="input" inputmode="decimal" placeholder="10" />
-                  </div>
-                  <div class="fg">
-                    <label class="label">D · Borda de cima até a moldura <span class="etq-cal-ideal">ideal 10</span></label>
-                    <input v-model="calMed.topoMm" class="input" inputmode="decimal" placeholder="10" />
-                  </div>
-                </div>
-
-                <p v-if="calErro" class="etq-cal-erro">{{ calErro }}</p>
-                <p v-if="calAtiva" class="hint">Ajuste atual: {{ calDescricao }}</p>
-
-                <div class="etq-cal-acoes">
-                  <button type="button" class="btn btn-primary" @click="salvarCal">Calcular e salvar</button>
-                  <button v-if="calAtiva" type="button" class="btn btn-secondary" @click="removerCal">Remover ajuste</button>
-                </div>
-              </div>
-            </div>
-
           </div>
 
         </div>
@@ -254,11 +202,7 @@ import { useStore } from '../store.js'
 import { textoEtiquetaReceita } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { gerarArquivoEtiquetas } from '../composables/useEtiquetas.js'
-import {
-  gerarPdfEtiquetas, gerarPdfTeste, lerCalibracao, salvarCalibracao,
-  limparCalibracao, calibracaoAtiva, descreverCalibracao
-} from '../composables/useEtiquetasPdf.js'
-import { calcularCalibracao } from '../composables/etiquetasPdfCore.js'
+import { gerarPdfEtiquetas } from '../composables/useEtiquetasPdf.js'
 
 const s = useStore()
 const confirmar = useAppConfirm()
@@ -502,43 +446,6 @@ function resetarWizard() {
   passoMaximoAlcancado.value = 1
 }
 
-// ── Ajuste de impressão do PDF (calibração por aparelho) ─────────
-const calAberta = ref(false)
-const calAtual = ref(lerCalibracao())
-const calAtiva = computed(() => calibracaoAtiva(calAtual.value))
-const calDescricao = computed(() => descreverCalibracao(calAtual.value))
-const calMed = reactive({ larguraMm: '', alturaMm: '', esquerdaMm: '', topoMm: '' })
-const calErro = ref('')
-
-const lerMm = (v) => parseFloat(String(v ?? '').trim().replace(',', '.'))
-
-async function imprimirTeste() {
-  const r = await gerarPdfTeste()
-  if (!r.ok && r.erro) s.notify(r.erro, 'error')
-}
-
-function salvarCal() {
-  const r = calcularCalibracao({
-    larguraMm: lerMm(calMed.larguraMm),
-    alturaMm: lerMm(calMed.alturaMm),
-    esquerdaMm: lerMm(calMed.esquerdaMm),
-    topoMm: lerMm(calMed.topoMm)
-  })
-  if (r.erro) { calErro.value = r.erro; return }
-  calErro.value = ''
-  salvarCalibracao(r)
-  calAtual.value = lerCalibracao()
-  s.notify('Ajuste salvo neste aparelho. Gere o PDF das etiquetas e confira na folha.')
-}
-
-function removerCal() {
-  limparCalibracao()
-  calAtual.value = lerCalibracao()
-  Object.keys(calMed).forEach(k => { calMed[k] = '' })
-  calErro.value = ''
-  s.notify('Ajuste removido.')
-}
-
 async function gerarEtiquetasAvulsas(formato = 'docx') {
   // Evita receber o evento de clique como "formato" por engano
   const gerar = formato === 'pdf' ? gerarPdfEtiquetas : gerarArquivoEtiquetas
@@ -759,23 +666,4 @@ async function gerarEtiquetasAvulsas(formato = 'docx') {
   text-decoration: underline; padding: 2px 4px;
 }
 
-/* ── Ajuste de impressão do PDF ── */
-.etq-cal-card { margin-top: 16px; border: 1px solid var(--border); border-radius: var(--r-md); background: #fff; overflow: hidden; }
-.etq-cal-head {
-  width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 14px;
-  background: none; border: none; text-align: left; cursor: pointer; font-family: var(--font);
-  -webkit-tap-highlight-color: transparent;
-}
-.etq-cal-titulo { flex: 1; min-width: 0; font-size: .88rem; font-weight: 800; color: var(--brown-dark); }
-.etq-cal-titulo i { color: var(--gold-dark); margin-right: 6px; }
-.etq-cal-status { flex: none; font-size: .68rem; font-weight: 800; padding: 3px 9px; border-radius: var(--r-full); background: var(--cream-deep); color: var(--muted); }
-.etq-cal-status.ativo { background: var(--green-bg); color: var(--green); }
-.etq-cal-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 12px; }
-.etq-cal-passos { margin: 0; padding-left: 20px; font-size: .8rem; color: var(--text); display: flex; flex-direction: column; gap: 4px; }
-.etq-cal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.etq-cal-grid .fg { margin: 0; }
-.etq-cal-ideal { font-weight: 600; color: var(--muted); font-size: .68rem; margin-left: 4px; }
-.etq-cal-erro { margin: 0; font-size: .8rem; font-weight: 700; color: var(--red); }
-.etq-cal-acoes { display: flex; gap: 8px; }
-.etq-cal-acoes .btn { flex: 1; }
 </style>

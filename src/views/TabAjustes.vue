@@ -526,6 +526,59 @@
               <button class="btn btn-secondary" @click="editandoAparelho = true"><i class="fas fa-pen"></i> Mudar nome ou tipo</button>
             </div>
           </article>
+
+          <details class="aj-card aj-colapso aj-cal-card">
+            <summary class="aj-row">
+              <div class="aj-tile"><i class="fas fa-ruler-combined"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-titulo">Impressão de etiquetas</div>
+                <div class="aj-row-sub">Calibração do PDF, válida só neste aparelho</div>
+              </div>
+              <span class="aj-pill" :class="calAtiva ? 'aj-pill--ok' : 'aj-pill--off'">
+                {{ calAtiva ? 'Ajustado' : 'Padrão' }}
+              </span>
+            </summary>
+
+            <div class="aj-form aj-cal-form">
+              <p class="aj-nota">Se as etiquetas impressas pelo celular saírem menores ou deslocadas, calibre uma vez:</p>
+              <ol class="aj-cal-passos">
+                <li>Imprima a folha de teste em papel comum A4, sem ajustar a escala.</li>
+                <li>Meça com régua os quatro valores abaixo, em milímetros.</li>
+                <li>Informe as medidas e salve o ajuste.</li>
+              </ol>
+
+              <button type="button" class="btn btn-secondary" @click="imprimirTeste">
+                <i class="fas fa-print"></i> Imprimir folha de teste
+              </button>
+
+              <div class="aj-cal-grid">
+                <div class="fg">
+                  <label class="label">A · Largura da moldura <span class="aj-cal-ideal">ideal 190 mm</span></label>
+                  <input v-model="calMed.larguraMm" class="input" inputmode="decimal" placeholder="190" />
+                </div>
+                <div class="fg">
+                  <label class="label">B · Altura da moldura <span class="aj-cal-ideal">ideal 270 mm</span></label>
+                  <input v-model="calMed.alturaMm" class="input" inputmode="decimal" placeholder="270" />
+                </div>
+                <div class="fg">
+                  <label class="label">C · Borda esquerda até a moldura <span class="aj-cal-ideal">ideal 10 mm</span></label>
+                  <input v-model="calMed.esquerdaMm" class="input" inputmode="decimal" placeholder="10" />
+                </div>
+                <div class="fg">
+                  <label class="label">D · Borda superior até a moldura <span class="aj-cal-ideal">ideal 10 mm</span></label>
+                  <input v-model="calMed.topoMm" class="input" inputmode="decimal" placeholder="10" />
+                </div>
+              </div>
+
+              <p v-if="calErro" class="aj-cal-erro" role="alert">{{ calErro }}</p>
+              <p v-if="calAtiva" class="aj-nota">Ajuste atual: <strong>{{ calDescricao }}</strong></p>
+
+              <div class="aj-cal-acoes">
+                <button type="button" class="btn btn-primary" @click="salvarCal">Calcular e salvar</button>
+                <button v-if="calAtiva" type="button" class="btn btn-secondary" @click="removerCal">Remover ajuste</button>
+              </div>
+            </div>
+          </details>
         </div>
 
         <div class="aj-grupo">
@@ -876,6 +929,11 @@
 import { ref, reactive, watch, computed } from 'vue'
 import { useStore } from '../store.js'
 import { maskCpf, maskCnpj, maskCnae, maskTelefone, processarLogo, getMesRef, dataHoraBR, formatarBytes } from '../utils.js'
+import {
+  gerarPdfTeste, lerCalibracao, salvarCalibracao, limparCalibracao,
+  calibracaoAtiva, descreverCalibracao
+} from '../composables/useEtiquetasPdf.js'
+import { calcularCalibracao } from '../composables/etiquetasPdfCore.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
 import { normalizarInstagram } from '../services/contatoService.js'
@@ -899,6 +957,41 @@ import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
 
 const s = useStore()
 const confirmar = useAppConfirm()
+const calAtual = ref(lerCalibracao())
+const calAtiva = computed(() => calibracaoAtiva(calAtual.value))
+const calDescricao = computed(() => descreverCalibracao(calAtual.value))
+const calMed = reactive({ larguraMm: '', alturaMm: '', esquerdaMm: '', topoMm: '' })
+const calErro = ref('')
+
+const lerMm = (v) => parseFloat(String(v ?? '').trim().replace(',', '.'))
+
+async function imprimirTeste() {
+  const r = await gerarPdfTeste()
+  if (!r.ok && r.erro) s.notify(r.erro, 'error')
+}
+
+function salvarCal() {
+  const r = calcularCalibracao({
+    larguraMm: lerMm(calMed.larguraMm),
+    alturaMm: lerMm(calMed.alturaMm),
+    esquerdaMm: lerMm(calMed.esquerdaMm),
+    topoMm: lerMm(calMed.topoMm)
+  })
+  if (r.erro) { calErro.value = r.erro; return }
+  calErro.value = ''
+  salvarCalibracao(r)
+  calAtual.value = lerCalibracao()
+  s.notify('Ajuste salvo neste aparelho. Os próximos PDFs de etiquetas usarão esta calibração.')
+}
+
+function removerCal() {
+  limparCalibracao()
+  calAtual.value = lerCalibracao()
+  Object.keys(calMed).forEach(k => { calMed[k] = '' })
+  calErro.value = ''
+  s.notify('Ajuste removido.')
+}
+
 const modoLancamentoCaderneta = ref('categorias')
 getModoLancamentoCaderneta().then(modo => { modoLancamentoCaderneta.value = modo })
 async function alterarModoLancamentoCaderneta(modo) {
@@ -1489,6 +1582,17 @@ async function zerarDados() {
 .aj-form { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
 .aj-form .fg { margin: 0; }
 .aj-form .btn { width: 100%; min-height: 46px; }
+.aj-cal-card > summary { align-items: center; }
+.aj-cal-card > summary .aj-row-txt { padding-right: 4px; }
+.aj-cal-form { border-top: 1px solid var(--border); }
+.aj-cal-form .aj-nota { margin: 0; font-size: .84rem; line-height: 1.5; color: var(--muted); }
+.aj-cal-passos { margin: -4px 0 0; padding-left: 20px; font-size: .82rem; line-height: 1.45; color: var(--text); }
+.aj-cal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.aj-cal-grid .fg { min-width: 0; }
+.aj-cal-grid .label { line-height: 1.35; }
+.aj-cal-ideal { color: var(--muted); font-size: .72rem; font-weight: 600; }
+.aj-cal-erro { margin: 0; color: var(--red); font-size: .84rem; font-weight: 700; }
+.aj-cal-acoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
 .aj-nota { margin: 0; font-size: .82rem; line-height: 1.5; color: var(--muted); }
 .aj-nota--erro { color: var(--red); font-weight: 600; }
 .aj-nota code { padding: 1px 5px; border-radius: 4px; background: var(--cream); font-size: .78rem; }
