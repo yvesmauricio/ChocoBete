@@ -8,26 +8,26 @@
       <p class="tab-subtitle">Gere etiquetas Pimaco A5Q-1226 por sabor e quantidade</p>
     </div>
 
-    <!-- ── Indicador de etapas ── -->
-    <div class="etq-steps">
-      <button
-        v-for="(s2, idx) in passos"
-        :key="s2.id"
-        class="etq-step"
-        :class="{ ativo: passoAtual === idx + 1, concluido: passoAtual > idx + 1 }"
-        :disabled="idx + 1 > passoMaximoAlcancado || (folhaCheiaSelecionada && s2.id === 'posicao')"
-        @click="irParaPasso(idx + 1)"
-      >
-        <span class="etq-step-bola">
-          <i v-if="passoAtual > idx + 1" class="fas fa-check"></i>
-          <template v-else>{{ idx + 1 }}</template>
-        </span>
-        <span class="etq-step-label">{{ s2.label }}</span>
-      </button>
-    </div>
-
     <div class="etq-content">
       <div class="sheet-card">
+        <!-- Navegação compacta, integrada ao cartão e fixa sob o cabeçalho ao rolar. -->
+        <nav class="etq-steps" aria-label="Etapas das etiquetas">
+          <button
+            v-for="(s2, idx) in passos"
+            :key="s2.id"
+            class="etq-step"
+            :class="{ ativo: passoAtual === idx + 1, concluido: passoAtual > idx + 1 }"
+            :disabled="idx + 1 > passoMaximoAlcancado || (folhaCheiaSelecionada && s2.id === 'posicao')"
+            :aria-current="passoAtual === idx + 1 ? 'step' : undefined"
+            @click="irParaPasso(idx + 1)"
+          >
+            <span class="etq-step-bola">
+              <i v-if="passoAtual > idx + 1" class="fas fa-check"></i>
+              <template v-else>{{ idx + 1 }}</template>
+            </span>
+            <span class="etq-step-label">{{ s2.label }}</span>
+          </button>
+        </nav>
         <div class="sheet-body">
 
           <!-- ════════════════ PASSO 1 — SABORES ════════════════ -->
@@ -517,18 +517,28 @@ async function gerarEtiquetasAvulsas(formato = 'docx') {
 <style scoped>
 .tab-etiquetas { padding-bottom: 100px; background: var(--bg); }
 .etq-content { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.tab-etiquetas .sheet-card { overflow: visible; }
 
 /* ── Indicador de etapas ── */
-.etq-steps { display: flex; align-items: center; padding: 4px 16px 0; gap: 4px; }
-.etq-step {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  flex: 1; border: none; background: transparent; padding: 6px 2px;
-  opacity: .55; transition: opacity .15s;
+.etq-steps {
+  position: sticky; top: var(--tab-hdr-h); z-index: calc(var(--z-sticky) - 1);
+  display: flex; align-items: center; padding: 6px 10px; gap: 4px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
+.etq-step {
+  display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px;
+  flex: 1; min-width: 0; min-height: 36px; border: 1px solid transparent;
+  border-radius: var(--r-full); background: transparent; padding: 4px 6px;
+  opacity: .62; transition: opacity .15s, background .15s, border-color .15s;
+}
+.etq-step-label { font-size: .68rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.etq-step.ativo .etq-step-label { color: var(--brown-dark); }
+.etq-step.ativo { border-color: #e8d5a0; background: var(--gold-bg); }
 .etq-step:disabled { cursor: default; }
 .etq-step.ativo, .etq-step.concluido { opacity: 1; }
 .etq-step-bola {
-  width: 26px; height: 26px; border-radius: 50%;
+  width: 22px; height: 22px; flex: 0 0 22px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: .72rem; font-weight: 800;
   background: var(--cream); color: var(--brown-mid);
@@ -537,8 +547,9 @@ async function gerarEtiquetasAvulsas(formato = 'docx') {
 }
 .etq-step.ativo .etq-step-bola { background: var(--brown-dark); border-color: var(--brown-dark); color: #fff; }
 .etq-step.concluido .etq-step-bola { background: var(--gold-bg); border-color: var(--gold-dark); color: var(--gold-dark); }
-.etq-step-label { font-size: .65rem; font-weight: 700; color: var(--muted); }
-.etq-step.ativo .etq-step-label { color: var(--brown-dark); }
+html.is-desktop .tab-etiquetas .etq-step { flex-direction: column; gap: 4px; padding: 6px 2px; border: 0; border-radius: 0; background: transparent; }
+html.is-desktop .tab-etiquetas .etq-step-bola { width: 26px; height: 26px; flex-basis: 26px; }
+html.is-desktop .tab-etiquetas .etq-step.ativo { background: transparent; }
 
 .etq-passo { display: flex; flex-direction: column; }
 
@@ -563,7 +574,7 @@ async function gerarEtiquetasAvulsas(formato = 'docx') {
 /* ── Sabores: lista no mesmo ritmo dos itens planejados da Cozinha ── */
 .etq-sabores-list {
   display:flex; flex-direction:column; gap:8px;
-  max-height:50vh; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:2px;
+  padding:2px;
 }
 .etq-sabor-row {
   background:#fff; border:1px solid var(--border); border-radius:var(--r-md);

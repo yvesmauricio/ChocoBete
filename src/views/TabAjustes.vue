@@ -502,12 +502,22 @@
       </section>
 
       <!-- ── SEÇÃO: SISTEMA ── -->
-      <section v-if="abaAtiva === 'sistema'" class="aj-pagina fade-in">
+      <section v-if="abaAtiva === 'sistema'" class="aj-pagina aj-pagina--sistema fade-in">
         <header class="aj-cab">
           <h3 class="aj-titulo">Sistema</h3>
           <p class="aj-desc">Preferências do app. As escolhas valem na hora, não precisa salvar.</p>
         </header>
 
+        <details class="aj-sistema-secao">
+          <summary class="aj-sistema-summary">
+            <span class="aj-sistema-icone"><i class="fas fa-mobile-screen-button"></i></span>
+            <span class="aj-sistema-summary-txt">
+              <span class="aj-sistema-summary-titulo">Dispositivo e acesso</span>
+              <span class="aj-sistema-summary-desc">Aparelho, PIN e impressão de etiquetas</span>
+            </span>
+            <i class="fas fa-chevron-down aj-sistema-chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="aj-sistema-corpo">
         <!-- Quem é este aparelho + PIN do Admin -->
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
@@ -605,7 +615,19 @@
         <div v-if="editandoAparelho" class="aj-aparelho-ov">
           <ConfigurarAparelho edicao @pronto="editandoAparelho = false" @cancelar="editandoAparelho = false" />
         </div>
+          </div>
+        </details>
 
+        <details class="aj-sistema-secao">
+          <summary class="aj-sistema-summary">
+            <span class="aj-sistema-icone"><i class="fas fa-sliders"></i></span>
+            <span class="aj-sistema-summary-txt">
+              <span class="aj-sistema-summary-titulo">Preferências e atualização</span>
+              <span class="aj-sistema-summary-desc">Vendas, comprovantes, layout, compras e atualização do app</span>
+            </span>
+            <i class="fas fa-chevron-down aj-sistema-chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="aj-sistema-corpo">
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Comprovantes e cobrança</h4>
@@ -748,6 +770,19 @@
           </div>
         </div>
 
+          </div>
+        </details>
+
+        <details class="aj-sistema-secao">
+          <summary class="aj-sistema-summary">
+            <span class="aj-sistema-icone"><i class="fas fa-screwdriver-wrench"></i></span>
+            <span class="aj-sistema-summary-txt">
+              <span class="aj-sistema-summary-titulo">Ferramentas avançadas</span>
+              <span class="aj-sistema-summary-desc">Manutenção de extratos e publicação do cardápio</span>
+            </span>
+            <i class="fas fa-chevron-down aj-sistema-chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="aj-sistema-corpo">
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Ferramentas</h4>
@@ -826,10 +861,20 @@
           </details>
         </div>
 
-        <div class="aj-grupo">
-          <div class="aj-grupo-cab">
-            <h4 class="aj-grupo-titulo aj-grupo-titulo--risco">Zona de risco</h4>
           </div>
+        </details>
+
+        <details class="aj-sistema-secao aj-sistema-secao--risco">
+          <summary class="aj-sistema-summary">
+            <span class="aj-sistema-icone"><i class="fas fa-triangle-exclamation"></i></span>
+            <span class="aj-sistema-summary-txt">
+              <span class="aj-sistema-summary-titulo">Zona de risco</span>
+              <span class="aj-sistema-summary-desc">Ações permanentes sobre os dados</span>
+            </span>
+            <i class="fas fa-chevron-down aj-sistema-chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="aj-sistema-corpo">
+        <div class="aj-grupo">
           <article class="aj-card aj-card--risco">
             <div class="aj-row">
               <div class="aj-tile aj-tile--risco"><i class="fas fa-trash-can"></i></div>
@@ -845,6 +890,8 @@
             </div>
           </article>
         </div>
+          </div>
+        </details>
       </section>
 
       <div class="version-info">v3.2 · Local Storage & IndexedDB</div>
@@ -1464,6 +1511,22 @@ async function zerarDados() {
    raio; ícone = 12px; botão = 10px. Alvos de toque ≥ 46px.
 ══════════════════════════════════════════════════════════════ */
 .aj-pagina { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 640px; margin: 0 auto; }
+.aj-pagina--sistema { gap: 12px; }
+.aj-sistema-secao { overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
+.aj-sistema-summary { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 12px; cursor: pointer; list-style: none; -webkit-tap-highlight-color: transparent; }
+.aj-sistema-summary::-webkit-details-marker { display: none; }
+.aj-sistema-summary:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: -3px; }
+.aj-sistema-icone { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border-radius: var(--r-md); background: var(--cream); color: var(--brown-mid); font-size: 1.1rem; }
+.aj-sistema-summary-txt { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.aj-sistema-summary-titulo { color: var(--brown-dark); font-size: .96rem; font-weight: 800; line-height: 1.25; }
+.aj-sistema-summary-desc { color: var(--muted); font-size: .78rem; font-weight: 500; line-height: 1.35; }
+.aj-sistema-chevron { flex: 0 0 auto; color: var(--muted); font-size: .78rem; transition: transform var(--t); }
+.aj-sistema-secao[open] > .aj-sistema-summary { border-bottom: 1px solid var(--border); }
+.aj-sistema-secao[open] > .aj-sistema-summary .aj-sistema-chevron { transform: rotate(180deg); }
+.aj-sistema-corpo { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.aj-sistema-corpo > .aj-grupo { margin-top: 0; }
+.aj-sistema-secao--risco .aj-sistema-icone { background: var(--red-bg); color: var(--red); }
+.aj-sistema-secao--risco .aj-sistema-summary-titulo { color: var(--red); }
 .aj-cab { padding: 0 2px; }
 .aj-titulo { margin: 0; font-size: 1.3rem; font-weight: 800; line-height: 1.2; color: var(--brown-dark); }
 .aj-desc { margin: 4px 0 0; font-size: .88rem; line-height: 1.5; color: var(--muted); }
@@ -1586,7 +1649,7 @@ async function zerarDados() {
 .aj-cal-card > summary .aj-row-txt { padding-right: 4px; }
 .aj-cal-form { border-top: 1px solid var(--border); }
 .aj-cal-form .aj-nota { margin: 0; font-size: .84rem; line-height: 1.5; color: var(--muted); }
-.aj-cal-passos { margin: -4px 0 0; padding-left: 20px; font-size: .82rem; line-height: 1.45; color: var(--text); }
+.aj-cal-passos { margin: 0; padding-left: 20px; font-size: .82rem; line-height: 1.45; color: var(--text); }
 .aj-cal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .aj-cal-grid .fg { min-width: 0; }
 .aj-cal-grid .label { line-height: 1.35; }
