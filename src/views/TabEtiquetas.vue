@@ -556,7 +556,8 @@ async function gerarEtiquetasAvulsas(formato = 'docx') {
     })
 
     s.loading = true
-    const resultado = await gerar([], contato, 0, 'etiquetas-avulsas', mapaPosicoes)
+    const resultado = await gerar([], contato, 0, 'etiquetas-avulsas', mapaPosicoes,
+      formato === 'pdf' ? () => { s.loading = false } : undefined)
     s.loading = false
 
     if (resultado.ok) {
@@ -590,7 +591,8 @@ async function gerarEtiquetasAvulsas(formato = 'docx') {
   }
 
   s.loading = true
-  const resultado = await gerar(etiquetas, contato, startPos, 'etiquetas-avulsas')
+  const resultado = await gerar(etiquetas, contato, startPos, 'etiquetas-avulsas', null,
+    formato === 'pdf' ? () => { s.loading = false } : undefined)
   s.loading = false
 
   if (resultado.ok) {

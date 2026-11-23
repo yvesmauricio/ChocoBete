@@ -41,13 +41,16 @@ export function descreverCalibracao(c) {
  * ou qualquer app que imprima); no computador, baixa o arquivo.
  * @returns {Promise<{ ok: boolean, cancelado?: boolean }>}
  */
-async function entregarPdf(bytes, nomeArquivo, titulo) {
+async function entregarPdf(bytes, nomeArquivo, titulo, antesDeAbrirCompartilhamento) {
   const blob = new Blob([bytes], { type: 'application/pdf' })
   const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
   if (mobile && typeof File === 'function' && navigator.canShare && navigator.share) {
     try {
       const arquivo = new File([blob], `${nomeArquivo}.pdf`, { type: 'application/pdf' })
       if (navigator.canShare({ files: [arquivo] })) {
+        // A geração já terminou. Remova o bloqueio visual antes de abrir a
+        // interface do Android, que pode deixar a página suspensa por algum tempo.
+        antesDeAbrirCompartilhamento?.()
         await navigator.share({ files: [arquivo], title: titulo })
         return { ok: true }
       }
@@ -65,13 +68,13 @@ async function entregarPdf(bytes, nomeArquivo, titulo) {
  * já aplicando a calibração salva neste aparelho.
  * @returns {Promise<{ ok: boolean, novaPosicao?: number, totalFolhas?: number, erro?: string }>}
  */
-export async function gerarPdfEtiquetas(etiquetas, contato, startPos, nomeArquivoBase = 'etiquetas', mapaPosicoes = null) {
+export async function gerarPdfEtiquetas(etiquetas, contato, startPos, nomeArquivoBase = 'etiquetas', mapaPosicoes = null, antesDeCompartilhar = null) {
   if (!mapaPosicoes && !etiquetas.length) return { ok: false, erro: 'Não há etiquetas válidas para gerar.' }
   if (mapaPosicoes && mapaPosicoes.size === 0) return { ok: false, erro: 'Marque pelo menos uma posição na folha para gerar.' }
   try {
     const plano = planejarFolhas(etiquetas, contato, startPos, mapaPosicoes)
     const bytes = montarPdfEtiquetas(plano, lerCalibracao())
-    const r = await entregarPdf(bytes, nomeArquivoBase, 'Etiquetas')
+    const r = await entregarPdf(bytes, nomeArquivoBase, 'Etiquetas', antesDeCompartilhar)
     if (r.cancelado) return { ok: false, erro: 'Envio cancelado. Nenhuma etiqueta foi marcada como usada.' }
     return { ok: true, novaPosicao: plano.novaPosicao, totalFolhas: plano.totalFolhas }
   } catch (err) {
