@@ -502,22 +502,12 @@
       </section>
 
       <!-- ── SEÇÃO: SISTEMA ── -->
-      <section v-if="abaAtiva === 'sistema'" class="aj-pagina aj-pagina--sistema fade-in">
+      <section v-if="abaAtiva === 'sistema'" class="aj-pagina fade-in">
         <header class="aj-cab">
           <h3 class="aj-titulo">Sistema</h3>
           <p class="aj-desc">Preferências do app. As escolhas valem na hora, não precisa salvar.</p>
         </header>
 
-        <details class="aj-sistema-secao">
-          <summary class="aj-sistema-summary">
-            <span class="aj-sistema-icone"><i class="fas fa-mobile-screen-button"></i></span>
-            <span class="aj-sistema-summary-txt">
-              <span class="aj-sistema-summary-titulo">Dispositivo e acesso</span>
-              <span class="aj-sistema-summary-desc">Aparelho, PIN e impressão de etiquetas</span>
-            </span>
-            <i class="fas fa-chevron-down aj-sistema-chevron" aria-hidden="true"></i>
-          </summary>
-          <div class="aj-sistema-corpo">
         <!-- Quem é este aparelho + PIN do Admin -->
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
@@ -536,59 +526,6 @@
               <button class="btn btn-secondary" @click="editandoAparelho = true"><i class="fas fa-pen"></i> Mudar nome ou tipo</button>
             </div>
           </article>
-
-          <details class="aj-card aj-colapso aj-cal-card">
-            <summary class="aj-row">
-              <div class="aj-tile"><i class="fas fa-ruler-combined"></i></div>
-              <div class="aj-row-txt">
-                <div class="aj-row-titulo">Impressão de etiquetas</div>
-                <div class="aj-row-sub">Calibração do PDF, válida só neste aparelho</div>
-              </div>
-              <span class="aj-pill" :class="calAtiva ? 'aj-pill--ok' : 'aj-pill--off'">
-                {{ calAtiva ? 'Ajustado' : 'Padrão' }}
-              </span>
-            </summary>
-
-            <div class="aj-form aj-cal-form">
-              <p class="aj-nota">Se as etiquetas impressas pelo celular saírem menores ou deslocadas, calibre uma vez:</p>
-              <ol class="aj-cal-passos">
-                <li>Imprima a folha de teste em papel comum A4, sem ajustar a escala.</li>
-                <li>Meça com régua os quatro valores abaixo, em milímetros.</li>
-                <li>Informe as medidas e salve o ajuste.</li>
-              </ol>
-
-              <button type="button" class="btn btn-secondary" @click="imprimirTeste">
-                <i class="fas fa-print"></i> Imprimir folha de teste
-              </button>
-
-              <div class="aj-cal-grid">
-                <div class="fg">
-                  <label class="label">A · Largura da moldura <span class="aj-cal-ideal">ideal 190 mm</span></label>
-                  <input v-model="calMed.larguraMm" class="input" inputmode="decimal" placeholder="190" />
-                </div>
-                <div class="fg">
-                  <label class="label">B · Altura da moldura <span class="aj-cal-ideal">ideal 270 mm</span></label>
-                  <input v-model="calMed.alturaMm" class="input" inputmode="decimal" placeholder="270" />
-                </div>
-                <div class="fg">
-                  <label class="label">C · Borda esquerda até a moldura <span class="aj-cal-ideal">ideal 10 mm</span></label>
-                  <input v-model="calMed.esquerdaMm" class="input" inputmode="decimal" placeholder="10" />
-                </div>
-                <div class="fg">
-                  <label class="label">D · Borda superior até a moldura <span class="aj-cal-ideal">ideal 10 mm</span></label>
-                  <input v-model="calMed.topoMm" class="input" inputmode="decimal" placeholder="10" />
-                </div>
-              </div>
-
-              <p v-if="calErro" class="aj-cal-erro" role="alert">{{ calErro }}</p>
-              <p v-if="calAtiva" class="aj-nota">Ajuste atual: <strong>{{ calDescricao }}</strong></p>
-
-              <div class="aj-cal-acoes">
-                <button type="button" class="btn btn-primary" @click="salvarCal">Calcular e salvar</button>
-                <button v-if="calAtiva" type="button" class="btn btn-secondary" @click="removerCal">Remover ajuste</button>
-              </div>
-            </div>
-          </details>
         </div>
 
         <div class="aj-grupo">
@@ -615,19 +552,89 @@
         <div v-if="editandoAparelho" class="aj-aparelho-ov">
           <ConfigurarAparelho edicao @pronto="editandoAparelho = false" @cancelar="editandoAparelho = false" />
         </div>
-          </div>
-        </details>
 
-        <details class="aj-sistema-secao">
-          <summary class="aj-sistema-summary">
-            <span class="aj-sistema-icone"><i class="fas fa-sliders"></i></span>
-            <span class="aj-sistema-summary-txt">
-              <span class="aj-sistema-summary-titulo">Preferências e atualização</span>
-              <span class="aj-sistema-summary-desc">Vendas, comprovantes, layout, compras e atualização do app</span>
-            </span>
-            <i class="fas fa-chevron-down aj-sistema-chevron" aria-hidden="true"></i>
-          </summary>
-          <div class="aj-sistema-corpo">
+        <!-- Impressão de etiquetas: valem só para este aparelho -->
+        <div class="aj-grupo">
+          <div class="aj-grupo-cab">
+            <h4 class="aj-grupo-titulo">Impressão de etiquetas</h4>
+            <p class="aj-grupo-desc">Como o botão principal de Etiquetas gera a folha. Vale só para este aparelho; as outras duas formas continuam disponíveis na tela de Etiquetas.</p>
+          </div>
+          <div class="aj-card" role="radiogroup" aria-label="Forma padrão de gerar etiquetas">
+            <button
+              v-for="m in METODOS_ETIQUETA" :key="m.id"
+              class="aj-opcao" :class="{ 'is-ativa': metodoEtiqueta === m.id }"
+              role="radio" :aria-checked="metodoEtiqueta === m.id"
+              @click="definirMetodoEtiqueta(m.id)"
+            >
+              <div class="aj-tile"><i :class="m.icon"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-titulo">{{ m.label }}</div>
+                <div class="aj-row-sub">{{ m.desc }}</div>
+              </div>
+              <span class="aj-radio" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="aj-grupo">
+          <div class="aj-grupo-cab">
+            <h4 class="aj-grupo-titulo">Ajuste de impressão</h4>
+            <p class="aj-grupo-desc">Se a etiqueta sai menor ou deslocada, calibre uma vez. Cada forma de imprimir tem o seu ajuste, porque cada caminho escala de um jeito.</p>
+          </div>
+          <article class="aj-card">
+            <div class="aj-cal-abas" role="tablist" aria-label="Ajustar qual forma">
+              <button
+                v-for="c in CAMINHOS_CALIBRACAO" :key="c.id" type="button" role="tab"
+                class="aj-cal-aba" :class="{ 'is-ativa': calCaminho === c.id }" :aria-selected="calCaminho === c.id"
+                @click="calCaminho = c.id"
+              >{{ c.label }}</button>
+            </div>
+
+            <div class="aj-row">
+              <div class="aj-tile" :class="{ 'aj-tile--on': calAtiva }"><i class="fas fa-ruler-combined"></i></div>
+              <div class="aj-row-txt">
+                <div class="aj-row-titulo">{{ calAtiva ? 'Ajuste aplicado' : 'Sem ajuste' }}</div>
+                <div class="aj-row-sub">{{ calAtiva ? calDescricao : 'As etiquetas saem exatamente como desenhadas. Só calibre se perceber diferença na folha.' }}</div>
+              </div>
+            </div>
+
+            <ol class="aj-cal-passos">
+              <li>Toque em <b>Imprimir folha de teste</b> e imprima em papel comum <b>A4</b> (sem “ajustar à página”, se houver a opção).</li>
+              <li>Meça com régua as quatro distâncias, em milímetros.</li>
+              <li>Digite os valores e toque em <b>Calcular e salvar</b>.</li>
+            </ol>
+
+            <div class="aj-acoes">
+              <button type="button" class="btn btn-secondary" @click="imprimirTesteEtiqueta"><i class="fas fa-print"></i> Imprimir folha de teste</button>
+            </div>
+
+            <div class="aj-form aj-form--grade aj-cal-campos">
+              <div class="fg">
+                <label class="label" for="aj-cal-a">A · Largura da moldura <span class="aj-cal-ideal">ideal 190</span></label>
+                <input id="aj-cal-a" v-model="calMed.larguraMm" class="input" inputmode="decimal" placeholder="190" />
+              </div>
+              <div class="fg">
+                <label class="label" for="aj-cal-b">B · Altura da moldura <span class="aj-cal-ideal">ideal 270</span></label>
+                <input id="aj-cal-b" v-model="calMed.alturaMm" class="input" inputmode="decimal" placeholder="270" />
+              </div>
+              <div class="fg">
+                <label class="label" for="aj-cal-c">C · Borda esquerda até a moldura <span class="aj-cal-ideal">ideal 10</span></label>
+                <input id="aj-cal-c" v-model="calMed.esquerdaMm" class="input" inputmode="decimal" placeholder="10" />
+              </div>
+              <div class="fg">
+                <label class="label" for="aj-cal-d">D · Borda de cima até a moldura <span class="aj-cal-ideal">ideal 10</span></label>
+                <input id="aj-cal-d" v-model="calMed.topoMm" class="input" inputmode="decimal" placeholder="10" />
+              </div>
+            </div>
+            <p v-if="calErro" class="aj-cal-erro">{{ calErro }}</p>
+
+            <div class="aj-acoes">
+              <button type="button" class="btn btn-primary" @click="salvarCal"><i class="fas fa-check"></i> Calcular e salvar</button>
+              <button v-if="calAtiva" type="button" class="btn btn-secondary" @click="removerCal"><i class="fas fa-rotate-left"></i> Remover ajuste</button>
+            </div>
+          </article>
+        </div>
+
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Comprovantes e cobrança</h4>
@@ -770,19 +777,6 @@
           </div>
         </div>
 
-          </div>
-        </details>
-
-        <details class="aj-sistema-secao">
-          <summary class="aj-sistema-summary">
-            <span class="aj-sistema-icone"><i class="fas fa-screwdriver-wrench"></i></span>
-            <span class="aj-sistema-summary-txt">
-              <span class="aj-sistema-summary-titulo">Ferramentas avançadas</span>
-              <span class="aj-sistema-summary-desc">Manutenção de extratos e publicação do cardápio</span>
-            </span>
-            <i class="fas fa-chevron-down aj-sistema-chevron" aria-hidden="true"></i>
-          </summary>
-          <div class="aj-sistema-corpo">
         <div class="aj-grupo">
           <div class="aj-grupo-cab">
             <h4 class="aj-grupo-titulo">Ferramentas</h4>
@@ -861,20 +855,10 @@
           </details>
         </div>
 
-          </div>
-        </details>
-
-        <details class="aj-sistema-secao aj-sistema-secao--risco">
-          <summary class="aj-sistema-summary">
-            <span class="aj-sistema-icone"><i class="fas fa-triangle-exclamation"></i></span>
-            <span class="aj-sistema-summary-txt">
-              <span class="aj-sistema-summary-titulo">Zona de risco</span>
-              <span class="aj-sistema-summary-desc">Ações permanentes sobre os dados</span>
-            </span>
-            <i class="fas fa-chevron-down aj-sistema-chevron" aria-hidden="true"></i>
-          </summary>
-          <div class="aj-sistema-corpo">
         <div class="aj-grupo">
+          <div class="aj-grupo-cab">
+            <h4 class="aj-grupo-titulo aj-grupo-titulo--risco">Zona de risco</h4>
+          </div>
           <article class="aj-card aj-card--risco">
             <div class="aj-row">
               <div class="aj-tile aj-tile--risco"><i class="fas fa-trash-can"></i></div>
@@ -890,8 +874,6 @@
             </div>
           </article>
         </div>
-          </div>
-        </details>
       </section>
 
       <div class="version-info">v3.2 · Local Storage & IndexedDB</div>
@@ -976,11 +958,6 @@
 import { ref, reactive, watch, computed } from 'vue'
 import { useStore } from '../store.js'
 import { maskCpf, maskCnpj, maskCnae, maskTelefone, processarLogo, getMesRef, dataHoraBR, formatarBytes } from '../utils.js'
-import {
-  gerarPdfTeste, lerCalibracao, salvarCalibracao, limparCalibracao,
-  calibracaoAtiva, descreverCalibracao
-} from '../composables/useEtiquetasPdf.js'
-import { calcularCalibracao } from '../composables/etiquetasPdfCore.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { useTabScroll } from '../composables/useTabScroll.js'
 import { normalizarInstagram } from '../services/contatoService.js'
@@ -1001,44 +978,14 @@ import PinDialog from '../components/PinDialog.vue'
 import ConfigurarAparelho from './ConfigurarAparelho.vue'
 import { aparelho, temPin, removerPin } from '../store/aparelho.js'
 import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
+import {
+  lerMetodo, salvarMetodo, lerCalibracao, salvarCalibracao, limparCalibracao,
+  calibracaoAtiva, descreverCalibracao, imprimirFolhaTeste
+} from '../composables/useEtiquetasPdf.js'
+import { calcularCalibracao } from '../composables/etiquetasPdfCore.js'
 
 const s = useStore()
 const confirmar = useAppConfirm()
-const calAtual = ref(lerCalibracao())
-const calAtiva = computed(() => calibracaoAtiva(calAtual.value))
-const calDescricao = computed(() => descreverCalibracao(calAtual.value))
-const calMed = reactive({ larguraMm: '', alturaMm: '', esquerdaMm: '', topoMm: '' })
-const calErro = ref('')
-
-const lerMm = (v) => parseFloat(String(v ?? '').trim().replace(',', '.'))
-
-async function imprimirTeste() {
-  const r = await gerarPdfTeste()
-  if (!r.ok && r.erro) s.notify(r.erro, 'error')
-}
-
-function salvarCal() {
-  const r = calcularCalibracao({
-    larguraMm: lerMm(calMed.larguraMm),
-    alturaMm: lerMm(calMed.alturaMm),
-    esquerdaMm: lerMm(calMed.esquerdaMm),
-    topoMm: lerMm(calMed.topoMm)
-  })
-  if (r.erro) { calErro.value = r.erro; return }
-  calErro.value = ''
-  salvarCalibracao(r)
-  calAtual.value = lerCalibracao()
-  s.notify('Ajuste salvo neste aparelho. Os próximos PDFs de etiquetas usarão esta calibração.')
-}
-
-function removerCal() {
-  limparCalibracao()
-  calAtual.value = lerCalibracao()
-  Object.keys(calMed).forEach(k => { calMed[k] = '' })
-  calErro.value = ''
-  s.notify('Ajuste removido.')
-}
-
 const modoLancamentoCaderneta = ref('categorias')
 getModoLancamentoCaderneta().then(modo => { modoLancamentoCaderneta.value = modo })
 async function alterarModoLancamentoCaderneta(modo) {
@@ -1234,6 +1181,61 @@ watch(() => s.company, (novoValor) => {
 
 const { preferencia: preferenciaLayout, isDesktop, definirModo: definirModoLayout } = useLayoutMode()
 const abaAtiva = ref('perfil')
+
+// ── Impressão de etiquetas (por aparelho) ─────────────────────────
+const METODOS_ETIQUETA = [
+  { id: 'direta', icon: 'fas fa-print',     label: 'Imprimir direto',      desc: 'Abre na hora o diálogo de impressão do Android, já com a folha. Recomendado no celular.' },
+  { id: 'pdf',    icon: 'fas fa-file-pdf',  label: 'Gerar PDF',            desc: 'Gera o PDF e abre o Compartilhar, para enviar a outro app de impressão.' },
+  { id: 'docx',   icon: 'fas fa-file-word', label: 'Arquivo Word (.docx)', desc: 'O arquivo de sempre, para abrir e imprimir pelo computador.' }
+]
+const CAMINHOS_CALIBRACAO = [
+  { id: 'direta', label: 'Imprimir direto' },
+  { id: 'pdf',    label: 'PDF' }
+]
+const metodoEtiqueta = ref(lerMetodo())
+const calCaminho = ref(metodoEtiqueta.value === 'pdf' ? 'pdf' : 'direta')
+const calAtual = ref(lerCalibracao(calCaminho.value))
+const calAtiva = computed(() => calibracaoAtiva(calAtual.value))
+const calDescricao = computed(() => descreverCalibracao(calAtual.value))
+const calMed = reactive({ larguraMm: '', alturaMm: '', esquerdaMm: '', topoMm: '' })
+const calErro = ref('')
+
+function limparCamposCal() {
+  Object.keys(calMed).forEach(k => { calMed[k] = '' })
+  calErro.value = ''
+}
+function definirMetodoEtiqueta(id) {
+  metodoEtiqueta.value = id
+  salvarMetodo(id)
+  if (id !== 'docx') calCaminho.value = id // já mostra o ajuste da forma escolhida
+}
+watch(calCaminho, (c) => { calAtual.value = lerCalibracao(c); limparCamposCal() })
+
+const lerMm = (v) => parseFloat(String(v ?? '').trim().replace(',', '.'))
+
+async function imprimirTesteEtiqueta() {
+  const r = await imprimirFolhaTeste(calCaminho.value)
+  if (!r.ok && r.erro) s.notify(r.erro, 'error')
+}
+function salvarCal() {
+  const r = calcularCalibracao({
+    larguraMm: lerMm(calMed.larguraMm),
+    alturaMm: lerMm(calMed.alturaMm),
+    esquerdaMm: lerMm(calMed.esquerdaMm),
+    topoMm: lerMm(calMed.topoMm)
+  })
+  if (r.erro) { calErro.value = r.erro; return }
+  calErro.value = ''
+  salvarCalibracao(r, calCaminho.value)
+  calAtual.value = lerCalibracao(calCaminho.value)
+  s.notify('Ajuste salvo neste aparelho. Imprima as etiquetas e confira na folha.')
+}
+function removerCal() {
+  limparCalibracao(calCaminho.value)
+  calAtual.value = lerCalibracao(calCaminho.value)
+  limparCamposCal()
+  s.notify('Ajuste removido.')
+}
 // Estado geral do backup: 'ok' (Drive ligado e em dia), 'warn' (Drive ligado com alerta) ou 'off'
 const statusBackup = computed(() => !s.googleDriveConfigured ? 'off' : (s.alertaBackup ? 'warn' : 'ok'))
 
@@ -1511,22 +1513,6 @@ async function zerarDados() {
    raio; ícone = 12px; botão = 10px. Alvos de toque ≥ 46px.
 ══════════════════════════════════════════════════════════════ */
 .aj-pagina { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 640px; margin: 0 auto; }
-.aj-pagina--sistema { gap: 12px; }
-.aj-sistema-secao { overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
-.aj-sistema-summary { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 12px; cursor: pointer; list-style: none; -webkit-tap-highlight-color: transparent; }
-.aj-sistema-summary::-webkit-details-marker { display: none; }
-.aj-sistema-summary:focus-visible { outline: 3px solid rgba(122, 69, 32, .4); outline-offset: -3px; }
-.aj-sistema-icone { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border-radius: var(--r-md); background: var(--cream); color: var(--brown-mid); font-size: 1.1rem; }
-.aj-sistema-summary-txt { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
-.aj-sistema-summary-titulo { color: var(--brown-dark); font-size: .96rem; font-weight: 800; line-height: 1.25; }
-.aj-sistema-summary-desc { color: var(--muted); font-size: .78rem; font-weight: 500; line-height: 1.35; }
-.aj-sistema-chevron { flex: 0 0 auto; color: var(--muted); font-size: .78rem; transition: transform var(--t); }
-.aj-sistema-secao[open] > .aj-sistema-summary { border-bottom: 1px solid var(--border); }
-.aj-sistema-secao[open] > .aj-sistema-summary .aj-sistema-chevron { transform: rotate(180deg); }
-.aj-sistema-corpo { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
-.aj-sistema-corpo > .aj-grupo { margin-top: 0; }
-.aj-sistema-secao--risco .aj-sistema-icone { background: var(--red-bg); color: var(--red); }
-.aj-sistema-secao--risco .aj-sistema-summary-titulo { color: var(--red); }
 .aj-cab { padding: 0 2px; }
 .aj-titulo { margin: 0; font-size: 1.3rem; font-weight: 800; line-height: 1.2; color: var(--brown-dark); }
 .aj-desc { margin: 4px 0 0; font-size: .88rem; line-height: 1.5; color: var(--muted); }
@@ -1645,17 +1631,6 @@ async function zerarDados() {
 .aj-form { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
 .aj-form .fg { margin: 0; }
 .aj-form .btn { width: 100%; min-height: 46px; }
-.aj-cal-card > summary { align-items: center; }
-.aj-cal-card > summary .aj-row-txt { padding-right: 4px; }
-.aj-cal-form { border-top: 1px solid var(--border); }
-.aj-cal-form .aj-nota { margin: 0; font-size: .84rem; line-height: 1.5; color: var(--muted); }
-.aj-cal-passos { margin: 0; padding-left: 20px; font-size: .82rem; line-height: 1.45; color: var(--text); }
-.aj-cal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.aj-cal-grid .fg { min-width: 0; }
-.aj-cal-grid .label { line-height: 1.35; }
-.aj-cal-ideal { color: var(--muted); font-size: .72rem; font-weight: 600; }
-.aj-cal-erro { margin: 0; color: var(--red); font-size: .84rem; font-weight: 700; }
-.aj-cal-acoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
 .aj-nota { margin: 0; font-size: .82rem; line-height: 1.5; color: var(--muted); }
 .aj-nota--erro { color: var(--red); font-weight: 600; }
 .aj-nota code { padding: 1px 5px; border-radius: 4px; background: var(--cream); font-size: .78rem; }
@@ -1747,4 +1722,17 @@ async function zerarDados() {
 /* Configurar aparelho aberto por cima de Ajustes */
 .aj-aparelho-ov { position: fixed; inset: 0; z-index: var(--z-modal); background: var(--bg); overflow-y: auto; }
 .aj-aparelho-ov :deep(.ca-shell) { position: static; min-height: 100%; }
+
+/* ── Impressão de etiquetas: ajuste de impressão ── */
+.aj-cal-abas { display: flex; gap: 6px; padding: 12px 16px 0; }
+.aj-cal-aba {
+  flex: 1; height: 38px; border: 1.5px solid var(--border2); border-radius: var(--r-full);
+  background: var(--surface); color: var(--brown-mid); font-family: var(--font); font-size: .8rem; font-weight: 800;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.aj-cal-aba.is-ativa { background: var(--brown); border-color: var(--brown); color: #fff; }
+.aj-cal-passos { margin: 0; padding: 0 16px 14px 36px; font-size: .84rem; color: var(--text); display: flex; flex-direction: column; gap: 4px; line-height: 1.45; }
+.aj-cal-campos { padding: 0 16px 6px; }
+.aj-cal-ideal { font-weight: 600; color: var(--muted); font-size: .72rem; margin-left: 4px; }
+.aj-cal-erro { margin: 0; padding: 0 16px 10px; font-size: .82rem; font-weight: 700; color: var(--red); }
 </style>

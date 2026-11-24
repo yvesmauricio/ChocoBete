@@ -473,13 +473,6 @@ export const useStore = defineStore('choco', () => {
     }
   }
 
-  /** Atualiza a lista de receitas após retornar de outro app (por exemplo,
-   *  o seletor de impressão do Android), preservando a tela sem reiniciar o PWA. */
-  async function recarregarReceitas() {
-    const r = await db.receitas.toArray()
-    receitas.value = (Array.isArray(r) ? r : []).map(normalizarReceitaCarregada)
-  }
-
   /** Recarrega os arrays reativos a partir do IndexedDB sem precisar dar
    *  reload na página. Usado depois de qualquer importação de dados (pull do
    *  Drive, restauração de histórico ou de cópia local). Recarrega também as
@@ -1984,7 +1977,7 @@ async function registrarProducaoFantasma(dados) {
     saveContasFinanceiras,
 
     // Ações
-    init, recarregarReceitas, carregarProducoes, registrarProducao, atualizarLoteProducao, atualizarLoteFinanceiro, editarItemProducao,
+    init, carregarProducoes, registrarProducao, atualizarLoteProducao, atualizarLoteFinanceiro, editarItemProducao,
     registrarLoteProducao, estornarProducao, salvarProduto, excluirProduto, retomarLoteNaCozinha,
     cancelarEdicaoLote,
     salvarReceita, excluirReceita, getCustoTotal, getLucroInfo, getPesoTotal,

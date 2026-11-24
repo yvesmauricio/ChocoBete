@@ -98,6 +98,13 @@
       <div v-if="s.loading" class="loader-overlay">
         <div class="spinner"></div>
         <p>Carregando dados…</p>
+        <!-- Saída de emergência: se a carga demorar demais, dá para recarregar sem fechar o app -->
+        <template v-if="loaderLento">
+          <p class="loader-lento">Está demorando mais que o normal.</p>
+          <button type="button" class="btn btn-secondary" @click="recarregarApp">
+            <i class="fas fa-rotate-right"></i> Recarregar
+          </button>
+        </template>
       </div>
     </Transition>
   </div>
@@ -260,6 +267,16 @@ provide('atalhoHeader', atalhoHeader)
 // mesmo sem nada ter mudado.
 let escondidoDesde = 0
 const REVERIFICAR_APOS_MS = 5 * 60_000
+// Loader travado: depois de ~12 s oferece "Recarregar" (não perde nada: os dados ficam salvos no aparelho)
+const loaderLento = ref(false)
+let _timerLoaderLento = null
+watch(() => s.loading, (ligado) => {
+  clearTimeout(_timerLoaderLento)
+  loaderLento.value = false
+  if (ligado) _timerLoaderLento = setTimeout(() => { loaderLento.value = true }, 12000)
+})
+const recarregarApp = () => location.reload()
+
 const onVisibilityChange = async () => {
   if (document.visibilityState === 'hidden') {
     escondidoDesde = Date.now()
@@ -269,7 +286,6 @@ const onVisibilityChange = async () => {
   if (document.visibilityState === 'visible') {
     if (perfilInfo.value?.tipo === 'admin') {
       await s.iniciarSync()
-      await s.recarregarReceitas?.()
     } else if (perfilInfo.value?.tipo === 'consulta') {
       // A própria tela de consulta atualiza ao voltar (TabVendasConsulta).
     } else if (perfilInfo.value?.tipo === 'caderneta' && escondidoDesde && Date.now() - escondidoDesde > REVERIFICAR_APOS_MS) {

@@ -103,6 +103,40 @@ function criarPagina(cal) {
   }
 }
 
+// ── Página SVG (impressão direta pelo diálogo do Android) ───────────────────
+// Mesma interface de criarPagina(), mas gera SVG em milímetros (viewBox 210 x 297).
+// A calibração vira uma transformação do grupo: q = (d - o) / s.
+const n5 = (v) => String(Math.round(v * 100000) / 100000)
+const escXml = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const rgbCss = (c) => `rgb(${c.map(v => Math.round(v * 255)).join(',')})`
+
+function criarPaginaSvg(cal) {
+  const els = []
+  return {
+    texto(x, yBase, str, { bold = false, tamanho = 9, cor = [0, 0, 0], cx = null } = {}) {
+      if (!str) return
+      const centrado = cx !== null && cx !== undefined
+      els.push(
+        `<text x="${num(centrado ? cx : x)}" y="${num(yBase)}" font-size="${num((tamanho * 25.4) / 72)}"` +
+        `${bold ? ' font-weight="700"' : ''} fill="${rgbCss(cor)}"${centrado ? ' text-anchor="middle"' : ''}>${escXml(str)}</text>`
+      )
+    },
+    retangulo(x, y, w, h, { largura = 0.2, cor = [0, 0, 0] } = {}) {
+      els.push(`<rect x="${num(x)}" y="${num(y)}" width="${num(w)}" height="${num(h)}" fill="none" stroke="${rgbCss(cor)}" stroke-width="${num(largura)}"/>`)
+    },
+    linha(x1, y1, x2, y2, { largura = 0.2, cor = [0, 0, 0] } = {}) {
+      els.push(`<line x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}" stroke="${rgbCss(cor)}" stroke-width="${num(largura)}"/>`)
+    },
+    svg() {
+      const t = `scale(${n5(1 / cal.sx)} ${n5(1 / cal.sy)}) translate(${n5(-cal.ox)} ${n5(-cal.oy)})`
+      return (
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE.w} ${PAGE.h}" width="${PAGE.w}mm" height="${PAGE.h}mm" ` +
+        `font-family="Arial, Helvetica, 'Liberation Sans', Roboto, sans-serif"><g transform="${t}">${els.join('')}</g></svg>`
+      )
+    }
+  }
+}
+
 // ── Quebra de linha e ajuste de fonte para caber na etiqueta ────────────────
 function quebrar(texto, bold, tamanho, larguraMax) {
   const palavras = String(texto).trim().split(/\s+/).filter(Boolean)
@@ -196,12 +230,12 @@ function desenharFolha(pg, celulas) {
     let y = centro - altura / 2 + AJUSTE_Y
 
     for (const l of linhasS) {
-      pg.texto(cx - larguraMm(l, true, tamS) / 2, y + (0.905 * tamS) / PT, l, { bold: true, tamanho: tamS, cor: COR_SABOR })
+      pg.texto(cx - larguraMm(l, true, tamS) / 2, y + (0.905 * tamS) / PT, l, { bold: true, tamanho: tamS, cor: COR_SABOR, cx })
       y += hS
     }
     y += linhasC.length ? ENTRELINHA : 0
     for (const l of linhasC) {
-      pg.texto(cx - larguraMm(l, false, tamC) / 2, y + (0.905 * tamC) / PT, l, { bold: false, tamanho: tamC, cor: COR_CONTATO })
+      pg.texto(cx - larguraMm(l, false, tamC) / 2, y + (0.905 * tamC) / PT, l, { bold: false, tamanho: tamC, cor: COR_CONTATO, cx })
       y += hC
     }
   })
@@ -283,6 +317,22 @@ export function montarPdfEtiquetas(plano, cal = CALIBRACAO_PADRAO) {
     return pg.conteudo()
   })
   return montarPdf(conteudos)
+}
+
+/** Páginas SVG das etiquetas (uma string por folha) para a impressão direta. */
+export function montarSvgsEtiquetas(plano, cal = CALIBRACAO_PADRAO) {
+  return plano.folhas.map(celulas => {
+    const pg = criarPaginaSvg(cal)
+    desenharFolha(pg, celulas)
+    return pg.svg()
+  })
+}
+
+/** Folha de teste em SVG (nunca usa calibração). */
+export function montarSvgTeste() {
+  const pg = criarPaginaSvg(CALIBRACAO_PADRAO)
+  desenharTeste(pg)
+  return [pg.svg()]
 }
 
 /** PDF da folha de teste (nunca usa calibração). */

@@ -8,26 +8,26 @@
       <p class="tab-subtitle">Gere etiquetas Pimaco A5Q-1226 por sabor e quantidade</p>
     </div>
 
+    <!-- ── Indicador de etapas ── -->
+    <div class="etq-steps">
+      <button
+        v-for="(s2, idx) in passos"
+        :key="s2.id"
+        class="etq-step"
+        :class="{ ativo: passoAtual === idx + 1, concluido: passoAtual > idx + 1 }"
+        :disabled="idx + 1 > passoMaximoAlcancado || (folhaCheiaSelecionada && s2.id === 'posicao')"
+        @click="irParaPasso(idx + 1)"
+      >
+        <span class="etq-step-bola">
+          <i v-if="passoAtual > idx + 1" class="fas fa-check"></i>
+          <template v-else>{{ idx + 1 }}</template>
+        </span>
+        <span class="etq-step-label">{{ s2.label }}</span>
+      </button>
+    </div>
+
     <div class="etq-content">
       <div class="sheet-card">
-        <!-- Navegação compacta, integrada ao cartão e fixa sob o cabeçalho ao rolar. -->
-        <nav class="etq-steps" aria-label="Etapas das etiquetas">
-          <button
-            v-for="(s2, idx) in passos"
-            :key="s2.id"
-            class="etq-step"
-            :class="{ ativo: passoAtual === idx + 1, concluido: passoAtual > idx + 1 }"
-            :disabled="idx + 1 > passoMaximoAlcancado || (folhaCheiaSelecionada && s2.id === 'posicao')"
-            :aria-current="passoAtual === idx + 1 ? 'step' : undefined"
-            @click="irParaPasso(idx + 1)"
-          >
-            <span class="etq-step-bola">
-              <i v-if="passoAtual > idx + 1" class="fas fa-check"></i>
-              <template v-else>{{ idx + 1 }}</template>
-            </span>
-            <span class="etq-step-label">{{ s2.label }}</span>
-          </button>
-        </nav>
         <div class="sheet-body">
 
           <!-- ════════════════ PASSO 1 — SABORES ════════════════ -->
@@ -172,6 +172,30 @@
               </div>
             </div>
 
+            <!-- Outras formas de gerar + estado do ajuste (a configuração fica em Ajustes › Sistema) -->
+            <div class="etq-outras">
+              <div class="etq-outras-linha">
+                <span class="etq-outras-rotulo">Outras formas de gerar</span>
+                <div class="etq-outras-botoes">
+                  <button v-if="metodo !== 'direta'" type="button" class="btn btn-secondary btn-sm" :disabled="!podeGerar" @click="gerarEtiquetasAvulsas('direta')">
+                    <i class="fas fa-print"></i> Imprimir direto
+                  </button>
+                  <button v-if="metodo !== 'pdf'" type="button" class="btn btn-secondary btn-sm" :disabled="!podeGerar" @click="gerarEtiquetasAvulsas('pdf')">
+                    <i class="fas fa-file-pdf"></i> PDF
+                  </button>
+                  <button v-if="metodo !== 'docx'" type="button" class="btn btn-secondary btn-sm" :disabled="!podeGerar" @click="gerarEtiquetasAvulsas('docx')">
+                    <i class="fas fa-file-word"></i> Word
+                  </button>
+                </div>
+              </div>
+              <p v-if="metodo !== 'docx'" class="etq-outras-dica">
+                <i class="fas fa-ruler-combined"></i>
+                {{ calStatus ? 'Ajuste de impressão aplicado.' : 'Sem ajuste de impressão.' }}
+                Para mudar a forma padrão ou calibrar:
+                <button type="button" class="etq-link" @click="s.setTab('ajustes')">Ajustes › Sistema</button>
+              </p>
+            </div>
+
           </div>
 
         </div>
@@ -186,11 +210,8 @@
       <button v-if="passoAtual < 3" class="btn btn-primary" :disabled="!podeAvancar" @click="avancarPasso">
         Continuar <i class="fas fa-arrow-right"></i>
       </button>
-      <button v-if="passoAtual === 3" class="btn btn-secondary" :disabled="!podeGerar" @click="gerarEtiquetasAvulsas('pdf')">
-        <i class="fas fa-file-pdf"></i> Gerar PDF
-      </button>
-      <button v-if="passoAtual === 3" class="btn btn-primary" :disabled="!podeGerar" @click="gerarEtiquetasAvulsas('docx')">
-        <i class="fas fa-file-word"></i> Gerar .docx
+      <button v-if="passoAtual === 3" class="btn btn-primary" :disabled="!podeGerar" @click="gerarEtiquetasAvulsas(metodo)">
+        <i :class="ICONE_METODO[metodo]"></i> {{ ROTULO_METODO[metodo] }}
       </button>
     </div>
   </div>
@@ -202,7 +223,9 @@ import { useStore } from '../store.js'
 import { textoEtiquetaReceita } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { gerarArquivoEtiquetas } from '../composables/useEtiquetas.js'
-import { gerarPdfEtiquetas } from '../composables/useEtiquetasPdf.js'
+import {
+  imprimirEtiquetas, gerarPdfEtiquetas, lerMetodo, lerCalibracao, calibracaoAtiva
+} from '../composables/useEtiquetasPdf.js'
 
 const s = useStore()
 const confirmar = useAppConfirm()
@@ -446,9 +469,31 @@ function resetarWizard() {
   passoMaximoAlcancado.value = 1
 }
 
-async function gerarEtiquetasAvulsas(formato = 'docx') {
-  // Evita receber o evento de clique como "formato" por engano
-  const gerar = formato === 'pdf' ? gerarPdfEtiquetas : gerarArquivoEtiquetas
+// ── Forma de gerar (configurada em Ajustes › Sistema, por aparelho) ──
+const ICONE_METODO = { direta: 'fas fa-print', pdf: 'fas fa-file-pdf', docx: 'fas fa-file-word' }
+const ROTULO_METODO = { direta: 'Imprimir', pdf: 'Gerar PDF', docx: 'Gerar .docx' }
+const metodo = ref(lerMetodo())
+const calStatus = ref(false)
+function atualizarPreferencias() {
+  metodo.value = lerMetodo()
+  calStatus.value = metodo.value !== 'docx' && calibracaoAtiva(lerCalibracao(metodo.value))
+}
+atualizarPreferencias()
+// A aba fica montada: relê quando volta para cá (a pessoa pode ter mudado em Ajustes)
+watch(() => s.tab, (t) => { if (t === 'etiquetas') atualizarPreferencias() })
+
+async function gerarEtiquetasAvulsas(formato) {
+  const forma = ['direta', 'pdf', 'docx'].includes(formato) ? formato : metodo.value
+  const gerar = forma === 'direta' ? imprimirEtiquetas : forma === 'pdf' ? gerarPdfEtiquetas : gerarArquivoEtiquetas
+  // O loader global ("Carregando dados…") só no .docx, que termina na hora. Impressão direta e
+  // Compartilhar abrem telas do Android e podem ficar pendentes até você voltar: segurar o loader
+  // aqui deixava a tela escura e travada enquanto o menu do Android estava aberto.
+  const comLoader = forma === 'docx'
+  const executar = async (...args) => {
+    if (comLoader) s.loading = true
+    try { return await gerar(...args) } finally { if (comLoader) s.loading = false }
+  }
+  const verbo = forma === 'direta' ? 'Impressão aberta' : 'Etiqueta gerada'
   const contato = company.contato_etiqueta?.trim() || [company.nome, company.whatsapp_pedidos].filter(Boolean).join(' ').trim()
 
   // ── Modo manual: gera a partir das posições marcadas no preview ──
@@ -462,13 +507,10 @@ async function gerarEtiquetasAvulsas(formato = 'docx') {
       if (idx < etiquetas.length) mapaPosicoes.set(posGlobal, etiquetas[idx])
     })
 
-    s.loading = true
-    const resultado = await gerar([], contato, 0, 'etiquetas-avulsas', mapaPosicoes,
-      formato === 'pdf' ? () => { s.loading = false } : undefined)
-    s.loading = false
+    const resultado = await executar([], contato, 0, 'etiquetas-avulsas', mapaPosicoes)
 
     if (resultado.ok) {
-      s.notify(`Etiqueta gerada! ${mapaPosicoes.size} posição${mapaPosicoes.size > 1 ? 'ões' : ''} marcada${mapaPosicoes.size > 1 ? 's' : ''} impressa${mapaPosicoes.size > 1 ? 's' : ''}.`)
+      s.notify(`${verbo}! ${mapaPosicoes.size} posição${mapaPosicoes.size > 1 ? 'ões' : ''} marcada${mapaPosicoes.size > 1 ? 's' : ''} impressa${mapaPosicoes.size > 1 ? 's' : ''}.`)
       Object.keys(etqQtds).forEach(k => delete etqQtds[k])
       posicoesManualMarcadas.clear()
       resetarWizard()
@@ -497,15 +539,12 @@ async function gerarEtiquetasAvulsas(formato = 'docx') {
     startPos = continuar ? startPos : 0
   }
 
-  s.loading = true
-  const resultado = await gerar(etiquetas, contato, startPos, 'etiquetas-avulsas', null,
-    formato === 'pdf' ? () => { s.loading = false } : undefined)
-  s.loading = false
+  const resultado = await executar(etiquetas, contato, startPos, 'etiquetas-avulsas')
 
   if (resultado.ok) {
     company.posicao_etiqueta = resultado.novaPosicao
     s.saveCompany({ ...company })
-    s.notify(`Etiqueta gerada! ${resultado.totalFolhas} folha${resultado.totalFolhas > 1 ? 's' : ''}. Próxima posição: ${resultado.novaPosicao}.`)
+    s.notify(`${verbo}! ${resultado.totalFolhas} folha${resultado.totalFolhas > 1 ? 's' : ''}. Próxima posição: ${resultado.novaPosicao}.`)
     Object.keys(etqQtds).forEach(k => delete etqQtds[k])
     resetarWizard()
   } else {
@@ -517,28 +556,18 @@ async function gerarEtiquetasAvulsas(formato = 'docx') {
 <style scoped>
 .tab-etiquetas { padding-bottom: 100px; background: var(--bg); }
 .etq-content { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
-.tab-etiquetas .sheet-card { overflow: visible; }
 
 /* ── Indicador de etapas ── */
-.etq-steps {
-  position: sticky; top: var(--tab-hdr-h); z-index: calc(var(--z-sticky) - 1);
-  display: flex; align-items: center; padding: 6px 10px; gap: 4px;
-  background: var(--surface); border-bottom: 1px solid var(--border);
-  border-radius: var(--r-lg) var(--r-lg) 0 0;
-}
+.etq-steps { display: flex; align-items: center; padding: 4px 16px 0; gap: 4px; }
 .etq-step {
-  display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px;
-  flex: 1; min-width: 0; min-height: 36px; border: 1px solid transparent;
-  border-radius: var(--r-full); background: transparent; padding: 4px 6px;
-  opacity: .62; transition: opacity .15s, background .15s, border-color .15s;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  flex: 1; border: none; background: transparent; padding: 6px 2px;
+  opacity: .55; transition: opacity .15s;
 }
-.etq-step-label { font-size: .68rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
-.etq-step.ativo .etq-step-label { color: var(--brown-dark); }
-.etq-step.ativo { border-color: #e8d5a0; background: var(--gold-bg); }
 .etq-step:disabled { cursor: default; }
 .etq-step.ativo, .etq-step.concluido { opacity: 1; }
 .etq-step-bola {
-  width: 22px; height: 22px; flex: 0 0 22px; border-radius: 50%;
+  width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: .72rem; font-weight: 800;
   background: var(--cream); color: var(--brown-mid);
@@ -547,9 +576,8 @@ async function gerarEtiquetasAvulsas(formato = 'docx') {
 }
 .etq-step.ativo .etq-step-bola { background: var(--brown-dark); border-color: var(--brown-dark); color: #fff; }
 .etq-step.concluido .etq-step-bola { background: var(--gold-bg); border-color: var(--gold-dark); color: var(--gold-dark); }
-html.is-desktop .tab-etiquetas .etq-step { flex-direction: column; gap: 4px; padding: 6px 2px; border: 0; border-radius: 0; background: transparent; }
-html.is-desktop .tab-etiquetas .etq-step-bola { width: 26px; height: 26px; flex-basis: 26px; }
-html.is-desktop .tab-etiquetas .etq-step.ativo { background: transparent; }
+.etq-step-label { font-size: .65rem; font-weight: 700; color: var(--muted); }
+.etq-step.ativo .etq-step-label { color: var(--brown-dark); }
 
 .etq-passo { display: flex; flex-direction: column; }
 
@@ -574,7 +602,7 @@ html.is-desktop .tab-etiquetas .etq-step.ativo { background: transparent; }
 /* ── Sabores: lista no mesmo ritmo dos itens planejados da Cozinha ── */
 .etq-sabores-list {
   display:flex; flex-direction:column; gap:8px;
-  padding:2px;
+  max-height:50vh; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:2px;
 }
 .etq-sabor-row {
   background:#fff; border:1px solid var(--border); border-radius:var(--r-md);
@@ -677,4 +705,12 @@ html.is-desktop .tab-etiquetas .etq-step.ativo { background: transparent; }
   text-decoration: underline; padding: 2px 4px;
 }
 
+/* ── Outras formas de gerar ── */
+.etq-outras { margin-top: 16px; padding: 12px 14px; border: 1px dashed var(--border2); border-radius: var(--r-md); background: var(--bg); }
+.etq-outras-linha { display: flex; flex-direction: column; gap: 8px; }
+.etq-outras-rotulo { font-size: .74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+.etq-outras-botoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.etq-outras-dica { margin: 10px 0 0; font-size: .78rem; line-height: 1.45; color: var(--muted); }
+.etq-outras-dica i { color: var(--gold-dark); margin-right: 4px; }
+.etq-link { background: none; border: none; padding: 0; font: inherit; font-weight: 800; color: var(--gold-dark); text-decoration: underline; cursor: pointer; }
 </style>
