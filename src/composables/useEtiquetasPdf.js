@@ -8,6 +8,7 @@ import {
   montarSvgTeste,
   CALIBRACAO_PADRAO
 } from './etiquetasPdfCore.js'
+import { ESTILO_PADRAO } from './etiquetasEstilo.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Formas de gerar as etiquetas (a escolhida fica salva POR APARELHO):
@@ -193,14 +194,15 @@ function validar(etiquetas, mapaPosicoes) {
 /**
  * Mesma assinatura de gerarArquivoEtiquetas (.docx). Abre o diálogo de impressão do Android
  * já com a folha, aplicando a calibração salva para a impressão direta.
+ * `estilo` = estilo visual da etiqueta (etiquetasEstilo.js); omitido = estilo padrão.
  */
-export async function imprimirEtiquetas(etiquetas, contato, startPos, _nomeArquivoBase, mapaPosicoes = null) {
+export async function imprimirEtiquetas(etiquetas, contato, startPos, _nomeArquivoBase, mapaPosicoes = null, estilo = null) {
   const invalida = validar(etiquetas, mapaPosicoes)
   if (invalida) return invalida
   try {
     await carregarPrefsEtiquetas()
     const plano = planejarFolhas(etiquetas, contato, startPos, mapaPosicoes)
-    await abrirImpressao(montarSvgsEtiquetas(plano, lerCalibracao('direta')))
+    await abrirImpressao(montarSvgsEtiquetas(plano, lerCalibracao('direta'), estilo || ESTILO_PADRAO))
     return { ok: true, novaPosicao: plano.novaPosicao, totalFolhas: plano.totalFolhas }
   } catch (err) {
     console.error(err)
@@ -234,13 +236,13 @@ async function entregarPdf(bytes, nomeArquivo, titulo) {
 }
 
 /** PDF das etiquetas, já com a calibração salva para o caminho "PDF". */
-export async function gerarPdfEtiquetas(etiquetas, contato, startPos, nomeArquivoBase = 'etiquetas', mapaPosicoes = null) {
+export async function gerarPdfEtiquetas(etiquetas, contato, startPos, nomeArquivoBase = 'etiquetas', mapaPosicoes = null, estilo = null) {
   const invalida = validar(etiquetas, mapaPosicoes)
   if (invalida) return invalida
   try {
     await carregarPrefsEtiquetas()
     const plano = planejarFolhas(etiquetas, contato, startPos, mapaPosicoes)
-    const bytes = montarPdfEtiquetas(plano, lerCalibracao('pdf'))
+    const bytes = montarPdfEtiquetas(plano, lerCalibracao('pdf'), estilo || ESTILO_PADRAO)
     const r = await entregarPdf(bytes, nomeArquivoBase, 'Etiquetas')
     if (r.cancelado) return { ok: false, erro: 'Envio cancelado. Nenhuma etiqueta foi marcada como usada.' }
     return { ok: true, novaPosicao: plano.novaPosicao, totalFolhas: plano.totalFolhas }

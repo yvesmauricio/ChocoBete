@@ -89,6 +89,7 @@ export const useStore = defineStore('choco', () => {
     logo: null, // dataURL (base64, PNG) do logotipo enviado — null usa o ícone padrão
     posicao_etiqueta: 0,
     contato_etiqueta: '', // texto livre exibido na etiqueta (whatsapp/instagram)
+    etiqueta_estilo: null, // estilo visual da etiqueta (fonte, tamanho, cor, alinhamento, posição) — null = padrão; ver composables/etiquetasEstilo.js
     whatsapp_pedidos: '', // número (com DDD, formatado tipo "(21) 99999-0000") usado no link do WhatsApp do cardápio interativo — quem consome (numeroWhatsAppFormatado, chavePixDoWhatsapp) já limpa a formatação sozinho
     chave_pix: '',        // chave Pix para receber (opcional; vazio = usa o WhatsApp de pedidos como chave de telefone)
     chave_pix_tipo: 'telefone', // 'telefone' | 'cpf' | 'cnpj' | 'email' | 'aleatoria'

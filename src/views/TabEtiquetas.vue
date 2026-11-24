@@ -172,6 +172,21 @@
               </div>
             </div>
 
+            <!-- Estilo da etiqueta: fonte, tamanho, cor, alinhamento e posição -->
+            <div class="etq-estilo">
+              <div class="etq-estilo-topo">
+                <span class="etq-outras-rotulo">Estilo da etiqueta</span>
+                <button type="button" class="btn btn-secondary btn-sm" @click="abrirModal('estilo')">
+                  <i class="fas fa-palette"></i> Personalizar
+                </button>
+              </div>
+              <EtiquetaPreview :sabores="saboresPrevia" :contato="contatoEtiqueta" :estilo="estiloAtual" />
+              <p class="etq-outras-dica etq-estilo-resumo">
+                <i class="fas fa-swatchbook"></i>
+                {{ estiloPadrao ? 'Estilo padrão. ' : '' }}{{ resumoEstilo }}
+              </p>
+            </div>
+
             <!-- Outras formas de gerar + estado do ajuste (a configuração fica em Ajustes › Sistema) -->
             <div class="etq-outras">
               <div class="etq-outras-linha">
@@ -202,6 +217,16 @@
       </div>
     </div>
 
+    <!-- ── Editor do estilo da etiqueta ── -->
+    <EtiquetaEstiloEditor
+      v-if="modal === 'estilo'"
+      :estilo="company.etiqueta_estilo"
+      :contato="contatoEtiqueta"
+      :sabores="nomesDosSabores"
+      @close="fecharModal"
+      @salvar="salvarEstilo"
+    />
+
     <!-- ── Navegação entre passos — fixa no rodapé, sempre visível ── -->
     <div class="etq-passo-nav">
       <button v-if="passoAtual > 1" class="btn btn-secondary" @click="passoAtual--">
@@ -223,6 +248,10 @@ import { useStore } from '../store.js'
 import { textoEtiquetaReceita } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { gerarArquivoEtiquetas } from '../composables/useEtiquetas.js'
+import { useModalStack } from '../composables/useModalStack.js'
+import { normalizarEstilo, estiloEhPadrao, descreverEstilo } from '../composables/etiquetasEstilo.js'
+import EtiquetaEstiloEditor from '../components/EtiquetaEstiloEditor.vue'
+import EtiquetaPreview from '../components/EtiquetaPreview.vue'
 import {
   imprimirEtiquetas, gerarPdfEtiquetas, lerMetodo, lerCalibracao, calibracaoAtiva, carregarPrefsEtiquetas
 } from '../composables/useEtiquetasPdf.js'
@@ -235,6 +264,23 @@ const company = reactive({ ...s.company })
 watch(() => s.company, (val) => {
   if (val) Object.assign(company, JSON.parse(JSON.stringify(val)))
 }, { deep: true, immediate: true })
+
+// ── Estilo da etiqueta (fonte, tamanho, cor, alinhamento, posição) ──
+// Fica em company.etiqueta_estilo → vai junto no backup e na sincronização.
+const { modal, abrirModal, fecharModal } = useModalStack()
+const estiloAtual = computed(() => normalizarEstilo(company.etiqueta_estilo))
+const estiloPadrao = computed(() => estiloEhPadrao(estiloAtual.value))
+const resumoEstilo = computed(() => descreverEstilo(estiloAtual.value))
+const contatoEtiqueta = computed(() =>
+  company.contato_etiqueta?.trim() || [company.nome, company.whatsapp_pedidos].filter(Boolean).join(' ').trim()
+)
+
+function salvarEstilo(novo) {
+  // grava só este campo (não sobrescreve o resto do cadastro com uma cópia antiga)
+  s.saveCompany({ etiqueta_estilo: novo })
+  fecharModal()
+  s.notify(novo ? 'Estilo da etiqueta salvo!' : 'Estilo padrão restaurado.')
+}
 
 // ── Wizard: controle de passos ──────────────────────────────────
 const passos = [
@@ -380,6 +426,17 @@ const listaEtiquetasPlana = computed(() => {
   return etiquetas
 })
 
+// Nomes reais (para testar o estilo no editor) e os 3 primeiros sabores escolhidos (prévia do passo 3)
+const nomesDosSabores = computed(() => receitasParaEtiqueta.value.map(r => r._textoSabor))
+const saboresPrevia = computed(() => {
+  const escolhidos = [...new Set(listaEtiquetasPlana.value)]
+  const base = escolhidos.length ? escolhidos : nomesDosSabores.value
+  const tres = base.slice(0, 3)
+  const reserva = ['Ninho', 'Maracujá', 'Prestígio']
+  while (tres.length < 3) tres.push(reserva[tres.length])
+  return tres
+})
+
 const totalFolhasEtiqueta = computed(() => {
   if (folhaCheiaSelecionada.value) return 1
   const startPos = Math.max(0, (Number(company.posicao_etiqueta || 1) || 1) - 1)
@@ -495,7 +552,8 @@ async function gerarEtiquetasAvulsas(formato) {
     try { return await gerar(...args) } finally { if (comLoader) s.loading = false }
   }
   const verbo = forma === 'direta' ? 'Impressão aberta' : 'Etiqueta gerada'
-  const contato = company.contato_etiqueta?.trim() || [company.nome, company.whatsapp_pedidos].filter(Boolean).join(' ').trim()
+  const contato = contatoEtiqueta.value
+  const estilo = estiloPadrao.value ? null : estiloAtual.value // null = padrão do template
 
   // ── Modo manual: gera a partir das posições marcadas no preview ──
   if (modoManual.value) {
@@ -508,7 +566,7 @@ async function gerarEtiquetasAvulsas(formato) {
       if (idx < etiquetas.length) mapaPosicoes.set(posGlobal, etiquetas[idx])
     })
 
-    const resultado = await executar([], contato, 0, 'etiquetas-avulsas', mapaPosicoes)
+    const resultado = await executar([], contato, 0, 'etiquetas-avulsas', mapaPosicoes, estilo)
 
     if (resultado.ok) {
       s.notify(`${verbo}! ${mapaPosicoes.size} posição${mapaPosicoes.size > 1 ? 'ões' : ''} marcada${mapaPosicoes.size > 1 ? 's' : ''} impressa${mapaPosicoes.size > 1 ? 's' : ''}.`)
@@ -540,7 +598,7 @@ async function gerarEtiquetasAvulsas(formato) {
     startPos = continuar ? startPos : 0
   }
 
-  const resultado = await executar(etiquetas, contato, startPos, 'etiquetas-avulsas')
+  const resultado = await executar(etiquetas, contato, startPos, 'etiquetas-avulsas', null, estilo)
 
   if (resultado.ok) {
     company.posicao_etiqueta = resultado.novaPosicao
@@ -713,5 +771,10 @@ async function gerarEtiquetasAvulsas(formato) {
 .etq-outras-botoes { display: flex; flex-wrap: wrap; gap: 8px; }
 .etq-outras-dica { margin: 10px 0 0; font-size: .78rem; line-height: 1.45; color: var(--muted); }
 .etq-outras-dica i { color: var(--gold-dark); margin-right: 4px; }
+/* Estilo da etiqueta (passo Gerar) */
+.etq-estilo { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.etq-estilo-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.etq-estilo-resumo { margin: 0; }
+.etq-estilo-resumo i { color: var(--gold-dark); margin-right: 4px; }
 .etq-link { background: none; border: none; padding: 0; font: inherit; font-weight: 800; color: var(--gold-dark); text-decoration: underline; cursor: pointer; }
 </style>

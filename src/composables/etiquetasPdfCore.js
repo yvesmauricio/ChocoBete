@@ -8,6 +8,11 @@
 // uma calibração (escala + deslocamento) que compensa o que o celular faz.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import {
+  ESTILO_PADRAO, FONTES_PDF, fonteDe, normalizarEstilo, hexParaRgb01,
+  larguraPt as larguraPtFonte
+} from './etiquetasEstilo.js'
+
 const PT = 72 / 25.4 // pontos por milímetro
 
 export const PAGE = { w: 210, h: 297 }
@@ -25,9 +30,8 @@ export const GRADE = {
   paddingLateral: 1.658                                        // POR LADO: (57 margem da célula + 37 recuo) twips = 94 twips
 }
 
-// Estilo dos textos (igual ao template): sabor 9pt negrito marrom; contato 7pt.
-const COR_SABOR = [0x52 / 255, 0x30 / 255, 0x23 / 255]
-const COR_CONTATO = [0, 0, 0]
+// Estilo dos textos: vem de etiquetasEstilo.js (padrão = igual ao template:
+// sabor 9pt negrito marrom; contato 7pt preto). O usuário pode mudar no editor.
 const AJUSTE_Y = 0.057   // ajuste fino medido contra o LibreOffice (mm)
 const ENTRELINHA = 0.085 // espaço extra entre o sabor e o contato (mm)
 
@@ -36,26 +40,11 @@ export const TESTE = { x: 10, y: 10, w: 190, h: 270 }
 
 export const CALIBRACAO_PADRAO = Object.freeze({ sx: 1, sy: 1, ox: 0, oy: 0 })
 
-// ── Larguras da Helvetica (AFM, 1000 unidades/em) para os caracteres 32–126 ──
-const W_REG = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584]
-const W_BOLD = [278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584, 584, 611, 975, 722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 333, 278, 333, 584, 556, 333, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, 611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, 389, 280, 389, 584]
-
-function larguraChar(ch, bold) {
-  const tab = bold ? W_BOLD : W_REG
-  const c = ch.charCodeAt(0)
-  if (c >= 32 && c <= 126) return tab[c - 32]
-  const base = ch.normalize('NFD').charCodeAt(0) // é → e, ç → c, ã → a …
-  if (base >= 32 && base <= 126) return tab[base - 32]
-  return 556
+/** Largura do texto em pontos (Helvetica por padrão; passe a fonte do estilo para as outras). */
+export function larguraPt(texto, bold, tamanho, fonteId = 'sans') {
+  return larguraPtFonte(texto, fonteId, bold, tamanho)
 }
-
-/** Largura do texto em pontos. */
-export function larguraPt(texto, bold, tamanho) {
-  let w = 0
-  for (const ch of String(texto).normalize('NFC')) w += larguraChar(ch, bold)
-  return (w * tamanho) / 1000
-}
-const larguraMm = (t, bold, tam) => larguraPt(t, bold, tam) / PT
+const larguraMm = (t, bold, tam, fonteId = 'sans') => larguraPtFonte(t, fonteId, bold, tam) / PT
 
 // ── Texto → bytes do PDF (WinAnsi / cp1252) ─────────────────────────────────
 const CP1252 = {
@@ -81,16 +70,21 @@ function codificar(texto) {
 const num = (v) => String(Math.round(v * 1000) / 1000)
 
 // ── Página: desenha em mm (origem no canto superior esquerdo) com calibração ──
+// texto(ax, yBase, str, opts): `ax` é o ponto de ancoragem horizontal e `ancora` diz
+// se é o começo ('start'), o meio ('middle') ou o fim ('end') do texto.
 function criarPagina(cal) {
   const ops = []
   const X = (x) => ((x - cal.ox) / cal.sx) * PT
   const Y = (y) => (PAGE.h - (y - cal.oy) / cal.sy) * PT
   return {
     ops,
-    texto(x, yBase, str, { bold = false, tamanho = 9, cor = [0, 0, 0] } = {}) {
+    texto(ax, yBase, str, { bold = false, tamanho = 9, cor = [0, 0, 0], fonte = 'sans', ancora = 'start' } = {}) {
       if (!str) return
+      const w = larguraMm(str, bold, tamanho, fonte)
+      const x = ancora === 'middle' ? ax - w / 2 : ancora === 'end' ? ax - w : ax
+      const f = fonteDe(fonte).pdf[bold ? 'bold' : 'reg']
       ops.push(
-        `BT /${bold ? 'F2' : 'F1'} ${num(tamanho / cal.sx)} Tf ${cor.map(num).join(' ')} rg ${num(X(x))} ${num(Y(yBase))} Td (${codificar(str)}) Tj ET`
+        `BT /${f} ${num(tamanho / cal.sx)} Tf ${cor.map(num).join(' ')} rg ${num(X(x))} ${num(Y(yBase))} Td (${codificar(str)}) Tj ET`
       )
     },
     retangulo(x, y, w, h, { largura = 0.2, cor = [0, 0, 0] } = {}) {
@@ -113,12 +107,11 @@ const rgbCss = (c) => `rgb(${c.map(v => Math.round(v * 255)).join(',')})`
 function criarPaginaSvg(cal) {
   const els = []
   return {
-    texto(x, yBase, str, { bold = false, tamanho = 9, cor = [0, 0, 0], cx = null } = {}) {
+    texto(ax, yBase, str, { bold = false, tamanho = 9, cor = [0, 0, 0], fonte = 'sans', ancora = 'start' } = {}) {
       if (!str) return
-      const centrado = cx !== null && cx !== undefined
       els.push(
-        `<text x="${num(centrado ? cx : x)}" y="${num(yBase)}" font-size="${num((tamanho * 25.4) / 72)}"` +
-        `${bold ? ' font-weight="700"' : ''} fill="${rgbCss(cor)}"${centrado ? ' text-anchor="middle"' : ''}>${escXml(str)}</text>`
+        `<text x="${num(ax)}" y="${num(yBase)}" font-size="${num((tamanho * 25.4) / 72)}"${fonte !== 'sans' ? ` font-family="${fonteDe(fonte).css}"` : ''}` +
+        `${bold ? ' font-weight="700"' : ''} fill="${rgbCss(cor)}"${ancora !== 'start' ? ` text-anchor="${ancora}"` : ''}>${escXml(str)}</text>`
       )
     },
     retangulo(x, y, w, h, { largura = 0.2, cor = [0, 0, 0] } = {}) {
@@ -127,49 +120,61 @@ function criarPaginaSvg(cal) {
     linha(x1, y1, x2, y2, { largura = 0.2, cor = [0, 0, 0] } = {}) {
       els.push(`<line x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}" stroke="${rgbCss(cor)}" stroke-width="${num(largura)}"/>`)
     },
+    corpo() { return els.join('') },
     svg() {
       const t = `scale(${n5(1 / cal.sx)} ${n5(1 / cal.sy)}) translate(${n5(-cal.ox)} ${n5(-cal.oy)})`
       return (
         `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE.w} ${PAGE.h}" width="${PAGE.w}mm" height="${PAGE.h}mm" ` +
-        `font-family="Arial, Helvetica, 'Liberation Sans', Roboto, sans-serif"><g transform="${t}">${els.join('')}</g></svg>`
+        `font-family="${fonteDe('sans').css}"><g transform="${t}">${els.join('')}</g></svg>`
       )
     }
   }
 }
 
 // ── Quebra de linha e ajuste de fonte para caber na etiqueta ────────────────
-function quebrar(texto, bold, tamanho, larguraMax) {
+// `fonteId` e `fator` (folga de largura da fonte, ver etiquetasEstilo.js) entram em todo
+// cálculo de encaixe; a centralização no PDF usa a largura REAL (sem folga).
+function quebrar(texto, bold, tamanho, larguraMax, fonteId, fator) {
   const palavras = String(texto).trim().split(/\s+/).filter(Boolean)
   const linhas = []
   let atual = ''
   for (const p of palavras) {
     const tentativa = atual ? `${atual} ${p}` : p
-    if (!atual || larguraMm(tentativa, bold, tamanho) <= larguraMax) atual = tentativa
+    if (!atual || larguraMm(tentativa, bold, tamanho, fonteId) * fator <= larguraMax) atual = tentativa
     else { linhas.push(atual); atual = p }
   }
   if (atual) linhas.push(atual)
   return linhas
 }
-const caber = (linhas, bold, tam, larg) => linhas.every(l => larguraMm(l, bold, tam) <= larg)
-const altLinha = (tam) => (1.117 * tam) / PT // altura de linha (mm) da Liberation Sans/Helvetica
+const caber = (linhas, bold, tam, larg, fonteId, fator) => linhas.every(l => larguraMm(l, bold, tam, fonteId) * fator <= larg)
+const altLinha = (tam, fonte) => (fonte.altLinha * tam) / PT // altura de linha (mm)
 
-/** Calcula as linhas e tamanhos de uma etiqueta (como o Word faz: quebra em até 2 linhas). */
-export function layoutEtiqueta(sabor, contato, larguraMax) {
-  let tamS = 9
-  let tamC = 7
+/**
+ * Calcula as linhas e tamanhos de uma etiqueta (como o Word faz: quebra em até 2 linhas).
+ * Parte dos tamanhos do estilo e encolhe de 0,5 em 0,5 pt até caber na largura e na altura.
+ * O texto do sabor já deve vir em maiúsculas, se o estilo pedir.
+ */
+export function layoutEtiqueta(sabor, contato, larguraMax, estiloBruto = ESTILO_PADRAO) {
+  const estilo = normalizarEstilo(estiloBruto)
+  const fonte = fonteDe(estilo.fonte)
+  const bS = estilo.negrito
+  const contatoVisivel = estilo.mostrarContato ? contato : ''
+  const fator = fonte.fator
+  let tamS = estilo.tamSabor
+  let tamC = estilo.tamContato
   const alturaMax = GRADE.alturaLinha - 0.6
-  let linhasS = quebrar(sabor, true, tamS, larguraMax)
-  let linhasC = contato ? quebrar(contato, false, tamC, larguraMax) : []
+  let linhasS = quebrar(sabor, bS, tamS, larguraMax, estilo.fonte, fator)
+  let linhasC = contatoVisivel ? quebrar(contatoVisivel, false, tamC, larguraMax, estilo.fonte, fator) : []
 
   for (let i = 0; i < 40; i++) {
-    const okS = linhasS.length <= 2 && caber(linhasS, true, tamS, larguraMax)
-    const okC = linhasC.length <= 2 && caber(linhasC, false, tamC, larguraMax)
-    const alt = linhasS.length * altLinha(tamS) + linhasC.length * altLinha(tamC) + (linhasC.length ? ENTRELINHA : 0)
+    const okS = linhasS.length <= 2 && caber(linhasS, bS, tamS, larguraMax, estilo.fonte, fator)
+    const okC = linhasC.length <= 2 && caber(linhasC, false, tamC, larguraMax, estilo.fonte, fator)
+    const alt = linhasS.length * altLinha(tamS, fonte) + linhasC.length * altLinha(tamC, fonte) + (linhasC.length ? ENTRELINHA : 0)
     if (okS && okC && alt <= alturaMax) break
     if (!okS || alt > alturaMax) tamS = Math.max(5.5, tamS - 0.5)
     if (!okC || alt > alturaMax) tamC = Math.max(4.5, tamC - 0.5)
-    linhasS = quebrar(sabor, true, tamS, larguraMax)
-    linhasC = contato ? quebrar(contato, false, tamC, larguraMax) : []
+    linhasS = quebrar(sabor, bS, tamS, larguraMax, estilo.fonte, fator)
+    linhasC = contatoVisivel ? quebrar(contatoVisivel, false, tamC, larguraMax, estilo.fonte, fator) : []
     if (tamS <= 5.5 && tamC <= 4.5) break
   }
   return { linhasS, linhasC, tamS, tamC }
@@ -213,32 +218,88 @@ export function planejarFolhas(etiquetas, contato, startPos = 0, mapaPosicoes = 
 }
 
 // ── Desenho da folha de etiquetas ───────────────────────────────────────────
-function desenharFolha(pg, celulas) {
+const colunaEsquerda = (col) => GRADE.x0 + GRADE.larguras.slice(0, col).reduce((a, b) => a + b, 0)
+
+function desenharFolha(pg, celulas, estiloBruto = ESTILO_PADRAO) {
+  const estilo = normalizarEstilo(estiloBruto)
+  const fonte = fonteDe(estilo.fonte)
+  const corS = hexParaRgb01(estilo.corSabor)
+  const corC = hexParaRgb01(estilo.corContato)
+  const ancora = estilo.alinhamento === 'left' ? 'start' : estilo.alinhamento === 'right' ? 'end' : 'middle'
+
   celulas.forEach((c, i) => {
     if (!c || !String(c.sabor || '').trim()) return
     const col = i % GRADE.colunas
     const lin = Math.floor(i / GRADE.colunas)
-    const cx = GRADE.centrosX[col]
     const larguraMax = GRADE.larguras[col] - 2 * GRADE.paddingLateral
-    const { linhasS, linhasC, tamS, tamC } = layoutEtiqueta(c.sabor, c.contato, larguraMax)
+    const sabor = estilo.maiusculas ? String(c.sabor).toLocaleUpperCase('pt-BR') : String(c.sabor)
+    const { linhasS, linhasC, tamS, tamC } = layoutEtiqueta(sabor, c.contato, larguraMax, estilo)
+
+    // Ponto de ancoragem horizontal: meio da coluna, ou a borda do miolo (descontado o recuo)
+    const esq = colunaEsquerda(col)
+    const ax = (ancora === 'start'
+      ? esq + GRADE.paddingLateral
+      : ancora === 'end'
+        ? esq + GRADE.larguras[col] - GRADE.paddingLateral
+        : GRADE.centrosX[col]) + estilo.dx
 
     const topoLinha = GRADE.topo + lin * GRADE.alturaLinha
     const centro = topoLinha + GRADE.alturaLinha / 2
-    const hS = altLinha(tamS)
-    const hC = altLinha(tamC)
+    const hS = altLinha(tamS, fonte)
+    const hC = altLinha(tamC, fonte)
     const altura = linhasS.length * hS + linhasC.length * hC + (linhasC.length ? ENTRELINHA : 0)
-    let y = centro - altura / 2 + AJUSTE_Y
+    let y = centro - altura / 2 + AJUSTE_Y + estilo.dy
 
     for (const l of linhasS) {
-      pg.texto(cx - larguraMm(l, true, tamS) / 2, y + (0.905 * tamS) / PT, l, { bold: true, tamanho: tamS, cor: COR_SABOR, cx })
+      pg.texto(ax, y + (fonte.ascent * tamS) / PT, l, { bold: estilo.negrito, tamanho: tamS, cor: corS, fonte: estilo.fonte, ancora })
       y += hS
     }
     y += linhasC.length ? ENTRELINHA : 0
     for (const l of linhasC) {
-      pg.texto(cx - larguraMm(l, false, tamC) / 2, y + (0.905 * tamC) / PT, l, { bold: false, tamanho: tamC, cor: COR_CONTATO, cx })
+      pg.texto(ax, y + (fonte.ascent * tamC) / PT, l, { bold: false, tamanho: tamC, cor: corC, fonte: estilo.fonte, ancora })
       y += hC
     }
   })
+}
+
+// ── Pré-visualização (editor de estilo) ─────────────────────────────────────
+/**
+ * SVG de 3 etiquetas lado a lado (colunas 1–3 da folha), com o MESMO motor da impressão:
+ * a quebra de linha e o encolhimento automático que aparecem aqui são os que saem no papel.
+ * Medidas em mm (o SVG escala sozinho). Devolve também o que foi reduzido, para avisar.
+ * @param {string[]} sabores  até 3 textos (o do meio é o "amostra")
+ */
+export function montarSvgPreview(sabores, contato, estiloBruto = ESTILO_PADRAO) {
+  const estilo = normalizarEstilo(estiloBruto)
+  const celulas = sabores.slice(0, 3).map(sabor => ({ sabor, contato }))
+  const pg = criarPaginaSvg(CALIBRACAO_PADRAO)
+  desenharFolha(pg, celulas, estilo)
+
+  const larguras = GRADE.larguras.slice(0, celulas.length)
+  const w = larguras.reduce((a, b) => a + b, 0)
+  let x = GRADE.x0
+  const molduras = larguras.map(l => {
+    const r = `<rect x="${num(x + 0.1)}" y="${num(GRADE.topo + 0.1)}" width="${num(l - 0.2)}" height="${num(GRADE.alturaLinha - 0.2)}" rx="0.8" fill="#fff" stroke="#bbb" stroke-width="0.15" stroke-dasharray="0.7 0.5"/>`
+    x += l
+    return r
+  }).join('')
+
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${num(GRADE.x0)} ${num(GRADE.topo)} ${num(w)} ${num(GRADE.alturaLinha)}" ` +
+    `width="100%" preserveAspectRatio="xMidYMid meet" font-family="${fonteDe('sans').css}">${molduras}${pg.corpo()}</svg>`
+  )
+}
+
+/** Quanto o sistema precisa reduzir um sabor para caber: { cabe, estoura, tamS, tamC } (cabe = sem redução). */
+export function medirEncaixe(sabor, contato, estiloBruto = ESTILO_PADRAO, coluna = 1) {
+  const estilo = normalizarEstilo(estiloBruto)
+  const texto = estilo.maiusculas ? String(sabor).toLocaleUpperCase('pt-BR') : String(sabor)
+  const larguraMax = GRADE.larguras[coluna] - 2 * GRADE.paddingLateral
+  const { tamS, tamC, linhasS, linhasC } = layoutEtiqueta(texto, contato, larguraMax, estilo)
+  const cabe = tamS === estilo.tamSabor && (!estilo.mostrarContato || !contato || tamC === estilo.tamContato)
+  // estoura: mesmo no tamanho mínimo ainda passa de 2 linhas (o texto fica cortado na etiqueta)
+  const estoura = linhasS.length > 2 || linhasC.length > 2
+  return { cabe, estoura, tamS, tamC, linhasS: linhasS.length, linhasC: linhasC.length }
 }
 
 // ── Folha de teste (sempre SEM calibração) ──────────────────────────────────
@@ -280,16 +341,20 @@ function desenharTeste(pg) {
 // ── Montagem do arquivo PDF ─────────────────────────────────────────────────
 function montarPdf(conteudos) {
   const n = conteudos.length
+  const nFontes = FONTES_PDF.length            // objetos 3 … 2+nFontes são as fontes
+  const primeiraPagina = 3 + nFontes
   const objs = []
   objs[1] = '<< /Type /Catalog /Pages 2 0 R /ViewerPreferences << /PrintScaling /None >> >>'
-  objs[2] = `<< /Type /Pages /Kids [${conteudos.map((_, i) => `${5 + i * 2} 0 R`).join(' ')}] /Count ${n} >>`
-  objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'
-  objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'
+  objs[2] = `<< /Type /Pages /Kids [${conteudos.map((_, i) => `${primeiraPagina + i * 2} 0 R`).join(' ')}] /Count ${n} >>`
+  FONTES_PDF.forEach(([, base], i) => {
+    objs[3 + i] = `<< /Type /Font /Subtype /Type1 /BaseFont /${base} /Encoding /WinAnsiEncoding >>`
+  })
+  const recursos = FONTES_PDF.map(([nome], i) => `/${nome} ${3 + i} 0 R`).join(' ')
   const wPt = num(PAGE.w * PT)
   const hPt = num(PAGE.h * PT)
   conteudos.forEach((c, i) => {
-    const pageId = 5 + i * 2
-    objs[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${wPt} ${hPt}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${pageId + 1} 0 R >>`
+    const pageId = primeiraPagina + i * 2
+    objs[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${wPt} ${hPt}] /Resources << /Font << ${recursos} >> >> /Contents ${pageId + 1} 0 R >>`
     objs[pageId + 1] = `<< /Length ${c.length} >>\nstream\n${c}\nendstream`
   })
 
@@ -309,21 +374,21 @@ function montarPdf(conteudos) {
   return bytes
 }
 
-/** PDF das etiquetas. `cal` = { sx, sy, ox, oy } (calibração do celular/impressora). */
-export function montarPdfEtiquetas(plano, cal = CALIBRACAO_PADRAO) {
+/** PDF das etiquetas. `cal` = { sx, sy, ox, oy } (calibração do celular/impressora); `estilo` = estilo da etiqueta. */
+export function montarPdfEtiquetas(plano, cal = CALIBRACAO_PADRAO, estilo = ESTILO_PADRAO) {
   const conteudos = plano.folhas.map(celulas => {
     const pg = criarPagina(cal)
-    desenharFolha(pg, celulas)
+    desenharFolha(pg, celulas, estilo)
     return pg.conteudo()
   })
   return montarPdf(conteudos)
 }
 
 /** Páginas SVG das etiquetas (uma string por folha) para a impressão direta. */
-export function montarSvgsEtiquetas(plano, cal = CALIBRACAO_PADRAO) {
+export function montarSvgsEtiquetas(plano, cal = CALIBRACAO_PADRAO, estilo = ESTILO_PADRAO) {
   return plano.folhas.map(celulas => {
     const pg = criarPaginaSvg(cal)
-    desenharFolha(pg, celulas)
+    desenharFolha(pg, celulas, estilo)
     return pg.svg()
   })
 }
