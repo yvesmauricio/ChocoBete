@@ -1,4 +1,5 @@
 import { saveAs } from 'file-saver'
+import { configGet, configSet } from '../db.js'
 import {
   planejarFolhas,
   montarPdfEtiquetas,
@@ -18,37 +19,120 @@ import {
 // (diálogo direto, PDF → app de impressão) pode escalar de um jeito.
 // ─────────────────────────────────────────────────────────────────────────────
 export const METODOS = ['direta', 'pdf', 'docx']
+
+// ── Onde ficam salvos ───────────────────────────────────────────────────────
+// Antes: só no localStorage, que o Android limpa com facilidade (e que o app não
+// protegia) — por isso o ajuste "sumia" ao fechar e abrir. Agora o dado principal
+// fica no IndexedDB (o mesmo banco do resto do app, que já pede armazenamento
+// persistente) e o localStorage vira cópia de segurança. A chave está em
+// CONFIG_CHAVES_DO_APARELHO (db.js): não entra no backup nem no sync, porque cada
+// celular/impressora tem o seu ajuste.
+// A API continua síncrona (lê de um cache em memória); a gravação é que é assíncrona.
+const CHAVE_DB = 'etq_impressao_aparelho'
 const CHAVE_METODO = 'choco_etq_metodo_v1'
+const chaveCalibracao = (metodo) => (metodo === 'pdf' ? 'choco_etq_calibracao_pdf_v1' : 'choco_etq_calibracao_direta_v1')
+const chaveMedidas = (metodo) => (metodo === 'pdf' ? 'choco_etq_medidas_pdf_v1' : 'choco_etq_medidas_direta_v1')
+
+const numOk = (v) => typeof v === 'number' && Number.isFinite(v)
+const calValida = (j) => !!j && [j.sx, j.sy, j.ox, j.oy].every(numOk)
+const medValida = (j) => !!j && ['larguraMm', 'alturaMm', 'esquerdaMm', 'topoMm'].every(k => numOk(j[k]))
+
+function lsGet(chave) {
+  try { return JSON.parse(localStorage.getItem(chave) || 'null') } catch { return null }
+}
+function lsSet(chave, valor) {
+  try { localStorage.setItem(chave, JSON.stringify(valor)) } catch { /* sem storage */ }
+}
+function lsDel(chave) {
+  try { localStorage.removeItem(chave) } catch { /* ignora */ }
+}
+
+// Cache em memória: { metodo, direta: {cal, med}, pdf: {cal, med} }
+function vazio() { return { metodo: null, direta: { cal: null, med: null }, pdf: { cal: null, med: null } } }
+function doLocalStorage() {
+  const c = vazio()
+  try { const bruto = localStorage.getItem(CHAVE_METODO); if (METODOS.includes(bruto)) c.metodo = bruto } catch { /* ignora */ }
+  for (const k of ['direta', 'pdf']) {
+    const cal = lsGet(chaveCalibracao(k)); if (calValida(cal)) c[k].cal = { sx: cal.sx, sy: cal.sy, ox: cal.ox, oy: cal.oy }
+    const med = lsGet(chaveMedidas(k)); if (medValida(med)) c[k].med = { ...med }
+  }
+  return c
+}
+let cache = doLocalStorage() // já serve na hora, mesmo antes do IndexedDB responder
+
+function gravarTudo() {
+  // cópia de segurança no localStorage
+  try { if (cache.metodo) localStorage.setItem(CHAVE_METODO, cache.metodo) } catch { /* ignora */ }
+  for (const k of ['direta', 'pdf']) {
+    if (cache[k].cal) lsSet(chaveCalibracao(k), cache[k].cal); else lsDel(chaveCalibracao(k))
+    if (cache[k].med) lsSet(chaveMedidas(k), cache[k].med); else lsDel(chaveMedidas(k))
+  }
+  // dado principal no IndexedDB
+  return configSet(CHAVE_DB, JSON.parse(JSON.stringify(cache)))
+}
+
+let carregamento = null
+/** Lê o que está salvo no IndexedDB (uma vez). Chame e espere antes de ler os valores na tela. */
+export function carregarPrefsEtiquetas() {
+  if (!carregamento) {
+    carregamento = (async () => {
+      const salvo = await configGet(CHAVE_DB, null)
+      if (salvo && typeof salvo === 'object') {
+        const c = vazio()
+        if (METODOS.includes(salvo.metodo)) c.metodo = salvo.metodo
+        for (const k of ['direta', 'pdf']) {
+          if (calValida(salvo[k]?.cal)) c[k].cal = { ...salvo[k].cal }
+          if (medValida(salvo[k]?.med)) c[k].med = { ...salvo[k].med }
+        }
+        cache = c
+        // o IndexedDB manda; reflete no localStorage para manter a cópia em dia
+        try { if (cache.metodo) localStorage.setItem(CHAVE_METODO, cache.metodo) } catch { /* ignora */ }
+        for (const k of ['direta', 'pdf']) {
+          if (cache[k].cal) lsSet(chaveCalibracao(k), cache[k].cal)
+          if (cache[k].med) lsSet(chaveMedidas(k), cache[k].med)
+        }
+      } else if (cache.metodo || cache.direta.cal || cache.pdf.cal) {
+        await gravarTudo() // migração: tinha só no localStorage, passa para o IndexedDB
+      }
+    })().catch(() => { /* fica com o que veio do localStorage */ })
+  }
+  return carregamento
+}
+carregarPrefsEtiquetas()
 
 export function lerMetodo() {
-  try {
-    const m = localStorage.getItem(CHAVE_METODO)
-    if (METODOS.includes(m)) return m
-  } catch { /* sem storage: usa o padrão */ }
-  return 'direta'
+  return METODOS.includes(cache.metodo) ? cache.metodo : 'direta'
 }
 
 export function salvarMetodo(m) {
   if (!METODOS.includes(m)) return
-  try { localStorage.setItem(CHAVE_METODO, m) } catch { /* ignora */ }
+  cache.metodo = m
+  return gravarTudo()
 }
-
-const chaveCalibracao = (metodo) => (metodo === 'pdf' ? 'choco_etq_calibracao_pdf_v1' : 'choco_etq_calibracao_direta_v1')
 
 export function lerCalibracao(metodo = 'direta') {
-  try {
-    const j = JSON.parse(localStorage.getItem(chaveCalibracao(metodo)) || 'null')
-    if (j && [j.sx, j.sy, j.ox, j.oy].every(Number.isFinite)) return { sx: j.sx, sy: j.sy, ox: j.ox, oy: j.oy }
-  } catch { /* sem calibração salva */ }
-  return { ...CALIBRACAO_PADRAO }
+  const c = cache[metodo === 'pdf' ? 'pdf' : 'direta'].cal
+  return c ? { ...c } : { ...CALIBRACAO_PADRAO }
 }
 
-export function salvarCalibracao(c, metodo = 'direta') {
-  localStorage.setItem(chaveCalibracao(metodo), JSON.stringify({ sx: c.sx, sy: c.sy, ox: c.ox, oy: c.oy }))
+/** As quatro medidas (A, B, C, D) digitadas na última calibração — para reaparecerem nos campos. */
+export function lerMedidas(metodo = 'direta') {
+  const m = cache[metodo === 'pdf' ? 'pdf' : 'direta'].med
+  return m ? { ...m } : null
+}
+
+/** Guarda a calibração (e as medidas que a geraram). Devolve uma promessa: resolve quando gravou. */
+export function salvarCalibracao(c, metodo = 'direta', medidas = null) {
+  const k = metodo === 'pdf' ? 'pdf' : 'direta'
+  cache[k].cal = { sx: c.sx, sy: c.sy, ox: c.ox, oy: c.oy }
+  cache[k].med = medValida(medidas) ? { larguraMm: medidas.larguraMm, alturaMm: medidas.alturaMm, esquerdaMm: medidas.esquerdaMm, topoMm: medidas.topoMm } : null
+  return gravarTudo()
 }
 
 export function limparCalibracao(metodo = 'direta') {
-  try { localStorage.removeItem(chaveCalibracao(metodo)) } catch { /* ignora */ }
+  const k = metodo === 'pdf' ? 'pdf' : 'direta'
+  cache[k] = { cal: null, med: null }
+  return gravarTudo()
 }
 
 export function calibracaoAtiva(c) {
@@ -114,6 +198,7 @@ export async function imprimirEtiquetas(etiquetas, contato, startPos, _nomeArqui
   const invalida = validar(etiquetas, mapaPosicoes)
   if (invalida) return invalida
   try {
+    await carregarPrefsEtiquetas()
     const plano = planejarFolhas(etiquetas, contato, startPos, mapaPosicoes)
     await abrirImpressao(montarSvgsEtiquetas(plano, lerCalibracao('direta')))
     return { ok: true, novaPosicao: plano.novaPosicao, totalFolhas: plano.totalFolhas }
@@ -153,6 +238,7 @@ export async function gerarPdfEtiquetas(etiquetas, contato, startPos, nomeArquiv
   const invalida = validar(etiquetas, mapaPosicoes)
   if (invalida) return invalida
   try {
+    await carregarPrefsEtiquetas()
     const plano = planejarFolhas(etiquetas, contato, startPos, mapaPosicoes)
     const bytes = montarPdfEtiquetas(plano, lerCalibracao('pdf'))
     const r = await entregarPdf(bytes, nomeArquivoBase, 'Etiquetas')

@@ -955,7 +955,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed } from 'vue'
+import { ref, reactive, watch, computed, onMounted } from 'vue'
 import { useStore } from '../store.js'
 import { maskCpf, maskCnpj, maskCnae, maskTelefone, processarLogo, getMesRef, dataHoraBR, formatarBytes } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
@@ -979,7 +979,7 @@ import ConfigurarAparelho from './ConfigurarAparelho.vue'
 import { aparelho, temPin, removerPin } from '../store/aparelho.js'
 import { useLayoutMode, MODOS_LAYOUT } from '../composables/useLayoutMode.js'
 import {
-  lerMetodo, salvarMetodo, lerCalibracao, salvarCalibracao, limparCalibracao,
+  lerMetodo, salvarMetodo, lerCalibracao, lerMedidas, salvarCalibracao, limparCalibracao, carregarPrefsEtiquetas,
   calibracaoAtiva, descreverCalibracao, imprimirFolhaTeste
 } from '../composables/useEtiquetasPdf.js'
 import { calcularCalibracao } from '../composables/etiquetasPdfCore.js'
@@ -1204,12 +1204,32 @@ function limparCamposCal() {
   Object.keys(calMed).forEach(k => { calMed[k] = '' })
   calErro.value = ''
 }
+const mmParaCampo = (v) => String(v).replace('.', ',')
+// Mostra nos campos A·B·C·D as medidas que geraram o ajuste salvo desta forma de imprimir
+function preencherCamposCal(caminho) {
+  limparCamposCal()
+  const m = lerMedidas(caminho)
+  if (!m) return
+  calMed.larguraMm = mmParaCampo(m.larguraMm)
+  calMed.alturaMm = mmParaCampo(m.alturaMm)
+  calMed.esquerdaMm = mmParaCampo(m.esquerdaMm)
+  calMed.topoMm = mmParaCampo(m.topoMm)
+}
 function definirMetodoEtiqueta(id) {
   metodoEtiqueta.value = id
   salvarMetodo(id)
   if (id !== 'docx') calCaminho.value = id // já mostra o ajuste da forma escolhida
 }
-watch(calCaminho, (c) => { calAtual.value = lerCalibracao(c); limparCamposCal() })
+watch(calCaminho, (c) => { calAtual.value = lerCalibracao(c); preencherCamposCal(c) })
+
+// Lê o que está salvo no banco do aparelho (o ajuste fica lá, não só na memória da tela)
+onMounted(async () => {
+  await carregarPrefsEtiquetas()
+  metodoEtiqueta.value = lerMetodo()
+  calCaminho.value = metodoEtiqueta.value === 'pdf' ? 'pdf' : 'direta'
+  calAtual.value = lerCalibracao(calCaminho.value)
+  preencherCamposCal(calCaminho.value)
+})
 
 const lerMm = (v) => parseFloat(String(v ?? '').trim().replace(',', '.'))
 
@@ -1217,21 +1237,23 @@ async function imprimirTesteEtiqueta() {
   const r = await imprimirFolhaTeste(calCaminho.value)
   if (!r.ok && r.erro) s.notify(r.erro, 'error')
 }
-function salvarCal() {
-  const r = calcularCalibracao({
+async function salvarCal() {
+  const medidas = {
     larguraMm: lerMm(calMed.larguraMm),
     alturaMm: lerMm(calMed.alturaMm),
     esquerdaMm: lerMm(calMed.esquerdaMm),
     topoMm: lerMm(calMed.topoMm)
-  })
+  }
+  const r = calcularCalibracao(medidas)
   if (r.erro) { calErro.value = r.erro; return }
   calErro.value = ''
-  salvarCalibracao(r, calCaminho.value)
+  await salvarCalibracao(r, calCaminho.value, medidas)
   calAtual.value = lerCalibracao(calCaminho.value)
+  preencherCamposCal(calCaminho.value)
   s.notify('Ajuste salvo neste aparelho. Imprima as etiquetas e confira na folha.')
 }
-function removerCal() {
-  limparCalibracao(calCaminho.value)
+async function removerCal() {
+  await limparCalibracao(calCaminho.value)
   calAtual.value = lerCalibracao(calCaminho.value)
   limparCamposCal()
   s.notify('Ajuste removido.')

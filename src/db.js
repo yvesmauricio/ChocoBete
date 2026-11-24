@@ -406,6 +406,7 @@ export const CONFIG_CHAVES_DO_APARELHO = [
   'aparelho_perfil',  // nome e tipo (Vendedor/Admin) DESTE aparelho — nunca viaja entre aparelhos
   'd1_pedidos_cursor', // até onde este aparelho já buscou pedidos do site (servidor D1)
   'd1_pedidos_apagar', // pedidos do site apagados aqui que o servidor ainda precisa saber
+  'etq_impressao_aparelho', // forma de imprimir etiquetas + ajuste de impressão (A/B/C/D) DESTE aparelho
 ]
 
 const ehChaveDoAparelho = (chave) => CONFIG_CHAVES_DO_APARELHO.includes(chave)

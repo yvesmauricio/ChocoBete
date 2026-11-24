@@ -224,7 +224,7 @@ import { textoEtiquetaReceita } from '../utils.js'
 import { useConfirm as useAppConfirm } from '../composables/useConfirm.js'
 import { gerarArquivoEtiquetas } from '../composables/useEtiquetas.js'
 import {
-  imprimirEtiquetas, gerarPdfEtiquetas, lerMetodo, lerCalibracao, calibracaoAtiva
+  imprimirEtiquetas, gerarPdfEtiquetas, lerMetodo, lerCalibracao, calibracaoAtiva, carregarPrefsEtiquetas
 } from '../composables/useEtiquetasPdf.js'
 
 const s = useStore()
@@ -479,6 +479,7 @@ function atualizarPreferencias() {
   calStatus.value = metodo.value !== 'docx' && calibracaoAtiva(lerCalibracao(metodo.value))
 }
 atualizarPreferencias()
+carregarPrefsEtiquetas().then(atualizarPreferencias) // relê quando o banco do aparelho responder
 // A aba fica montada: relê quando volta para cá (a pessoa pode ter mudado em Ajustes)
 watch(() => s.tab, (t) => { if (t === 'etiquetas') atualizarPreferencias() })
 
