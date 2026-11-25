@@ -157,6 +157,10 @@
                 <i class="fas fa-tags"></i>
                 <span>Etiquetas</span>
               </button>
+              <button class="swipe-btn print" @click="imprimirProducao(grupo.itens || [])">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Etiquetas da produção</span>
+              </button>
               <!-- 'Enviar' button removed to give more space for 'Presentear' -->
             </template>
           </SwipeRow>
@@ -222,6 +226,10 @@
                   <button class="swipe-btn print" @click="imprimirEtiqueta(p)">
                     <i class="fas fa-tag"></i>
                     <span>Etiqueta</span>
+                  </button>
+                  <button class="swipe-btn print" @click="imprimirProducao([p])">
+                    <i class="fas fa-clipboard-list"></i>
+                    <span>Etiqueta da produção</span>
                   </button>
                   <button class="swipe-btn info" @click="abrirDetalheCusto(p)">
                     <i class="fas fa-info-circle"></i>
@@ -369,6 +377,7 @@ import { useModalStack } from '../composables/useModalStack.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import { useListFilter } from '../composables/useListFilter.js'
 import { gerarRelatorioProducao } from '../composables/useGerarDocumento.js'
+import { imprimirEtiquetasProducao } from '../composables/useEtiquetasProducao.js'
 
 const s = useStore()
 const { closeAll } = useSwipe()
@@ -770,6 +779,12 @@ async function irParaEtiquetas(lista) {
   if (!ok) return
   s.etiquetasPreSelecao = lista
   s.tab = 'etiquetas'
+}
+
+// Etiqueta de CONTROLE da produção: trufa = 1 por forma (só o sabor); demais = sabor + quantidade.
+async function imprimirProducao(itens) {
+  closeAll()
+  await imprimirEtiquetasProducao(s, confirm, itens)
 }
 
 async function imprimirEtiqueta(p) {
