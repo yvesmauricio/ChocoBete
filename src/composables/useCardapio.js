@@ -241,7 +241,7 @@ export function redimensionarImagem(arquivo, { maxLado = 640, qualidade = 0.82 }
 // Caveat (manuscrita) pros títulos/destaques — em vez das serifadas
 // Playfair Display / Cormorant Garamond que o cardápio (tela, PDF e imagem
 // de WhatsApp) usava antes.
-const GOOGLE_FONTS_URL_CARDAPIO = 'https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Gelasio:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap'
+const GOOGLE_FONTS_URL_CARDAPIO = 'https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600;1,700&family=Gelasio:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap'
 
 // ── Resumo em PDF — meia folha A4 (A5, 148×210 mm), pronto pra imprimir ──
 // Mesma identidade dos cardápios publicados (tema leve): fundo creme, vinho e
@@ -591,6 +591,7 @@ export function garantirFontesCarregadas() {
     try {
       await Promise.all([
         document.fonts.load('700 30pt "Gelasio"'),
+        document.fonts.load('italic 700 30pt "Cormorant Garamond"'),
         document.fonts.load('700 30pt "Caveat"'),
         document.fonts.load('600 15pt "Caveat"'),
         document.fonts.load('700 12pt "Plus Jakarta Sans"'),
@@ -996,36 +997,127 @@ const CSS_PEDIDO = `
   .ip-modal-pagamento-posterior .ip-modal-pix-titulo { justify-content: center; margin-bottom: 4px; }
   .ip-modal-pagamento-posterior-sub { font-size: 12.5px; color: var(--terracota-desc); }
 
-  /* ══ Tema leve (mesmo visual do cartão de visitas): creme, vinho e rosé,
-     títulos em serifa (Gelasio). Fica por último de propósito — sobrepõe só
-     a aparência; nenhuma regra de layout ou de pedido é alterada. Para voltar
-     ao visual antigo basta remover este bloco e restaurar as variáveis do :root. ══ */
-  .ip-capa { display: block; text-align: center; background: var(--creme); box-shadow: none; border-radius: 0; padding: max(28px, env(safe-area-inset-top)) 20px 18px; }
-  .ip-capa .selo { display: none; }
+
+  /* ══ Tema "Atelier" — chocolate, ouro e papel creme (mesma identidade do logotipo CB).
+     Fica por último de propósito: sobrepõe só a aparência; nenhuma regra de layout do
+     carrinho, do Pix ou do pedido é alterada. Para voltar ao visual anterior, remova este bloco. ══ */
+  :root {
+    --terracota: #3d1f07;
+    --terracota-escuro: #3d1f07;
+    --terracota-claro: #d8c3a0;
+    --terracota-desc: #6e5a49;
+    --creme: #FBF5EC;
+    --creme-fundo: #F4EADB;
+    --marrom: #2a1504;
+    --marrom-suave: #2a1504;
+    --marrom-medio: #5b4636;
+    --borda: #E6D8C3;
+    --ouro: #f0c25e;
+    --ouro-escuro: #c8890a;
+    --ouro-texto: #7a4e00;
+    --serif: 'Cormorant Garamond', 'Gelasio', Georgia, serif;
+  }
+  html { background: #F1E6D3; }
+  body { max-width: 640px; margin: 0 auto; background: var(--creme); padding-bottom: 150px; }
+  @media (min-width: 700px) { body { box-shadow: 0 0 0 1px var(--borda), 0 0 60px rgba(61,31,7,.10); } }
+
+  /* ── Capa: faixa de chocolate com medalhão, assinatura em itálico e selos de confiança ── */
+  .ip-capa { display: block; position: relative; overflow: hidden; text-align: center; color: #f5e6c4;
+    background: radial-gradient(90% 120% at 50% -10%, rgba(240,194,94,.22) 0%, rgba(240,194,94,0) 55%), linear-gradient(180deg, #3d1f07 0%, #2a1504 100%);
+    border-radius: 0 0 36px 36px; box-shadow: none; padding: max(30px, env(safe-area-inset-top)) 22px 28px; }
+  .ip-capa::after { content: ""; position: absolute; left: 22px; right: 22px; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(240,194,94,.75), transparent); }
+  .ip-capa .selo { display: flex; width: 92px; height: 92px; margin: 0 auto 14px; border: none; background: transparent; box-shadow: 0 0 0 1px rgba(240,194,94,.55), 0 12px 30px rgba(0,0,0,.35); font-size: 40px; }
   .ip-capa-texto { text-align: center; }
-  .ip-capa .marca { font-family: 'Gelasio', Georgia, serif; font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 34px; color: var(--terracota); }
-  .ip-capa .marca::after { content: ""; display: block; width: 120px; height: 10px; margin: 10px auto 2px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='10' viewBox='0 0 120 10'%3E%3Cpath d='M0 5H46M74 5H120' stroke='%23B58A94' stroke-width='1'/%3E%3Cpath d='M60 .5L64.5 5 60 9.5 55.5 5z' fill='%23B58A94'/%3E%3C/svg%3E") center / 120px 10px no-repeat; }
-  .ip-capa .subtitulo { color: #4A4A4A; font-weight: 500; font-size: 10.5px; letter-spacing: .22em; margin-top: 8px; }
-  .ip-capa-insta { background: transparent; color: var(--terracota); border: 1px solid var(--terracota-claro); font-family: 'Gelasio', Georgia, serif; font-weight: 400; }
-  .categoria-bloco { box-shadow: none; border-radius: 16px; }
-  .categoria-titulo { background: var(--creme-fundo); color: var(--terracota); min-height: 56px; align-items: center; }
+  .ip-capa .marca { font-family: var(--serif); font-style: italic; font-weight: 700; text-transform: none; letter-spacing: .01em; font-size: 46px; line-height: 1; color: #fbefd0; }
+  .ip-capa .marca::after { content: ""; display: block; width: 120px; height: 10px; margin: 12px auto 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='10' viewBox='0 0 120 10'%3E%3Cpath d='M0 5H46M74 5H120' stroke='%23f0c25e' stroke-width='1'/%3E%3Cpath d='M60 .5L64.5 5 60 9.5 55.5 5z' fill='%23f0c25e'/%3E%3C/svg%3E") center / 120px 10px no-repeat; }
+  .ip-capa .subtitulo { color: var(--ouro); font-weight: 600; font-size: 11px; letter-spacing: .28em; margin-top: 10px; }
+  .ip-capa-selos { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 18px 0 0; padding: 0; }
+  .ip-capa-selos li { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; color: #f5e6c4; border: 1px solid rgba(240,194,94,.4); border-radius: 999px; padding: 5px 12px; background: rgba(255,255,255,.04); }
+  .ip-capa-insta { display: inline-flex; align-items: center; margin-top: 16px; padding: 0; background: transparent; border: none; border-radius: 0; color: var(--ouro); font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 18px; letter-spacing: 0; text-decoration: none; }
+
+  /* ── Como pedir: 3 passos, para tirar a dúvida de quem chega pela 1ª vez ── */
+  .ip-passos { display: flex; justify-content: center; align-items: center; gap: 10px; margin: 18px 16px 4px; font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--marrom-medio); }
+  .ip-passos span { display: inline-flex; align-items: center; }
+  .ip-passos b { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-right: 6px; border-radius: 50%; background: var(--marrom); color: var(--ouro); font-size: 11px; font-weight: 700; }
+  .ip-passos i { width: 16px; height: 1px; background: var(--terracota-claro); }
+
+  /* ── Navegação por categoria ── */
+  .ip-cat-nav { background: rgba(251,245,236,.92); border-bottom: 1px solid var(--borda); padding: 10px 14px; }
+  .ip-cat-chip { min-height: 38px; font-family: var(--serif); font-style: italic; font-weight: 700; font-size: 18px; color: var(--marrom); background: transparent; border: 1px solid var(--terracota-claro); padding: 0 18px; }
+  .ip-cat-chip.ativo { background: var(--marrom); color: var(--ouro); border-color: var(--marrom); }
+
+  /* ── Categoria: cabeçalho editorial. Com foto da categoria vira banner; sem foto, só tipografia. ── */
+  .categoria-bloco { margin: 0 14px 16px; background: #fffdf9; border: 1px solid var(--borda); border-radius: 22px; box-shadow: 0 10px 30px rgba(61,31,7,.06); }
+  .ip-cat-nav + .categoria-bloco, .ip-passos + .categoria-bloco { margin-top: 16px; }
+  .categoria-titulo { background: transparent; color: var(--marrom); min-height: 82px; align-items: center; }
+  .categoria-bloco.aberta .categoria-titulo { border-bottom: 1px solid var(--borda); }
   .categoria-capa-img, .categoria-capa-fundo, .categoria-capa-veu { display: none; }
-  .categoria-capa-info { padding: 12px 56px 12px 16px; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
-  .categoria-titulo-texto { font-family: 'Gelasio', Georgia, serif; font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 19px; color: var(--terracota); text-shadow: none; }
-  .categoria-contagem { color: var(--terracota); background: #fff; border: 1px solid var(--terracota-claro); font-weight: 500; }
-  .categoria-selecionados { background: var(--terracota); color: #fff; }
-  .categoria-chevron { color: var(--terracota); background: #fff; border: 1px solid var(--terracota-claro); }
-  .categoria-titulo .categoria-selo-minimo,
-  .categoria-titulo .categoria-preco-unico { background: #fff; border: 1px solid var(--terracota-claro); color: var(--terracota); font-size: 12px; font-weight: 500; padding: 2px 10px; }
-  .ip-cat-nav { background: rgba(251,245,236,.94); }
-  .ip-cat-chip { border: 1px solid var(--terracota-claro); font-weight: 500; color: var(--terracota); }
-  .ip-cat-chip.ativo { color: #fff; }
-  .ip-item { border-bottom-color: #F1E6E8; }
-  .ip-item-nome { font-family: 'Gelasio', Georgia, serif; font-weight: 700; color: var(--terracota); }
-  .ip-item-preco { font-weight: 600; }
-  .item-selo-destaque { background: var(--creme-fundo); color: var(--terracota); border: 1px solid var(--terracota-claro); box-shadow: none; }
-  .item-selo-encomenda { background: #fff; color: var(--terracota-desc); border: 1px solid var(--borda); }
-  .ip-btn-enviar { border-radius: 14px; font-weight: 600; }
+  .categoria-titulo.com-capa { min-height: 128px; color: #fff; }
+  .categoria-titulo.com-capa .categoria-capa-img { display: block; }
+  .categoria-titulo.com-capa .categoria-capa-veu { display: block; background: linear-gradient(0deg, rgba(25,12,3,.90) 0%, rgba(25,12,3,.40) 65%, rgba(25,12,3,.15) 100%); }
+  .categoria-capa-info { padding: 16px 62px 16px 20px; flex-direction: column; align-items: flex-start; flex-wrap: nowrap; gap: 9px; }
+  .categoria-titulo-texto { font-family: var(--serif); font-style: italic; font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 34px; line-height: 1; color: var(--marrom); text-shadow: none; }
+  .categoria-titulo.com-capa .categoria-titulo-texto { color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.5); }
+  .categoria-contagem,
+  .categoria-titulo .categoria-selo-minimo { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; background: transparent; border: 1px solid var(--terracota-claro); color: var(--ouro-texto); padding: 2px 10px; }
+  .categoria-titulo .categoria-preco-unico { font-size: 11.5px; font-weight: 700; letter-spacing: .02em; background: var(--marrom); border: 1px solid var(--marrom); color: var(--ouro); padding: 2px 11px; }
+  .categoria-titulo.com-capa .categoria-contagem,
+  .categoria-titulo.com-capa .categoria-selo-minimo { color: #fff; border-color: rgba(255,255,255,.45); background: rgba(255,255,255,.12); }
+  .categoria-selecionados { background: var(--ouro); color: var(--marrom); }
+  .categoria-chevron { color: var(--marrom); background: transparent; border: 1px solid var(--terracota-claro); }
+  .categoria-titulo.com-capa .categoria-chevron { color: #fff; background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.5); }
+
+  /* ── Item: nome em serifa, linha pontilhada até o preço e descrição sempre visível
+     (é a descrição que vende o sabor — antes ficava escondida atrás de um toque). ── */
+  .ip-item, .ip-item--compacto { padding: 16px 18px; border-bottom: 1px solid #F0E4D0; }
+  .ip-item--compacto .ip-item-corpo { gap: 14px; align-items: center; }
+  .ip-item-linha1 { display: flex; align-items: baseline; flex-wrap: nowrap; gap: 8px; }
+  .ip-item-nome, .ip-item--compacto .ip-item-nome { flex: 0 1 auto; min-width: 0; font-family: var(--serif); font-weight: 700; font-size: 21px; line-height: 1.15; color: var(--marrom); }
+  .ip-item--compacto.tem-desc .ip-item-nome::before,
+  .ip-item--compacto.tem-desc.desc-aberta .ip-item-nome::before { content: none; }
+  .ip-item-pontos { flex: 1 1 14px; min-width: 14px; border-bottom: 1.5px dotted #cdb48c; transform: translateY(-4px); }
+  .ip-item-preco, .ip-item--compacto .ip-item-preco { flex-shrink: 0; font-weight: 700; font-size: 14.5px; color: var(--marrom); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ip-item--compacto .ip-item-desc { display: block; -webkit-line-clamp: 3; margin-top: 5px; font-size: 13px; line-height: 1.5; color: var(--terracota-desc); }
+  .ip-item--compacto.tem-desc .ip-item-info { cursor: default; }
+  .ip-item--compacto .ip-item-meta { margin-top: 5px; font-size: 11.5px; font-weight: 600; color: var(--ouro-texto); }
+  .ip-item--compacto .item-selo-destaque { display: flex; width: fit-content; align-items: center; margin: 6px 0 0; padding: 2px 9px; border: none; border-radius: 999px; background: linear-gradient(135deg, #f7d97c, #e0a82e); box-shadow: none; color: var(--marrom); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .06em; line-height: 1.4; text-transform: uppercase; white-space: nowrap; }
+  .ip-item:has(.ip-qtd.tem-qtd) { background: linear-gradient(90deg, rgba(240,194,94,.14), rgba(240,194,94,0) 70%); }
+
+  .ip-qtd-btn { border-color: var(--terracota-claro); color: var(--marrom); }
+  .ip-qtd-btn:last-child { background: var(--marrom); border-color: var(--marrom); color: var(--ouro); }
+  .ip-qtd-btn:last-child:active { background: #1a0d02; }
+  /* Sem itens: só um "+" redondo no celular (sobra largura para nome e preço); o texto "Adicionar"
+     continua no HTML para leitor de tela e aparece escrito em telas largas. */
+  .ip-qtd:not(.tem-qtd) .ip-qtd-btn:last-child { width: 42px; height: 42px; padding: 0; font-size: 24px; font-weight: 600; }
+  .ip-qtd:not(.tem-qtd) .ip-qtd-add-txt { display: block; position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
+  @media (min-width: 480px) {
+    .ip-qtd:not(.tem-qtd) .ip-qtd-btn:last-child { width: auto; padding: 0 18px; font-size: 18px; }
+    .ip-qtd:not(.tem-qtd) .ip-qtd-add-txt { display: inline; position: static; width: auto; height: auto; overflow: visible; clip: auto; margin-left: 6px; font-size: 13px; font-weight: 700; letter-spacing: .01em; }
+  }
+  .ip-qtd-valor { width: 28px; min-width: 28px; font-size: 17px; }
+  .ip-qtd.tem-qtd { gap: 2px; }
+  .ip-qtd.tem-qtd .ip-qtd-btn { width: 36px; height: 36px; font-size: 20px; }
+  @media (max-width: 380px) { .ip-item-nome, .ip-item--compacto .ip-item-nome { font-size: 19px; } .ip-item-linha1 { gap: 6px; } }
+
+  /* ── Regras da encomenda ── */
+  .ip-politica { margin: 6px 14px 16px; padding: 16px 18px; background: #fffdf9; border: 1px solid var(--borda); border-left: 3px solid var(--ouro-escuro); border-radius: 16px; box-shadow: none; }
+  .ip-politica-titulo { font-family: var(--serif); font-style: italic; font-weight: 700; font-size: 23px; color: var(--marrom); margin-bottom: 10px; }
+  .ip-politica-linha { font-size: 13px; color: var(--marrom-medio); }
+
+  /* ── Barra do pedido: chocolate com total em ouro — o botão é o ponto mais forte da tela ── */
+  .ip-barra { left: 12px; right: 12px; max-width: 616px; margin: 0 auto; padding: 12px 14px 12px 20px; background: rgba(42,21,4,.97); border: 1px solid rgba(240,194,94,.35); border-radius: 22px; box-shadow: 0 16px 40px rgba(20,10,3,.40); }
+  .ip-barra-info { font-size: 12.5px; font-weight: 600; letter-spacing: .02em; color: #e9d9bd; }
+  .ip-barra-info strong { font-family: var(--serif); font-weight: 700; font-size: 30px; line-height: 1.05; color: var(--ouro); }
+  .ip-btn-enviar { background: linear-gradient(135deg, #f7d97c, #e0a82e); color: var(--marrom); border-radius: 14px; font-weight: 800; font-size: 15px; letter-spacing: .01em; padding: 15px 22px; box-shadow: 0 2px 12px rgba(240,194,94,.28); }
+  .ip-btn-enviar:disabled { background: rgba(255,255,255,.12); color: rgba(255,255,255,.5); box-shadow: none; opacity: 1; }
+  .ip-aviso-minimo { background: rgba(240,194,94,.12); border: 1px solid rgba(240,194,94,.38); color: #f5dfa6; }
+  .ip-aviso-minimo b { color: #fff; }
+
+  /* ── Janelas (revisar / Pix / WhatsApp): mesma voz, sem mexer na estrutura ── */
+  .ip-modal-card { background: #fffdf9; }
+  .ip-modal-titulo { font-family: var(--serif); font-style: italic; font-weight: 700; font-size: 29px; }
+  .ip-modal-total strong, .ip-modal-pix-linha strong { font-family: var(--serif); font-weight: 700; }
+  .ip-modal-btn { border-radius: 14px; }
 `
 
 /**
@@ -1412,7 +1504,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
   const linhasPolitica = politicaLinhas(config)
   const politicaHtml = linhasPolitica.length ? `
     <div class="ip-politica">
-      <div class="ip-politica-titulo">📋 Como funciona a encomenda</div>
+      <div class="ip-politica-titulo">Como funciona a encomenda</div>
       ${linhasPolitica.map(l => `<div class="ip-politica-linha">${l}</div>`).join('')}
     </div>` : ''
   // Mesmo texto, sem as tags <b> — vai dentro da mensagem de texto puro do WhatsApp
@@ -1424,6 +1516,13 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
       <div class="ip-politica-linha">Este arquivo ainda não tem o WhatsApp da loja configurado — peça pra loja gerar de novo antes de enviar o pedido.</div>
     </div>` : ''
 
+  // Selos de confiança na capa + "como pedir" em 3 passos (só cliente final, nunca no balcão).
+  const diasAntecedencia = Number(config?.antecedencia_dias || 0)
+  const selosCapa = ['Feito à mão', 'Chocolate nobre',
+    diasAntecedencia > 0 ? `Antecedência de ${diasAntecedencia} dia${diasAntecedencia === 1 ? '' : 's'}` : 'Peça pelo WhatsApp']
+  const selosCapaHtml = selosCapa.map(t => `<li>${escHtml(t)}</li>`).join('')
+  const passosHtml = `<div class="ip-passos" aria-label="Como pedir"><span><b>1</b>Escolha</span><i></i><span><b>2</b>Revise</span><i></i><span><b>3</b>Envie no WhatsApp</span></div>`
+
   const chipsNavHtml = grupos.length > 1 ? `
   <div class="ip-cat-nav" id="ip-cat-nav">
     ${grupos.map((g, i) => `<button type="button" class="ip-cat-chip" id="ip-chip-${i}" onclick="irParaCategoria(${i})">${escHtml(g.categoria)}</button>`).join('')}
@@ -1431,7 +1530,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
 
   const gruposHtml = grupos.map((g, catIdx) => {
     const minimo = minimosPorCategoria[g.categoria]
-    const selo = minimo ? `<span class="categoria-selo-minimo">💰 Pedido mínimo: ${labelMinimoCategoria(minimo)}</span>` : ''
+    const selo = minimo ? `<span class="categoria-selo-minimo">Pedido mínimo: ${labelMinimoCategoria(minimo)}</span>` : ''
     // Preço único na categoria (3+ itens, todos com o mesmo valor): o preço vai
     // no título e cada sabor vira uma linha compacta (só nome + botão).
     // Preço-base da categoria = o preço mais comum, quando é maioria (3+ itens). Vai no título
@@ -1446,7 +1545,7 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
     const capaImg = config?.categorias_img?.[g.categoria] || g.itens.find(it => it.foto)?.foto || ''
     return `
     <div class="categoria-bloco${catIdx === 0 ? ' aberta' : ''}" id="ip-cat-${catIdx}">
-      <button type="button" class="categoria-titulo" onclick="toggleCategoria(${catIdx})">
+      <button type="button" class="categoria-titulo${capaImg ? ' com-capa' : ''}" onclick="toggleCategoria(${catIdx})">
         ${capaImg
           ? `<img class="categoria-capa-img" src="${capaImg}" alt="">`
           : `<span class="categoria-capa-fundo"><span>${escHtml(g.itens[0]?.emoji || '🍫')}</span></span>`}
@@ -1475,11 +1574,9 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
                 </div>
         `
         // Todos os itens seguem o mesmo layout enxuto: sem imagem por unidade (a categoria
-        // já tem a capa), descrição recolhida (toca no nome pra abrir) e no máximo UMA linha
-        // de detalhes sob o nome: preço (só quando foge do preço-base) · aviso de encomenda.
-        const mostrarPreco = precoBase === null || Number(item.preco) !== precoBase
+        // já tem a capa). O preço aparece SEMPRE na linha do nome (quem decide compra olhando o
+        // valor ao lado do sabor), a descrição fica visível e o aviso de encomenda vai embaixo.
         const detalhes = [
-          mostrarPreco ? `<span class="ip-item-preco">${R$(item.preco)}</span>` : '',
           item.sobEncomenda ? '<span class="ip-item-encomenda">🕒 sob encomenda</span>' : ''
         ].filter(Boolean)
         return `
@@ -1488,7 +1585,9 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
             <div class="ip-item-corpo">
               <div class="ip-item-info"${item.descricao ? ' onclick="this.closest(\'.ip-item\').classList.toggle(\'desc-aberta\')"' : ''}>
                 <div class="ip-item-linha1">
-                <span class="ip-item-nome">${escHtml(item.nome)}${item.destaque ? '<span class="item-selo-destaque" title="Mais pedido" aria-label="Mais pedido">★</span>' : ''}</span>
+                <span class="ip-item-nome">${escHtml(item.nome)}${item.destaque ? '<span class="item-selo-destaque" title="Mais pedido" aria-label="Mais pedido">★ Mais pedido</span>' : ''}</span>
+                <span class="ip-item-pontos" aria-hidden="true"></span>
+                <span class="ip-item-preco">${R$(item.preco)}</span>
                 </div>
                 ${detalhes.length ? `<div class="ip-item-meta">${detalhes.join('<span class="ip-item-meta-sep"> · </span>')}</div>` : ''}
                 ${item.descricao ? `<div class="ip-item-desc">${escHtml(item.descricao)}</div>` : ''}
@@ -1530,9 +1629,11 @@ ${modoRapido ? `<style>${blocoCssRapido}</style>` : ''}
     <div class="ip-capa-texto">
       <div class="marca">${escHtml(nome)}</div>
       <div class="subtitulo">${escHtml(config.subtitulo || '')}</div>
-      ${normalizarInstagram(empresa?.instagram) ? `<a class="ip-capa-insta" href="${urlInstagram(empresa.instagram)}" target="_blank" rel="noopener">📷 @${normalizarInstagram(empresa.instagram)}</a>` : ''}
+      <ul class="ip-capa-selos">${selosCapaHtml}</ul>
+      ${normalizarInstagram(empresa?.instagram) ? `<a class="ip-capa-insta" href="${urlInstagram(empresa.instagram)}" target="_blank" rel="noopener">@${normalizarInstagram(empresa.instagram)}</a>` : ''}
     </div>
-  </div>` : ''}
+  </div>
+  ${numero ? passosHtml : ''}` : ''}
 
   ${chipsNavHtml}
   ${avisoSemNumero}

@@ -3,43 +3,58 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#FBF5EC">
+<meta name="theme-color" content="#2a1504">
 <title>ChocoBete - Faça seu pedido</title>
 <link rel="icon" href="/icon-192-v2.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gelasio:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600;1,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
 <style>
-  :root { --vinho:#5A2F3B; --rose:#B58A94; --rose-claro:#F6E9EC; --creme:#FBF5EC; --cinza:#4A4A4A; --borda:#EADDE0; }
+  :root { --choc:#2a1504; --choc2:#3d1f07; --ouro:#f0c25e; --ouro-esc:#c8890a; --ouro-txt:#7a4e00; --creme:#FBF5EC; --papel:#fffdf9; --borda:#E6D8C3; --txt:#5b4636; --serif:'Cormorant Garamond','Gelasio',Georgia,serif; }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { min-height: 100%; background: var(--creme); color: var(--cinza); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-  main { max-width: 440px; margin: 0 auto; padding: max(40px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom)); text-align: center; }
-  h1 { font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: 40px; line-height: 1.1; color: var(--vinho); }
-  .fio { display: block; width: 120px; height: 10px; margin: 14px auto 10px; }
-  .slogan { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--cinza); }
-  .escolha { margin: 38px 0 14px; font-family: 'Gelasio', Georgia, serif; font-size: 18px; color: var(--vinho); }
-  .opcoes { display: flex; flex-direction: column; gap: 12px; }
-  .opcao { display: block; text-decoration: none; text-align: left; background: #fff; border: 1px solid var(--borda); border-radius: 16px; padding: 18px 20px; position: relative; transition: border-color .15s, background .15s; }
-  .opcao:active { background: var(--rose-claro); border-color: var(--rose); }
-  .opcao strong { display: block; font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: 21px; color: var(--vinho); }
-  .opcao span { display: block; margin-top: 4px; padding-right: 28px; font-size: 13.5px; line-height: 1.45; color: var(--cinza); }
-  .opcao::after { content: "›"; position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 28px; line-height: 1; color: var(--rose); }
-  .insta { display: inline-block; margin-top: 34px; padding: 7px 16px; border: 1px solid var(--rose); border-radius: 999px; color: var(--vinho); text-decoration: none; font-family: 'Gelasio', Georgia, serif; font-size: 14px; }
+  html { background: #F1E6D3; }
+  body { min-height: 100vh; max-width: 520px; margin: 0 auto; background: var(--creme); color: var(--txt); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  @media (min-width: 700px) { body { box-shadow: 0 0 0 1px var(--borda), 0 0 60px rgba(61,31,7,.10); } }
+
+  .capa { position: relative; overflow: hidden; text-align: center; color: #f5e6c4;
+    background: radial-gradient(90% 120% at 50% -10%, rgba(240,194,94,.24) 0%, rgba(240,194,94,0) 55%), linear-gradient(180deg, var(--choc2) 0%, var(--choc) 100%);
+    border-radius: 0 0 40px 40px; padding: max(44px, env(safe-area-inset-top)) 24px 40px; }
+  .capa::after { content: ""; position: absolute; left: 24px; right: 24px; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(240,194,94,.75), transparent); }
+  .selo { display: block; width: 104px; height: 104px; margin: 0 auto 18px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(240,194,94,.55), 0 14px 34px rgba(0,0,0,.38); }
+  h1 { font-family: var(--serif); font-style: italic; font-weight: 700; font-size: 52px; line-height: 1; color: #fbefd0; letter-spacing: .01em; }
+  .fio { display: block; width: 120px; height: 10px; margin: 14px auto 12px; }
+  .slogan { font-size: 11px; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: var(--ouro); }
+
+  main { padding: 34px 20px max(36px, env(safe-area-inset-bottom)); text-align: center; }
+  .escolha { font-family: var(--serif); font-style: italic; font-weight: 700; font-size: 28px; color: var(--choc); }
+  .opcoes { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+  .opcao { position: relative; display: block; text-align: left; text-decoration: none; background: var(--papel); border: 1px solid var(--borda); border-radius: 22px; padding: 22px 64px 22px 22px; box-shadow: 0 10px 30px rgba(61,31,7,.07); transition: transform .15s, border-color .15s; }
+  .opcao:active { transform: scale(.985); border-color: var(--ouro-esc); }
+  .opcao small { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--ouro-txt); }
+  .opcao strong { display: block; margin-top: 6px; font-family: var(--serif); font-style: italic; font-weight: 700; font-size: 30px; line-height: 1.05; color: var(--choc); }
+  .opcao span { display: block; margin-top: 8px; font-size: 13.5px; line-height: 1.5; color: var(--txt); }
+  .opcao::after { content: "→"; position: absolute; right: 18px; top: 50%; transform: translateY(-50%); width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--choc); color: var(--ouro); font-size: 18px; }
+  .insta { display: inline-block; margin-top: 30px; font-family: var(--serif); font-style: italic; font-weight: 700; font-size: 20px; color: var(--ouro-txt); text-decoration: none; border-bottom: 1px solid var(--ouro-esc); padding-bottom: 2px; }
 </style>
 </head>
 <body>
-<main>
+<header class="capa">
+  <img class="selo" src="/logo-chocobete.png" alt="ChocoBete" width="104" height="104">
   <h1>ChocoBete</h1>
-  <svg class="fio" viewBox="0 0 120 10" aria-hidden="true"><path d="M0 5H46M74 5H120" stroke="#B58A94" stroke-width="1" fill="none"/><path d="M60 .5L64.5 5 60 9.5 55.5 5z" fill="#B58A94"/></svg>
+  <svg class="fio" viewBox="0 0 120 10" aria-hidden="true"><path d="M0 5H46M74 5H120" stroke="#f0c25e" stroke-width="1" fill="none"/><path d="M60 .5L64.5 5 60 9.5 55.5 5z" fill="#f0c25e"/></svg>
   <p class="slogan">Chocolate nobre, feito à mão</p>
+</header>
 
+<main>
   <p class="escolha">O que você procura hoje?</p>
   <div class="opcoes">
     <a class="opcao" href="/pedido-diaadia">
+      <small>Entrega ou retirada</small>
       <strong>Dia a dia</strong>
       <span>Trufas, cones, barras, bolos e brownies para adoçar o seu dia.</span>
     </a>
     <a class="opcao" href="/pedido-festa">
+      <small>Sob encomenda</small>
       <strong>Festas e encomendas</strong>
       <span>Para comemorações e datas especiais, com encomenda antecipada.</span>
     </a>
