@@ -160,7 +160,7 @@
               <span class="vc-av vc-av--pago"><i class="fas fa-circle-check"></i></span>
               <span class="vc-linha-txt">
                 <span class="vc-linha-nome">{{ m.fiado.clienteNome }}</span>
-                <span class="vc-linha-sub">Pagamento · {{ fmtBR(m.data) }}<template v-if="fmtHora(m.hora)"> - {{ fmtHora(m.hora) }}</template> · {{ m.fiado.lojaNome }}</span>
+                <span class="vc-linha-sub">Pagamento · {{ fmtBR(m.data) }}<template v-if="fmtHora(m.hora)"> {{ fmtHora(m.hora) }}</template> · {{ m.fiado.lojaNome }}</span>
                 <span class="vc-linha-sub vc-linha-sub--pag">{{ m.quitou ? `Quitou a compra de R$ ${fmt(m.fiado.total)}` : `Pagou em parte · faltou R$ ${fmt(m.saldoDepois)}` }}</span>
               </span>
               <span class="vc-linha-val vc-linha-val--pago">+ R$ {{ fmt(m.valor) }}</span>
@@ -184,8 +184,8 @@
     </div>
 
     <!-- Voltar ao topo da lista -->
-    <Transition name="vc-topo">
-      <button v-if="mostrarTopo" type="button" class="vc-topo" aria-label="Voltar ao topo" title="Voltar ao topo" @click="voltarAoTopo">
+    <Transition name="vc-voltar-topo">
+      <button v-if="mostrarTopo" type="button" class="vc-voltar-topo" aria-label="Voltar ao topo" title="Voltar ao topo" @click="voltarAoTopo">
         <i class="fas fa-arrow-up"></i>
       </button>
     </Transition>
@@ -783,17 +783,17 @@ function statusClasse(f) {
 .vc-linha-sub--pag { color: var(--green); font-weight: 700; }
 
 /* Botão flutuante: voltar ao topo */
-.vc-topo {
+.vc-voltar-topo {
   position: absolute; right: 16px; bottom: max(20px, env(safe-area-inset-bottom));
   width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--border);
   background: var(--surface); color: var(--brown-dark); box-shadow: var(--shadow);
   display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; z-index: 5;
 }
-.vc-topo:active { background: var(--cream-deep); }
-.vc-topo:focus-visible { outline: 2px solid var(--brown); outline-offset: 2px; }
-.vc-topo-enter-active, .vc-topo-leave-active { transition: opacity .18s ease, transform .18s ease; }
-.vc-topo-enter-from, .vc-topo-leave-to { opacity: 0; transform: translateY(8px); }
-@media (prefers-reduced-motion: reduce) { .vc-topo-enter-active, .vc-topo-leave-active { transition: none; } }
+.vc-voltar-topo:active { background: var(--cream-deep); }
+.vc-voltar-topo:focus-visible { outline: 2px solid var(--brown); outline-offset: 2px; }
+.vc-voltar-topo-enter-active, .vc-voltar-topo-leave-active { transition: opacity .18s ease, transform .18s ease; }
+.vc-voltar-topo-enter-from, .vc-voltar-topo-leave-to { opacity: 0; transform: translateY(8px); }
+@media (prefers-reduced-motion: reduce) { .vc-voltar-topo-enter-active, .vc-voltar-topo-leave-active { transition: none; } }
 .vc-ok { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; color: var(--green); white-space: nowrap; }
 .vc-vazio { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 36px 16px; font-size: 14px; font-weight: 700; color: var(--muted); text-align: center; }
 .vc-mais { margin: 14px 0 0; text-align: center; font-size: 12px; color: var(--muted); }

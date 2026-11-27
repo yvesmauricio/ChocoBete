@@ -187,7 +187,7 @@
       <div class="cad-search-bar">
         <div class="cad-search-wrap">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input class="cad-search-input" placeholder="Buscar loja..." v-model="buscaLojas">
+          <input class="cad-search-input" placeholder="Buscar loja..." :value="buscaLojas" @input="buscaLojas = $event.target.value">
         </div>
       </div>
       <div class="cad-scroll-list">
@@ -253,7 +253,7 @@
       <div class="cad-search-bar">
         <div class="cad-search-wrap">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input class="cad-search-input" placeholder="Buscar cliente..." v-model="buscaClientes">
+          <input class="cad-search-input" placeholder="Buscar cliente..." :value="buscaClientes" @input="buscaClientes = $event.target.value">
         </div>
       </div>
       <div class="cad-scroll-list">
@@ -639,7 +639,7 @@
     </div>
 
     <!-- ══ TELA: RESUMO ════════════════════════════════════ -->
-    <div v-else-if="tela === 'resumo'" class="cad-tela">
+    <div v-else-if="tela === 'resumo'" class="cad-tela cad-tela--resumo">
       <div class="cad-spiral">
         <span v-for="n in 12" :key="n"></span>
       </div>
@@ -655,7 +655,7 @@
 
       </div>
 
-      <div class="cad-resumo-lista">
+      <div ref="resumoListaEl" class="cad-resumo-lista" @scroll.passive="aoRolarResumo">
         <div class="vc-topo">
           <!-- Números do momento (mesmo bloco da consulta de vendas do Admin) -->
           <div class="vc-kpis">
@@ -668,6 +668,7 @@
                 <div class="vc-kpi-pilulas">
                   <span class="vc-kpi-pilula"><i class="fas fa-receipt"></i><b>{{ kpiResumo.qtdAbertas }}</b> {{ kpiResumo.qtdAbertas === 1 ? 'compra' : 'compras' }}</span>
                   <span class="vc-kpi-pilula"><i class="fas fa-user"></i><b>{{ kpiResumo.qtdClientesDevendo }}</b> {{ kpiResumo.qtdClientesDevendo === 1 ? 'cliente' : 'clientes' }}</span>
+                  <span v-if="modoResumo === 'historico'" class="vc-kpi-pilula"><i class="fas fa-circle-check"></i>Recebido hoje <b>R$ {{ fmt(kpiResumo.recebidoHoje) }}</b></span>
                 </div>
               </div>
               <div class="vc-kpi-sub">
@@ -697,7 +698,7 @@
           <div class="vc-barra">
             <label class="vc-busca">
               <i class="fas fa-magnifying-glass"></i>
-              <input v-model="buscaResumo" type="search" :placeholder="modoResumo === 'historico' ? 'Buscar cliente, loja ou item' : 'Buscar loja ou cliente'" autocomplete="off">
+              <input :value="buscaResumo" type="search" enterkeyhint="search" @input="buscaResumo = $event.target.value" :placeholder="modoResumo === 'historico' ? 'Buscar cliente, loja ou item' : 'Buscar loja ou cliente'" autocomplete="off">
               <button v-if="buscaResumo" type="button" class="vc-busca-x" aria-label="Limpar busca" @click="buscaResumo = ''"><i class="fas fa-xmark"></i></button>
             </label>
             <button
@@ -735,20 +736,32 @@
 
         <!-- HISTÓRICO: lista única, da venda mais recente para a mais antiga -->
         <template v-if="modoResumo === 'historico'">
-          <div v-if="historicoFiltrado.length" class="vc-lista">
-            <button v-for="f in historicoFiltrado" :key="f.id" type="button" class="vc-linha" @click="abrirDetalheFiado(f)">
-              <span class="vc-av" :class="{ 'vc-av--pago': f.saldo <= 0.01 }">
-                <i v-if="f.saldo <= 0.01" class="fas fa-check"></i><template v-else>{{ iniciais(f.clienteNome) }}</template>
-              </span>
-              <span class="vc-linha-txt">
-                <span class="vc-linha-nome">{{ f.clienteNome }}</span>
-                <span class="vc-linha-sub">{{ fmtBR(f.dataVenda) }} · {{ f.lojaNome }} · {{ qtdItens(f) || 'Valor avulso' }}</span>
-              </span>
-              <span class="vc-linha-val" :class="{ 'vc-linha-val--pago': f.saldo <= 0.01 }">R$ {{ fmt(f.total) }}</span>
+          <div v-if="movimentosFiltrados.length" class="vc-lista">
+            <button v-for="m in movimentosFiltrados" :key="m.chave" type="button" class="vc-linha" @click="abrirDetalheFiado(m.fiado)">
+              <template v-if="m.tipo === 'pagamento'">
+                <span class="vc-av vc-av--pago"><i class="fas fa-circle-check"></i></span>
+                <span class="vc-linha-txt">
+                  <span class="vc-linha-nome">{{ m.fiado.clienteNome }}</span>
+                  <span class="vc-linha-sub">Pagamento · {{ fmtBR(m.data) }}<template v-if="fmtHora(m.hora)"> {{ fmtHora(m.hora) }}</template> · {{ m.fiado.lojaNome }}</span>
+                  <span class="vc-linha-sub vc-linha-sub--pag">{{ m.quitou ? `Quitou a compra de R$ ${fmt(m.fiado.total)}` : `Pagou em parte · faltou R$ ${fmt(m.saldoDepois)}` }}</span>
+                </span>
+                <span class="vc-linha-val vc-linha-val--pago">+ R$ {{ fmt(m.valor) }}</span>
+              </template>
+              <template v-else>
+                <span class="vc-av" :class="{ 'vc-av--pago': m.fiado.saldo <= 0.01 }">
+                  <i v-if="m.fiado.saldo <= 0.01" class="fas fa-check"></i><template v-else>{{ iniciais(m.fiado.clienteNome) }}</template>
+                </span>
+                <span class="vc-linha-txt">
+                  <span class="vc-linha-nome">{{ m.fiado.clienteNome }}</span>
+                  <span class="vc-linha-sub">{{ fmtBR(m.fiado.dataVenda) }} · {{ m.fiado.lojaNome }} · {{ qtdItens(m.fiado) || 'Valor avulso' }}</span>
+                  <span v-if="totalPagoF(m.fiado) > 0 && m.fiado.saldo > 0.01" class="vc-linha-sub vc-linha-sub--pag">Já pagou R$ {{ fmt(totalPagoF(m.fiado)) }} · falta R$ {{ fmt(m.fiado.saldo) }}</span>
+                </span>
+                <span class="vc-linha-val" :class="{ 'vc-linha-val--pago': m.fiado.saldo <= 0.01 }">R$ {{ fmt(m.fiado.total) }}</span>
+              </template>
             </button>
           </div>
-          <div v-else class="vc-vazio">Nenhuma venda encontrada.</div>
-          <p v-if="historicoFiltrado.length && historicoOrdenado.length > LIMITE_HIST && !buscaResumo.trim()" class="vc-mais">Mostrando as {{ LIMITE_HIST }} mais recentes. Use a busca para achar as antigas.</p>
+          <div v-else class="vc-vazio">{{ filtroHist === 'recebimentos' ? 'Nenhum pagamento encontrado.' : 'Nenhuma venda encontrada.' }}</div>
+          <p v-if="movimentosFiltrados.length && movimentosOrdenados.length > LIMITE_HIST && !buscaResumo.trim()" class="vc-mais">Mostrando as {{ LIMITE_HIST }} mais recentes. Use a busca para achar as antigas.</p>
         </template>
 
         <!-- COBRANÇAS: loja → cliente, tudo recolhido (o card já mostra total e vencidos) -->
@@ -856,6 +869,12 @@
           </div>
         </template>
       </div>
+
+      <Transition name="cad-voltar-topo">
+        <button v-if="mostrarTopoResumo" type="button" class="cad-voltar-topo" aria-label="Voltar ao topo" title="Voltar ao topo" @click="voltarAoTopoResumo">
+          <i class="fas fa-arrow-up"></i>
+        </button>
+      </Transition>
     </div>
 
     <!-- ══ TELA: CALCULADORA ════════════════════════════════ -->
@@ -3373,7 +3392,7 @@ function montarGrupos() {
 }
 
 // ── Cobranças / Histórico: mesmo padrão da consulta de vendas do Admin ──
-const filtroHist     = ref('todos')   // histórico: 'todos' | 'abertas' | 'pagas'
+const filtroHist     = ref('todos')   // histórico: 'todos' | 'abertas' | 'pagas' | 'recebimentos'
 const filtrosAbertos = ref(false)     // painel de filtros recolhível (botão ao lado da busca)
 const LIMITE_HIST    = 200
 const abasResumo = [
@@ -3398,7 +3417,9 @@ const kpiResumo = computed(() => {
     totalAberto: soma(abertas), qtdAbertas: abertas.length,
     qtdClientesDevendo: new Set(abertas.map(f => f.clienteId)).size,
     totalVencido: soma(vencidas), qtdVencidas: vencidas.length,
-    totalHoje: soma(deHoje), qtdHoje: deHoje.length
+    totalHoje: soma(deHoje), qtdHoje: deHoje.length,
+    // Só tem valor no Histórico (nas Cobranças só as compras em aberto estão carregadas).
+    recebidoHoje: centavos(todosPagamentos.value.filter(p => p.data === hj).reduce((t, p) => t + p.valor, 0))
   }
 })
 
@@ -3409,23 +3430,50 @@ const historicoOrdenado = computed(() => {
     .map(f => ({ ...f, atrasada: f.saldo > 0.01 && !!f.dataVenc && f.dataVenc < hj }))
     .sort((a, b) => chaveRecente(b).localeCompare(chaveRecente(a)))
 })
-const historicoFiltrado = computed(() => {
+// Cada pagamento (inclusive parcial) de cada compra, como um movimento próprio do histórico.
+const todosPagamentos = computed(() => historicoOrdenado.value.flatMap(f =>
+  (f.pagamentos || []).map((p, idx) => ({
+    tipo: 'pagamento', chave: `p-${f.id}-${idx}`, fiado: f,
+    valor: Number(p.valor) || 0, data: p.data || '', hora: p.hora || '',
+    saldoDepois: Number(p.saldoDepois) || 0, quitou: Number(p.saldoDepois) <= 0.01,
+    ordem: `${p.data || ''} ${p.hora || ''} ${p.criadoEm || ''}`
+  }))
+))
+// Histórico = compras + pagamentos, do mais recente para o mais antigo.
+// "Tudo" mistura os dois; "Em aberto"/"Pagas" mostram só compras; "Recebimentos" só pagamentos.
+const movimentosOrdenados = computed(() => {
   if (modoResumo.value !== 'historico') return []
-  const lista = historicoOrdenado.value.filter(f =>
-    (filtroHist.value === 'todos' || (filtroHist.value === 'abertas' ? f.saldo > 0.01 : f.saldo <= 0.01)) &&
-    casaFiado(f)
-  )
+  const fl = filtroHist.value
+  const compras = fl === 'recebimentos' ? [] : historicoOrdenado.value
+    .filter(f => fl === 'todos' || (fl === 'abertas' ? f.saldo > 0.01 : f.saldo <= 0.01))
+    .map(f => ({ tipo: 'compra', chave: `c-${f.id}`, fiado: f, ordem: chaveRecente(f) }))
+  const pagamentos = (fl === 'todos' || fl === 'recebimentos') ? todosPagamentos.value : []
+  return [...compras, ...pagamentos].sort((a, b) => b.ordem.localeCompare(a.ordem))
+})
+const movimentosFiltrados = computed(() => {
+  const lista = movimentosOrdenados.value.filter(m => casaFiado(m.fiado))
   return termoResumo.value ? lista : lista.slice(0, LIMITE_HIST)
 })
+
+// Botão "voltar ao topo": aparece depois de rolar um pouco a lista.
+const resumoListaEl = ref(null)
+const mostrarTopoResumo = ref(false)
+function aoRolarResumo() { mostrarTopoResumo.value = (resumoListaEl.value?.scrollTop || 0) > 320 }
+function voltarAoTopoResumo() {
+  const reduzir = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  resumoListaEl.value?.scrollTo({ top: 0, behavior: reduzir ? 'auto' : 'smooth' })
+}
+watch(tela, () => { mostrarTopoResumo.value = false })
 
 // Painel de filtros (o conteúdo muda conforme a aba).
 const filtrosListaResumo = computed(() => {
   if (modoResumo.value === 'historico') {
     const t = fiadosTodos.value
     return [
-      { id: 'todos',   nome: 'Todas',     n: t.length },
+      { id: 'todos',   nome: 'Tudo',      n: t.length + todosPagamentos.value.length },
       { id: 'abertas', nome: 'Em aberto', n: t.filter(f => f.saldo > 0.01).length },
-      { id: 'pagas',   nome: 'Pagas',     n: t.filter(f => f.saldo <= 0.01).length }
+      { id: 'pagas',   nome: 'Pagas',     n: t.filter(f => f.saldo <= 0.01).length },
+      { id: 'recebimentos', nome: 'Recebimentos', n: todosPagamentos.value.length }
     ]
   }
   const hj = hoje()
@@ -5917,6 +5965,19 @@ button.cad-nv-perfil-topo { cursor: pointer; }
 
 /* ══ Cobranças / Histórico: mesmo visual da consulta de vendas (Admin) ══ */
 .vc-topo { flex-shrink: 0; }
+/* Botão flutuante: voltar ao topo (Cobranças / Histórico) */
+.cad-tela--resumo { position: relative; }
+.cad-voltar-topo {
+  position: absolute; right: 16px; bottom: max(20px, env(safe-area-inset-bottom));
+  width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--brown-dark); box-shadow: var(--shadow);
+  display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; z-index: 5;
+}
+.cad-voltar-topo:active { background: var(--cream-deep); }
+.cad-voltar-topo:focus-visible { outline: 2px solid var(--brown); outline-offset: 2px; }
+.cad-voltar-topo-enter-active, .cad-voltar-topo-leave-active { transition: opacity .18s ease, transform .18s ease; }
+.cad-voltar-topo-enter-from, .cad-voltar-topo-leave-to { opacity: 0; transform: translateY(8px); }
+@media (prefers-reduced-motion: reduce) { .cad-voltar-topo-enter-active, .cad-voltar-topo-leave-active { transition: none; } }
 /* KPIs */
 .vc-kpis { margin-bottom: 12px; }
 .vc-kpi {
@@ -5960,6 +6021,12 @@ button.cad-nv-perfil-topo { cursor: pointer; }
 }
 .vc-busca:focus-within { border-color: var(--brown); }
 .vc-busca input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--text); }
+/* Esconde o "x" nativo do input type=search (já existe o nosso botão de limpar) */
+.vc-busca input { -webkit-appearance: none; appearance: none; }
+.vc-busca input::-webkit-search-cancel-button,
+.vc-busca input::-webkit-search-decoration,
+.vc-busca input::-webkit-search-results-button,
+.vc-busca input::-webkit-search-results-decoration { -webkit-appearance: none; appearance: none; display: none; }
 .vc-busca-x { border: 0; background: none; color: var(--muted); font-size: 14px; cursor: pointer; padding: 6px; }
 /* Barra de busca + botão de filtros */
 .vc-barra { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -6033,6 +6100,7 @@ button.cad-nv-perfil-topo { cursor: pointer; }
 .vc-linha-sub { font-size: 12px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vc-linha-val { font-family: var(--mono); font-size: 15px; font-weight: 800; color: var(--brown); white-space: nowrap; }
 .vc-linha-val--pago { color: var(--green); }
+.vc-linha-sub--pag { color: var(--green); font-weight: 700; }
 .vc-ok { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; color: var(--green); white-space: nowrap; }
 .vc-vazio { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 36px 16px; font-size: 14px; font-weight: 700; color: var(--muted); text-align: center; }
 .vc-mais { margin: 14px 0 0; text-align: center; font-size: 12px; color: var(--muted); }
