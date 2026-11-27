@@ -230,14 +230,14 @@
               </div>
 
               <div class="vc-datas">
-                <div><small>Data da compra</small><b>{{ fmtBR(fiadoAberto.dataVenda) }}<template v-if="fmtHora(fiadoAberto.horaVenda)">|{{ fmtHora(fiadoAberto.horaVenda) }}</template></b></div>
+                <div><small>Data da compra</small><b>{{ fmtBR(fiadoAberto.dataVenda) }}<template v-if="fmtHora(fiadoAberto.horaVenda)"> · {{ fmtHora(fiadoAberto.horaVenda) }}</template></b></div>
                 <div><small>Combinado para</small><b>{{ fmtBR(fiadoAberto.dataVenc) }}</b></div>
               </div>
 
               <template v-if="fiadoAberto.pagamentos?.length">
                 <div class="vc-sub-tit">Pagamentos</div>
                 <div v-for="(p, idx) in fiadoAberto.pagamentos" :key="idx" class="vc-pag">
-                  <span><i class="fas fa-circle-check"></i> {{ fmtBR(p.data) }}<template v-if="fmtHora(p.hora)">|{{ fmtHora(p.hora) }}</template></span>
+                  <span><i class="fas fa-circle-check"></i> {{ fmtBR(p.data) }}<template v-if="fmtHora(p.hora)"> · {{ fmtHora(p.hora) }}</template></span>
                   <b>R$ {{ fmt(p.valor) }}</b>
                 </div>
               </template>
