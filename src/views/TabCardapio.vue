@@ -409,6 +409,10 @@
                 <span class="cx-linha-txt"><strong><i class="fas fa-image"></i> Mostrar foto em cada sabor</strong><small>Desligado, só o banner da categoria aparece. As fotos continuam guardadas.</small></span>
                 <span class="cp-switch" :class="{ on: config.mostrar_foto_itens !== false }"><span class="cp-switch-bola"></span></span>
               </button>
+              <button type="button" class="cx-linha-switch" role="switch" :aria-checked="!!config.mostrar_peso" @click="config.mostrar_peso = !config.mostrar_peso; salvar()">
+                <span class="cx-linha-txt"><strong><i class="fas fa-scale-balanced"></i> Mostrar peso de cada sabor</strong><small>Ex.: "30 g" ao lado do nome — no cardápio online, no balcão e no PDF. Vem do "Peso por unidade" da receita (ou do total dos ingredientes ÷ rendimento).<template v-if="config.mostrar_peso && itensSemPeso.length"> {{ itensSemPeso.length }} {{ itensSemPeso.length === 1 ? 'item ainda está' : 'itens ainda estão' }} sem peso e {{ itensSemPeso.length === 1 ? 'não mostra' : 'não mostram' }} nada: {{ itensSemPeso.slice(0, 4).map(i => i.nome).join(', ') }}{{ itensSemPeso.length > 4 ? '…' : '' }}.</template></small></span>
+                <span class="cp-switch" :class="{ on: config.mostrar_peso }"><span class="cp-switch-bola"></span></span>
+              </button>
               <button type="button" class="cx-linha-switch" role="switch" :aria-checked="!!config.abrir_tela_cheia_padrao" @click="config.abrir_tela_cheia_padrao = !config.abrir_tela_cheia_padrao; salvar()">
                 <span class="cx-linha-txt"><strong><i class="fas fa-store"></i> Abrir sempre em tela cheia</strong><small>Ideal pra deixar o celular no balcão. Pra editar, toque no X.</small></span>
                 <span class="cp-switch" :class="{ on: config.abrir_tela_cheia_padrao }"><span class="cp-switch-bola"></span></span>
@@ -953,7 +957,7 @@ import { normalizar, maskMoney, parseMoney } from '../utils.js'
 import {
   carregarConfigCardapio, salvarConfigCardapio, ITEM_DEFAULT, CARDAPIOS,
   carregarAbaPadraoCardapio, salvarAbaPadraoCardapio,
-  montarItensCardapio, agruparPorCategoria, redimensionarImagem,
+  montarItensCardapio, agruparPorCategoria, redimensionarImagem, pesoUnitarioDaReceita,
   gerarPdfCardapioCompacto, numeroWhatsAppFormatado,
   gerarHtmlPedidoInterativo, dadosPixDoCardapio, compartilharArquivo, extrairTelefoneDeTexto,
   garantirFontesCarregadas,
@@ -986,7 +990,7 @@ const emit = defineEmits(['fechar'])
 
 const R$ = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const config = reactive({ nome_cardapio: '', subtitulo: 'Chocolates Artesanais', mensagem_rodape: 'Peça já e encomende o seu! 🍫', abrir_tela_cheia_padrao: false, pagamento_ativo: true, antecedencia_dias: 2, sinal_ativo: true, sinal_texto: 'Encomendas confirmadas mediante pagamento de um sinal. Após a confirmação, o sinal não é reembolsável, pois é usado para a compra dos insumos da sua encomenda.', taxa_entrega: 0, categorias_min: {}, categorias_img: {}, mostrar_foto_itens: true, itens: {} })
+const config = reactive({ nome_cardapio: '', subtitulo: 'Chocolates Artesanais', mensagem_rodape: 'Peça já e encomende o seu! 🍫', abrir_tela_cheia_padrao: false, pagamento_ativo: true, antecedencia_dias: 2, sinal_ativo: true, sinal_texto: 'Encomendas confirmadas mediante pagamento de um sinal. Após a confirmação, o sinal não é reembolsável, pois é usado para a compra dos insumos da sua encomenda.', taxa_entrega: 0, categorias_min: {}, categorias_img: {}, mostrar_foto_itens: true, mostrar_peso: false, itens: {} })
 const cardapioAtivo = ref('festa') // 'festa' | 'diaadia' — cada um é um cardápio 100% independente (itens, capa, regras, link)
 const abaPadrao = ref('festa') // qual dos dois abre por padrão ao entrar aqui (configurável em "Mais opções")
 const cardapioAtivoIndex = computed(() => Math.max(0, CARDAPIOS.findIndex(c => c.id === cardapioAtivo.value)))
@@ -1928,9 +1932,12 @@ function ordenarGruposCardapio(grupos) {
 }
 
 // Todas as receitas (inclui inativas) — pra edição
-const todosGrupos = computed(() => ordenarGruposCardapio(agruparPorCategoria(montarItensCardapio(s.receitas, config, { apenasAtivos: false }))))
+// Peso por unidade de cada receita (g) — só aparece no cardápio se "Mostrar peso" estiver ligado
+const pesoDe = (r) => pesoUnitarioDaReceita(r, s.getPesoTotal)
+const todosGrupos = computed(() => ordenarGruposCardapio(agruparPorCategoria(montarItensCardapio(s.receitas, config, { apenasAtivos: false, pesoDe }))))
 // Só as ativas — pra gerar o cardápio de verdade (PDF/tela/imagem)
-const todosItensAtivos = computed(() => montarItensCardapio(s.receitas, config, { apenasAtivos: true }))
+const todosItensAtivos = computed(() => montarItensCardapio(s.receitas, config, { apenasAtivos: true, pesoDe }))
+const itensSemPeso = computed(() => todosItensAtivos.value.filter(i => !(i.peso > 0)))
 const gruposAtivos = computed(() => ordenarGruposCardapio(agruparPorCategoria(todosItensAtivos.value)))
 
 const gruposFiltrados = computed(() => {

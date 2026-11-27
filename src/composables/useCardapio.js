@@ -89,6 +89,7 @@ const CONFIG_DEFAULT = (id = 'festa') => ({
   // escolhe "Receber em casa". 0 = ainda não configurada (o cardápio avisa
   // "a combinar" em vez de inventar um número).
   taxa_entrega: 0,
+  mostrar_peso: false, // true = mostra o peso de cada unidade (ex.: "30 g") ao lado do sabor — online, balcão e PDF
   mostrar_foto_itens: true, // false = esconde a foto/emoji de cada sabor no cardápio digital (só o banner da categoria aparece)
   categorias_img: {}, // { [categoria]: dataURL } — imagem do banner da categoria no cardápio digital (vazio = usa a foto do 1º item)
   categorias_min: {}, // { [categoria]: { valor, unidades } } — ex: { Festa: { valor: 80, unidades: 20 } } — 0/ausente = sem exigência nesse critério
@@ -160,13 +161,36 @@ export function getItemConfig(config, uuid) {
   return { ...ITEM_DEFAULT(), ...(config.itens?.[uuid] || {}) }
 }
 
+// ── Peso por unidade (exibição opcional no cardápio) ──
+// Prioridade: "Peso por unidade" preenchido na receita; senão, peso total dos ingredientes ÷ rendimento
+// (as receitas são pesadas com os recheios já prontos, então o total já é o peso real do lote).
+// Receitas cujo rendimento é em g/kg (peso_unitario = 1 é só um artifício interno) ficam sem peso.
+const UNIDADES_SEM_PESO = new Set(['g', 'kg', 'ml', 'l'])
+export function pesoUnitarioDaReceita(r, getPesoTotal) {
+  const un = String(r?.unidade_rendimento || 'un').trim().toLowerCase()
+  if (UNIDADES_SEM_PESO.has(un)) return 0
+  const manual = Number(r?.peso_unitario || 0)
+  if (manual > 0) return manual
+  const rendimento = Number(r?.rendimento || 0)
+  const total = typeof getPesoTotal === 'function' ? Number(getPesoTotal(r) || 0) : 0
+  return rendimento > 0 && total > 0 ? total / rendimento : 0
+}
+
+/** 30 -> "30 g" · 1250 -> "1,25 kg". Devolve '' quando não há peso utilizável. */
+export function formatarPeso(g) {
+  const n = Number(g || 0)
+  if (!(n >= 0.5)) return ''
+  if (n < 1000) return `${Math.round(n)} g`
+  return `${(Math.round(n / 10) / 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg`
+}
+
 /**
  * Lista as receitas elegíveis (exclui bases/intermediárias) já mescladas com os
  * adereços do cardápio. Por padrão só traz os itens ativos (uso na geração do
  * PDF/imagem/tela); passe apenasAtivos: false pra listar tudo (uso no editor,
  * onde itens desativados também precisam aparecer pra poderem ser reativados).
  */
-export function montarItensCardapio(receitas, config, { apenasAtivos = true } = {}) {
+export function montarItensCardapio(receitas, config, { apenasAtivos = true, pesoDe = null } = {}) {
   return (receitas || [])
     .filter(r => !r.eh_intermediaria)
     .map(r => {
@@ -196,6 +220,7 @@ export function montarItensCardapio(receitas, config, { apenasAtivos = true } = 
         foto: cfg.foto || null,
         destaque: !!cfg.destaque,
         sobEncomenda: !!cfg.sob_encomenda,
+        peso: pesoDe ? Number(pesoDe(r) || 0) : 0, // g por unidade (0 = sem peso); só aparece se config.mostrar_peso
         ativo: cfg.ativo !== false,
         ordem: Number(cfg.ordem || 0),
       }
@@ -301,6 +326,7 @@ const CSS_CARDAPIO_COMPACTO = `
   .cc-item { break-inside: avoid; padding: 1.7mm 0; border-bottom: .25mm solid #F1E6E8; }
   .cc-item-linha1 { display: flex; align-items: baseline; justify-content: space-between; gap: 3mm; }
   .cc-item-nome { font-family: 'Gelasio', Georgia, serif; font-weight: 700; font-size: .98em; line-height: 1.25; color: var(--vinho); }
+  .cc-item-peso { margin-left: 1.8mm; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 500; font-size: .72em; color: var(--desc); white-space: nowrap; }
   .cc-item-preco { font-weight: 600; font-size: .92em; color: var(--vinho); white-space: nowrap; }
   .cc-item-desc { font-size: .78em; color: var(--desc); line-height: 1.35; margin-top: .6mm; }
   .cc-item-selo {
@@ -335,11 +361,12 @@ const CANTO_ARABESCO_SVG = `<svg viewBox="0 0 100 100" aria-hidden="true"><g fil
   </g><g fill="#B58A94"><circle cx="4" cy="4" r="2.4"/><circle cx="82" cy="6" r="1.6"/><circle cx="6" cy="82" r="1.6"/><circle cx="50" cy="50" r="1.4"/></g></svg>`
 const CANTOS_HTML = ['tl', 'tr', 'bl', 'br'].map(c => `<div class="cc-canto cc-canto--${c}">${CANTO_ARABESCO_SVG}</div>`).join('')
 
-function renderItemCompacto(item) {
+function renderItemCompacto(item, mostrarPeso = false) {
+  const pesoTxt = mostrarPeso ? formatarPeso(item.peso) : ''
   return `
     <div class="cc-item">
       <div class="cc-item-linha1">
-        <span class="cc-item-nome">${escHtml(item.nome)}${item.destaque ? '<span class="cc-item-selo">★ Mais pedido</span>' : ''}</span>
+        <span class="cc-item-nome">${escHtml(item.nome)}${pesoTxt ? `<span class="cc-item-peso">${pesoTxt}</span>` : ''}${item.destaque ? '<span class="cc-item-selo">★ Mais pedido</span>' : ''}</span>
         <span class="cc-item-preco">${R$(item.preco)}</span>
       </div>
       ${item.descricao ? `<div class="cc-item-desc">${escHtml(item.descricao)}</div>` : ''}
@@ -375,13 +402,13 @@ export function separarDescricaoComum(itens) {
   }
 }
 
-function renderCategoriaCompacta(grupo) {
+function renderCategoriaCompacta(grupo, mostrarPeso = false) {
   const { descricaoCategoria, itens } = separarDescricaoComum(grupo.itens)
   // Cada categoria é um bloco que não se parte entre colunas (o título nunca fica sem os itens)
   return `
     <div class="cc-grupo">
       <div class="cc-categoria">${escHtml(grupo.categoria)}${descricaoCategoria ? `<div class="cc-categoria-desc">${escHtml(descricaoCategoria)}</div>` : ''}</div>
-      ${itens.map(renderItemCompacto).join('')}
+      ${itens.map(i => renderItemCompacto(i, mostrarPeso)).join('')}
     </div>`
 }
 
@@ -418,7 +445,7 @@ function cardapioCompactoDocHtml({ config, grupos, empresa, linkOnline }) {
     </div>
     <div class="cc-area">
       <div class="cc-itens">
-        ${grupos.map(renderCategoriaCompacta).join('')}
+        ${grupos.map(gr => renderCategoriaCompacta(gr, !!config?.mostrar_peso)).join('')}
       </div>
     </div>
     ${rodape}
@@ -1461,7 +1488,9 @@ export function gerarHtmlPedidoInterativo({ config, grupos, empresa, modoBalcao 
         // Todos os itens seguem o mesmo layout enxuto: sem imagem por unidade (a categoria
         // já tem a capa). O preço aparece SEMPRE na linha do nome (quem decide compra olhando o
         // valor ao lado do sabor), a descrição fica visível e o aviso de encomenda vai embaixo.
+        const pesoTxt = config?.mostrar_peso ? formatarPeso(item.peso) : ''
         const detalhes = [
+          pesoTxt ? `<span class="ip-item-peso">${pesoTxt}</span>` : '',
           item.sobEncomenda ? '<span class="ip-item-encomenda">🕒 sob encomenda</span>' : ''
         ].filter(Boolean)
         return `
