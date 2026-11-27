@@ -22,7 +22,7 @@
       </button>
     </header>
 
-    <div class="vc-corpo">
+    <div ref="corpoEl" class="vc-corpo" @scroll.passive="aoRolar">
       <div v-if="!s.googleDriveConfigured" class="vc-aviso">
         <i class="fas fa-cloud-slash"></i>
         <span>O Google Drive não está conectado neste aparelho. Você vê só os dados que já estão aqui.</span>
@@ -43,6 +43,7 @@
             <div class="vc-kpi-pilulas">
               <span class="vc-kpi-pilula"><i class="fas fa-receipt"></i><b>{{ resumo.qtdAbertas }}</b> {{ resumo.qtdAbertas === 1 ? 'compra' : 'compras' }}</span>
               <span class="vc-kpi-pilula"><i class="fas fa-user"></i><b>{{ resumo.qtdClientesDevendo }}</b> {{ resumo.qtdClientesDevendo === 1 ? 'cliente' : 'clientes' }}</span>
+              <span class="vc-kpi-pilula"><i class="fas fa-circle-check"></i>Recebido hoje <b>R$ {{ fmt(resumo.recebidoHoje) }}</b></span>
             </div>
           </div>
 
@@ -74,7 +75,7 @@
       <div class="vc-barra">
         <label class="vc-busca">
           <i class="fas fa-magnifying-glass"></i>
-          <input v-model="busca" type="search" :placeholder="placeholderBusca" autocomplete="off">
+          <input :value="busca" type="search" enterkeyhint="search" :placeholder="placeholderBusca" autocomplete="off" @input="busca = $event.target.value">
           <button v-if="busca" type="button" class="vc-busca-x" aria-label="Limpar busca" @click="busca = ''"><i class="fas fa-xmark"></i></button>
         </label>
         <button
@@ -90,7 +91,7 @@
       <div id="vc-filtros-painel" class="vc-painel" :class="{ aberto: filtrosAbertos }" :aria-hidden="!filtrosAbertos">
         <div class="vc-painel-inner">
           <div class="vc-painel-card">
-            <div class="vc-painel-rot">{{ aba === 'lojas' ? 'Mostrar lojas' : 'Mostrar vendas' }}</div>
+            <div class="vc-painel-rot">{{ aba === 'lojas' ? 'Mostrar lojas' : 'Mostrar no histórico' }}</div>
             <div class="vc-seg" role="radiogroup">
               <button
                 v-for="f in filtrosLista" :key="f.id" type="button" role="radio" class="vc-seg-btn"
@@ -98,7 +99,6 @@
                 :tabindex="filtrosAbertos ? 0 : -1" @click="escolherFiltro(f.id)"
               >
                 <span class="vc-seg-nome">{{ f.nome }}</span>
-                <span class="vc-seg-n">{{ f.n }}</span>
               </button>
             </div>
           </div>
@@ -155,21 +155,40 @@
       <!-- HISTÓRICO -->
       <template v-else>
         <div class="vc-lista">
-          <button v-for="f in historicoFiltrado" :key="f.id" class="vc-linha" @click="abrirModal({ tipo: 'fiado', id: f.id })">
-            <span class="vc-av" :class="{ 'vc-av--pago': f.status === 'pago' }">
-              <i v-if="f.status === 'pago'" class="fas fa-check"></i><template v-else>{{ iniciais(f.clienteNome) }}</template>
-            </span>
-            <span class="vc-linha-txt">
-              <span class="vc-linha-nome">{{ f.clienteNome }}</span>
-              <span class="vc-linha-sub">{{ fmtBR(f.dataVenda) }} · {{ f.lojaNome }} · {{ qtdItens(f) }}</span>
-            </span>
-            <span class="vc-linha-val" :class="{ 'vc-linha-val--pago': f.status === 'pago' }">R$ {{ fmt(f.total) }}</span>
+          <button v-for="m in movimentosFiltrados" :key="m.chave" class="vc-linha" @click="abrirModal({ tipo: 'fiado', id: m.fiado.id })">
+            <template v-if="m.tipo === 'pagamento'">
+              <span class="vc-av vc-av--pago"><i class="fas fa-circle-check"></i></span>
+              <span class="vc-linha-txt">
+                <span class="vc-linha-nome">{{ m.fiado.clienteNome }}</span>
+                <span class="vc-linha-sub">Pagamento · {{ fmtBR(m.data) }}<template v-if="fmtHora(m.hora)"> - {{ fmtHora(m.hora) }}</template> · {{ m.fiado.lojaNome }}</span>
+                <span class="vc-linha-sub vc-linha-sub--pag">{{ m.quitou ? `Quitou a compra de R$ ${fmt(m.fiado.total)}` : `Pagou em parte · faltou R$ ${fmt(m.saldoDepois)}` }}</span>
+              </span>
+              <span class="vc-linha-val vc-linha-val--pago">+ R$ {{ fmt(m.valor) }}</span>
+            </template>
+            <template v-else>
+              <span class="vc-av" :class="{ 'vc-av--pago': m.fiado.status === 'pago' }">
+                <i v-if="m.fiado.status === 'pago'" class="fas fa-check"></i><template v-else>{{ iniciais(m.fiado.clienteNome) }}</template>
+              </span>
+              <span class="vc-linha-txt">
+                <span class="vc-linha-nome">{{ m.fiado.clienteNome }}</span>
+                <span class="vc-linha-sub">{{ fmtBR(m.fiado.dataVenda) }} · {{ m.fiado.lojaNome }} · {{ qtdItens(m.fiado) }}</span>
+                <span v-if="totalPago(m.fiado) > 0 && m.fiado.status === 'aberto'" class="vc-linha-sub vc-linha-sub--pag">Já pagou R$ {{ fmt(totalPago(m.fiado)) }} · falta R$ {{ fmt(m.fiado.saldo) }}</span>
+              </span>
+              <span class="vc-linha-val" :class="{ 'vc-linha-val--pago': m.fiado.status === 'pago' }">R$ {{ fmt(m.fiado.total) }}</span>
+            </template>
           </button>
         </div>
-        <div v-if="!historicoFiltrado.length" class="vc-vazio">Nenhuma venda encontrada.</div>
-        <p v-else-if="historicoOrdenado.length > LIMITE_HIST && !busca" class="vc-mais">Mostrando as {{ LIMITE_HIST }} mais recentes. Use a busca para achar as antigas.</p>
+        <div v-if="!movimentosFiltrados.length" class="vc-vazio">{{ filtroHist === 'recebimentos' ? 'Nenhum pagamento encontrado.' : 'Nenhuma venda encontrada.' }}</div>
+        <p v-else-if="movimentosOrdenados.length > LIMITE_HIST && !busca" class="vc-mais">Mostrando as {{ LIMITE_HIST }} mais recentes. Use a busca para achar as antigas.</p>
       </template>
     </div>
+
+    <!-- Voltar ao topo da lista -->
+    <Transition name="vc-topo">
+      <button v-if="mostrarTopo" type="button" class="vc-topo" aria-label="Voltar ao topo" title="Voltar ao topo" @click="voltarAoTopo">
+        <i class="fas fa-arrow-up"></i>
+      </button>
+    </Transition>
 
     <!-- Detalhes (somente leitura) -->
     <Teleport to="body">
@@ -274,6 +293,16 @@ const carregando = ref(true)
 const atualizando = ref(false)
 const estado = ref('ok') // 'ok' | 'erro'
 const agora = ref(Date.now())
+
+// Botão "voltar ao topo": aparece depois de rolar um pouco a lista.
+const corpoEl = ref(null)
+const mostrarTopo = ref(false)
+const LIMITE_TOPO = 320
+function aoRolar() { mostrarTopo.value = (corpoEl.value?.scrollTop || 0) > LIMITE_TOPO }
+function voltarAoTopo() {
+  const reduzir = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  corpoEl.value?.scrollTo({ top: 0, behavior: reduzir ? 'auto' : 'smooth' })
+}
 
 const aba = ref('lojas')
 const busca = ref('')
@@ -386,6 +415,16 @@ const comprasDoCliente = (id) => fiados.value
 
 const chaveRecente = (f) => `${f.dataVenda || ''} ${f.horaVenda || ''} ${f.criadoEm || ''}`
 
+// Cada pagamento (inclusive parcial) de cada compra, como um movimento próprio do histórico.
+const todosPagamentos = computed(() => fiados.value.flatMap(f =>
+  (f.pagamentos || []).map((p, idx) => ({
+    tipo: 'pagamento', chave: `p-${f.id}-${idx}`, fiado: f,
+    valor: Number(p.valor) || 0, data: p.data || '', hora: p.hora || '',
+    saldoDepois: Number(p.saldoDepois) || 0, quitou: Number(p.saldoDepois) <= 0.01,
+    ordem: `${p.data || ''} ${p.hora || ''} ${p.criadoEm || ''}`
+  }))
+))
+
 const resumo = computed(() => {
   const hj = hoje()
   const soma = (lista) => centavos(lista.reduce((t, f) => t + Number(f.saldo), 0))
@@ -395,7 +434,8 @@ const resumo = computed(() => {
     totalAberto: soma(abertas.value), qtdAbertas: abertas.value.length,
     qtdClientesDevendo: Object.keys(saldoPorCliente.value).length,
     totalVencido: soma(vencidas), qtdVencidas: vencidas.length,
-    totalHoje: soma(deHoje), qtdHoje: deHoje.length
+    totalHoje: soma(deHoje), qtdHoje: deHoje.length,
+    recebidoHoje: centavos(todosPagamentos.value.filter(p => p.data === hj).reduce((t, p) => t + p.valor, 0))
   }
 })
 
@@ -488,9 +528,10 @@ const filtrosLista = computed(() => aba.value === 'lojas'
       { id: 'abertas', nome: 'Com valor em aberto', n: gruposBase.value.filter(g => g.total > 0.01).length }
     ]
   : [
-      { id: 'todos',   nome: 'Todas',     n: fiados.value.length },
+      { id: 'todos',   nome: 'Tudo',      n: fiados.value.length + todosPagamentos.value.length },
       { id: 'abertas', nome: 'Em aberto', n: fiados.value.filter(f => f.status === 'aberto').length },
-      { id: 'pagas',   nome: 'Pagas',     n: fiados.value.filter(f => f.status === 'pago').length }
+      { id: 'pagas',   nome: 'Pagas',     n: fiados.value.filter(f => f.status === 'pago').length },
+      { id: 'recebimentos', nome: 'Recebimentos', n: todosPagamentos.value.length }
     ])
 const filtroSelecionado = computed(() => aba.value === 'lojas' ? filtroLojas.value : filtroHist.value)
 const filtroAtivo = computed(() => filtroSelecionado.value !== (aba.value === 'lojas' ? 'todas' : 'todos'))
@@ -527,12 +568,19 @@ function statusCliente(c) {
     : { txt: `Vence ${fmtBR(datas[0]).slice(0, 5)}`, cls: '' }
 }
 
-const historicoOrdenado = computed(() => [...fiados.value].sort((a, b) => chaveRecente(b).localeCompare(chaveRecente(a))))
-const historicoFiltrado = computed(() => {
-  const lista = historicoOrdenado.value.filter(f =>
-    (filtroHist.value === 'todos' || (filtroHist.value === 'abertas' ? f.status === 'aberto' : f.status === 'pago')) &&
-    casa(f.clienteNome, f.lojaNome, (f.itens || []).map(i => i.nome).join(' '), f.descricaoLivre)
-  )
+// Histórico = compras + pagamentos, do mais recente para o mais antigo.
+// "Todas" mistura os dois; "Em aberto"/"Pagas" mostram só compras; "Recebimentos" só pagamentos.
+const movimentosOrdenados = computed(() => {
+  const f = filtroHist.value
+  const compras = f === 'recebimentos' ? [] : fiados.value
+    .filter(x => f === 'todos' || (f === 'abertas' ? x.status === 'aberto' : x.status === 'pago'))
+    .map(x => ({ tipo: 'compra', chave: `c-${x.id}`, fiado: x, ordem: chaveRecente(x) }))
+  const pagamentos = (f === 'todos' || f === 'recebimentos') ? todosPagamentos.value : []
+  return [...compras, ...pagamentos].sort((a, b) => b.ordem.localeCompare(a.ordem))
+})
+const movimentosFiltrados = computed(() => {
+  const lista = movimentosOrdenados.value.filter(m =>
+    casa(m.fiado.clienteNome, m.fiado.lojaNome, (m.fiado.itens || []).map(i => i.nome).join(' '), m.fiado.descricaoLivre))
   return termo.value ? lista : lista.slice(0, LIMITE_HIST)
 })
 
@@ -564,7 +612,7 @@ function statusClasse(f) {
 </script>
 
 <style scoped>
-.vc { height: 100%; display: flex; flex-direction: column; background: var(--bg); font-family: var(--font); }
+.vc { position: relative; height: 100%; display: flex; flex-direction: column; background: var(--bg); font-family: var(--font); }
 
 /* Cabeçalho */
 .vc-hdr {
@@ -642,6 +690,13 @@ function statusClasse(f) {
 }
 .vc-busca:focus-within { border-color: var(--brown); }
 .vc-busca input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--text); }
+/* Esconde o "x" nativo do input type=search (já existe o nosso botão de limpar) */
+.vc-busca input { -webkit-appearance: none; appearance: none; }
+.vc-busca input::-webkit-search-cancel-button,
+.vc-busca input::-webkit-search-decoration,
+.vc-busca input::-webkit-search-results-button,
+.vc-busca input::-webkit-search-results-decoration { -webkit-appearance: none; appearance: none; display: none; }
+.vc-busca input::-ms-clear { display: none; }
 .vc-busca-x { border: 0; background: none; color: var(--muted); font-size: 14px; cursor: pointer; padding: 6px; }
 /* Barra de busca + botão de filtros */
 .vc-barra { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -725,6 +780,20 @@ function statusClasse(f) {
 .vc-linha-sub { font-size: 12px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vc-linha-val { font-family: var(--mono); font-size: 15px; font-weight: 800; color: var(--brown); white-space: nowrap; }
 .vc-linha-val--pago { color: var(--green); }
+.vc-linha-sub--pag { color: var(--green); font-weight: 700; }
+
+/* Botão flutuante: voltar ao topo */
+.vc-topo {
+  position: absolute; right: 16px; bottom: max(20px, env(safe-area-inset-bottom));
+  width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--brown-dark); box-shadow: var(--shadow);
+  display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; z-index: 5;
+}
+.vc-topo:active { background: var(--cream-deep); }
+.vc-topo:focus-visible { outline: 2px solid var(--brown); outline-offset: 2px; }
+.vc-topo-enter-active, .vc-topo-leave-active { transition: opacity .18s ease, transform .18s ease; }
+.vc-topo-enter-from, .vc-topo-leave-to { opacity: 0; transform: translateY(8px); }
+@media (prefers-reduced-motion: reduce) { .vc-topo-enter-active, .vc-topo-leave-active { transition: none; } }
 .vc-ok { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; color: var(--green); white-space: nowrap; }
 .vc-vazio { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 36px 16px; font-size: 14px; font-weight: 700; color: var(--muted); text-align: center; }
 .vc-mais { margin: 14px 0 0; text-align: center; font-size: 12px; color: var(--muted); }
