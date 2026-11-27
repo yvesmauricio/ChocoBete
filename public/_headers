@@ -27,6 +27,11 @@
 /pedido-festa
   Cache-Control: no-cache, must-revalidate
 
+# Tema visual dos cardápios: revalida a cada visita (304 se não mudou), então um deploy novo
+# já vale na hora para quem abre o link — sem precisar republicar o cardápio.
+/tema-atelier.css
+  Cache-Control: no-cache, must-revalidate
+
 # Versão publicada: o app consulta pra saber se há atualização. Nunca pode vir de cache.
 /version.json
   Cache-Control: no-store
