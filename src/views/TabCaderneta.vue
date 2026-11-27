@@ -722,7 +722,6 @@
                     :tabindex="filtrosAbertos ? 0 : -1" @click="escolherFiltroResumo(f.id)"
                   >
                     <span class="vc-seg-nome">{{ f.nome }}</span>
-                    <span class="vc-seg-n">{{ f.n }}</span>
                   </button>
                 </div>
               </div>
@@ -742,7 +741,7 @@
                 <span class="vc-av vc-av--pago"><i class="fas fa-circle-check"></i></span>
                 <span class="vc-linha-txt">
                   <span class="vc-linha-nome">{{ m.fiado.clienteNome }}</span>
-                  <span class="vc-linha-sub">Pagamento · {{ fmtBR(m.data) }}<template v-if="fmtHora(m.hora)"> {{ fmtHora(m.hora) }}</template> · {{ m.fiado.lojaNome }}</span>
+                  <span class="vc-linha-sub">Pagou · {{ fmtBR(m.data) }}<template v-if="fmtHora(m.hora)"></template> · {{ m.fiado.lojaNome }}</span>
                   <span class="vc-linha-sub vc-linha-sub--pag">{{ m.quitou ? `Quitou a compra de R$ ${fmt(m.fiado.total)}` : `Pagou em parte · faltou R$ ${fmt(m.saldoDepois)}` }}</span>
                 </span>
                 <span class="vc-linha-val vc-linha-val--pago">+ R$ {{ fmt(m.valor) }}</span>

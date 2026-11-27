@@ -160,7 +160,7 @@
               <span class="vc-av vc-av--pago"><i class="fas fa-circle-check"></i></span>
               <span class="vc-linha-txt">
                 <span class="vc-linha-nome">{{ m.fiado.clienteNome }}</span>
-                <span class="vc-linha-sub">Pagamento · {{ fmtBR(m.data) }}<template v-if="fmtHora(m.hora)"> {{ fmtHora(m.hora) }}</template> · {{ m.fiado.lojaNome }}</span>
+                <span class="vc-linha-sub">Pagou · {{ fmtBR(m.data) }}<template v-if="fmtHora(m.hora)"></template> · {{ m.fiado.lojaNome }}</span>
                 <span class="vc-linha-sub vc-linha-sub--pag">{{ m.quitou ? `Quitou a compra de R$ ${fmt(m.fiado.total)}` : `Pagou em parte · faltou R$ ${fmt(m.saldoDepois)}` }}</span>
               </span>
               <span class="vc-linha-val vc-linha-val--pago">+ R$ {{ fmt(m.valor) }}</span>
@@ -230,14 +230,14 @@
               </div>
 
               <div class="vc-datas">
-                <div><small>Data da compra</small><b>{{ fmtBR(fiadoAberto.dataVenda) }}<template v-if="fmtHora(fiadoAberto.horaVenda)"> {{ fmtHora(fiadoAberto.horaVenda) }}</template></b></div>
+                <div><small>Data da compra</small><b>{{ fmtBR(fiadoAberto.dataVenda) }}<template v-if="fmtHora(fiadoAberto.horaVenda)">|{{ fmtHora(fiadoAberto.horaVenda) }}</template></b></div>
                 <div><small>Combinado para</small><b>{{ fmtBR(fiadoAberto.dataVenc) }}</b></div>
               </div>
 
               <template v-if="fiadoAberto.pagamentos?.length">
                 <div class="vc-sub-tit">Pagamentos</div>
                 <div v-for="(p, idx) in fiadoAberto.pagamentos" :key="idx" class="vc-pag">
-                  <span><i class="fas fa-circle-check"></i> {{ fmtBR(p.data) }}<template v-if="fmtHora(p.hora)"> {{ fmtHora(p.hora) }}</template></span>
+                  <span><i class="fas fa-circle-check"></i> {{ fmtBR(p.data) }}<template v-if="fmtHora(p.hora)">|{{ fmtHora(p.hora) }}</template></span>
                   <b>R$ {{ fmt(p.valor) }}</b>
                 </div>
               </template>
